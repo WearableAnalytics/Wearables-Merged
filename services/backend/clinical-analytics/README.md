@@ -50,5 +50,5 @@ influx v1 shell
 ### Alternative: Just
 To easily deploy everything you need for the influx-deployment please bash following command (this command will not open the influx-cli):
 ```shell
-just test_influx
+just test_influx <namespace>
 ```
