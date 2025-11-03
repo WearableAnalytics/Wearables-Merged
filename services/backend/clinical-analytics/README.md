@@ -39,7 +39,7 @@ kubectl apply -f ./k8s/influx-deployment.yml -n <namespace>
 Please forward the Influx-Port in a new Terminal-Tab, so you can access the shell of Influx on your local machine: 
 
 ```shell
-kubectl port-foward svc/influx-service -n <namespace> 8086:8086
+kubectl port-forward svc/influx-service -n <namespace> 8086:8086
 ```
 
 To access the Influx-Shell please enter following command in another Terminal-Tab:
