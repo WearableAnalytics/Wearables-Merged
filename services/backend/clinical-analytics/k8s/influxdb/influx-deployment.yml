@@ -19,10 +19,11 @@ spec:
         - containerPort: 8086
         volumeMounts:
         - name: influxdb-storage
-          mountPath: /var/lib/influxdb2
+          mountPath: /var/lib/influxdb
       volumes:
         - name: influxdb-storage
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: influxdb-pvc
 ---
 apiVersion: v1
 kind: Service
