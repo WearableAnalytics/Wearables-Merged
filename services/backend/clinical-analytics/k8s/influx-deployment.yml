@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: influxdb
+  namespace: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: influxdb
+  template:
+    metadata:
+      labels:
+        app: influxdb
+    spec:
+      containers:
+      - name: influxdb
+        image: influxdb:1.12
+        ports:
+        - containerPort: 8086
+        volumeMounts:
+        - name: influxdb-storage
+          mountPath: /var/lib/influxdb2
+      volumes:
+        - name: influxdb-storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: influx-service
+  namespace: kafka
+spec:
+  selector:
+    app: influxdb
+  ports:
+    - port: 8086
+      targetPort: 8086
+      protocol: TCP
+      name: influx
