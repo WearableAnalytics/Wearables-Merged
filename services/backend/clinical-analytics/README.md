@@ -5,6 +5,7 @@
 - kubectl: Client-Version >= v1.34.1, Kustomize Version: v5.7.1, Server Version: v1.34.0
 - **Container Runtime**: e.g. Docker >= v27.3.1
 - Influx CLI >= v2.7.5
+- just >= 1.37.0
 
 #### Recommended Tools for easy Monitoring
 - k9s >= v0.50.15 (monitor the cluster)
@@ -46,3 +47,8 @@ To access the Influx-Shell please enter following command in another Terminal-Ta
 influx v1 shell
 ```
 
+### Alternative: Just
+To easily deploy everything you need for the influx-deployment please bash following command (this command will not open the influx-cli):
+```shell
+just test_influx
+```
