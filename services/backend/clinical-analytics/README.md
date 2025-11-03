@@ -33,7 +33,8 @@ kubectl create namespace <namespace>
 To deploy **InfluxDB 1.12** execute following command in the root of the project:
 
 ```shell
-kubectl apply -f ./k8s/influx-deployment.yml -n <namespace>
+kubectl apply -f ./k8s/influxdb/influx-pvc.yml -n <namespace>
+kubectl apply -f ./k8s/influxdb/influx-deployment.yml -n <namespace>
 ```
 
 Please forward the Influx-Port in a new Terminal-Tab, so you can access the shell of Influx on your local machine: 
