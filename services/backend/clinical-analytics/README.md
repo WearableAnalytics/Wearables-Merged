@@ -28,13 +28,18 @@ kubectl create namespace <namespace>
 
 #### Deploying the Services
 
-- TODO: Add Kafka Deployment 
+To deploy **Kafka** execute following command in the root of the project
+```shell
+kubectl apply -f 'https://strimzi.io/install/latest?namespace=<namespace>'
+kubectl apply -f ./k8s/kafka/kafka.yml -n <namespace>
+```
 
-To deploy **InfluxDB 1.12** execute following command in the root of the project:
+---
+To deploy **InfluxDB 2.7** execute following command in the root of the project:
 
 ```shell
 kubectl apply -f ./k8s/influxdb/influx-pvc.yml -n <namespace>
-kubectl apply -f ./k8s/influxdb/influx-deployment.yml -n <namespace>
+kubectl apply -f ./k8s/influxdb/influx.yml -n <namespace>
 ```
 
 Please forward the Influx-Port in a new Terminal-Tab, so you can access the shell of Influx on your local machine: 
@@ -43,13 +48,25 @@ Please forward the Influx-Port in a new Terminal-Tab, so you can access the shel
 kubectl port-forward svc/influx-service -n <namespace> 8086:8086
 ```
 
+**Deprecated -> Only for Influx1:12**
 To access the Influx-Shell please enter following command in another Terminal-Tab:
 ```shell
 influx v1 shell
 ```
 
 ### Alternative: Just
-To easily deploy everything you need for the influx-deployment please bash following command (this command will not open the influx-cli):
+For ease of use, you could also use the just commands to deploy everything:
+This command starts a minikube cluster with `--cpus=4` and `--memory=7000`:
 ```shell
-just test_influx <namespace>
+just start <namespace>
+```
+
+This command deploys a Strimzi-Kafka-Cluster, please use the same namespace as above:
+```shell
+just kafka <namespace>
+```
+
+This command deploys influx:2.7 (might migrate back to 1.12), please use the namespace as above:
+```shell
+just influx <namespace>
 ```

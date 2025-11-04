@@ -1,3 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: influxdb-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 10Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,7 +26,7 @@ spec:
     spec:
       containers:
       - name: influxdb
-        image: influxdb:1.12
+        image: influxdb:2.7
         ports:
         - containerPort: 8086
         volumeMounts:
