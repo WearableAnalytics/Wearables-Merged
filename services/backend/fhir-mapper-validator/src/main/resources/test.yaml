@@ -1,0 +1,45 @@
+mappingsList:
+  - source: device.id
+    target: device
+    optional: false
+    type: string
+  - source: user.id
+    target: user
+    optional: false
+    type: string
+  - source: heart_rate.bpm
+    target: valueQuantity.value
+    optional: false
+    type: integer
+  - source: timestamp_utc
+    target: effectiveDateTime
+    optional: false
+    type: string
+  - source: heart_rate.unit
+    target: valueQuantity.unit
+    optional: false
+    type: string
+  - source: metadata.type
+    target: resourceType
+    optional: false
+    type: string
+  - source: context.status
+    target: status
+    optional: false
+    type: string
+  - source: heart_rate.id
+    target: id
+    optional: false
+    type: string
+  - source: code.coding[0].system
+    target: code.coding[0].system
+    optional: false
+    type: string
+  - source: code.coding[0].code
+    target: code.coding[0].code
+    optional: false
+    type: string
+  - source: code.coding[0].display
+    target: code.coding[0].display
+    optional: false
+    type: string

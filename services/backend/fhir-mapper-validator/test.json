@@ -1,0 +1,58 @@
+{
+  "device": {
+    "id": "ZX4-00123",
+    "manufacturer": "ZenWear",
+    "model": "ZX-4",
+    "firmware_version": "3.2.1",
+    "battery_level": 0.81
+  },
+  "user": {
+    "id": "user-8937",
+    "age": 32,
+    "sex": "female"
+  },
+  "timestamp_utc": "2025-10-29T08:42:15Z",
+  "heart_rate": {
+    "id": "heart-rate",
+    "bpm": 76,
+    "unit": "beats/minute",
+    "rr_interval_ms": 790,
+    "signal_confidence": 0.94,
+    "measurement_type": "optical_ppg",
+    "motion_level": 0.02,
+    "skin_contact": true,
+    "valid": true
+  },
+  "context": {
+    "activity": "resting",
+    "body_position": "sitting",
+    "ambient_temp_c": 22.1,
+    "location": {
+      "lat": 47.6101,
+      "lon": -122.3421,
+      "alt_m": 22.4
+    },
+    "status": "final"
+  },
+  "processing": {
+    "sampling_frequency_hz": 25,
+    "filter_applied": "adaptive_lowpass_v2",
+    "timestamp_local": "2025-10-29T10:42:15+02:00",
+    "data_quality": "good"
+  },
+  "metadata": {
+    "source": "smartwatch_sensor",
+    "upload_status": "pending",
+    "record_id": "rec-20251029-084215-01",
+    "type": "Observation"
+  },
+  "code": {
+    "coding": [
+      {
+        "system": "http://loinc.org",
+        "code": "8867-4",
+        "display": "Heart rate"
+      }
+    ]
+  }
+}
