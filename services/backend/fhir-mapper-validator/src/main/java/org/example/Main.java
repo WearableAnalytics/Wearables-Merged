@@ -2,104 +2,38 @@ package org.example;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
-
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.context.support.DefaultProfileValidationSupport;
-import ca.uhn.fhir.sl.cache.CacheFactory;
 import ca.uhn.fhir.validation.FhirValidator;
 import ca.uhn.fhir.validation.IValidatorModule;
-import ca.uhn.fhir.validation.SchemaBaseValidator;
 import ca.uhn.fhir.validation.ValidationResult;
-import com.fasterxml.jackson.core.exc.StreamReadException;
-import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.gson.*;
 import lombok.Data;
-import netscape.javascript.JSObject;
-import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.ValueMapper;
-// ADD these instead:
-import ca.uhn.fhir.context.support.IValidationSupport;
-import ca.uhn.fhir.context.support.ValidationSupportContext;
 import org.hl7.fhir.common.hapi.validation.support.CommonCodeSystemsTerminologyService;
 import org.hl7.fhir.common.hapi.validation.support.InMemoryTerminologyServerValidationSupport;
 import org.hl7.fhir.common.hapi.validation.support.SnapshotGeneratingValidationSupport;
 import org.hl7.fhir.common.hapi.validation.support.ValidationSupportChain;
 import org.hl7.fhir.common.hapi.validation.validator.FhirInstanceValidator;
 import org.hl7.fhir.r4.model.*;
-import org.hl7.fhir.r4.model.Bundle;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.github.victools.jsonschema.generator.OptionPreset;
-import com.github.victools.jsonschema.generator.SchemaGenerator;
-import com.github.victools.jsonschema.generator.SchemaGeneratorConfig;
-import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder;
-import com.github.victools.jsonschema.generator.SchemaVersion;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 public class Main {
 
     private static final Logger log = LoggerFactory.getLogger(Main.class);
-
-    // Rule describing how to map a source path to a target path and whether it's optional.
-    static class MappingRule {
-        final String target;
-        final boolean optional;
-        final ValueTransformer transformer; // extensible hook for future transformations
-
-        MappingRule(String target, boolean optional, ValueTransformer transformer) {
-            this.target = target;
-            this.optional = optional;
-            this.transformer = transformer == null ? ValueTransformer.identity() : transformer;
-        }
-    }
-
-    // Simple transformation functional interface to keep the pipeline extensible
-    interface ValueTransformer {
-        JsonElement apply(JsonElement in);
-
-        static ValueTransformer identity() {
-            return v -> v;
-        }
-    }
-
-    // Token model for navigating/creating JSON structures
-    static abstract class PathToken {
-    }
-
-    static final class FieldToken extends PathToken {
-        final String name;
-
-        FieldToken(String n) {
-            this.name = n;
-        }
-    }
-
-    static final class IndexToken extends PathToken {
-        final int index;
-
-        IndexToken(int i) {
-            this.index = i;
-        }
-    }
-
 
     final static String INPUT_TOPIC = "wearables-raw";
     final static String OUTPUT_TOPIC = "wearables-fhri";
@@ -112,7 +46,6 @@ public class Main {
     // We need to be able to choose between multiple yaml files for multiple providers
     final static MappingYaml yaml = readYaml("src/main/resources/test.yaml");
 
-    //TODO we need to cahnge this so one input can produce multiple outputs
     public static void main(String[] args) throws InterruptedException {
 
         initiliazeFhirValidator();
@@ -189,13 +122,11 @@ public class Main {
         log.info("Initializing FHIR validator (with caching)...");
         long start = System.currentTimeMillis();
 
-        // Use cached context to avoid repeated classpath scans
         CTX = FhirContext.forR4Cached();
         validator = CTX.newValidator();
 
         ValidationSupportChain.CacheConfiguration.defaultValues();
 
-        // Build a local validation support chain and wrap it in a cache
         ValidationSupportChain validationSupportChain = new ValidationSupportChain(
                 new DefaultProfileValidationSupport(CTX),
                 new CommonCodeSystemsTerminologyService(CTX),
@@ -203,26 +134,11 @@ public class Main {
                 new SnapshotGeneratingValidationSupport(CTX)
         );
 
-        fetchFhirStuff(validationSupportChain);
-
         IValidatorModule module = new FhirInstanceValidator(validationSupportChain);
         validator.registerValidatorModule(module);
 
         long end = System.currentTimeMillis();
         log.info("FHIR validator initialized in {} ms", (end - start));
-
-        // Pre-warm the caches with a minimal resource validation
-        try {
-            long warmStart = System.currentTimeMillis();
-            Patient p = new Patient();
-            p.addName().setFamily("warmup").addGiven("warm");
-            p.setId("warm-1");
-            ValidationResult warm = validator.validateWithResult(p);
-            long warmEnd = System.currentTimeMillis();
-            log.info("FHIR validator warm-up took {} ms, ok={}", (warmEnd - warmStart), warm.isSuccessful());
-        } catch (Exception e) {
-            log.warn("Warm-up validation failed: {}", e.getMessage());
-        }
     }
 
     // Build a map from source path -> MappingRule (target, optional)
@@ -318,9 +234,6 @@ public class Main {
                     // Create array if current isn't array (edge case: target path starting with index)
                     arr = new JsonArray();
                     log.debug("setAtTarget: created JsonArray for index token at position {}", i);
-                    // We need a parent to attach this array; to keep code simple, we assume index isn't first token
-                    // If it is, we attach under a default key "_root".
-                    // But normally, previous step ensures array container exists.
                 }
                 while (arr.size() <= idx.index) arr.add(JsonNull.INSTANCE);
                 if (last) {
@@ -440,42 +353,6 @@ public class Main {
         }
     }
 
-    //for debugging
-    static void fetchFhirStuff(ValidationSupportChain dpvs) {
-        if (dpvs == null) {
-            log.error("DefaultProfileValidationSupport (dpvs) is null.");
-            return;
-        }
-
-        Object conformanceResources = dpvs.fetchAllConformanceResources();
-        if (conformanceResources != null) {
-            log.info("Conformance resources: {}", conformanceResources.toString());
-        } else {
-            log.warn("Conformance resources are null.");
-        }
-
-        Object nonBaseStructureDefs = dpvs.fetchAllNonBaseStructureDefinitions();
-        if (nonBaseStructureDefs != null) {
-            log.info("Non base structure definitions: {}", nonBaseStructureDefs.toString());
-        } else {
-            log.warn("Non base structure definitions are null.");
-        }
-
-//        Object searchParameters = dpvs.fetchAllSearchParameters();
-//        if (searchParameters != null) {
-//            SLog.i("Search parameters: %s", searchParameters.toString());
-//        } else {
-//            SLog.w("Search parameters are null.");
-//        }
-
-        Object name = dpvs.getName();
-        if (name != null) {
-            log.info("Name: {}", name.toString());
-        } else {
-            log.warn("Name is null.");
-        }
-    }
-
     // We read the provided YAML from the user and check if it's fits the requirements of the "meta-yaml".
     // We only have to do this once in the beginning since I propose we restart the tasks / pods after we added a new provider
     static MappingYaml readYaml(String path) {
@@ -503,6 +380,46 @@ public class Main {
         } catch (IOException e) {
             log.error(String.format("Failed to load mapping YAML (externalPath=%s, providedPath=%s)", externalPath, path), e);
             throw new RuntimeException("Failed to load mapping YAML: " + e.getMessage(), e);
+        }
+    }
+
+    // Rule describing how to map a source path to a target path and whether it's optional.
+    static class MappingRule {
+        final String target;
+        final boolean optional;
+        final ValueTransformer transformer; // extensible hook for future transformations
+
+        MappingRule(String target, boolean optional, ValueTransformer transformer) {
+            this.target = target;
+            this.optional = optional;
+            this.transformer = transformer == null ? ValueTransformer.identity() : transformer;
+        }
+    }
+
+    interface ValueTransformer {
+        JsonElement apply(JsonElement in);
+
+        static ValueTransformer identity() {
+            return v -> v;
+        }
+    }
+
+    static abstract class PathToken {
+    }
+
+    static final class FieldToken extends PathToken {
+        final String name;
+
+        FieldToken(String n) {
+            this.name = n;
+        }
+    }
+
+    static final class IndexToken extends PathToken {
+        final int index;
+
+        IndexToken(int i) {
+            this.index = i;
         }
     }
 

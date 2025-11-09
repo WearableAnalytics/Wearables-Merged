@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-streams-fhri
+  namespace: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-streams-fhri
+  template:
+    metadata:
+      labels:
+        app: kafka-streams-fhri
+    spec:
+      containers:
+        - name: kstreams-lower-to-upper
+          image: kafka-streams-fhri:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KAFKA_BROKER
+              value: my-cluster-kafka-bootstrap
+
