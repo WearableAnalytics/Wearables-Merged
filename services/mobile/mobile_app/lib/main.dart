@@ -1,9 +1,128 @@
 import 'package:flutter/material.dart';
 import 'package:health/health.dart';
 import 'dart:convert';
+import 'health_data_types.dart';
+import 'package:background_fetch/background_fetch.dart';
+import 'dart:io';
+
+/// URL to upload health JSON to. Replace with your server endpoint.
+const String kHealthUploadUrl = 'https://example.com/health/upload';
 
 void main() {
+  // Make sure plugin services are initialized before using BackgroundFetch.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Register headless task (required for Android when app is terminated).
+  BackgroundFetch.registerHeadlessTask(backgroundFetchHeadlessTask);
+
   runApp(const MyApp());
+}
+
+/// Headless background fetch handler. Must be a top-level function.
+void backgroundFetchHeadlessTask(HeadlessTask task) async {
+  final String taskId = task.taskId;
+  final bool isTimeout = task.timeout;
+
+  if (isTimeout) {
+    // This task has exceeded its allowed running-time.
+    BackgroundFetch.finish(taskId);
+    return;
+  }
+
+  try {
+    await uploadHealthDataInBackground();
+  } catch (e) {
+    // Swallow errors; you may want to log these to persistent storage.
+  } finally {
+    BackgroundFetch.finish(taskId);
+  }
+}
+
+/// Configure BackgroundFetch to run periodically. Call from an active context
+/// (e.g. in a `State.initState`).
+Future<void> startBackgroundFetch() async {
+  // Configure the plugin.
+  await BackgroundFetch.configure(
+    BackgroundFetchConfig(
+      minimumFetchInterval: 15, // minutes
+      stopOnTerminate: false, // Android-only; iOS ignores
+      enableHeadless: true,
+      startOnBoot: true,
+      requiresBatteryNotLow: false,
+      requiresCharging: false,
+      requiresDeviceIdle: false,
+      requiredNetworkType: NetworkType.ANY,
+    ),
+    (String taskId) async {
+      try {
+        await uploadHealthDataInBackground();
+      } catch (e) {
+        // handle/log
+      } finally {
+        BackgroundFetch.finish(taskId);
+      }
+    },
+    (String taskId) async {
+      BackgroundFetch.finish(taskId);
+    },
+  );
+}
+
+/// Read health data and upload it to your server. Keep this work short.
+Future<void> uploadHealthDataInBackground() async {
+  final health = Health();
+
+  // Ensure the plugin is configured. In background contexts the user should
+  // already have granted permission; avoid requesting permission here.
+  try {
+    await health.configure();
+  } catch (e) {
+    // If configure fails, abort.
+    return;
+  }
+
+  final types = allRequestedHealthDataTypes; // choose group you want to upload
+  final now = DateTime.now();
+  // Fetch last 15 minutes of data (adjust as needed)
+  final from = now.subtract(Duration(minutes: 15));
+
+  List<HealthDataPoint> healthData = [];
+  try {
+    healthData = await health.getHealthDataFromTypes(
+      startTime: from,
+      endTime: now,
+      types: types,
+    );
+  } catch (e) {
+    // plugin may fail in background isolate; handle gracefully.
+    return;
+  }
+
+  Map<String, dynamic> payload = {
+    'healthData': healthData.map((data) => {
+      'type': data.type.toString(),
+      'value': data.value.toString(),
+      'unit': data.unit.toString(),
+      'dateFrom': data.dateFrom.toIso8601String(),
+      'dateTo': data.dateTo.toIso8601String(),
+    }).toList(),
+    'timestamp': now.toIso8601String(),
+  };
+
+  // Upload with a short timeout.
+  try {
+    final client = HttpClient();
+    client.connectionTimeout = Duration(seconds: 20);
+    final request = await client.postUrl(Uri.parse(kHealthUploadUrl));
+    request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+    request.add(utf8.encode(jsonEncode(payload)));
+    final response = await request.close().timeout(Duration(seconds: 20));
+    // Optionally check response.statusCode
+    await response.drain();
+    client.close(force: true);
+  } catch (e) {
+    // failed to upload — consider local persistence for retry.
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -45,12 +164,12 @@ class _MyHomePageState extends State<MyHomePage> {
     try {
       await health.configure();
 
-      var types = [
-        HealthDataType.STEPS,
-        HealthDataType.BLOOD_GLUCOSE,
-      ];
+      // Which data types to request are defined in `lib/health_data_types.dart`.
+      var types = allRequestedHealthDataTypes;
 
-      bool requested = await health.requestAuthorization(types);
+      // Request read/write permissions for each requested type.
+      var permissions = permissionsFor(types);
+      bool requested = await health.requestAuthorization(types, permissions: permissions);
 
       if (!requested) {
         _showMessage('Authorization not granted');
@@ -64,12 +183,7 @@ class _MyHomePageState extends State<MyHomePage> {
          endTime: now, 
          types: types);
       
-      types = [HealthDataType.STEPS, HealthDataType.BLOOD_GLUCOSE];
-      var permissions = [
-          HealthDataAccess.READ_WRITE,
-          HealthDataAccess.READ_WRITE
-      ];
-      await health.requestAuthorization(types, permissions: permissions);
+    // (authorization already requested above using clinicianDataTypes)
 
       var midnight = DateTime(now.year, now.month, now.day);
       int? steps = await health.getTotalStepsInInterval(midnight, now);
@@ -114,6 +228,12 @@ class _MyHomePageState extends State<MyHomePage> {
         );
       },
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    startBackgroundFetch();
   }
 
   @override
