@@ -24,4 +24,4 @@
 6. Run the just-command
    1. Install just command runner (its worth it trust me)
    2. Run the command
-7. Write the test.json message to "raw" kafka topic, it should get mapped and written to the "fhri" topic
+7. Write the test.json message to "raw" kafka topic, it should get mapped and written to the "fhir" topic

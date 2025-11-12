@@ -1,0 +1,45 @@
+measurement-mapping:
+  source: id
+  allow-array: false
+timestamp-mapping:
+  source: effectiveDateTime
+  allow-array: false
+field-mappings:
+  - source: status
+    allow-array: false
+    alias: status
+  - source: subject.reference
+    allow-array: false
+    alias: subject
+  - source: valueQuantity.value
+    allow-array: false
+    alias: value
+  - source: user
+    allow-array: false
+    alias: user
+tag-mappings:
+  - source: resourceType
+    allow-array: false
+    alias: resource_type
+  - source: category.coding[x].code
+    allow-array: true
+    alias: category
+  - source: category.text
+    allow-array: false
+    alias: category_text
+  - source: code.coding[x].code
+    allow-array: true
+    alias: code
+  - source: code.coding[x].display
+    allow-array: true
+    alias: display
+  - source: code.text
+    allow-array: false
+    alias: code_text
+  - source: valueQuantity.unit
+    allow-array: false
+    alias: unit
+  - source: valueQuantity.code
+    allow-array: false
+    alias: unit_code
+

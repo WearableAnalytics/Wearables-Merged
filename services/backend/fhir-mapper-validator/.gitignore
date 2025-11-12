@@ -4,6 +4,7 @@ target/
 !**/src/test/**/target/
 .kotlin
 META-INF*
+dependency-reduced-pom.xml
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

@@ -1,0 +1,63 @@
+package org.example.fhir;
+
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.context.support.DefaultProfileValidationSupport;
+import ca.uhn.fhir.validation.FhirValidator;
+import ca.uhn.fhir.validation.IValidatorModule;
+import ca.uhn.fhir.validation.ValidationResult;
+import org.hl7.fhir.common.hapi.validation.support.CommonCodeSystemsTerminologyService;
+import org.hl7.fhir.common.hapi.validation.support.InMemoryTerminologyServerValidationSupport;
+import org.hl7.fhir.common.hapi.validation.support.SnapshotGeneratingValidationSupport;
+import org.hl7.fhir.common.hapi.validation.support.ValidationSupportChain;
+import org.hl7.fhir.common.hapi.validation.validator.FhirInstanceValidator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class Validator {
+
+    private static final Logger log = LoggerFactory.getLogger(Validator.class);
+
+    private static FhirValidator validator;
+    // Use a cached context and reuse it for parsing and validation
+    private static FhirContext CTX;
+
+    public static void initiliazeFhirValidator() {
+
+        log.info("Initializing FHIR validator (with caching)...");
+        long start = System.currentTimeMillis();
+
+        CTX = FhirContext.forR4Cached();
+        validator = CTX.newValidator();
+
+        ValidationSupportChain.CacheConfiguration.defaultValues();
+
+        ValidationSupportChain validationSupportChain = new ValidationSupportChain(
+                new DefaultProfileValidationSupport(CTX),
+                new CommonCodeSystemsTerminologyService(CTX),
+                new InMemoryTerminologyServerValidationSupport(CTX),
+                new SnapshotGeneratingValidationSupport(CTX)
+        );
+
+        IValidatorModule module = new FhirInstanceValidator(validationSupportChain);
+        validator.registerValidatorModule(module);
+
+        long end = System.currentTimeMillis();
+        log.info("FHIR validator initialized in {} ms", (end - start));
+    }
+
+    public static boolean validateFhir(String producedStr){
+
+        try {
+            // Parse once to avoid internal re-parsing costs and validate the resource instance
+            var parser = CTX.newJsonParser();
+            var resource = parser.parseResource(producedStr);
+            ValidationResult result = validator.validateWithResult(resource);
+            log.info("Validation result: {}", result.toString());
+            return result.isSuccessful();
+        } catch (Exception e) {
+            log.error("Validation failed (input may not be a valid FHIR resource).", e);
+            return false;
+        }
+    }
+
+}
