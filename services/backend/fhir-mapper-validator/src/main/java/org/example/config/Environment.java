@@ -11,7 +11,7 @@ public class Environment {
     public static final String INPUT_TOPIC = setEnvWithDefault("INPUT_TOPIC", "wearables-raw");
     public static final String FHIR_OUTPUT_TOPIC = setEnvWithDefault("FHIR_OUTPUT_TOPIC", "wearables-fhir");
     public static final String LP_OUTPUT_TOPIC = setEnvWithDefault("LP_OUTPUT_TOPIC", "wearables-lp");
-    public static final String KAFKA_BROKER_ENV_VAR = setEnvWithDefault("KAFKA_BROKER_ENV_VAR", "my-cluster-kafka-bootstrap:9092");
+    public static final String KAFKA_BROKER_ENV_VAR = setEnvWithDefault("KAFKA_BROKER_ENV_VAR", "kafka-kafka-bootstrap:9092");
     public static final String APP_ID = setEnvWithDefault("APP_ID", "mapper-validator");
     public static final String MAPPING_YAML_PATH = setEnvWithDefault("MAPPING_YAML_PATH", "/config/fhir-to-lineprotocol.yaml");
     public static final String FHIR_LP_MAPPING_YAML_PATH = setEnvWithDefault("FHIR_LP_MAPPING_YAML_PATH", "/config/fhir-to-lineprotocol.yaml");

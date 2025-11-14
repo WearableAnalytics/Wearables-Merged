@@ -9,4 +9,6 @@ public class Mapping {
     private String target; // optional in yaml; defaults to source when null
     private String type;
     private boolean optional;
+    // New: when provided, this literal value is written to the target path instead of reading from source
+    private Object value;
 }

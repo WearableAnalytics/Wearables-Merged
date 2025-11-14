@@ -31,15 +31,12 @@ mappingsList:
     target: id
     optional: false
     type: string
-  - source: code.coding[0].system
-    target: code.coding[0].system
+  - target: code.coding[0].system
     optional: false
-    type: string
-  - source: code.coding[0].code
-    target: code.coding[0].code
+    value: "http://loinc.org"
+  - target: code.coding[0].code
+    value: "8867-4"
     optional: false
-    type: string
-  - source: code.coding[0].display
-    target: code.coding[0].display
+  - target: code.coding[0].display
+    value: "Heart rate"
     optional: false
-    type: string
