@@ -1,16 +1,27 @@
 PODS:
+  - background_fetch (1.5.0):
+    - Flutter
+    - TSBackgroundFetch (~> 4.0)
   - device_info_plus (0.0.1):
     - Flutter
   - Flutter (1.0.0)
   - health (1.0.4):
     - Flutter
+  - TSBackgroundFetch (4.0.5)
 
 DEPENDENCIES:
+  - background_fetch (from `.symlinks/plugins/background_fetch/ios`)
   - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
   - Flutter (from `Flutter`)
   - health (from `.symlinks/plugins/health/ios`)
 
+SPEC REPOS:
+  trunk:
+    - TSBackgroundFetch
+
 EXTERNAL SOURCES:
+  background_fetch:
+    :path: ".symlinks/plugins/background_fetch/ios"
   device_info_plus:
     :path: ".symlinks/plugins/device_info_plus/ios"
   Flutter:
@@ -19,10 +30,12 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/health/ios"
 
 SPEC CHECKSUMS:
+  background_fetch: 7457cb2c7be3086b37d87207866f30bed2f9fb58
   device_info_plus: 71ffc6ab7634ade6267c7a93088ed7e4f74e5896
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   health: a38a2b7480871e575ef403a8746cb2c08d20f1a4
+  TSBackgroundFetch: e91020924db32f27d0a43df7dec6f73f10743571
 
-PODFILE CHECKSUM: 251cb053df7158f337c0712f2ab29f4e0fa474ce
+PODFILE CHECKSUM: ff9ad2ec3bf53af900abf7184fa166ce7710baca
 
 COCOAPODS: 1.16.2
