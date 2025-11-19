@@ -18,6 +18,9 @@ import org.apache.kafka.streams.kstream.ValueMapper;
 
 public class Main {
 
+    // Testing: This is a change that should trigger the Workflow
+
+
     private static final Logger log = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) throws InterruptedException {
