@@ -8,13 +8,23 @@ import (
 
 type Config struct {
 	// Other config needed for the client
-	Messages []MessageConfig `yaml:"messages,omitempty"`
+	Messages map[string]MessageConfig `yaml:"messages,omitempty"`
 }
 
-type MessageConfig struct {
+type RequestConfig struct {
 	Schema    string           `yaml:"schema,omitempty"`
 	Constants []ConstantConfig `yaml:"constants,omitempty"`
 	Variables []VariableConfig `yaml:"variables,omitempty"`
+}
+
+type ResponseConfig struct {
+	Schema string `yaml:"schema,omitempty"` // Validates
+	// Whatever
+}
+
+type MessageConfig struct {
+	Request  RequestConfig  `yaml:"request"` // Cannot be empty
+	Response ResponseConfig `yaml:"response,omitempty"`
 }
 
 type ConstantConfig struct {
@@ -73,26 +83,42 @@ func validateConfig(cfg *Config) error {
 	}
 
 	for i, m := range cfg.Messages {
-		if err := validateMessage(&m); err != nil {
-			return fmt.Errorf("%d. message caused: %v", i, err)
+		if err := validateRequest(&m.Request); err != nil {
+			return fmt.Errorf("%s message caused: %v", i, err)
+		}
+
+		if m.Response == (ResponseConfig{}) {
+			continue
+		}
+
+		if err := validateResponse(&m.Response); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func validateMessage(m *MessageConfig) error {
-	if m.Schema == "" {
+func validateResponse(r *ResponseConfig) error {
+	if r.Schema == "" {
+		return fmt.Errorf("must provide a schema for the response")
+	}
+
+	return nil
+}
+
+func validateRequest(r *RequestConfig) error {
+	if r.Schema == "" {
 		return fmt.Errorf("must provide a schema for the message")
 	}
 	// You could validate the schema but I don't care (will be buggy at runtime, I guess)
-	for i, c := range m.Constants {
+	for i, c := range r.Constants {
 		if err := validateConstant(&c); err != nil {
 			return fmt.Errorf("%d. constant caused: %v", i, err)
 		}
 	}
 
-	for i, v := range m.Variables {
+	for i, v := range r.Variables {
 		if err := validateVariable(&v); err != nil {
 			return fmt.Errorf("%d. variable caused: %v", i, err)
 		}

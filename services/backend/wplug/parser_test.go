@@ -24,7 +24,7 @@ func TestParseYAML(t *testing.T) {
 	}
 
 	for _, m := range cfg.Messages {
-		if m.Schema == "" {
+		if m.Request.Schema == "" {
 			t.Errorf("error finding schema")
 		}
 	}
