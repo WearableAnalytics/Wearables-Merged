@@ -2,6 +2,7 @@ package wplug
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"strings"
 )
@@ -11,7 +12,7 @@ type Supplier struct {
 	RawSchema map[string]interface{}
 	BaseJson  interface{}
 	Constants map[string]interface{}
-	Variables map[string]interface{}
+	Variables map[string]interface{} // What if we did it differently here
 }
 
 func NewSupplier(schemaPath string, constants map[string]interface{}, variables map[string]interface{}) (*Supplier, error) {
@@ -25,7 +26,6 @@ func NewSupplier(schemaPath string, constants map[string]interface{}, variables 
 
 	// Enables dotted paths
 	constants = ExpandPaths(constants)
-
 	variables = ExpandPaths(variables)
 
 	supplier.RawSchema = s
@@ -123,13 +123,37 @@ func GenerateBaseJSON(schema map[string]interface{}, constants map[string]interf
 	}
 }
 
-func (s Supplier) GetData() Request {
-	// We need to use the provided information from the YAML
+func FillMissingFields(base map[string]interface{}, variables map[string]interface{}) map[string]interface{} {
+	for key, val := range variables {
+		switch gen := val.(type) {
+		case map[string]interface{}:
+			subBase, ok := base[key].(map[string]interface{})
+			if !ok {
+				subBase = make(map[string]interface{})
+			}
+			base[key] = FillMissingFields(subBase, gen)
 
-	// Set Constants
-	// Generate Variables
-	// Encode JSON into []byte
-	// return []byte
+		// This is for the NumericGenerator
+		case Generator[float64]:
+			if _, exists := base[key]; exists {
+				base[key] = gen.Generate()
+			}
+
+		case Generator[string]:
+			if _, exists := base[key]; exists {
+				base[key] = gen.Generate()
+			}
+
+		default:
+			log.Fatalf("unknown generator type")
+		}
+	}
+
+	return base
+}
+
+func (s Supplier) GetData() Request {
+	// Function -> fill missing fields
 
 	return Request{}
 }

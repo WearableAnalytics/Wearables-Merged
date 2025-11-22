@@ -121,3 +121,50 @@ func TestGenerateBaseJSON(t *testing.T) {
 		t.Errorf("ExpandPaths() = %#v, expected %#v", result, expected)
 	}
 }
+
+func TestFillMissingFields(t *testing.T) {
+	// First generate a Schema Map
+	p := path.Join("test-resources", "test1-schema.json")
+
+	schema, err := BuildSchema(p)
+	if err != nil {
+		t.Errorf("unexpected error building schema: %v", err)
+	}
+
+	input := map[string]interface{}{
+		"value.__type": "TestType",
+		"type":         "TestType",
+	}
+
+	tg := NewTimestampGenerator(time.DateTime)
+	sng := NewSimpleNumericGenerator(1000.0, 100.0)
+
+	variables := map[string]interface{}{
+		"timestamp": tg,
+		"value": map[string]interface{}{
+			"numeric_value": sng,
+		},
+	}
+
+	expandedConstants := ExpandPaths(input)
+
+	base := GenerateBaseJSON(schema, expandedConstants)
+
+	result := FillMissingFields(base.(map[string]interface{}), variables)
+
+	log.Printf("%v", result)
+
+	if ts, ok := result["timestamp"]; !ok || ts == "-1" {
+		t.Errorf("timestamp should not be \"-1\"")
+	}
+
+	val, ok := result["value"]
+	if !ok {
+		t.Errorf("unexpected: have no field value")
+	}
+
+	if v, ok := val.(map[string]interface{})["numeric_value"]; !ok || v == -1 {
+		t.Errorf("value.numeric_value should not be -1")
+	}
+
+}

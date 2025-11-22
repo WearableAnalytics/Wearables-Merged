@@ -1,6 +1,7 @@
 package wplug
 
 import (
+	"log"
 	"math/rand"
 	"time"
 )
@@ -20,14 +21,15 @@ type TimestampGenerator struct {
 
 type SimpleGeneratorContext struct{}
 
-func NewSimpleNumericGenerator(base float64, amp float64) *SimpleNumericGenerator {
-	return &SimpleNumericGenerator{
+func NewSimpleNumericGenerator(base float64, amp float64) SimpleNumericGenerator {
+	return SimpleNumericGenerator{
 		Base: base,
 		Amp:  amp,
 	}
 }
 
 func (n SimpleNumericGenerator) Generate() float64 {
+	log.Printf("Hello Numeric Generate gets called ")
 	randVal := rand.Float64() * n.Amp
 
 	if i := rand.Intn(2); i == 0 {
@@ -37,12 +39,13 @@ func (n SimpleNumericGenerator) Generate() float64 {
 	return n.Base + randVal
 }
 
-func NewTimestampGenerator(format string) *TimestampGenerator {
-	return &TimestampGenerator{
+func NewTimestampGenerator(format string) TimestampGenerator {
+	return TimestampGenerator{
 		Format: format,
 	}
 }
 
 func (t TimestampGenerator) Generate() string {
+	log.Printf("Hello Timestamp Generate gets called ")
 	return time.Now().Format(t.Format)
 }
