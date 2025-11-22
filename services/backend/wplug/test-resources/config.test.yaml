@@ -1,3 +1,8 @@
+client:
+  type: mqtt
+  config:
+    topic: "test"
+    broker: "tcp://localhost:1886"
 messages:
   test:
     request:
@@ -14,3 +19,5 @@ messages:
               base: 100
               amp: 10
     response: {}
+execution:
+  # idk how i want to do that -> just have the steps for the load generation

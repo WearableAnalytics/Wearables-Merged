@@ -7,8 +7,9 @@ import (
 )
 
 type Config struct {
-	// Other config needed for the client
+	// ClientConfig  ClientConfig `yaml:"client,omitempty"`
 	Messages map[string]MessageConfig `yaml:"messages,omitempty"`
+	// ExecutionConfig ExecutionConfig `yaml:"execution,omitempty"`
 }
 
 type RequestConfig struct {
