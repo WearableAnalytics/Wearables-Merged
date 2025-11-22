@@ -25,9 +25,18 @@ func NewSupplier(schemaPath string, constants map[string]interface{}, variables 
 		return nil, err
 	}
 
+	// Enables dotted paths
+	constants = ExpandPaths(constants)
+
+	reflectiveVariables := map[string]interface{}{}
+	for k, gen := range variables {
+		reflectiveVariables[k] = gen
+	}
+	reflectiveVariables = ExpandPaths(reflectiveVariables)
+
 	supplier.RawSchema = s
 	supplier.Constants = constants
-	supplier.Variables = variables
+	supplier.Variables = reflectiveVariables
 
 	baseJson := GenerateBaseJSON(s, constants)
 	supplier.BaseJson = baseJson

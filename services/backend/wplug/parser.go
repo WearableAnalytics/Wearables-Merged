@@ -30,6 +30,7 @@ type MessageConfig struct {
 type ConstantConfig struct {
 	Name  string      `yaml:"name,omitempty"`
 	Value interface{} `yaml:"value,omitempty"` // How will the compiler handle that efficiently?
+	Type  string      `yaml:"type,omitempty"`
 }
 
 type VariableConfig struct {

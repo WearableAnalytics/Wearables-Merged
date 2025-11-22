@@ -6,7 +6,7 @@ messages:
         - name: dotted.path
           value: 1.2
         - name: other.field
-          value: Hello World
+          value: "Hello World"
       variables:
         - name: dotted.path
           generator:
