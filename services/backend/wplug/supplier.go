@@ -6,17 +6,15 @@ import (
 	"strings"
 )
 
-// We need to generate a JSON based from
-
 type Supplier struct {
 	Schema    string // Path to JSON Schema
 	RawSchema map[string]interface{}
 	BaseJson  interface{}
 	Constants map[string]interface{}
-	Variables map[string]Generator
+	Variables map[string]interface{}
 }
 
-func NewSupplier(schemaPath string, constants map[string]interface{}, variables map[string]Generator) (*Supplier, error) {
+func NewSupplier[T any](schemaPath string, constants map[string]interface{}, variables map[string]Generator[T]) (*Supplier, error) {
 	var supplier Supplier
 
 	// Resolve Schema
