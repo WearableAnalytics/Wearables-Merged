@@ -14,7 +14,7 @@ type Supplier struct {
 	Variables map[string]interface{}
 }
 
-func NewSupplier[T any](schemaPath string, constants map[string]interface{}, variables map[string]Generator[T]) (*Supplier, error) {
+func NewSupplier(schemaPath string, constants map[string]interface{}, variables map[string]interface{}) (*Supplier, error) {
 	var supplier Supplier
 
 	// Resolve Schema
@@ -26,15 +26,11 @@ func NewSupplier[T any](schemaPath string, constants map[string]interface{}, var
 	// Enables dotted paths
 	constants = ExpandPaths(constants)
 
-	reflectiveVariables := map[string]interface{}{}
-	for k, gen := range variables {
-		reflectiveVariables[k] = gen
-	}
-	reflectiveVariables = ExpandPaths(reflectiveVariables)
+	variables = ExpandPaths(variables)
 
 	supplier.RawSchema = s
 	supplier.Constants = constants
-	supplier.Variables = reflectiveVariables
+	supplier.Variables = variables
 
 	baseJson := GenerateBaseJSON(s, constants)
 	supplier.BaseJson = baseJson
