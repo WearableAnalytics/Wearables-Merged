@@ -153,7 +153,12 @@ func FillMissingFields(base map[string]interface{}, variables map[string]interfa
 }
 
 func (s Supplier) GetData() Request {
-	// Function -> fill missing fields
+	res := FillMissingFields(s.BaseJson.(map[string]interface{}), s.Variables)
 
-	return Request{}
+	msg, err := json.Marshal(res)
+	if err != nil {
+		return Request{}
+	}
+
+	return Request{Message: msg}
 }
