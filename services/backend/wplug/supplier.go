@@ -3,21 +3,18 @@ package wplug
 import (
 	"encoding/json"
 	"os"
+	"strings"
 )
 
 // We need to generate a JSON based from
 
 type Supplier struct {
 	Schema    string // Path to JSON Schema
-	RawSchema RawSchema
-	// Base
+	RawSchema map[string]interface{}
+	BaseJson  interface{}
 	Constants map[string]interface{}
 	Variables map[string]Generator
 }
-
-type RawSchema map[string]interface{}
-
-type BaseJson map[string]interface{}
 
 func NewSupplier(schemaPath string, constants map[string]interface{}, variables map[string]Generator) (*Supplier, error) {
 	var supplier Supplier
@@ -32,13 +29,32 @@ func NewSupplier(schemaPath string, constants map[string]interface{}, variables 
 	supplier.Constants = constants
 	supplier.Variables = variables
 
-	// Generate Base JSON from that -> set fields except the Variables
+	baseJson := GenerateBaseJSON(s, constants)
+	supplier.BaseJson = baseJson
 
 	return &supplier, nil
 }
 
+func ExpandPaths(flat map[string]interface{}) map[string]interface{} {
+	root := map[string]interface{}{}
+
+	for path, val := range flat {
+		parts := strings.Split(path, ".")
+		cursor := root
+		for i := 0; i < len(parts)-1; i++ {
+			p := parts[i]
+			if _, ok := cursor[p]; !ok {
+				cursor[p] = map[string]interface{}{}
+			}
+			cursor = cursor[p].(map[string]interface{})
+		}
+		cursor[parts[len(parts)-1]] = val
+	}
+	return root
+}
+
 func BuildSchema(schemaPath string) (map[string]interface{}, error) {
-	var s RawSchema
+	var s map[string]interface{}
 
 	data, err := os.ReadFile(schemaPath)
 	if err != nil {
@@ -52,10 +68,23 @@ func BuildSchema(schemaPath string) (map[string]interface{}, error) {
 	return s, nil
 }
 
-func GenerateBaseJSON(schema map[string]interface{}) interface{} {
+func GenerateBaseJSON(schema map[string]interface{}, constants map[string]interface{}, fieldNames ...string) interface{} {
+	if len(fieldNames) > 0 {
+		name := fieldNames[0]
+		if v, ok := constants[name]; ok {
+			// If the constant is a primitive → return it immediately.
+			switch vv := v.(type) {
+			case string, float64, int, bool:
+				return vv
+			case map[string]interface{}:
+				// Continue with this new nested constant map
+				constants = vv
+			}
+		}
+	}
+
 	t, _ := schema["type"].(string)
 
-	// Switching on Types is crazy, but fuck it
 	switch t {
 	case "object":
 		result := map[string]interface{}{}
@@ -65,33 +94,31 @@ func GenerateBaseJSON(schema map[string]interface{}) interface{} {
 		for _, field := range required {
 			name := field.(string)
 			if propSchema, ok := properties[name]; ok {
-				result[name] = GenerateBaseJSON(propSchema.(map[string]interface{}))
+				result[name] = GenerateBaseJSON(propSchema.(map[string]interface{}), constants, name)
 			}
 		}
 		return result
 
 	case "string":
-		return "string"
+		return "-1"
 
 	case "number":
-		return 0
+		return -1
 
 	case "integer":
-		return 0
+		return -1
 
 	case "boolean":
 		return false
 
 	case "array":
 		items, _ := schema["items"].(map[string]interface{})
-		return []interface{}{GenerateBaseJSON(items)}
+		return []interface{}{GenerateBaseJSON(items, constants)}
 
 	default:
 		return nil
 	}
 }
-
-type Generator interface{}
 
 func (s Supplier) GetData() Request {
 	// We need to use the provided information from the YAML
