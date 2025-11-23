@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"fmt"
 	"wplug"
 
 	go_loadgen "github.com/luccadibe/go-loadgen"
@@ -21,6 +22,12 @@ func NewClient(clientConfig wplug.ClientConfig) (go_loadgen.Client[wplug.Request
 		}
 		return c, nil
 	case "http":
-		return
+		c, err := NewHTTPClientFromConfigMap(clientConfig.Config)
+		if err != nil {
+			return nil, err
+		}
+		return c, nil
+	default:
+		return nil, fmt.Errorf("not supported client config")
 	}
 }
