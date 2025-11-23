@@ -1,13 +1,21 @@
 package wplug
 
+import (
+	"io"
+	"time"
+)
+
 type Request struct {
 	Message []byte // This is an encoded JSON
 }
 
 type Response struct {
 	Err     error
-	Message []byte
+	Latency time.Duration
+	Message io.Reader
 }
+
+// TODO: implement Collector correctly
 
 type Collector struct{}
 

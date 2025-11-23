@@ -18,7 +18,9 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
+	// TODO: implement client correctly
 	client := clients.NewClient(conf.ClientConfig)
+	// TODO: implement collector
 	collector := wplug.NewCollector()
 
 	suppliers, err := wplug.NewSupplier(conf.Messages)
@@ -26,5 +28,5 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
-	lg.NewConstantExecutor(client, collector, suppliers[0])
+	_ = lg.NewConstantExecutor(client, collector, suppliers[0])
 }
