@@ -7,9 +7,14 @@ import (
 )
 
 type Config struct {
-	// ClientConfig  ClientConfig `yaml:"client,omitempty"`
-	Messages map[string]MessageConfig `yaml:"messages,omitempty"`
+	ClientConfig ClientConfig             `yaml:"client,omitempty"`
+	Messages     map[string]MessageConfig `yaml:"messages,omitempty"`
 	// ExecutionConfig ExecutionConfig `yaml:"execution,omitempty"`
+}
+
+type ClientConfig struct {
+	// We need a generic Config for different things
+	Type string `yaml:"type,omitempty"`
 }
 
 type RequestConfig struct {
@@ -30,8 +35,7 @@ type MessageConfig struct {
 
 type ConstantConfig struct {
 	Name  string      `yaml:"name,omitempty"`
-	Value interface{} `yaml:"value,omitempty"` // How will the compiler handle that efficiently?
-	Type  string      `yaml:"type,omitempty"`
+	Value interface{} `yaml:"value,omitempty"`
 }
 
 type VariableConfig struct {

@@ -4,9 +4,15 @@ import (
 	"log"
 	"math/rand"
 	"time"
+
+	"github.com/google/uuid"
 )
 
-type Generator[T any] interface {
+type GenType interface {
+	float64 | string
+}
+
+type Generator[T GenType] interface {
 	Generate() T
 }
 
@@ -17,6 +23,16 @@ type SimpleNumericGenerator struct {
 
 type TimestampGenerator struct {
 	Format string
+}
+
+type UuidGenerator struct{}
+
+func (u UuidGenerator) Generate() string {
+	return uuid.New().String()
+}
+
+func NewUuidGenerator() UuidGenerator {
+	return UuidGenerator{}
 }
 
 type SimpleGeneratorContext struct{}

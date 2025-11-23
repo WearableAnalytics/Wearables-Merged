@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"reflect"
 	"strings"
 )
 
@@ -15,7 +16,65 @@ type Supplier struct {
 	Variables map[string]interface{} // What if we did it differently here
 }
 
-func NewSupplier(schemaPath string, constants map[string]interface{}, variables map[string]interface{}) (*Supplier, error) {
+func NewSupplier(messages []MessageConfig) ([]*Supplier, error) {
+	var suppliers []*Supplier
+
+	for _, msg := range messages {
+		var constants map[string]interface{}
+		var variables map[string]interface{}
+		var schema string
+
+		schema = msg.Request.Schema
+		constants = resolveConstants(msg.Request.Constants)
+		variables = resolveVariable(msg.Request.Variables)
+
+		supplier, err := NewSupplier1(schema, constants, variables)
+		if err != nil {
+			return nil, err
+		}
+		suppliers = append(suppliers, supplier)
+	}
+
+	return suppliers, nil
+}
+
+func resolveConstants(constants []ConstantConfig) map[string]interface{} {
+	var res map[string]interface{}
+
+	for _, c := range constants {
+		res[c.Name] = c.Value
+	}
+	return res
+}
+
+func resolveVariable(variables []VariableConfig) map[string]interface{} {
+	var res map[string]interface{}
+
+	for _, v := range variables {
+		ng := v.Generator.NumericGenerator
+		ngc := NumericGeneratorConfig{}
+
+		ts := v.Generator.TimeGenerator
+		tsc := TimeGeneratorConfig{}
+
+		ug := v.Generator.UuidGenerator
+		ugc := UuidGeneratorConfig{}
+
+		if !reflect.DeepEqual(ng, ngc) {
+			res[v.Name] = NewSimpleNumericGenerator(ng.Base, ng.Amp)
+		} else if !reflect.DeepEqual(ts, tsc) {
+			res[v.Name] = NewTimestampGenerator(ts.Format)
+		} else if !reflect.DeepEqual(ug, ugc) {
+			res[v.Name] = NewUuidGenerator()
+		}
+
+	}
+
+	return res
+}
+
+// NewSupplier1 takes aa schemaPath and a map of constants (flat) and a map variable-mappings (flat) (or nested)
+func NewSupplier1(schemaPath string, constants map[string]interface{}, variables map[string]interface{}) (*Supplier, error) {
 	var supplier Supplier
 
 	// Resolve Schema

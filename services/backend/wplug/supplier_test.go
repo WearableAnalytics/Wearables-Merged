@@ -24,7 +24,7 @@ func TestNewSupplier(t *testing.T) {
 		"value.numeric_value": sng,
 	}
 
-	s, err := NewSupplier(schemaPath, constants, variables)
+	s, err := NewSupplier1(schemaPath, constants, variables)
 	if err != nil {
 		t.Errorf("unexpected error creating new supplier: %v", err)
 	}
