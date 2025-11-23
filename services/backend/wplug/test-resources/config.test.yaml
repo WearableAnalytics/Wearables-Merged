@@ -3,6 +3,9 @@ client:
   config:
     topic: "test"
     broker: "tcp://localhost:1886"
+execution:
+  preset: "smoke" # | "avg" | "stress" ...
+  collector: "path/to/file.csv"
 messages:
   test:
     request:
@@ -19,5 +22,3 @@ messages:
               base: 100
               amp: 10
     response: {}
-execution:
-  # idk how i want to do that -> just have the steps for the load generation

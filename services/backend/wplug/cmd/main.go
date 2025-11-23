@@ -37,4 +37,5 @@ func main() {
 	}
 
 	_ = lg.NewConstantExecutor(client, collector, suppliers[0])
+
 }
