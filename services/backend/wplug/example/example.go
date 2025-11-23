@@ -9,7 +9,7 @@ import (
 )
 
 type ExampleProvider struct {
-	maxSize           int // in bytes
+	MaxSize           int // in bytes
 	DeviceCount       int
 	BaseDeviceInfo    DeviceInfo
 	BaseInstantaneous Instantaneous
@@ -77,8 +77,11 @@ type Cumulative struct {
 
 type Duration struct{}
 
-func NewExampleProvider(deviceCount int) *ExampleProvider {
+func NewExampleProvider(deviceCount int, maxSize int) *ExampleProvider {
 	var provider ExampleProvider
+
+	provider.DeviceCount = deviceCount
+	provider.MaxSize = maxSize
 
 	// BaseDeviceInfo
 	platform := "iOS"
@@ -107,7 +110,7 @@ func (e ExampleProvider) GetData() Message {
 	collectionEnd := time.Now()
 
 	instantaneous := e.GenerateInstantaneous()
-	cumulative := e.GenerateCumulative(collectionStart, collectionEnd, e.maxSize/3)
+	cumulative := e.GenerateCumulative(collectionStart, collectionEnd, e.MaxSize/3)
 	duration := e.GenerateDuration()
 
 	return Message{
