@@ -1,0 +1,4 @@
+
+- DataProvider = Supplier (Method: GetData()) [x] => Bottleneck!
+- Client = MQTTClient [x] / HTTPClient [ ] (Method: CallEndpoint) [x]
+- CSVCollector [ ]

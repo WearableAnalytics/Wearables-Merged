@@ -8,8 +8,6 @@ import (
 	lg "github.com/luccadibe/go-loadgen"
 )
 
-// flags -> paths
-
 func main() {
 	log.SetPrefix("wplug: ")
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -23,5 +21,10 @@ func main() {
 	client := clients.NewClient(conf.ClientConfig)
 	collector := wplug.NewCollector()
 
-	lg.NewConstantExecutor(client, collector)
+	suppliers, err := wplug.NewSupplier(conf.Messages)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+
+	lg.NewConstantExecutor(client, collector, suppliers[0])
 }

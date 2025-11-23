@@ -16,7 +16,7 @@ type Supplier struct {
 	Variables map[string]interface{} // What if we did it differently here
 }
 
-func NewSupplier(messages []MessageConfig) ([]*Supplier, error) {
+func NewSupplier(messages map[string]MessageConfig) ([]*Supplier, error) {
 	var suppliers []*Supplier
 
 	for _, msg := range messages {
