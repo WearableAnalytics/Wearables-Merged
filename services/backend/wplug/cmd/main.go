@@ -1,41 +1,59 @@
 package main
 
 import (
+	"context"
 	"log"
-	"path"
-	"wplug"
-	"wplug/clients"
+	"os"
 
-	lg "github.com/luccadibe/go-loadgen"
+	"github.com/urfave/cli/v3"
 )
+
+var workloadFlag = &cli.StringFlag{
+	Name:    "workload",
+	Usage:   "define a workload (options: smoke/average)",
+	Value:   "smoke",
+	Aliases: []string{"w"},
+}
+
+var exampleFlag = &cli.BoolFlag{
+	Name:    "example",
+	Usage:   "define if the example should be used or the yaml-config",
+	Value:   true,
+	Aliases: []string{"e"},
+}
 
 func main() {
 	log.SetPrefix("wplug: ")
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
 
-	// Create Client
-	conf, err := wplug.ParseYAML([]byte{})
-	if err != nil {
-		log.Fatalf("%v", err)
+	cmd := &cli.Command{
+		Name:  "wplug",
+		Usage: "Generate synthetic load",
+		Flags: []cli.Flag{
+			workloadFlag,
+			exampleFlag,
+		},
+		Action: func(ctx context.Context, command *cli.Command) error {
+			workload := command.String("workload")
+			example := command.Bool("example")
+
+			if !example {
+				log.Fatalf("currently not supported")
+			}
+
+			switch workload {
+			case "smoke":
+			case "average":
+			default:
+				log.Fatalf("this preset is not supported")
+			}
+
+			return nil
+		},
 	}
 
-	// Start from Config
-
-	client, err := clients.NewClient(conf.ClientConfig)
-	if err != nil {
-		log.Fatalf("%v", err)
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
+		log.Fatal(err)
 	}
-
-	collector, err := lg.NewCSVCollector[wplug.Response](path.Join("csvs", "example.csv"), 1)
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-
-	suppliers, err := wplug.NewSupplier(conf.Messages)
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-
-	_ = lg.NewConstantExecutor(client, collector, suppliers[0])
 
 }

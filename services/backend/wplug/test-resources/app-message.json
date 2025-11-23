@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "deviceInfo": {
+      "type": "object",
+      "properties": {
+        "platform": { "type": "string" },
+        "deviceId": { "type": "string" },
+        "authorizationToken": { "type": "string" }
+      },
+      "required": ["platform", "deviceId", "authorizationToken"]
+    },
+    "batchInfo": {
+      "type": "object",
+      "properties": {
+        "collectionStart": { "type": "string", "format": "date-time" },
+        "collectionEnd": { "type": "string", "format": "date-time" }
+      },
+      "required": ["collectionStart", "collectionEnd"]
+    },
+    "measurements": {
+      "type": "object",
+      "properties": {
+        "instantaneous": {
+          "type": "array",
+          "items": {}
+        },
+        "cumulative": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "value": { "type": "number" },
+              "unit": { "type": "string" },
+              "periodStart": { "type": "string", "format": "date-time" },
+              "periodEnd": { "type": "string", "format": "date-time" },
+              "duration": { "type": "number" }
+            },
+            "required": ["type", "value", "unit", "periodStart", "periodEnd", "duration"]
+          }
+        },
+        "duration": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "required": ["instantaneous", "cumulative", "duration"]
+    },
+    "sourceName": { "type": "string" },
+    "totalStepsToday": { "type": ["number", "null"] },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "required": ["deviceInfo", "batchInfo", "measurements", "sourceName", "totalStepsToday", "timestamp"]
+}

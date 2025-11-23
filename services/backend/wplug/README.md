@@ -21,9 +21,9 @@ A typical sequence of steps performed in a Load-Test:
 
 There are several different types of workloads/tests, here is a list of the most commonly used ones:
 
-#### Smoke Tests
-Smoke Tests validate that your script works and that the system performs adequately under minimal load.
-You should run a smoke test whenever a test script is created or updated. Smoke testing should also be done whenever the relevant application code is updated.
+#### Workload Tests
+Workload Tests validate that your script works and that the system performs adequately under minimal load.
+You should run a smoke test whenever a test script is created or updated. Workload testing should also be done whenever the relevant application code is updated.
 
 **Good Practice**
 Run a smoke test as a first step, with the following goal: 

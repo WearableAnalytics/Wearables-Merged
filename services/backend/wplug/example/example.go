@@ -18,59 +18,6 @@ type ExampleProvider struct {
 	SourceName        string
 }
 
-func NewExampleProvider(deviceCount int) *ExampleProvider {
-	var provider ExampleProvider
-
-	// BaseDeviceInfo
-	platform := "iOS"
-	authorizationToken := "testToken"
-	provider.BaseDeviceInfo = DeviceInfo{
-		Platform:           platform,
-		AuthorizationToken: authorizationToken,
-	}
-
-	// Currently only Steps
-	cumulativeType := "STEPS"
-	cumulativeUnit := "COUNT"
-	provider.BaseCumulative = Cumulative{
-		Type: cumulativeType,
-		Unit: cumulativeUnit,
-	}
-
-	provider.SourceName = "Test iPhone"
-	return &provider
-}
-
-type Generator[T any] interface {
-	Generate() T
-}
-
-func (e ExampleProvider) GetData() Message {
-	// Calculate values
-	e.BaseDeviceInfo.DeviceID = fmt.Sprintf("test-device-%s", strconv.Itoa(rand.Intn(e.DeviceCount)))
-	collectionStart := time.Now().Add(-15 * time.Minute)
-	collectionEnd := time.Now()
-
-	instantaneous := e.GenerateInstantaneous()
-	cumulative := e.GenerateCumulative(collectionStart, collectionEnd, e.maxSize/3)
-	duration := e.GenerateDuration()
-
-	return Message{
-		DeviceInfo: e.BaseDeviceInfo,
-		BatchInfo: BatchInfo{
-			collectionStart.Format(time.RFC3339),
-			collectionEnd.Format(time.RFC3339)},
-		Measurements: Measurements{
-			Instantaneous: instantaneous,
-			Cumulative:    cumulative,
-			Duration:      duration,
-		},
-		SourceName:      e.SourceName,
-		TotalStepsToday: nil,
-		Timestamp:       collectionEnd.Format(time.RFC3339),
-	}
-}
-
 type Message struct {
 	DeviceInfo      DeviceInfo   `json:"deviceInfo,omitempty"`
 	BatchInfo       BatchInfo    `json:"batchInfo,omitempty"`
@@ -78,6 +25,19 @@ type Message struct {
 	SourceName      string       `json:"sourceName,omitempty"`
 	TotalStepsToday interface{}  `json:"totalStepsToday,omitempty"`
 	Timestamp       string       `json:"timestamp,omitempty"`
+}
+
+type Response struct {
+	Err     error
+	Latency time.Duration
+}
+
+func (r Response) CSVHeaders() []string {
+	return []string{"errors", "latency"}
+}
+
+func (r Response) CSVRecord() []string {
+	return []string{r.Err.Error(), r.Latency.String()}
 }
 
 type DeviceInfo struct {
@@ -116,6 +76,55 @@ type Cumulative struct {
 }
 
 type Duration struct{}
+
+func NewExampleProvider(deviceCount int) *ExampleProvider {
+	var provider ExampleProvider
+
+	// BaseDeviceInfo
+	platform := "iOS"
+	authorizationToken := "testToken"
+	provider.BaseDeviceInfo = DeviceInfo{
+		Platform:           platform,
+		AuthorizationToken: authorizationToken,
+	}
+
+	// Currently only Steps
+	cumulativeType := "STEPS"
+	cumulativeUnit := "COUNT"
+	provider.BaseCumulative = Cumulative{
+		Type: cumulativeType,
+		Unit: cumulativeUnit,
+	}
+
+	provider.SourceName = "Test iPhone"
+	return &provider
+}
+
+func (e ExampleProvider) GetData() Message {
+	// Calculate values
+	e.BaseDeviceInfo.DeviceID = fmt.Sprintf("test-device-%s", strconv.Itoa(rand.Intn(e.DeviceCount)))
+	collectionStart := time.Now().Add(-15 * time.Minute)
+	collectionEnd := time.Now()
+
+	instantaneous := e.GenerateInstantaneous()
+	cumulative := e.GenerateCumulative(collectionStart, collectionEnd, e.maxSize/3)
+	duration := e.GenerateDuration()
+
+	return Message{
+		DeviceInfo: e.BaseDeviceInfo,
+		BatchInfo: BatchInfo{
+			collectionStart.Format(time.RFC3339),
+			collectionEnd.Format(time.RFC3339)},
+		Measurements: Measurements{
+			Instantaneous: instantaneous,
+			Cumulative:    cumulative,
+			Duration:      duration,
+		},
+		SourceName:      e.SourceName,
+		TotalStepsToday: nil,
+		Timestamp:       collectionEnd.Format(time.RFC3339),
+	}
+}
 
 func (e ExampleProvider) GenerateInstantaneous() []Instantaneous {
 	return []Instantaneous{}
