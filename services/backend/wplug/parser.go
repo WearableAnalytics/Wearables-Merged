@@ -14,7 +14,8 @@ type Config struct {
 
 type ClientConfig struct {
 	// We need a generic Config for different things
-	Type string `yaml:"type,omitempty"`
+	Type   string                 `yaml:"type,omitempty"`
+	Config map[string]interface{} `yaml:"config,omitempty"`
 }
 
 type RequestConfig struct {

@@ -20,6 +20,7 @@ func main() {
 
 	// TODO: implement client correctly
 	client := clients.NewClient(conf.ClientConfig)
+
 	// TODO: implement collector
 	collector := wplug.NewCollector()
 

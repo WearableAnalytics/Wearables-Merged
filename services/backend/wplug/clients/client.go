@@ -12,6 +12,15 @@ type Client interface {
 }
 
 // NewClient takes a clientConfig and creates the client based on the type, and returns the client
-func NewClient(clientConfig wplug.ClientConfig) go_loadgen.Client[wplug.Request, wplug.Response] {
-	return nil
+func NewClient(clientConfig wplug.ClientConfig) (go_loadgen.Client[wplug.Request, wplug.Response], error) {
+	switch clientConfig.Type {
+	case "mqtt":
+		c, err := NewMQTTClientFromConfigMap(clientConfig.Config)
+		if err != nil {
+			return nil, err
+		}
+		return c, nil
+	case "http":
+		return
+	}
 }
