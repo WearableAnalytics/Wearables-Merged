@@ -3,6 +3,7 @@ package clients
 import (
 	"context"
 	"fmt"
+	"time"
 	"wplug"
 
 	// lg "github.com/luccadibe/go-loadgen"
@@ -78,10 +79,11 @@ func NewMQTTClient(topic string, broker string, qos int) MQTTClient {
 }
 
 func (c MQTTClient) CallEndpoint(ctx context.Context, req wplug.Request) wplug.Response {
+	start := time.Now()
 	token := c.Client.Publish(c.conf.Topic, c.conf.QoS, false, req.Message)
 	if token.Error() != nil {
-		return wplug.Response{Err: token.Error()}
+		return wplug.Response{Latency: time.Since(start), Err: token.Error()}
 	}
 
-	return wplug.Response{}
+	return wplug.Response{Latency: time.Since(start), Err: nil}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"path"
 	"wplug"
 	"wplug/clients"
 
@@ -18,11 +19,17 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
-	// TODO: implement client correctly
-	client := clients.NewClient(conf.ClientConfig)
+	// Start from Config
 
-	// TODO: implement collector
-	collector := wplug.NewCollector()
+	client, err := clients.NewClient(conf.ClientConfig)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+
+	collector, err := lg.NewCSVCollector[wplug.Response](path.Join("csvs", "example.csv"), 1)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
 
 	suppliers, err := wplug.NewSupplier(conf.Messages)
 	if err != nil {
