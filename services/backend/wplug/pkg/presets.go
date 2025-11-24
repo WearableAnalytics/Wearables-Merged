@@ -1,4 +1,4 @@
-package example
+package pkg
 
 import (
 	"fmt"
@@ -98,7 +98,7 @@ func NewAverageLoad(
 	return &average
 }
 
-func (s Workload) GenerateConfig() *go_loadgen.Config {
+func (s Workload) generateConfig() *go_loadgen.Config {
 	return &go_loadgen.Config{
 		GenerateWorkload: false,
 		MaxDuration:      s.Duration,
@@ -108,7 +108,7 @@ func (s Workload) GenerateConfig() *go_loadgen.Config {
 
 func (s Workload) GenerateWorkload() error {
 	startTime := time.Now()
-	runner, err := go_loadgen.NewEndpointWorkload(s.Name, s.GenerateConfig(), s.Client, s.Provider, s.Collector)
+	runner, err := go_loadgen.NewEndpointWorkload(s.Name, s.generateConfig(), s.Client, s.Provider, s.Collector)
 	if err != nil {
 		return err
 	}

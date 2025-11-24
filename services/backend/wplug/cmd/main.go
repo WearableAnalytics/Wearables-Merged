@@ -4,8 +4,11 @@ import (
 	"context"
 	"log"
 	"os"
-	example2 "wplug/example"
+	"path"
+	"time"
+	"wplug/pkg"
 
+	go_loadgen "github.com/luccadibe/go-loadgen"
 	"github.com/urfave/cli/v3"
 )
 
@@ -23,14 +26,14 @@ var exampleFlag = &cli.BoolFlag{
 	Aliases: []string{"e"},
 }
 
-var maxSizeFlag = &cli.Int32Flag{
+var maxSizeFlag = &cli.IntFlag{
 	Name:    "message-size",
 	Usage:   "defines the maximum size of generated messages in bytes (please be careful)",
 	Value:   500,
 	Aliases: []string{"m"},
 }
 
-var virtualUserFlag = &cli.Int16Flag{
+var virtualUserFlag = &cli.IntFlag{
 	Name:    "vu",
 	Usage:   "defines the number of virtual users",
 	Value:   10,
@@ -53,20 +56,36 @@ func main() {
 		Action: func(ctx context.Context, command *cli.Command) error {
 			workload := command.String("workload")
 			example := command.Bool("example")
-			maxSize := command.Int32("message-size")
-			vu := command.Int16("vu")
+			maxSize := command.Int("message-size")
+			vu := command.Int("vu")
 
 			if !example {
 				log.Fatalf("currently not supported")
 			}
 
-			example2.NewExampleProvider(vu, maxSize)
+			provider := pkg.NewExampleProvider(vu, maxSize)
+			// This need to be switched
+			client := pkg.NewMQTTClientFromParams("wearables", "test", 0)
+
+			collector, err := go_loadgen.NewCSVCollector[pkg.Response](path.Join("example", "test.csv"), 1*time.Second)
+			if err != nil {
+
+			}
+
+			var wl *pkg.Workload
 
 			switch workload {
 			case "smoke":
+				wl = pkg.NewSmoke(client, *provider, collector)
 			case "average":
+				wl = pkg.NewAverageLoad(client, *provider, collector)
 			default:
 				log.Fatalf("this preset is not supported")
+			}
+
+			err = wl.GenerateWorkload()
+			if err != nil {
+				log.Fatalf("generating workload failed with err")
 			}
 
 			return nil

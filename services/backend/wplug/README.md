@@ -92,3 +92,8 @@ Breakpoint testing aims to find system limits. Reasons you might want to know th
 - Slow Ramp-up to an extreme high number of users (4h to 100.000 Users)
 
 ---
+
+How to run this load generator:
+```shell
+
+```

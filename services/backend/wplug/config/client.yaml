@@ -1,0 +1,7 @@
+client:
+  type: mqtt
+  config:
+    topic: wearables
+    broker: tcp://localhost:1886
+    qos: 0
+---
