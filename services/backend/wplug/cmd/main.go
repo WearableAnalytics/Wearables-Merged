@@ -88,6 +88,17 @@ func main() {
 				log.Fatalf("generating workload failed with err")
 			}
 
+			log.Printf("finished load generation")
+
+			p := pkg.Plotter{
+				InputPath:    path.Join("example", "test.csv"),
+				OutputFolder: "plots",
+			}
+
+			if err = p.GeneratePlots(); err != nil {
+				log.Fatal(err)
+			}
+
 			return nil
 		},
 	}
