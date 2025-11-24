@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"strconv"
 	"time"
-	"unsafe"
 )
 
 type ExampleProvider struct {
@@ -116,8 +115,6 @@ func (e ExampleProvider) GetData() Message {
 	cumulative := e.GenerateCumulative(collectionStart, collectionEnd, e.MaxSize/3)
 	duration := e.GenerateDuration()
 
-	log.Printf("Cumulative: %v, instantaneous: %v, duration: %v", cumulative, instantaneous, duration)
-
 	msg := Message{
 		DeviceInfo: e.BaseDeviceInfo,
 		BatchInfo: BatchInfo{
@@ -147,52 +144,49 @@ func (e ExampleProvider) GenerateDuration() []Duration {
 }
 
 func (e ExampleProvider) GenerateCumulative(start time.Time, end time.Time, maxSize int) []Cumulative {
-	log.Println(fmt.Sprint(start, ",", end, ",", maxSize))
 	var cumulatives []Cumulative
-	duration := end.Sub(start).Minutes()
-	approx := duration / float64(len(cumulatives))
+	totalDuration := end.Sub(start)
+	approx := totalDuration / 10
+
+	log.Println("Total Duration: ", totalDuration)
+	log.Println("Approx: ", approx)
 
 	base := e.BaseCumulative
 	size := 0
-	i := 0
-	for {
-		periodStart := start
-		if i > 0 {
-			periodStart, _ = time.Parse(time.RFC3339, cumulatives[i-1].PeriodEnd)
-		}
 
-		periodDuration := time.Duration(approx * (rand.Float64() + 0.5))
-		periodEnd := periodStart.Add(periodDuration * time.Second)
+	currentStart := start
 
-		if !periodStart.Add(periodDuration).Before(end) {
+	for size < maxSize && currentStart.Before(end) {
+		// Randomize period duration around approx (50%–150%)
+		randomFactor := 0.5 + rand.Float64()
+		periodDuration := time.Duration(float64(approx) * randomFactor)
+		periodEnd := currentStart.Add(periodDuration)
+
+		// Clamp to end time
+		if periodEnd.After(end) {
 			periodEnd = end
-			periodDuration = periodEnd.Sub(periodStart)
-			break
+			periodDuration = periodEnd.Sub(currentStart)
 		}
 
-		// the longer the duration the higher is the value
-		value := rand.Intn(100) * int(duration/100)
+		// Compute value proportional to duration
+		value := int(float64(rand.Intn(100)) * (totalDuration.Minutes() / 100))
 
 		cumulative := Cumulative{
 			Type:        base.Type,
 			Value:       value,
 			Unit:        base.Unit,
-			PeriodStart: fmt.Sprintf("%sZ", periodStart.Format(time.RFC3339)),
-			PeriodEnd:   fmt.Sprintf("%sZ", periodEnd.Format(time.RFC3339)),
+			PeriodStart: currentStart.Format(time.RFC3339),
+			PeriodEnd:   periodEnd.Format(time.RFC3339),
 			Duration:    int(periodDuration.Seconds()),
 		}
-		log.Printf("")
+
 		cumulatives = append(cumulatives, cumulative)
 
-		size += int(unsafe.Sizeof(cumulative))
-		if size >= maxSize {
-			break
-		}
+		// Rough size accounting (approximate)
+		size += len(cumulative.PeriodStart) + len(cumulative.PeriodEnd) + 8*3 + 8
 
-		i++
+		currentStart = periodEnd
 	}
-
-	log.Printf("Cumulatives: %v", cumulatives)
 
 	return cumulatives
 }
