@@ -115,8 +115,6 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
 		}
 	}
 
-	log.Println(string(b))
-
 	topicArray := strings.Split(c.Config.Topic, "/")
 	topicArray[1] = req.DeviceInfo.DeviceID
 	topic := fmt.Sprintf("%s/%s/%s", topicArray[0], topicArray[1], topicArray[2])

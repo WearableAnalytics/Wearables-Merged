@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"strconv"
 	"time"
@@ -130,8 +129,6 @@ func (e ExampleProvider) GetData() Message {
 		Timestamp:       fmt.Sprintf("%sZ", collectionEnd.Format(time.RFC3339)),
 	}
 
-	log.Println(msg)
-
 	return msg
 }
 
@@ -147,9 +144,6 @@ func (e ExampleProvider) GenerateCumulative(start time.Time, end time.Time, maxS
 	var cumulatives []Cumulative
 	totalDuration := end.Sub(start)
 	approx := totalDuration / 10
-
-	log.Println("Total Duration: ", totalDuration)
-	log.Println("Approx: ", approx)
 
 	base := e.BaseCumulative
 	size := 0
