@@ -23,78 +23,133 @@ type Plotter struct {
 }
 
 func (p Plotter) GeneratePlots() error {
-	err := p.GenerateBytesPlot(path.Join(p.OutputFolder, "bytes.svg"))
+	xys, err := p.ReadAllCSVForPlot()
 	if err != nil {
 		return err
 	}
+
+	err = PlotLineToSVG(xys[0], path.Join(p.OutputFolder, "bytes.svg"), "Bytes/sec", "Time (s)", "Bytes/sec")
+	if err != nil {
+		return err
+	}
+
+	err = PlotLineToSVG(xys[1], path.Join(p.OutputFolder, "requests.svg"), "Requests/sec", "Time (s)", "Requests/sec")
+	if err != nil {
+		return err
+	}
+
+	// Avg Latency Plot
+	err = PlotLineToSVG(xys[2], path.Join(p.OutputFolder, "latency.svg"), "Avg-Latency/ms", "Time (ms)", "Average Latency")
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (p Plotter) GenerateBytesPlot(outputPath string) error {
-	data, err := p.PlotBytesPerSecond()
-	if err != nil {
-		return err
-	}
-
-	var start time.Time
-	for ts := range data {
-		if start.IsZero() || ts.Before(start) {
-			start = ts
-		}
-	}
-
-	pts := MapToXY(start, data)
-
-	return PlotLineToSVG(pts, outputPath, "Bytes/sec", "Time (s)", "Bytes/sec")
-}
-
-func (p Plotter) PlotBytesPerSecond() (map[time.Time]int64, error) {
+func (p Plotter) ReadAllCSVForPlot() ([]plotter.XYs, error) {
 	file, err := os.Open(p.InputPath)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
+	bytesPerSecond := make(map[time.Time]int64)
+	requestsPerSecond := make(map[time.Time]int64)
+	latenciesPerSecond := make(map[time.Time][]float64)
+
 	reader := csv.NewReader(file)
 	reader.FieldsPerRecord = -1
 
-	if _, err := reader.Read(); err != nil {
+	headers, err := reader.Read()
+	if err != nil {
 		return nil, err
 	}
 
-	bytesPerSecond := make(map[time.Time]int64)
+	recordMap := make(map[string]int, len(headers))
+	for i, header := range headers {
+		if _, exists := recordMap[header]; exists {
+			return nil, fmt.Errorf("duplicate header found: %s", header)
+		}
+		recordMap[header] = i
+	}
+
+	// column names
+	timestampIndex := recordMap["timestamp"]
+	bytesHeader := "message-size"
+	latencyHeader := "latency"
 
 	for {
-
 		record, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("error reading CSV: %w", err)
+			return nil, err
 		}
 
-		rawTs := stripMonotonic(record[0])
-
+		rawTs := stripMonotonic(record[timestampIndex])
 		ts, err := parseTimestamp(rawTs)
 		if err != nil {
 			return nil, err
 		}
-
 		ts = ts.Truncate(time.Second)
 
-		bytesVal, err := strconv.ParseInt(record[3], 10, 64)
+		bytesVal, err := strconv.ParseInt(record[recordMap[bytesHeader]], 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse bytes '%s': %w", record[3], err)
+			return nil, err
+		}
+		bytesPerSecond[ts] += bytesVal
+
+		rawDur, err := parseDurationToMS(record[recordMap[latencyHeader]])
+		if err != nil {
+			return nil, err
 		}
 
-		bytesPerSecond[ts] += bytesVal
+		latenciesPerSecond[ts] = append(latenciesPerSecond[ts], rawDur)
+
+		requestsPerSecond[ts]++
 	}
 
-	return bytesPerSecond, err
+	p99LatencyPerSecond := make(map[time.Time]float64)
+	for ts, slice := range latenciesPerSecond {
+		if len(slice) == 0 {
+			p99LatencyPerSecond[ts] = 0
+			continue
+		}
+		p99LatencyPerSecond[ts] = Percentile(slice, 0.99)
+	}
+
+	bytesOut := make(map[time.Time]int64)
+	reqOut := make(map[time.Time]int64)
+	for ts, v := range bytesPerSecond {
+		bytesOut[ts] = v
+	}
+	for ts, v := range requestsPerSecond {
+		reqOut[ts] = v
+	}
+
+	var start time.Time
+	for ts := range bytesOut {
+		if start.IsZero() || ts.Before(start) {
+			start = ts
+		}
+	}
+
+	maps := make([]plotter.XYs, 3)
+	maps[0] = MapToXY[int64](start, bytesOut)
+	maps[1] = MapToXY[int64](start, reqOut)
+	maps[2] = MapToXY[float64](start, p99LatencyPerSecond)
+
+	return maps, nil
+
 }
 
-func MapToXY(start time.Time, m map[time.Time]int64) plotter.XYs {
+type Number interface {
+	int | int64 | float32 | float64
+}
+
+func MapToXY[T Number](start time.Time, m map[time.Time]T) plotter.XYs {
 	// Extract and sort timestamps
 	var keys []time.Time
 	for ts := range m {
@@ -104,8 +159,8 @@ func MapToXY(start time.Time, m map[time.Time]int64) plotter.XYs {
 
 	pts := make(plotter.XYs, len(keys))
 	for i, ts := range keys {
-		pts[i].X = ts.Sub(start).Seconds() // relative X
-		pts[i].Y = float64(m[ts])          // bytes/sec
+		pts[i].X = ts.Sub(start).Seconds()
+		pts[i].Y = float64(m[ts])
 	}
 
 	return pts
@@ -153,4 +208,24 @@ func stripMonotonic(t string) string {
 		return t[:idx]
 	}
 	return t
+}
+
+func Percentile(values []float64, p float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+
+	cp := append([]float64(nil), values...)
+	sort.Float64s(cp)
+
+	index := int(float64(len(cp)-1) * p)
+	return cp[index]
+}
+
+func parseDurationToMS(s string) (float64, error) {
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, err
+	}
+	return float64(d) / float64(time.Microsecond), nil
 }
