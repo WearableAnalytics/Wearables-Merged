@@ -95,5 +95,14 @@ Breakpoint testing aims to find system limits. Reasons you might want to know th
 
 How to run this load generator:
 ```shell
-
+# Flags
+--workload #default=smoke, can be avg
+--example #uses the example
+--message-size #defines the maximum messageSize to test different scenarios
+--vu #defines the amount of virtual users
 ```
+
+```shell
+go run ./cmd --workload=smoke --example=true --message-size=500 --vu=10
+```
+
