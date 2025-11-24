@@ -2,255 +2,347 @@ package org.example.fhir;
 
 import com.google.gson.*;
 import org.example.config.Environment;
+import org.example.fhir.model.FieldConfig;
+import org.example.fhir.model.MappingRuleConfig;
+import org.example.fhir.model.MeasurementConfig;
+import org.example.fhir.model.MeasurementPathConfig;
+import org.example.fhir.model.MetadataConfig;
+import org.example.fhir.model.RuleConfig;
 import org.example.util.ConfigLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Mapper converts an incoming FHIR JSON payload into another JSON structure
- * according to a declarative YAML mapping. The YAML provides a list of
- * source JSON paths (dot-notation with optional [index] for arrays) and
- * target JSON paths for where to write the values.
- *
- * High-level flow:
- * 1) Load the mapping YAML once at class load (via ConfigLoader + env var).
- * 2) Build a rules map: sourcePath -> MappingRule(targetPath, optional, transformer).
- * 3) Traverse the input JSON depth-first, and whenever the current path matches a rule,
- *    write the (optionally transformed) value to the target path of the output JSON.
- * 4) Track which source paths were found and error if any required mapping is missing.
- */
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public class Mapper {
 
     private static final Logger log = LoggerFactory.getLogger(Mapper.class);
 
-    // Load YAML once. Environment.MAPPING_YAML_PATH points to the file path env var name.
-    // ConfigLoader.loadConfig handles reading and deserializing the YAML to MappingYaml.
-    final static MappingYaml yaml = ConfigLoader.loadConfig(Environment.MAPPING_YAML_PATH, MappingYaml.class);
+    private static final MappingYaml TEMPLATE = ConfigLoader.loadConfig(Environment.MAPPING_YAML_PATH, MappingYaml.class);
 
-    /**
-     * Map the provided FHIR JSON string into a new JSON object based on the mapping YAML.
-     *
-     * Contract:
-     * - Input: a valid JSON object string (FHIR resource).
-     * - Output: a JsonObject populated according to the YAML rules.
-     * - Required (non-optional) rules must be present in the input; otherwise an error is thrown.
-     *
-     * @param str the incoming FHIR JSON string
-     * @return a JsonObject with values written to their target paths; null if YAML failed to load
-     * @throws RuntimeException if a required mapping is missing in the input
-     */
-    public static JsonObject mapFhir(String str) {
-
-        if (yaml == null || yaml.getMappingsList() == null) {
-            log.error("There was an error reading the mapping yaml");
-            return null;
+    public static List<JsonObject> mapFhir(String str) {
+        if (TEMPLATE == null) {
+            throw new IllegalStateException("No mapping template loaded");
         }
-
-        log.debug("Using yaml to transform: {}", yaml.getMappingsList());
-        JsonElement root = JsonParser.parseString(str);
-
-        // Build mapping map from YAML: sourcePath -> rule(targetPath, optional)
-        // Using a HashMap for O(1) lookups when we visit paths during traversal.
-        java.util.Map<String, MappingRule> rules = buildSourceRuleMap(yaml);
-        // Also collect constant (target,value) rules that don't depend on input
-        java.util.List<MappingRule> constantRules = buildConstantRules(yaml);
-
-        // We traverse the input once and build the output incrementally.
-        JsonObject output = new JsonObject();
-        // Track which source paths were actually found in the input to verify required mappings.
-        java.util.Set<String> foundSources = new java.util.HashSet<>();
-        traverseAndApply(root, "", output, rules, foundSources);
-
-        // After traversal, verify that all non-optional (required) mappings were matched.
-        java.util.List<String> missingRequired = new java.util.ArrayList<>();
-        for (java.util.Map.Entry<String, MappingRule> e : rules.entrySet()) {
-            if (!e.getValue().optional && !foundSources.contains(e.getKey())) {
-                missingRequired.add(e.getKey());
-            }
+        JsonElement parsed = JsonParser.parseString(str);
+        if (!parsed.isJsonObject()) {
+            throw new IllegalArgumentException("Incoming payload must be a JSON object");
         }
-        if (!missingRequired.isEmpty()) {
-            String msg = "Missing required fields in input for sources: " + missingRequired;
-            log.error("{} | foundSources={} rules={}", msg, foundSources, rules.keySet());
-            throw new RuntimeException(msg);
+        JsonObject root = parsed.getAsJsonObject();
+        JsonObject metadataTemplate = buildMetadataBlock(root);
+        MeasurementConfig measurementCfg = TEMPLATE.getMeasurement();
+        if (measurementCfg == null || measurementCfg.getPaths() == null || measurementCfg.getPaths().isEmpty()) {
+            log.warn("No measurement paths configured – returning metadata-only document");
+            return List.of(metadataTemplate.deepCopy());
         }
-
-        // Apply constant rules last so they can override values if desired
-        for (MappingRule constRule : constantRules) {
-            log.debug("Applying constant mapping: target='{}' value={} (optional={})", constRule.target, constRule.constantValue, constRule.optional);
-            setAtTarget(output, constRule.target, deepCopyElement(constRule.constantValue));
-        }
-        return output;
-    }
-
-    /**
-     * Build a lookup table from source JSON path to a MappingRule describing
-     * the target path and whether the mapping is optional.
-     *
-     * Path syntax:
-     * - Dot notation for object fields: a.b.c
-     * - Array index with square brackets: a[0].b
-     *
-     * @param yamlCfg the parsed YAML configuration
-     * @return map of source path -> rule
-     */
-    static java.util.Map<String, MappingRule> buildSourceRuleMap(MappingYaml yamlCfg) {
-        java.util.Map<String, MappingRule> map = new java.util.HashMap<>();
-        if (yamlCfg == null || yamlCfg.getMappingsList() == null) return map;
-        for (Mapping m : yamlCfg.getMappingsList()) {
-            if (m == null) continue;
-            // If a constant value is supplied, this mapping is handled by buildConstantRules
-            if (m.getValue() != null) continue;
-
-            String source = m.getSource() == null ? null : m.getSource().trim();
-            if (source == null || source.isEmpty()) continue;
-            // If target is omitted, default to the same path as source
-            String target = (m.getTarget() != null && !m.getTarget().trim().isEmpty()) ? m.getTarget().trim() : source;
-            boolean optional = m.isOptional(); // defaults to false if missing
-            MappingRule rule = new MappingRule(target, optional, ValueTransformer.identity(), null);
-            map.put(source, rule);
-        }
-        return map;
-    }
-
-    /**
-     * Build constant (target,value) rules from YAML. These do not depend on any source path.
-     * If a mapping has both source and value, value wins and the source is ignored.
-     */
-    static java.util.List<MappingRule> buildConstantRules(MappingYaml yamlCfg) {
-        java.util.List<MappingRule> list = new java.util.ArrayList<>();
-        if (yamlCfg == null || yamlCfg.getMappingsList() == null) return list;
-        for (Mapping m : yamlCfg.getMappingsList()) {
-            if (m == null) continue;
-            if (m.getValue() == null) continue; // only collect mappings with a literal value
-
-            String target = (m.getTarget() != null && !m.getTarget().trim().isEmpty()) ? m.getTarget().trim() : null;
-            if (target == null) {
-                log.warn("Constant mapping skipped: 'target' is required when 'value' is provided. Mapping={}.", m);
+        List<JsonObject> observations = new ArrayList<>();
+        for (MeasurementPathConfig pathConfig : measurementCfg.getPaths()) {
+            if (pathConfig == null) continue;
+            JsonArray measurementArray = resolveMeasurementArray(root, pathConfig.getPath());
+            if (measurementArray == null) {
+                log.warn("Measurement path '{}' not found or not an array", pathConfig.getPath());
                 continue;
             }
-            boolean optional = m.isOptional();
-            JsonElement constElem = toJsonElement(m.getValue());
-            list.add(new MappingRule(target, optional, ValueTransformer.identity(), constElem));
+            if (pathConfig.isArrayMapAll()) {
+                for (int idx = 0; idx < measurementArray.size(); idx++) {
+                    JsonElement measurementElement = measurementArray.get(idx);
+                    JsonObject observation = metadataTemplate.deepCopy().getAsJsonObject();
+                    applyFields(observation, TEMPLATE.getMetadata(), pathConfig, root, measurementElement, idx, true);
+                    applyFields(observation, pathConfig, pathConfig, root, measurementElement, idx, true);
+                    if (observation.size() > 0) observations.add(observation);
+                }
+            } else {
+                Set<Integer> indexes = collectExplicitIndexes(pathConfig);
+                for (Integer idx : indexes) {
+                    if (idx < 0 || idx >= measurementArray.size()) {
+                        log.warn("Index {} out of bounds for path '{}'", idx, pathConfig.getPath());
+                        continue;
+                    }
+                    JsonElement measurementElement = measurementArray.get(idx);
+                    JsonObject observation = metadataTemplate.deepCopy().getAsJsonObject();
+                    applyFields(observation, TEMPLATE.getMetadata(), pathConfig, root, measurementElement, idx, false);
+                    applyFields(observation, pathConfig, pathConfig, root, measurementElement, idx, false);
+                    if (observation.size() > 0) observations.add(observation);
+                }
+            }
         }
-        return list;
+        return observations;
     }
 
-    /**
-     * Depth-first traversal over the input JSON. For each leaf value, we compare its path
-     * (constructed via dot notation and [index] for arrays) against the rule map. When there
-     * is a match, we write the value (possibly transformed) to the corresponding target path
-     * in the output object.
-     *
-     * @param element current input node
-     * @param path    current JSON path (dot/[index] notation)
-     * @param out     output JSON object to populate
-     * @param rules   mapping rules (source path -> rule)
-     * @param foundSources set of source paths that were actually matched (for required-field checking)
-     */
-    static void traverseAndApply(JsonElement element,
-                                 String path,
-                                 JsonObject out,
-                                 java.util.Map<String, MappingRule> rules,
-                                 java.util.Set<String> foundSources) {
-        // When the current element is null, we still consider mapping if the path is explicitly mapped.
-        if (element == null || element.isJsonNull()) {
-            if (!path.isEmpty() && rules.containsKey(path)) {
-                MappingRule r = rules.get(path);
-                log.debug("Applying mapping for null at path='{}' -> target='{}' (optional={})", path, r.target, r.optional);
-                JsonElement transformed = r.transformer.apply(JsonNull.INSTANCE);
-                setAtTarget(out, r.target, transformed);
-                foundSources.add(path);
-            }
-            return;
-        }
-        // For primitives, apply mapping if current path is configured.
-        if (element.isJsonPrimitive()) {
-            if (!path.isEmpty() && rules.containsKey(path)) {
-                MappingRule r = rules.get(path);
-                log.debug("Applying mapping at primitive path='{}' -> target='{}' (optional={}) value={}", path, r.target, r.optional, element);
-                JsonElement transformed = r.transformer.apply(element);
-                setAtTarget(out, r.target, transformed);
-                foundSources.add(path);
-            }
-            return;
-        }
-        // For arrays, recurse with [index] segment appended to path (e.g., items[0]).
-        if (element.isJsonArray()) {
-            JsonArray arr = element.getAsJsonArray();
-            for (int i = 0; i < arr.size(); i++) {
-                String next = path.isEmpty() ? ("[" + i + "]") : (path + "[" + i + "]");
-                traverseAndApply(arr.get(i), next, out, rules, foundSources);
-            }
-            return;
-        }
-        // For objects, recurse with ".field" appended to the path.
-        if (element.isJsonObject()) {
-            JsonObject obj = element.getAsJsonObject();
-            for (java.util.Map.Entry<String, JsonElement> e : obj.entrySet()) {
-                String key = e.getKey();
-                JsonElement child = e.getValue();
-                String next = path.isEmpty() ? key : path + "." + key;
-                traverseAndApply(child, next, out, rules, foundSources);
-            }
+    private static JsonObject buildMetadataBlock(JsonObject root) {
+        JsonObject metadata = new JsonObject();
+        MetadataConfig metadataConfig = TEMPLATE.getMetadata();
+        applyFields(metadata, metadataConfig, null, root, null, -1, false);
+        return metadata;
+    }
+
+    private static JsonArray resolveMeasurementArray(JsonObject root, String path) {
+        if (path == null || path.isBlank()) return null;
+        JsonElement el = getByPath(root, path);
+        if (el == null || !el.isJsonArray()) return null;
+        return el.getAsJsonArray();
+    }
+
+    private static void applyFields(JsonObject target,
+                                    MetadataConfig metadataCfg,
+                                    MeasurementPathConfig measurementCfg,
+                                    JsonObject root,
+                                    JsonElement measurementElement,
+                                    int measurementIndex,
+                                    boolean arrayMapAll) {
+        if (metadataCfg == null || metadataCfg.getFields() == null) return;
+        for (FieldConfig field : metadataCfg.getFields()) {
+            applySingleField(target, field, measurementCfg, root, measurementElement, measurementIndex, arrayMapAll);
         }
     }
 
-    /**
-     * Write a value into the output JsonObject at the given target path, creating
-     * intermediate objects/arrays as needed. The target path uses the same dot/[index]
-     * notation as source paths, so this method tokenizes the path and walks/creates
-     * the structure until the last token, where it writes the value.
-     *
-     * @param root       the output object to mutate
-     * @param targetPath path to write to (e.g., a.b[0].c)
-     * @param value      value to set (deep-copied to avoid aliasing)
-     */
+    private static void applyFields(JsonObject target,
+                                    MeasurementPathConfig fieldCfg,
+                                    MeasurementPathConfig measurementCfg,
+                                    JsonObject root,
+                                    JsonElement measurementElement,
+                                    int measurementIndex,
+                                    boolean arrayMapAll) {
+        if (fieldCfg == null || fieldCfg.getFields() == null) return;
+        for (FieldConfig field : fieldCfg.getFields()) {
+            applySingleField(target, field, measurementCfg, root, measurementElement, measurementIndex, arrayMapAll);
+        }
+    }
+
+    private static void applySingleField(JsonObject target,
+                                         FieldConfig field,
+                                         MeasurementPathConfig measurementCfg,
+                                         JsonObject root,
+                                         JsonElement measurementElement,
+                                         int measurementIndex,
+                                         boolean arrayMapAll) {
+        if (field == null) return;
+        if (field.getTarget() == null || field.getTarget().isBlank()) {
+            log.warn("Skipping field '{}' because target is missing", field.getName());
+            return;
+        }
+        JsonElement value;
+        if (field.isMapping()) {
+            value = resolveMappingValue(field, measurementCfg, root, measurementElement, measurementIndex, arrayMapAll);
+        } else if (field.getValue() != null) {
+            value = toJsonElement(field.getValue());
+        } else {
+            String sourcePath = field.getSource();
+            if (sourcePath == null || sourcePath.isBlank()) {
+                if (!field.isOptional()) {
+                    throw new IllegalStateException("Field '" + field.getName() + "' lacks a source/value but is required");
+                }
+                return;
+            }
+            String expanded = expandPathForMeasurement(sourcePath, measurementCfg, measurementIndex, arrayMapAll);
+            JsonElement resolved = getByPath(root, expanded);
+            if ((resolved == null || resolved.isJsonNull()) && measurementElement != null && measurementCfg != null) {
+                String relative = deriveRelativePath(sourcePath, measurementCfg.getPath());
+                if (relative != null) {
+                    resolved = relative.isEmpty() ? measurementElement : getByPath(measurementElement, relative);
+                }
+            }
+            value = resolved;
+        }
+        if (value == null || value.isJsonNull()) {
+            if (!field.isOptional()) {
+                throw new IllegalStateException("Missing required field '" + field.getName() + "' for target " + field.getTarget());
+            }
+            return;
+        }
+        setAtTarget(target, field.getTarget(), deepCopyElement(value));
+    }
+
+    private static JsonElement resolveMappingValue(FieldConfig field,
+                                                   MeasurementPathConfig measurementCfg,
+                                                   JsonObject root,
+                                                   JsonElement measurementElement,
+                                                   int measurementIndex,
+                                                   boolean arrayMapAll) {
+        if (measurementCfg == null || measurementCfg.getMappings() == null) {
+            log.warn("Field '{}' flagged as mapping but no mappings configured", field.getName());
+            return null;
+        }
+        MappingRuleConfig ruleConfig = measurementCfg.getMappings().stream()
+                .filter(rule -> rule != null && Objects.equals(rule.getPath(), field.getTarget()))
+                .findFirst()
+                .orElse(null);
+        if (ruleConfig == null) {
+            log.warn("No mapping rule found for target '{}'", field.getTarget());
+            return null;
+        }
+        String basedOnPath = expandPathForMeasurement(ruleConfig.getBasedOn(), measurementCfg, measurementIndex, arrayMapAll);
+        JsonElement basedOnValue = getByPath(root, basedOnPath);
+        if ((basedOnValue == null || basedOnValue.isJsonNull()) && measurementElement != null) {
+            String relative = deriveRelativePath(ruleConfig.getBasedOn(), measurementCfg.getPath());
+            if (relative != null) {
+                basedOnValue = relative.isEmpty() ? measurementElement : getByPath(measurementElement, relative);
+            }
+        }
+        if (basedOnValue == null || basedOnValue.isJsonNull()) {
+            log.warn("Mapping rule for '{}' missing basedOn value at path '{}'", field.getTarget(), ruleConfig.getBasedOn());
+            return null;
+        }
+        String key = primitiveAsString(basedOnValue);
+        if (key == null) {
+            log.warn("Mapping rule for '{}' could not convert basedOn value to string", field.getTarget());
+            return null;
+        }
+        List<RuleConfig> rules = ruleConfig.getMap();
+        if (rules == null) {
+            log.warn("Mapping rule for '{}' has no map entries", field.getTarget());
+            return null;
+        }
+        for (RuleConfig rule : rules) {
+            if (rule != null && Objects.equals(rule.getKey(), key)) {
+                return toJsonElement(rule.getValue());
+            }
+        }
+        log.warn("Mapping rule for '{}' does not contain key '{}'", field.getTarget(), key);
+        return null;
+    }
+
+    private static Set<Integer> collectExplicitIndexes(MeasurementPathConfig pathConfig) {
+        Set<Integer> indexes = new LinkedHashSet<>();
+        if (pathConfig == null || pathConfig.getFields() == null) return indexes;
+        String alias = measurementAlias(pathConfig.getPath());
+        Pattern mainPattern = Pattern.compile(Pattern.quote(pathConfig.getPath()) + "\\[(\\d+)]");
+        Pattern aliasPattern = alias == null ? null : Pattern.compile(Pattern.quote(alias) + "\\[(\\d+)]");
+        for (FieldConfig field : pathConfig.getFields()) {
+            if (field == null || field.getSource() == null) continue;
+            Matcher matcher = mainPattern.matcher(field.getSource());
+            while (matcher.find()) {
+                indexes.add(Integer.parseInt(matcher.group(1)));
+            }
+            if (aliasPattern != null) {
+                Matcher aliasMatcher = aliasPattern.matcher(field.getSource());
+                while (aliasMatcher.find()) {
+                    indexes.add(Integer.parseInt(aliasMatcher.group(1)));
+                }
+            }
+        }
+        return indexes;
+    }
+
+    private static String expandPathForMeasurement(String rawPath,
+                                                   MeasurementPathConfig measurementCfg,
+                                                   int measurementIndex,
+                                                   boolean arrayMapAll) {
+        if (rawPath == null || measurementCfg == null) return rawPath;
+        String measurementPath = measurementCfg.getPath();
+        if (measurementPath == null || measurementPath.isBlank()) return rawPath;
+        String alias = measurementAlias(measurementPath);
+        String expanded = rawPath;
+        if (alias != null && expanded.startsWith(alias)) {
+            expanded = measurementPath + expanded.substring(alias.length());
+        }
+        if (!expanded.startsWith(measurementPath)) {
+            return expanded;
+        }
+        if (!arrayMapAll) {
+            return expanded;
+        }
+        int prefixLen = measurementPath.length();
+        if (expanded.length() > prefixLen && expanded.charAt(prefixLen) == '[') {
+            return expanded;
+        }
+        return measurementPath + "[" + measurementIndex + "]" + expanded.substring(prefixLen);
+    }
+
+    private static String deriveRelativePath(String rawPath, String measurementPath) {
+        if (rawPath == null || measurementPath == null) return null;
+        String alias = measurementAlias(measurementPath);
+        if (rawPath.startsWith(measurementPath)) {
+            return stripLeadingDot(rawPath.substring(measurementPath.length()));
+        }
+        if (alias != null && rawPath.startsWith(alias)) {
+            return stripLeadingDot(rawPath.substring(alias.length()));
+        }
+        return null;
+    }
+
+    private static String stripLeadingDot(String value) {
+        if (value == null) return null;
+        if (value.startsWith(".")) {
+            return value.substring(1);
+        }
+        return value;
+    }
+
+    private static String measurementAlias(String path) {
+        if (path == null || path.isBlank()) return null;
+        int dot = path.indexOf('.')
+;
+        if (dot < 0) {
+            return path.endsWith("s") ? path.substring(0, path.length() - 1) : path;
+        }
+        String first = path.substring(0, dot);
+        if (first.endsWith("s")) first = first.substring(0, first.length() - 1);
+        return first + path.substring(dot);
+    }
+
+    private static JsonElement getByPath(JsonElement root, String path) {
+        if (root == null || path == null || path.isBlank()) return null;
+        List<PathToken> tokens = tokenize(path);
+        JsonElement current = root;
+        for (PathToken token : tokens) {
+            if (current == null || current.isJsonNull()) return null;
+            if (token instanceof FieldToken field) {
+                if (!current.isJsonObject()) return null;
+                current = current.getAsJsonObject().get(field.name);
+            } else if (token instanceof IndexToken indexToken) {
+                if (!current.isJsonArray()) return null;
+                JsonArray arr = current.getAsJsonArray();
+                if (indexToken.index < 0 || indexToken.index >= arr.size()) return null;
+                current = arr.get(indexToken.index);
+            }
+        }
+        return current;
+    }
+
     static void setAtTarget(JsonObject root, String targetPath, JsonElement value) {
-        java.util.List<PathToken> tokens = tokenize(targetPath);
+        List<PathToken> tokens = tokenize(targetPath);
         if (tokens.isEmpty()) return;
         JsonElement current = root;
         for (int i = 0; i < tokens.size(); i++) {
-            PathToken t = tokens.get(i);
+            PathToken token = tokens.get(i);
             boolean last = (i == tokens.size() - 1);
-            if (t instanceof FieldToken f) {
+            if (token instanceof FieldToken field) {
                 JsonObject obj = current.getAsJsonObject();
                 if (last) {
-                    log.debug("setAtTarget: setting field '{}' with value={} (last token)", f.name, value);
-                    obj.add(f.name, deepCopyElement(value));
+                    obj.add(field.name, deepCopyElement(value));
                 } else {
-                    PathToken nextTok = tokens.get(i + 1);
-                    JsonElement next = obj.get(f.name);
+                    JsonElement next = obj.get(field.name);
                     if (next == null || next.isJsonNull()) {
-                        // Decide whether to create an object or array depending on the next token type
-                        next = (nextTok instanceof IndexToken) ? new JsonArray() : new JsonObject();
-                        obj.add(f.name, next);
-                        log.debug("setAtTarget: created {} for field '{}'", (nextTok instanceof IndexToken) ? "JsonArray" : "JsonObject", f.name);
+                        next = tokens.get(i + 1) instanceof IndexToken ? new JsonArray() : new JsonObject();
+                        obj.add(field.name, next);
                     }
                     current = next;
                 }
-            } else if (t instanceof IndexToken idx) {
-                // current should be a JsonArray here; create one if not present
+            } else if (token instanceof IndexToken indexToken) {
                 JsonArray arr;
                 if (current.isJsonArray()) {
                     arr = current.getAsJsonArray();
                 } else {
                     arr = new JsonArray();
-                    log.debug("setAtTarget: created JsonArray for index token at position {}", i);
                 }
-                // Ensure the array has enough capacity (fill gaps with nulls)
-                while (arr.size() <= idx.index) arr.add(JsonNull.INSTANCE);
+                while (arr.size() <= indexToken.index) {
+                    arr.add(JsonNull.INSTANCE);
+                }
                 if (last) {
-                    log.debug("setAtTarget: setting array index {} with value={} (last token)", idx.index, value);
-                    arr.set(idx.index, deepCopyElement(value));
-                    current = arr.get(idx.index);
+                    arr.set(indexToken.index, deepCopyElement(value));
                 } else {
-                    PathToken nextTok = tokens.get(i + 1);
-                    JsonElement next = arr.get(idx.index);
+                    JsonElement next = arr.get(indexToken.index);
                     if (next == null || next.isJsonNull()) {
-                        // Create nested container appropriate for the next token
-                        next = (nextTok instanceof IndexToken) ? new JsonArray() : new JsonObject();
-                        arr.set(idx.index, next);
-                        log.debug("setAtTarget: created {} at array index {}", (nextTok instanceof IndexToken) ? "JsonArray" : "JsonObject", idx.index);
+                        next = tokens.get(i + 1) instanceof IndexToken ? new JsonArray() : new JsonObject();
+                        arr.set(indexToken.index, next);
                     }
                     current = next;
                 }
@@ -258,125 +350,79 @@ public class Mapper {
         }
     }
 
-    /**
-     * Tokenize a dot/[index] path into a list of tokens for easier navigation and mutation.
-     * Examples:
-     * - "a.b[0].c" -> [FieldToken("a"), FieldToken("b"), IndexToken(0), FieldToken("c")]
-     * - "[0]" -> [IndexToken(0)]
-     *
-     * @param path a dot/[index] path string
-     * @return ordered tokens representing the path
-     */
-    static java.util.List<PathToken> tokenize(String path) {
-        java.util.ArrayList<PathToken> tokens = new java.util.ArrayList<>();
+    static List<PathToken> tokenize(String path) {
+        ArrayList<PathToken> tokens = new ArrayList<>();
         if (path == null || path.isBlank()) return tokens;
-        StringBuilder sb = new StringBuilder();
+        StringBuilder current = new StringBuilder();
         for (int i = 0; i < path.length(); i++) {
             char c = path.charAt(i);
             if (c == '.') {
-                // Flush the accumulated field name on dot
-                if (sb.length() > 0) {
-                    tokens.add(new FieldToken(sb.toString()));
-                    sb.setLength(0);
+                if (current.length() > 0) {
+                    tokens.add(new FieldToken(current.toString()));
+                    current.setLength(0);
                 }
             } else if (c == '[') {
-                // Push any pending field before processing the index
-                if (sb.length() > 0) {
-                    tokens.add(new FieldToken(sb.toString()));
-                    sb.setLength(0);
+                if (current.length() > 0) {
+                    tokens.add(new FieldToken(current.toString()));
+                    current.setLength(0);
                 }
                 int j = i + 1;
-                int num = 0;
+                int number = 0;
                 while (j < path.length() && Character.isDigit(path.charAt(j))) {
-                    //reconstruct number in the decimal system
-                    num = num * 10 + (path.charAt(j) - '0');
+                    number = number * 10 + (path.charAt(j) - '0');
                     j++;
                 }
-                // expect closing ']'
                 if (j < path.length() && path.charAt(j) == ']') {
-                    tokens.add(new IndexToken(num));
-                    i = j; // advance past ']'
-                } else {
-                    // malformed index; treat it as a literal field to avoid crashing
-                    tokens.add(new FieldToken("["));
+                    tokens.add(new IndexToken(number));
+                    i = j;
                 }
             } else {
-                sb.append(c);
+                current.append(c);
             }
         }
-        if (sb.length() > 0) {
-            tokens.add(new FieldToken(sb.toString()));
+        if (current.length() > 0) {
+            tokens.add(new FieldToken(current.toString()));
         }
         return tokens;
     }
 
-    /**
-     * Create a defensive deep copy of a JsonElement. Gson elements are mutable and shared
-     * references could lead to unexpected aliasing. This method uses JSON serialization
-     * round-trip via parsing the element's string to create a new instance.
-     *
-     * @param in element to copy (may be null)
-     * @return an equivalent JsonElement instance, or JsonNull if input is null
-     */
     static JsonElement deepCopyElement(JsonElement in) {
         if (in == null) return JsonNull.INSTANCE;
         try {
-            // Cheap deep copy by re-parsing the JSON representation
             return JsonParser.parseString(in.toString());
         } catch (Exception e) {
-            // Fallback to the original element if parsing fails
             return in;
         }
     }
 
-    /**
-     * Convert an arbitrary Java object (read from YAML) into a Gson JsonElement.
-     * Supports primitives (String, Number, Boolean), nulls, and complex types (Map/List).
-     */
-    static JsonElement toJsonElement(Object o) {
-        if (o == null) return JsonNull.INSTANCE;
-        if (o instanceof String s) return new JsonPrimitive(s);
-        if (o instanceof Number n) return new JsonPrimitive(n);
-        if (o instanceof Boolean b) return new JsonPrimitive(b);
-        // For arrays/objects, delegate to Gson toJsonTree
-        return new Gson().toJsonTree(o);
+    static JsonElement toJsonElement(Object value) {
+        if (value == null) return JsonNull.INSTANCE;
+        if (value instanceof JsonElement jsonElement) return jsonElement;
+        if (value instanceof String string) return new JsonPrimitive(string);
+        if (value instanceof Number number) return new JsonPrimitive(number);
+        if (value instanceof Boolean bool) return new JsonPrimitive(bool);
+        return new Gson().toJsonTree(value);
     }
 
-    /**
-     * Rule describing how to map a source path to a target path and whether it's optional.
-     * A ValueTransformer hook is included for future transformations (e.g., type conversions,
-     * formatting). If constantValue is non-null, this rule represents a constant mapping.
-     */
-    record MappingRule(String target, boolean optional, ValueTransformer transformer, JsonElement constantValue) {
-        MappingRule(String target, boolean optional, ValueTransformer transformer) {
-            this(target, optional, transformer, null);
-        }
+    private static String primitiveAsString(JsonElement element) {
+        if (element == null || element.isJsonNull()) return null;
+        if (element.isJsonPrimitive()) return element.getAsJsonPrimitive().getAsString();
+        return element.toString();
     }
 
-    /**
-     * Hook to transform values before writing them to the output JSON.
-     * Currently only identity() is used, but custom logic could be added later.
-     */
-    interface ValueTransformer {
-        JsonElement apply(JsonElement in);
-
-        static ValueTransformer identity() {
-            return v -> v;
-        }
-    }
-
-    // Marker type for path tokens (field vs index)
     static abstract class PathToken { }
 
-    // Field access token (e.g., ".name")
     static final class FieldToken extends PathToken {
         final String name;
-        FieldToken(String n) { this.name = n; }
+        FieldToken(String name) {
+            this.name = name;
+        }
     }
 
-    // Array index token (e.g., "[3]")
     static final class IndexToken extends PathToken {
         final int index;
-        IndexToken(int i) { this.index = i; }
+        IndexToken(int index) {
+            this.index = index;
+        }
     }
 }

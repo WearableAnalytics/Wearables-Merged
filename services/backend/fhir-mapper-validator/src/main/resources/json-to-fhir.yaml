@@ -35,7 +35,7 @@ mappingsList:
     optional: false
     value: "http://loinc.org"
   - target: code.coding[0].code
-    value: "8867-4"
+    value: "55423-8" #loinc code for number of steps in unspecified time
     optional: false
   - target: code.coding[0].display
     value: "Heart rate"

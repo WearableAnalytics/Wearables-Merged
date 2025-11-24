@@ -1,14 +1,8 @@
 package org.example.fhir;
 
 import lombok.Data;
-
-import java.util.List;
+import org.example.fhir.model.MappingTemplate;
 
 @Data
-public class MappingYaml {
-    private List<Mapping> mappingsList;
+public class MappingYaml extends MappingTemplate {
 }
-
-
-
-

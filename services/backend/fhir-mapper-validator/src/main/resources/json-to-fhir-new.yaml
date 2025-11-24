@@ -1,0 +1,69 @@
+metadata:
+  fields:
+    - name: device
+      source: deviceInfo.platform
+      target: device.display
+      optional: false
+      type: string
+measurement:
+  paths:
+    - path: measurements.cumulative
+      arrayMapAll: true
+      fields:
+        - name: fhirType
+          value: "Observation"
+          target: resourceType
+          optional: false
+          type: string
+        - name: type
+          source: measurements.cumulative.type
+          target: id
+          optional: false
+          type: string
+        - name: value
+          source: measurement.cumulative.value
+          target: valueQuantity.value
+          optional: false
+          type: real
+        - name: unit
+          source: measurement.cumulative.unit
+          target: valueQuantity.unit
+          optional: false
+          type: string
+        - name: start
+          source: measurement.cumulative.periodStart
+          target: effectivePeriod.start
+          optional: false
+          type: string
+        - name: end
+          source: measurement.cumulative.periodEnd
+          target: effectivePeriod.end
+          optional: false
+          type: string
+        - name: status
+          value: "final"
+          target: status
+          optional: false
+          type: string
+        - name: codingSystem
+          value: "http://loinc.org"
+          target: code.coding[0].system
+          optional: false
+          type: string
+        - name: codingCode
+          mapping: true
+          target: code.coding[0].code
+          optional: false
+          type: string
+        - name: codingDisplay
+          source: measurement.cumulative.unit
+          target: code.coding[0].display
+          optional: false
+          type: string
+      mappings:
+        - path: code.coding[0].code
+          basedOn: measurement.cumulative.unit
+          ValueType: string
+          map:
+            - key: "STEPS"
+              value: "55423-8"

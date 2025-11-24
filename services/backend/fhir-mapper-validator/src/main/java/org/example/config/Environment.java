@@ -13,7 +13,7 @@ public class Environment {
     public static final String LP_OUTPUT_TOPIC = setEnvWithDefault("LP_OUTPUT_TOPIC", "wearables-lp");
     public static final String KAFKA_BROKER_ENV_VAR = setEnvWithDefault("KAFKA_BROKER_ENV_VAR", "kafka-kafka-bootstrap:9092");
     public static final String APP_ID = setEnvWithDefault("APP_ID", "mapper-validator");
-    public static final String MAPPING_YAML_PATH = setEnvWithDefault("MAPPING_YAML_PATH", "/config/fhir-to-lineprotocol.yaml");
+    public static final String MAPPING_YAML_PATH = setEnvWithDefault("MAPPING_YAML_PATH", "src/main/resources/test.yaml");
     public static final String FHIR_LP_MAPPING_YAML_PATH = setEnvWithDefault("FHIR_LP_MAPPING_YAML_PATH", "/config/fhir-to-lineprotocol.yaml");
 
     private static String setEnvWithDefault(String value, String defaultValue){
