@@ -65,11 +65,11 @@ func main() {
 
 			provider := pkg.NewExampleProvider(vu, maxSize)
 			// This need to be switched
-			client := pkg.NewMQTTClientFromParams("wearables", "test", 0)
+			client := pkg.NewMQTTClientFromParams("wearables/#/datax", "tcp://localhost:1883", 0)
 
 			collector, err := go_loadgen.NewCSVCollector[pkg.Response](path.Join("example", "test.csv"), 1*time.Second)
 			if err != nil {
-
+				return err
 			}
 
 			var wl *pkg.Workload

@@ -2,12 +2,15 @@ package pkg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // Config:
@@ -26,8 +29,9 @@ type MQTTConfig struct {
 }
 
 type MQTTClient struct {
-	Config MQTTConfig
-	client paho.Client
+	Config   MQTTConfig
+	client   paho.Client
+	JsonFast jsoniter.API
 }
 
 func NewMQTTClientFromParams(topic string, broker string, qos int) *MQTTClient {
@@ -69,6 +73,8 @@ func NewMQTTClient(configMap map[string]interface{}) (*MQTTClient, error) {
 		return nil, fmt.Errorf("required fields: topic, broker, qos")
 	}
 
+	jsonFast := jsoniter.ConfigFastest
+
 	opts := paho.NewClientOptions()
 	opts.SetClientID(uuid.New().String())
 	opts.AddBroker(config.Broker)
@@ -77,27 +83,61 @@ func NewMQTTClient(configMap map[string]interface{}) (*MQTTClient, error) {
 
 	client := paho.NewClient(opts)
 
+	log.Printf("mqtt client created and connected!")
+
 	return &MQTTClient{
-		Config: config,
-		client: client,
+		Config:   config,
+		client:   client,
+		JsonFast: jsonFast,
 	}, nil
 }
 
 func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
 	start := time.Now()
-	token := c.client.Publish(c.Config.Topic, byte(c.Config.QoS), false, req)
+	conn := c.client.Connect()
+	conn.Wait()
+
+	if conn.Error() != nil {
+		return Response{
+			Timestamp:   start,
+			Err:         conn.Error(),
+			Latency:     time.Since(start),
+			MessageSize: -1,
+		}
+	}
+	b, err := c.JsonFast.Marshal(req)
+	if err != nil {
+		return Response{
+			Timestamp:   start,
+			Err:         err,
+			Latency:     time.Since(start),
+			MessageSize: -1,
+		}
+	}
+
+	log.Println(string(b))
+
+	topicArray := strings.Split(c.Config.Topic, "/")
+	topicArray[1] = req.DeviceInfo.DeviceID
+	topic := fmt.Sprintf("%s/%s/%s", topicArray[0], topicArray[1], topicArray[2])
+
+	token := c.client.Publish(topic, byte(c.Config.QoS), false, b)
 
 	token.Wait()
 
 	if token.Error() != nil {
 		return Response{
-			Err:     token.Error(),
-			Latency: time.Since(start),
+			Timestamp:   start,
+			Err:         token.Error(),
+			Latency:     time.Since(start),
+			MessageSize: -1,
 		}
 	}
 
 	return Response{
-		Err:     nil,
-		Latency: time.Since(start),
+		Timestamp:   start,
+		Err:         errors.New(""),
+		Latency:     time.Since(start),
+		MessageSize: len(b),
 	}
 }

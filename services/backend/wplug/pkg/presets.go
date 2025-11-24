@@ -38,8 +38,8 @@ func NewSmoke(
 		Type:      "constant",
 		StartTime: 0,
 		Duration:  smoke.Duration,
-		StartRPS:  20,
-		EndRPS:    20,
+		StartRPS:  1,
+		EndRPS:    1,
 		Step:      1,
 	}
 
@@ -113,7 +113,7 @@ func (s Workload) GenerateWorkload() error {
 		return err
 	}
 
-	fmt.Println("starting runner")
+	fmt.Printf("starting runner: %s with config: \nDuration:%v\nMaxSize:%d\nVU:%d", s.Name, s.Duration, s.Provider.MaxSize, s.Provider.DeviceCount)
 	runner.Run()
 	fmt.Printf("finished running in: %v", time.Since(startTime))
 

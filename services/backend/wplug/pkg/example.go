@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"strconv"
 	"time"
@@ -28,16 +29,18 @@ type Message struct {
 }
 
 type Response struct {
-	Err     error
-	Latency time.Duration
+	Timestamp   time.Time
+	Err         error
+	Latency     time.Duration
+	MessageSize int //in bytes
 }
 
 func (r Response) CSVHeaders() []string {
-	return []string{"errors", "latency"}
+	return []string{"timestamp", "errors", "latency", "message-size"}
 }
 
 func (r Response) CSVRecord() []string {
-	return []string{r.Err.Error(), r.Latency.String()}
+	return []string{r.Timestamp.String(), r.Err.Error(), r.Latency.String(), strconv.Itoa(r.MessageSize)}
 }
 
 type DeviceInfo struct {
@@ -53,9 +56,9 @@ type BatchInfo struct {
 }
 
 type Measurements struct {
-	Instantaneous []Instantaneous `json:"instantaneous,omitempty"`
-	Cumulative    []Cumulative    `json:"cumulative,omitempty"`
-	Duration      []Duration      `json:"duration,omitempty"`
+	Instantaneous []Instantaneous `json:"instantaneous"`
+	Cumulative    []Cumulative    `json:"cumulative"`
+	Duration      []Duration      `json:"duration"`
 }
 
 type Instantaneous struct {
@@ -113,11 +116,13 @@ func (e ExampleProvider) GetData() Message {
 	cumulative := e.GenerateCumulative(collectionStart, collectionEnd, e.MaxSize/3)
 	duration := e.GenerateDuration()
 
-	return Message{
+	log.Printf("Cumulative: %v, instantaneous: %v, duration: %v", cumulative, instantaneous, duration)
+
+	msg := Message{
 		DeviceInfo: e.BaseDeviceInfo,
 		BatchInfo: BatchInfo{
-			collectionStart.Format(time.RFC3339),
-			collectionEnd.Format(time.RFC3339)},
+			fmt.Sprintf("%sZ", collectionStart.Format(time.RFC3339)),
+			fmt.Sprintf("%sZ", collectionEnd.Format(time.RFC3339))},
 		Measurements: Measurements{
 			Instantaneous: instantaneous,
 			Cumulative:    cumulative,
@@ -125,8 +130,12 @@ func (e ExampleProvider) GetData() Message {
 		},
 		SourceName:      e.SourceName,
 		TotalStepsToday: nil,
-		Timestamp:       collectionEnd.Format(time.RFC3339),
+		Timestamp:       fmt.Sprintf("%sZ", collectionEnd.Format(time.RFC3339)),
 	}
+
+	log.Println(msg)
+
+	return msg
 }
 
 func (e ExampleProvider) GenerateInstantaneous() []Instantaneous {
@@ -138,6 +147,7 @@ func (e ExampleProvider) GenerateDuration() []Duration {
 }
 
 func (e ExampleProvider) GenerateCumulative(start time.Time, end time.Time, maxSize int) []Cumulative {
+	log.Println(fmt.Sprint(start, ",", end, ",", maxSize))
 	var cumulatives []Cumulative
 	duration := end.Sub(start).Minutes()
 	approx := duration / float64(len(cumulatives))
@@ -167,11 +177,11 @@ func (e ExampleProvider) GenerateCumulative(start time.Time, end time.Time, maxS
 			Type:        base.Type,
 			Value:       value,
 			Unit:        base.Unit,
-			PeriodStart: periodStart.Format(time.RFC3339),
-			PeriodEnd:   periodEnd.Format(time.RFC3339),
+			PeriodStart: fmt.Sprintf("%sZ", periodStart.Format(time.RFC3339)),
+			PeriodEnd:   fmt.Sprintf("%sZ", periodEnd.Format(time.RFC3339)),
 			Duration:    int(periodDuration.Seconds()),
 		}
-
+		log.Printf("")
 		cumulatives = append(cumulatives, cumulative)
 
 		size += int(unsafe.Sizeof(cumulative))
@@ -181,6 +191,8 @@ func (e ExampleProvider) GenerateCumulative(start time.Time, end time.Time, maxS
 
 		i++
 	}
+
+	log.Printf("Cumulatives: %v", cumulatives)
 
 	return cumulatives
 }
