@@ -150,6 +150,9 @@ func (e ExampleProvider) GenerateCumulative(start time.Time, end time.Time, maxS
 
 	currentStart := start
 
+	typeLen := len(base.Type)
+	unitLen := len(base.Unit)
+
 	for size < maxSize && currentStart.Before(end) {
 		// Randomize period duration around approx (50%–150%)
 		randomFactor := 0.5 + rand.Float64()
@@ -176,8 +179,8 @@ func (e ExampleProvider) GenerateCumulative(start time.Time, end time.Time, maxS
 
 		cumulatives = append(cumulatives, cumulative)
 
-		// Rough size accounting (approximate)
-		size += len(cumulative.PeriodStart) + len(cumulative.PeriodEnd) + 8*3 + 8
+		// To avoid json marshalling
+		size += typeLen + unitLen + len(cumulative.PeriodStart) + len(cumulative.PeriodEnd) + 8*2 + 8
 
 		currentStart = periodEnd
 	}
