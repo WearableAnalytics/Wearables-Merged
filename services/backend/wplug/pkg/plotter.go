@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"gonum.org/v1/plot"
@@ -73,13 +74,11 @@ func (p Plotter) PlotBytesPerSecond() (map[time.Time]int64, error) {
 			return nil, fmt.Errorf("error reading CSV: %w", err)
 		}
 
-		ts, err := time.Parse("2006-01-02 15:04:05.000000", record[0])
+		rawTs := stripMonotonic(record[0])
+
+		ts, err := parseTimestamp(rawTs)
 		if err != nil {
-			// try with timezone if present
-			ts, err = time.Parse("2006-01-02 15:04:05.000000 -0700 MST", record[0])
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse timestamp '%s': %w", record[0], err)
-			}
+			return nil, err
 		}
 
 		ts = ts.Truncate(time.Second)
@@ -113,8 +112,8 @@ func MapToXY(start time.Time, m map[time.Time]int64) plotter.XYs {
 }
 
 func PlotLineToSVG(points plotter.XYs, outputPath string, title string, X string, Y string) error {
-	if filepath.Ext(outputPath) != "svg" {
-		return fmt.Errorf("output-path must be svg")
+	if filepath.Ext(outputPath) != ".svg" {
+		return fmt.Errorf("output-path must be svg is: %s (ext: %s)", outputPath, filepath.Ext(outputPath))
 	}
 	p := plot.New()
 	p.Title.Text = title
@@ -129,4 +128,29 @@ func PlotLineToSVG(points plotter.XYs, outputPath string, title string, X string
 
 	// Save 12×4 inch PNG
 	return p.Save(12*vg.Inch, 4*vg.Inch, outputPath)
+}
+
+func parseTimestamp(raw string) (time.Time, error) {
+	raw = stripMonotonic(raw)
+
+	layouts := []string{
+		"2006-01-02 15:04:05.999999999 -0700 MST",
+		"2006-01-02 15:04:05.999999999",
+	}
+
+	for _, layout := range layouts {
+		ts, err := time.Parse(layout, raw)
+		if err == nil {
+			return ts, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("failed to parse timestamp '%s'", raw)
+}
+
+func stripMonotonic(t string) string {
+	if idx := strings.Index(t, " m="); idx != -1 {
+		return t[:idx]
+	}
+	return t
 }

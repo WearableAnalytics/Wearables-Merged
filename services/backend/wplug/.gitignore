@@ -11,8 +11,6 @@
 # Test binary, built with `go test -c`
 *.test
 
-example/
-plots/
 
 # Code coverage profiles and other test artifacts
 *.out
@@ -29,6 +27,9 @@ go.work.sum
 
 # env file
 .env
+
+*.csv
+*.svg
 
 # Editor/IDE
 # .idea/
