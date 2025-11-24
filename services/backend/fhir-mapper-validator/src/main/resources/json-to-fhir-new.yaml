@@ -63,7 +63,7 @@ measurement:
       mappings:
         - path: code.coding[0].code
           basedOn: measurement.cumulative.unit
-          ValueType: string
+          valueType: string
           map:
             - key: "STEPS"
               value: "55423-8"
