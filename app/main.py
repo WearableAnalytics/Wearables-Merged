@@ -1,0 +1,87 @@
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
+from kafka import errors as kafka_errors
+from .models import IngestPayload, IngestResponse
+from .kafka_producer import get_producer
+from datetime import datetime
+# from .security import verify_token
+
+app = FastAPI(title="Wearables Import Service", version="0.1.0")
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+
+@app.post("/ingest", response_model=IngestResponse)
+async def ingest(payload: IngestPayload, producer=Depends(get_producer)):
+    messages = []
+
+    # Instantaneous
+    for m in payload.measurements.instantaneous:
+        messages.append({
+            "category": "instantaneous",
+            "type": m.type,
+            "value": m.value,
+            "unit": m.unit,
+            "timestamp": m.timestamp.isoformat(),
+            "deviceId": payload.deviceInfo.deviceId,
+            "platform": payload.deviceInfo.platform,
+            "batchCollectionStart": payload.batchInfo.collectionStart.isoformat(),
+            "batchCollectionEnd": payload.batchInfo.collectionEnd.isoformat(),
+            "sourceName": payload.sourceName,
+            "ingestTimestamp": payload.timestamp.isoformat(),
+        })
+
+    # Cumulative
+    for m in payload.measurements.cumulative:
+        messages.append({
+            "category": "cumulative",
+            "type": m.type,
+            "value": m.value,
+            "unit": m.unit,
+            "periodStart": m.periodStart.isoformat(),
+            "periodEnd": m.periodEnd.isoformat(),
+            "durationSeconds": m.duration,
+            "deviceId": payload.deviceInfo.deviceId,
+            "platform": payload.deviceInfo.platform,
+            "batchCollectionStart": payload.batchInfo.collectionStart.isoformat(),
+            "batchCollectionEnd": payload.batchInfo.collectionEnd.isoformat(),
+            "sourceName": payload.sourceName,
+            "ingestTimestamp": payload.timestamp.isoformat(),
+        })
+
+    # Duration
+    for m in payload.measurements.duration:
+        messages.append({
+            "category": "duration",
+            "type": m.type,
+            "value": m.value,
+            "unit": m.unit,
+            "startTime": m.startTime.isoformat(),
+            "endTime": m.endTime.isoformat(),
+            "durationMinutes": m.durationMinutes,
+            "deviceId": payload.deviceInfo.deviceId,
+            "platform": payload.deviceInfo.platform,
+            "batchCollectionStart": payload.batchInfo.collectionStart.isoformat(),
+            "batchCollectionEnd": payload.batchInfo.collectionEnd.isoformat(),
+            "sourceName": payload.sourceName,
+            "ingestTimestamp": payload.timestamp.isoformat(),
+        })
+
+    try:
+        total = producer.produce_measurements(messages)
+    except kafka_errors.NoBrokersAvailable:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Kafka brokers unavailable")
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed producing messages")
+
+    return IngestResponse(
+        total_messages_produced=total,
+        instantaneous_count=len(payload.measurements.instantaneous),
+        cumulative_count=len(payload.measurements.cumulative),
+        duration_count=len(payload.measurements.duration),
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
