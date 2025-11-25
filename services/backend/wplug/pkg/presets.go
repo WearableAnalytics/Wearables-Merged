@@ -31,15 +31,15 @@ func NewSmoke(
 	var smoke Workload
 	testId := uuid.New().ID()
 	smoke.Name = fmt.Sprintf("Workload-Test-%d", testId)
-	smoke.Duration = 3 * time.Minute
+	smoke.Duration = 2 * time.Minute
 
 	phase := go_loadgen.TestPhase{
 		Name:      "increment",
-		Type:      "constant",
+		Type:      "variable",
 		StartTime: 0,
 		Duration:  smoke.Duration,
 		StartRPS:  1,
-		EndRPS:    1,
+		EndRPS:    200,
 		Step:      1,
 	}
 

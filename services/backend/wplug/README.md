@@ -106,3 +106,6 @@ How to run this load generator:
 go run ./cmd --workload=smoke --example=true --message-size=500 --vu=10
 ```
 
+---
+## Future Features
+1. Async CPU-Metrics: for more

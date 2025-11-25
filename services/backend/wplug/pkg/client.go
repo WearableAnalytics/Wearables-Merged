@@ -30,7 +30,7 @@ type MQTTConfig struct {
 
 type MQTTClient struct {
 	Config   MQTTConfig
-	client   paho.Client
+	opts     *paho.ClientOptions
 	JsonFast jsoniter.API
 }
 
@@ -81,30 +81,44 @@ func NewMQTTClient(configMap map[string]interface{}) (*MQTTClient, error) {
 	opts.SetCleanSession(true)
 	opts.SetWriteTimeout(3 * time.Second) // can be tuned in the future
 
-	client := paho.NewClient(opts)
+	//client := paho.NewClient(opts)
 
 	log.Printf("mqtt client created and connected!")
 
 	return &MQTTClient{
 		Config:   config,
-		client:   client,
+		opts:     opts,
 		JsonFast: jsonFast,
 	}, nil
 }
 
-func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
-	start := time.Now()
-	conn := c.client.Connect()
+func (c MQTTClient) CreateAndConnect() (paho.Client, error) {
+	client := paho.NewClient(c.opts)
+	conn := client.Connect()
 	conn.Wait()
 
 	if conn.Error() != nil {
+		return nil, conn.Error()
+	}
+
+	return client, nil
+}
+
+func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
+	start := time.Now()
+
+	var client paho.Client
+	client, err := c.CreateAndConnect()
+	if err != nil {
 		return Response{
 			Timestamp:   start,
-			Err:         conn.Error(),
+			Err:         err,
 			Latency:     time.Since(start),
 			MessageSize: -1,
 		}
 	}
+	defer client.Disconnect(1)
+
 	b, err := c.JsonFast.Marshal(req)
 	if err != nil {
 		return Response{
@@ -119,18 +133,21 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
 	topicArray[1] = req.DeviceInfo.DeviceID
 	topic := fmt.Sprintf("%s/%s/%s", topicArray[0], topicArray[1], topicArray[2])
 
-	token := c.client.Publish(topic, byte(c.Config.QoS), false, b)
+	if client.IsConnectionOpen() {
+		token := client.Publish(topic, byte(c.Config.QoS), false, b)
+		token.Wait()
 
-	token.Wait()
-
-	if token.Error() != nil {
-		return Response{
-			Timestamp:   start,
-			Err:         token.Error(),
-			Latency:     time.Since(start),
-			MessageSize: -1,
+		if token.Error() != nil {
+			log.Printf("publish failed with err: %v", token.Error())
+			return Response{
+				Timestamp:   start,
+				Err:         token.Error(),
+				Latency:     time.Since(start),
+				MessageSize: -1,
+			}
 		}
 	}
+	log.Println("publish successful")
 
 	return Response{
 		Timestamp:   start,

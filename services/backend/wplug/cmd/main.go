@@ -89,7 +89,7 @@ func main() {
 			}
 
 			log.Printf("finished load generation")
-
+			/**
 			p := pkg.Plotter{
 				InputPath:    path.Join("example", "test.csv"),
 				OutputFolder: "plots",
@@ -98,7 +98,7 @@ func main() {
 			if err = p.GeneratePlots(); err != nil {
 				log.Fatal(err)
 			}
-
+			**/
 			return nil
 		},
 	}

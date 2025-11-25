@@ -78,6 +78,8 @@ type Cumulative struct {
 
 type Duration struct{}
 
+// TODO: Also provide different measurement->types
+
 func NewExampleProvider(deviceCount int, maxSize int) *ExampleProvider {
 	var provider ExampleProvider
 
