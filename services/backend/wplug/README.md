@@ -107,7 +107,11 @@ go run ./cmd --workload=smoke --example=true --message-size=500 --vu=10
 ```
 
 ---
-## Future Features
-1. Async CPU-Metrics: for more
-2. Add GC-Trace and Memory Trace
-3. Add more metrics for a Plot
+## Next Steps
+1. Clean-Up current Code base + Write a better README (how to use, etc...)
+2. Async CPU-Metrics: for more
+3. Add GC-Trace and Memory Trace
+4. Add more metrics for a Plot (maybe do it in Python)
+
+---
+
