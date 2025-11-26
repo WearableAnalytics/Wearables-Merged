@@ -109,3 +109,5 @@ go run ./cmd --workload=smoke --example=true --message-size=500 --vu=10
 ---
 ## Future Features
 1. Async CPU-Metrics: for more
+2. Add GC-Trace and Memory Trace
+3. Add more metrics for a Plot
