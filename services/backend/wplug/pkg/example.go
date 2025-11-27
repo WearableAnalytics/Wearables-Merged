@@ -17,6 +17,13 @@ type ExampleProvider struct {
 	SourceName        string
 }
 
+type BenchmarkMessage struct {
+	MessageID     string `json:"messageID"`
+	SendTimestamp int64  `json:"sendTimestamp"`
+	//ConsumeTimestamp string  `json:"consumeTimestamp,omitempty"` // will be set by the kafka-consumer
+	Message Message `json:"message"`
+}
+
 type Message struct {
 	DeviceInfo      DeviceInfo   `json:"deviceInfo,omitempty"`
 	BatchInfo       BatchInfo    `json:"batchInfo,omitempty"`
@@ -106,7 +113,7 @@ func NewExampleProvider(deviceCount int, maxSize int) *ExampleProvider {
 	return &provider
 }
 
-func (e ExampleProvider) GetData() Message {
+func (e ExampleProvider) GetData() BenchmarkMessage {
 	// Calculate values
 	e.BaseDeviceInfo.DeviceID = fmt.Sprintf("test-device-%s", strconv.Itoa(rand.Intn(e.DeviceCount)))
 	collectionStart := time.Now().Add(-15 * time.Minute)
@@ -131,7 +138,9 @@ func (e ExampleProvider) GetData() Message {
 		Timestamp:       fmt.Sprintf("%sZ", collectionEnd.Format(time.RFC3339)),
 	}
 
-	return msg
+	return BenchmarkMessage{
+		Message: msg,
+	}
 }
 
 func (e ExampleProvider) GenerateInstantaneous() []Instantaneous {

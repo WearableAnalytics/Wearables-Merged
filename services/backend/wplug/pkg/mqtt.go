@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -31,17 +30,18 @@ type MQTTConfig struct {
 type MQTTClient struct {
 	Config   MQTTConfig
 	opts     *paho.ClientOptions
+	rw       *ResponseWaiter
 	JsonFast jsoniter.API
 }
 
-func NewMQTTClientFromParams(topic string, broker string, qos int) *MQTTClient {
+func NewMQTTClientFromParams(topic string, broker string, qos int, rw *ResponseWaiter) *MQTTClient {
 	configMap := map[string]interface{}{
 		"topic":  topic,
 		"broker": broker,
 		"qos":    qos,
 	}
 
-	c, err := NewMQTTClient(configMap)
+	c, err := NewMQTTClient(configMap, rw)
 	if err != nil {
 		log.Printf("unexpected error creating new mqtt client")
 		return nil
@@ -50,7 +50,7 @@ func NewMQTTClientFromParams(topic string, broker string, qos int) *MQTTClient {
 	return c
 }
 
-func NewMQTTClient(configMap map[string]interface{}) (*MQTTClient, error) {
+func NewMQTTClient(configMap map[string]interface{}, rw *ResponseWaiter) (*MQTTClient, error) {
 	var config MQTTConfig
 	config.Topic = "NaN"
 	config.Broker = "NaN"
@@ -87,6 +87,7 @@ func NewMQTTClient(configMap map[string]interface{}) (*MQTTClient, error) {
 
 	return &MQTTClient{
 		Config:   config,
+		rw:       rw,
 		opts:     opts,
 		JsonFast: jsonFast,
 	}, nil
@@ -104,7 +105,7 @@ func (c MQTTClient) CreateAndConnect() (paho.Client, error) {
 	return client, nil
 }
 
-func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
+func (c MQTTClient) CallEndpoint(ctx context.Context, req BenchmarkMessage) Response {
 	start := time.Now()
 
 	var client paho.Client
@@ -119,6 +120,10 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
 	}
 	defer client.Disconnect(1)
 
+	req.MessageID = uuid.New().String()
+	req.SendTimestamp = time.Now().UnixNano()
+	waiterCh := c.rw.Register(req.MessageID)
+
 	b, err := c.JsonFast.Marshal(req)
 	if err != nil {
 		return Response{
@@ -130,11 +135,11 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
 	}
 
 	topicArray := strings.Split(c.Config.Topic, "/")
-	topicArray[1] = req.DeviceInfo.DeviceID
+	topicArray[1] = req.Message.DeviceInfo.DeviceID
 	topic := fmt.Sprintf("%s/%s/%s", topicArray[0], topicArray[1], topicArray[2])
 
 	if client.IsConnectionOpen() {
-		token := client.Publish(topic, byte(c.Config.QoS), false, b)
+		token := client.Publish(topic, 1, false, b)
 		token.Wait()
 
 		if token.Error() != nil {
@@ -149,10 +154,20 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
 	}
 	log.Println("publish successful")
 
-	return Response{
-		Timestamp:   start,
-		Err:         errors.New(""),
-		Latency:     time.Since(start),
-		MessageSize: len(b),
+	select {
+	case kmsg := <-waiterCh:
+		latencyNs := time.Now().UnixNano() - kmsg.SendTimestamp
+		return Response{
+			Timestamp:   start,
+			Err:         nil,
+			Latency:     time.Duration(latencyNs),
+			MessageSize: len(b),
+		}
+	case <-ctx.Done():
+		return Response{
+			Timestamp: start,
+			Err:       fmt.Errorf("timeout waiting for kafka"),
+			Latency:   time.Since(start),
+		}
 	}
 }
