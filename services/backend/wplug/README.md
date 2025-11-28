@@ -106,6 +106,13 @@ How to run this load generator:
 go run ./cmd --workload=smoke --example=true --message-size=500 --vu=10
 ```
 
+Make sure your ssh-config has following local-forwards:
+```shell
+LocalForward 6443 localhost:6443 #kubectl
+LocalForward 1883 localhost:1883 #mosquitto
+LocalForward 9094 localhost:9094 #kafka
+```
+
 ---
 ## Next Steps
 1. Clean-Up current Code base + Write a better README (how to use, etc...)
