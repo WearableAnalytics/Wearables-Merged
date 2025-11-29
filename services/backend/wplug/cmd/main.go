@@ -62,22 +62,28 @@ func main() {
 			if !example {
 				log.Fatalf("currently not supported")
 			}
+			rw := pkg.NewResponseWaiter()
 
 			provider := pkg.NewExampleProvider(vu, maxSize)
 			// This need to be switched
-			client := pkg.NewMQTTClientFromParams("wearables/#/datax", "tcp://localhost:1883", 0)
+			client := pkg.NewMQTTClientFromParams("wearables/#/datax", "tcp://localhost:1883", 0, rw)
 
 			collector, err := go_loadgen.NewCSVCollector[pkg.Response](path.Join("example", "test.csv"), 1*time.Second)
 			if err != nil {
 				return err
 			}
 
+			// topic
+
+			kconsumer := pkg.NewKafkaConsumer(rw, "wearables-raw", 0, maxSize, "localhost")
 			var wl *pkg.Workload
 
 			switch workload {
 			case "smoke":
+				kconsumer.Start(context.Background())
 				wl = pkg.NewSmoke(client, *provider, collector)
 			case "average":
+				kconsumer.Start(context.Background())
 				wl = pkg.NewAverageLoad(client, *provider, collector)
 			default:
 				log.Fatalf("this preset is not supported")

@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"strconv"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type ExampleProvider struct {
@@ -18,10 +20,9 @@ type ExampleProvider struct {
 }
 
 type BenchmarkMessage struct {
-	MessageID     string `json:"messageID"`
-	SendTimestamp int64  `json:"sendTimestamp"`
-	//ConsumeTimestamp string  `json:"consumeTimestamp,omitempty"` // will be set by the kafka-consumer
-	Message Message `json:"message"`
+	MessageID     string  `json:"messageID"`
+	SendTimestamp int64   `json:"sendTimestamp"`
+	Message       Message `json:"message"`
 }
 
 type Message struct {
@@ -113,9 +114,10 @@ func NewExampleProvider(deviceCount int, maxSize int) *ExampleProvider {
 	return &provider
 }
 
-func (e ExampleProvider) GetData() BenchmarkMessage {
+func (e ExampleProvider) GetData() Message {
 	// Calculate values
-	e.BaseDeviceInfo.DeviceID = fmt.Sprintf("test-device-%s", strconv.Itoa(rand.Intn(e.DeviceCount)))
+	deviceID := uuid.New().String()
+	e.BaseDeviceInfo.DeviceID = fmt.Sprintf("test-device-%s", deviceID)
 	collectionStart := time.Now().Add(-15 * time.Minute)
 	collectionEnd := time.Now()
 
@@ -123,7 +125,7 @@ func (e ExampleProvider) GetData() BenchmarkMessage {
 	cumulative := e.GenerateCumulative(collectionStart, collectionEnd, e.MaxSize/3)
 	duration := e.GenerateDuration()
 
-	msg := Message{
+	return Message{
 		DeviceInfo: e.BaseDeviceInfo,
 		BatchInfo: BatchInfo{
 			fmt.Sprintf("%sZ", collectionStart.Format(time.RFC3339)),
@@ -136,10 +138,6 @@ func (e ExampleProvider) GetData() BenchmarkMessage {
 		SourceName:      e.SourceName,
 		TotalStepsToday: nil,
 		Timestamp:       fmt.Sprintf("%sZ", collectionEnd.Format(time.RFC3339)),
-	}
-
-	return BenchmarkMessage{
-		Message: msg,
 	}
 }
 

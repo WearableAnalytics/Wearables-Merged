@@ -105,7 +105,7 @@ func (c MQTTClient) CreateAndConnect() (paho.Client, error) {
 	return client, nil
 }
 
-func (c MQTTClient) CallEndpoint(ctx context.Context, req BenchmarkMessage) Response {
+func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
 	start := time.Now()
 
 	var client paho.Client
@@ -120,9 +120,7 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req BenchmarkMessage) Resp
 	}
 	defer client.Disconnect(1)
 
-	req.MessageID = uuid.New().String()
-	req.SendTimestamp = time.Now().UnixNano()
-	waiterCh := c.rw.Register(req.MessageID)
+	waiterCh := c.rw.Register(req.DeviceInfo.DeviceID)
 
 	b, err := c.JsonFast.Marshal(req)
 	if err != nil {
@@ -135,10 +133,13 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req BenchmarkMessage) Resp
 	}
 
 	topicArray := strings.Split(c.Config.Topic, "/")
-	topicArray[1] = req.Message.DeviceInfo.DeviceID
+	topicArray[1] = req.DeviceInfo.DeviceID
 	topic := fmt.Sprintf("%s/%s/%s", topicArray[0], topicArray[1], topicArray[2])
 
+	send := time.Now().UnixNano()
+
 	if client.IsConnectionOpen() {
+
 		token := client.Publish(topic, 1, false, b)
 		token.Wait()
 
@@ -155,8 +156,8 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req BenchmarkMessage) Resp
 	log.Println("publish successful")
 
 	select {
-	case kmsg := <-waiterCh:
-		latencyNs := time.Now().UnixNano() - kmsg.SendTimestamp
+	case <-waiterCh:
+		latencyNs := time.Now().UnixNano() - send // Could also measure the kafka
 		return Response{
 			Timestamp:   start,
 			Err:         nil,

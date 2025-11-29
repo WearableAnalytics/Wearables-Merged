@@ -3,10 +3,10 @@ package pkg
 import (
 	"context"
 	"log"
-	"sync"
 
 	jsoniter "github.com/json-iterator/go"
 	kafka "github.com/segmentio/kafka-go"
+	//franz "github.com/twmb/franz-go/pkg/kgo"
 )
 
 type KafkaConsumer struct {
@@ -16,42 +16,7 @@ type KafkaConsumer struct {
 	jsonFast       jsoniter.API
 }
 
-type ResponseWaiter struct {
-	mu   sync.Mutex
-	wait map[string]chan BenchmarkMessage
-}
-
-func NewResponseWaiter() *ResponseWaiter {
-	return &ResponseWaiter{
-		wait: make(map[string]chan BenchmarkMessage),
-	}
-}
-
-func (rw *ResponseWaiter) Register(msgID string) chan BenchmarkMessage {
-	rw.mu.Lock()
-	defer rw.mu.Unlock()
-
-	ch := make(chan BenchmarkMessage, 1)
-	rw.wait[msgID] = ch
-	return ch
-}
-
-func (rw *ResponseWaiter) Deliver(msg BenchmarkMessage) {
-	rw.mu.Lock()
-	ch, exists := rw.wait[msg.MessageID]
-	if exists {
-		delete(rw.wait, msg.MessageID)
-	}
-
-	rw.mu.Unlock()
-
-	if exists {
-		ch <- msg
-	}
-}
-
 func NewKafkaConsumer(rw *ResponseWaiter, topic string, partition int, maxBytes int, brokers ...string) *KafkaConsumer {
-
 	config := kafka.ReaderConfig{
 		Brokers:   brokers,
 		Topic:     topic,
@@ -68,6 +33,7 @@ func NewKafkaConsumer(rw *ResponseWaiter, topic string, partition int, maxBytes 
 
 func (kc *KafkaConsumer) Start(ctx context.Context) {
 	go func() {
+
 		reader := kafka.NewReader(kc.Config)
 		defer func() {
 			err := reader.Close()
@@ -76,13 +42,16 @@ func (kc *KafkaConsumer) Start(ctx context.Context) {
 			}
 		}()
 
+		log.Printf("reader stats: %v", reader.Stats())
+
 		for {
 			m, err := reader.ReadMessage(ctx)
 			if err != nil {
 				log.Printf("kafka read error: %v", err)
 				continue
 			}
-			var msg BenchmarkMessage
+			// m.Time is the Ts when the message is written into kafka
+			var msg Message
 			if err := kc.jsonFast.Unmarshal(m.Value, &msg); err != nil {
 				log.Printf("unmarshalling json failed with err: %v", err)
 				continue
