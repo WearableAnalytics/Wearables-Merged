@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 	"wplug/pkg"
+	"wplug/pkg/message"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
@@ -106,13 +107,13 @@ func (c MQTTClient) CreateAndConnect() (paho.Client, error) {
 	return client, nil
 }
 
-func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
+func (c MQTTClient) CallEndpoint(ctx context.Context, req message.Message) message.Response {
 	start := time.Now()
 
 	var client paho.Client
 	client, err := c.CreateAndConnect()
 	if err != nil {
-		return Response{
+		return message.Response{
 			Timestamp:   start,
 			Err:         err,
 			Latency:     time.Since(start),
@@ -125,7 +126,7 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
 
 	b, err := c.JsonFast.Marshal(req)
 	if err != nil {
-		return Response{
+		return message.Response{
 			Timestamp:   start,
 			Err:         err,
 			Latency:     time.Since(start),
@@ -146,7 +147,7 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
 
 		if token.Error() != nil {
 			log.Printf("publish failed with err: %v", token.Error())
-			return Response{
+			return message.Response{
 				Timestamp:   start,
 				Err:         token.Error(),
 				Latency:     time.Since(start),
@@ -159,14 +160,14 @@ func (c MQTTClient) CallEndpoint(ctx context.Context, req Message) Response {
 	select {
 	case <-waiterCh:
 		latencyNs := time.Now().UnixNano() - send // Could also measure the kafka
-		return Response{
+		return message.Response{
 			Timestamp:   start,
 			Err:         nil,
 			Latency:     time.Duration(latencyNs),
 			MessageSize: len(b),
 		}
 	case <-ctx.Done():
-		return Response{
+		return message.Response{
 			Timestamp: start,
 			Err:       fmt.Errorf("timeout waiting for kafka"),
 			Latency:   time.Since(start),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"wplug/pkg"
+	"wplug/pkg/message"
 
 	jsoniter "github.com/json-iterator/go"
 	kafka "github.com/segmentio/kafka-go"
@@ -52,7 +53,7 @@ func (kc *KafkaConsumer) Start(ctx context.Context) {
 				continue
 			}
 			// m.Time is the Ts when the message is written into kafka
-			var msg Message
+			var msg message.Message
 			if err := kc.jsonFast.Unmarshal(m.Value, &msg); err != nil {
 				log.Printf("unmarshalling json failed with err: %v", err)
 				continue

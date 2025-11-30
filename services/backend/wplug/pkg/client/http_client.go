@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 	"wplug/pkg"
+	"wplug/pkg/message"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -86,14 +87,14 @@ func NewHTTPClientFromConfig(configMap map[string]interface{}, rw *pkg.ResponseW
 	}, nil
 }
 
-func (c HTTPClient) CallEndpoint(ctx context.Context, req Message) Response {
+func (c HTTPClient) CallEndpoint(ctx context.Context, req message.Message) message.Response {
 	start := time.Now()
 
 	waiterCh := c.ResponseWaiter.Register(req.DeviceInfo.DeviceID)
 
 	b, err := c.JsonFast.Marshal(req)
 	if err != nil {
-		return Response{
+		return message.Response{
 			Timestamp:   start,
 			Err:         err,
 			Latency:     time.Since(start),
@@ -108,7 +109,7 @@ func (c HTTPClient) CallEndpoint(ctx context.Context, req Message) Response {
 	send := time.Now()
 	resp, err := c.Client.Post(url, c.Config.contentType, body)
 	if err != nil {
-		return Response{
+		return message.Response{
 			Timestamp:   start,
 			Err:         err,
 			Latency:     time.Since(start),
@@ -117,7 +118,7 @@ func (c HTTPClient) CallEndpoint(ctx context.Context, req Message) Response {
 	}
 
 	if resp.StatusCode != 200 {
-		return Response{
+		return message.Response{
 			Timestamp:   start,
 			Err:         fmt.Errorf("recieved statuscode: %d", resp.StatusCode),
 			Latency:     time.Since(start),
@@ -127,14 +128,14 @@ func (c HTTPClient) CallEndpoint(ctx context.Context, req Message) Response {
 
 	select {
 	case <-waiterCh:
-		return Response{
+		return message.Response{
 			Timestamp:   start,
 			Err:         nil,
 			Latency:     time.Since(send),
 			MessageSize: len(b),
 		}
 	case <-ctx.Done():
-		return Response{
+		return message.Response{
 			Timestamp:   start,
 			Err:         fmt.Errorf("context done"),
 			Latency:     time.Since(send),
