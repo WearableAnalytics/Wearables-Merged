@@ -7,6 +7,7 @@ import (
 	"path"
 	"time"
 	"wplug/pkg"
+	"wplug/pkg/client"
 
 	go_loadgen "github.com/luccadibe/go-loadgen"
 	"github.com/urfave/cli/v3"
@@ -66,7 +67,7 @@ func main() {
 
 			provider := pkg.NewExampleProvider(vu, maxSize)
 			// This need to be switched
-			client := pkg.NewMQTTClientFromParams("wearables/#/datax", "tcp://localhost:1883", 0, rw)
+			client := client.NewMQTTClientFromParams("wearables/#/datax", "tcp://localhost:1883", 0, rw)
 
 			collector, err := go_loadgen.NewCSVCollector[pkg.Response](path.Join("example", "test.csv"), 1*time.Second)
 			if err != nil {
@@ -75,7 +76,7 @@ func main() {
 
 			// topic
 
-			kconsumer := pkg.NewKafkaConsumer(rw, "wearables-raw", 0, maxSize, "localhost")
+			kconsumer := client.NewKafkaConsumer(rw, "wearables-raw", 0, maxSize, "localhost")
 			var wl *pkg.Workload
 
 			switch workload {

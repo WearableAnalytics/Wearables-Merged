@@ -1,4 +1,4 @@
-package pkg
+package client
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"wplug/pkg"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
@@ -30,11 +31,11 @@ type MQTTConfig struct {
 type MQTTClient struct {
 	Config   MQTTConfig
 	opts     *paho.ClientOptions
-	rw       *ResponseWaiter
+	rw       *pkg.ResponseWaiter
 	JsonFast jsoniter.API
 }
 
-func NewMQTTClientFromParams(topic string, broker string, qos int, rw *ResponseWaiter) *MQTTClient {
+func NewMQTTClientFromParams(topic string, broker string, qos int, rw *pkg.ResponseWaiter) *MQTTClient {
 	configMap := map[string]interface{}{
 		"topic":  topic,
 		"broker": broker,
@@ -50,7 +51,7 @@ func NewMQTTClientFromParams(topic string, broker string, qos int, rw *ResponseW
 	return c
 }
 
-func NewMQTTClient(configMap map[string]interface{}, rw *ResponseWaiter) (*MQTTClient, error) {
+func NewMQTTClient(configMap map[string]interface{}, rw *pkg.ResponseWaiter) (*MQTTClient, error) {
 	var config MQTTConfig
 	config.Topic = "NaN"
 	config.Broker = "NaN"

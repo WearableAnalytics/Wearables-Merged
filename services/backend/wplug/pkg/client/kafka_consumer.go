@@ -1,8 +1,9 @@
-package pkg
+package client
 
 import (
 	"context"
 	"log"
+	"wplug/pkg"
 
 	jsoniter "github.com/json-iterator/go"
 	kafka "github.com/segmentio/kafka-go"
@@ -11,12 +12,12 @@ import (
 
 type KafkaConsumer struct {
 	Reader         *kafka.Reader
-	ResponseWaiter *ResponseWaiter
+	ResponseWaiter *pkg.ResponseWaiter
 	Config         kafka.ReaderConfig
 	jsonFast       jsoniter.API
 }
 
-func NewKafkaConsumer(rw *ResponseWaiter, topic string, partition int, maxBytes int, brokers ...string) *KafkaConsumer {
+func NewKafkaConsumer(rw *pkg.ResponseWaiter, topic string, partition int, maxBytes int, brokers ...string) *KafkaConsumer {
 	config := kafka.ReaderConfig{
 		Brokers:   brokers,
 		Topic:     topic,
