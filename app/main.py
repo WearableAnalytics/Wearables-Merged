@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from kafka import errors as kafka_errors
 from .models import IngestPayload, IngestResponse
 from .kafka_producer import get_producer
+from .influx_writer import get_influx_writer
 from datetime import datetime
 # from .security import verify_token
 
@@ -13,9 +14,11 @@ async def health():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest(payload: IngestPayload, producer=Depends(get_producer)):
+async def ingest(payload: IngestPayload, producer=Depends(get_producer), influx_writer=Depends(get_influx_writer)):
+    kafkaMsg = [payload.model_dump(mode='json')]
+    
     messages = []
-
+    
     # Instantaneous
     for m in payload.measurements.instantaneous:
         messages.append({
@@ -31,7 +34,7 @@ async def ingest(payload: IngestPayload, producer=Depends(get_producer)):
             "sourceName": payload.sourceName,
             "ingestTimestamp": payload.timestamp.isoformat(),
         })
-
+    
     # Cumulative
     for m in payload.measurements.cumulative:
         messages.append({
@@ -49,7 +52,7 @@ async def ingest(payload: IngestPayload, producer=Depends(get_producer)):
             "sourceName": payload.sourceName,
             "ingestTimestamp": payload.timestamp.isoformat(),
         })
-
+    
     # Duration
     for m in payload.measurements.duration:
         messages.append({
@@ -69,11 +72,21 @@ async def ingest(payload: IngestPayload, producer=Depends(get_producer)):
         })
 
     try:
-        total = producer.produce_measurements(messages)
+        # Send to Kafka
+        total = producer.produce_measurements(kafkaMsg)
     except kafka_errors.NoBrokersAvailable:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Kafka brokers unavailable")
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed producing messages")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed sending to Kafka: {str(e)}")
+    
+    try:
+        # Write to InfluxDB
+        influx_writer.write_measurements(messages)
+    except Exception as e:
+        # Log but don't fail the request if InfluxDB write fails
+        import logging
+        logging.error(f"Failed to write to InfluxDB: {e}", exc_info=True)
+        # Continue - Kafka write was successful
 
     return IngestResponse(
         total_messages_produced=total,

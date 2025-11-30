@@ -8,6 +8,12 @@ class Settings:
     kafka_bootstrap_servers: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka-kafka-bootstrap:9092")
     kafka_topic: str = os.getenv("KAFKA_TOPIC", "wearables-raw")
     kafka_client_id: str = os.getenv("KAFKA_CLIENT_ID", "import-service")
+    
+    # InfluxDB
+    influxdb_url: str = os.getenv("INFLUXDB_URL", "http://localhost:8086")
+    influxdb_token: str = os.getenv("INFLUXDB_TOKEN", "")
+    influxdb_org: str = os.getenv("INFLUXDB_ORG", "test")
+    influxdb_bucket: str = os.getenv("INFLUXDB_BUCKET", "gmstest")
 
     # Keycloak / OIDC
     # keycloak_issuer: str = os.getenv("KEYCLOAK_ISSUER", "http://localhost:8080/realms/wearables")

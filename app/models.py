@@ -5,10 +5,12 @@ from pydantic import BaseModel, Field
 class DeviceInfo(BaseModel):
     platform: str
     deviceId: str
+    authorizationToken: Optional[str] = ""
 
 class BatchInfo(BaseModel):
     collectionStart: datetime
     collectionEnd: datetime
+    lastSendTime: Optional[datetime] = None
 
 class InstantaneousMeasurement(BaseModel):
     type: str
@@ -42,6 +44,7 @@ class IngestPayload(BaseModel):
     batchInfo: BatchInfo
     measurements: Measurements
     sourceName: str
+    sourcePlatform: Optional[str] = None
     totalStepsToday: Optional[int] = None
     timestamp: datetime
 
