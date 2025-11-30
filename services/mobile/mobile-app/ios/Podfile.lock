@@ -7,6 +7,9 @@ PODS:
   - Flutter (1.0.0)
   - health (1.0.4):
     - Flutter
+  - shared_preferences_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
   - TSBackgroundFetch (4.0.5)
 
 DEPENDENCIES:
@@ -14,6 +17,7 @@ DEPENDENCIES:
   - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
   - Flutter (from `Flutter`)
   - health (from `.symlinks/plugins/health/ios`)
+  - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
 
 SPEC REPOS:
   trunk:
@@ -28,12 +32,15 @@ EXTERNAL SOURCES:
     :path: Flutter
   health:
     :path: ".symlinks/plugins/health/ios"
+  shared_preferences_foundation:
+    :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
 
 SPEC CHECKSUMS:
   background_fetch: 7457cb2c7be3086b37d87207866f30bed2f9fb58
   device_info_plus: 71ffc6ab7634ade6267c7a93088ed7e4f74e5896
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   health: a38a2b7480871e575ef403a8746cb2c08d20f1a4
+  shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
   TSBackgroundFetch: e91020924db32f27d0a43df7dec6f73f10743571
 
 PODFILE CHECKSUM: ff9ad2ec3bf53af900abf7184fa166ce7710baca
