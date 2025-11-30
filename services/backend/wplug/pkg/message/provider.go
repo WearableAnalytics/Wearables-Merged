@@ -1,15 +1,14 @@
-package pkg
+package message
 
 import (
 	"fmt"
 	"math/rand"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-type ExampleProvider struct {
+type Provider struct {
 	MaxSize           int // in bytes
 	DeviceCount       int
 	BaseDeviceInfo    DeviceInfo
@@ -19,77 +18,8 @@ type ExampleProvider struct {
 	SourceName        string
 }
 
-type BenchmarkMessage struct {
-	MessageID     string  `json:"messageID"`
-	SendTimestamp int64   `json:"sendTimestamp"`
-	Message       Message `json:"message"`
-}
-
-type Message struct {
-	DeviceInfo      DeviceInfo   `json:"deviceInfo,omitempty"`
-	BatchInfo       BatchInfo    `json:"batchInfo,omitempty"`
-	Measurements    Measurements `json:"measurements,omitempty"`
-	SourceName      string       `json:"sourceName,omitempty"`
-	TotalStepsToday interface{}  `json:"totalStepsToday,omitempty"`
-	Timestamp       string       `json:"timestamp,omitempty"`
-}
-
-type Response struct {
-	Timestamp   time.Time
-	Err         error
-	Latency     time.Duration
-	MessageSize int //in bytes
-}
-
-func (r Response) CSVHeaders() []string {
-	return []string{"timestamp", "errors", "latency", "message-size"}
-}
-
-func (r Response) CSVRecord() []string {
-	return []string{r.Timestamp.String(), r.Err.Error(), r.Latency.String(), strconv.Itoa(r.MessageSize)}
-}
-
-type DeviceInfo struct {
-	Platform           string `json:"platform,omitempty"`
-	DeviceID           string `json:"deviceID,omitempty"`
-	AuthorizationToken string `json:"authorizationToken,omitempty"`
-}
-
-type BatchInfo struct {
-	// Timestamps
-	CollectionStart string `json:"collectionStart,omitempty"`
-	CollectionEnd   string `json:"collectionEnd,omitempty"`
-}
-
-type Measurements struct {
-	Instantaneous []Instantaneous `json:"instantaneous"`
-	Cumulative    []Cumulative    `json:"cumulative"`
-	Duration      []Duration      `json:"duration"`
-}
-
-type Instantaneous struct {
-	Type      string `json:"type,omitempty"`
-	Value     int    `json:"value,omitempty"`
-	Unit      string `json:"unit,omitempty"`
-	Timestamp string `json:"timestamp,omitempty"`
-}
-
-type Cumulative struct {
-	Type  string `json:"type,omitempty"`
-	Value int    `json:"value,omitempty"`
-	Unit  string `json:"unit,omitempty"`
-	// Time
-	PeriodStart string `json:"periodStart,omitempty"`
-	PeriodEnd   string `json:"periodEnd,omitempty"`
-	Duration    int    `json:"duration,omitempty"` //sec
-}
-
-type Duration struct{}
-
-// TODO: Also provide different measurement->types
-
-func NewExampleProvider(deviceCount int, maxSize int) *ExampleProvider {
-	var provider ExampleProvider
+func NewExampleProvider(deviceCount int, maxSize int) *Provider {
+	var provider Provider
 
 	provider.DeviceCount = deviceCount
 	provider.MaxSize = maxSize
@@ -114,7 +44,7 @@ func NewExampleProvider(deviceCount int, maxSize int) *ExampleProvider {
 	return &provider
 }
 
-func (e ExampleProvider) GetData() Message {
+func (e Provider) GetData() Message {
 	// Calculate values
 	deviceID := uuid.New().String()
 	e.BaseDeviceInfo.DeviceID = fmt.Sprintf("test-device-%s", deviceID)
@@ -141,15 +71,15 @@ func (e ExampleProvider) GetData() Message {
 	}
 }
 
-func (e ExampleProvider) GenerateInstantaneous() []Instantaneous {
+func (e Provider) GenerateInstantaneous() []Instantaneous {
 	return []Instantaneous{}
 }
 
-func (e ExampleProvider) GenerateDuration() []Duration {
+func (e Provider) GenerateDuration() []Duration {
 	return []Duration{}
 }
 
-func (e ExampleProvider) GenerateCumulative(start time.Time, end time.Time, maxSize int) []Cumulative {
+func (e Provider) GenerateCumulative(start time.Time, end time.Time, maxSize int) []Cumulative {
 	var cumulatives []Cumulative
 	totalDuration := end.Sub(start)
 	approx := totalDuration / 10
