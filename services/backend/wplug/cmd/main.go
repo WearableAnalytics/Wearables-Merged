@@ -6,8 +6,10 @@ import (
 	"os"
 	"path"
 	"time"
-	"wplug/pkg"
 	"wplug/pkg/client"
+	"wplug/pkg/load"
+	"wplug/pkg/message"
+	"wplug/pkg/waiter"
 
 	go_loadgen "github.com/luccadibe/go-loadgen"
 	"github.com/urfave/cli/v3"
@@ -63,13 +65,13 @@ func main() {
 			if !example {
 				log.Fatalf("currently not supported")
 			}
-			rw := pkg.NewResponseWaiter()
+			rw := waiter.NewResponseWaiter()
 
-			provider := pkg.NewExampleProvider(vu, maxSize)
+			provider := message.NewProvider(vu, maxSize)
 			// This need to be switched
-			client := client.NewMQTTClientFromParams("wearables/#/datax", "tcp://localhost:1883", 0, rw)
+			c := client.NewMQTTClientFromParams("wearables/#/datax", "tcp://localhost:1883", 0, rw)
 
-			collector, err := go_loadgen.NewCSVCollector[pkg.Response](path.Join("example", "test.csv"), 1*time.Second)
+			collector, err := go_loadgen.NewCSVCollector[message.Response](path.Join("example", "test.csv"), 1*time.Second)
 			if err != nil {
 				return err
 			}
@@ -77,15 +79,15 @@ func main() {
 			// topic
 
 			kconsumer := client.NewKafkaConsumer(rw, "wearables-raw", 0, maxSize, "localhost")
-			var wl *pkg.Workload
+			var wl *load.Workload
 
 			switch workload {
 			case "smoke":
 				kconsumer.Start(context.Background())
-				wl = pkg.NewSmoke(client, *provider, collector)
+				wl = load.NewSmoke(c, *provider, collector)
 			case "average":
 				kconsumer.Start(context.Background())
-				wl = pkg.NewAverageLoad(client, *provider, collector)
+				wl = load.NewAverageLoad(c, *provider, collector)
 			default:
 				log.Fatalf("this preset is not supported")
 			}

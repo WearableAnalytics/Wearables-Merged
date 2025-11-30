@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-	"wplug/pkg"
 	"wplug/pkg/message"
+	"wplug/pkg/waiter"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -22,11 +22,11 @@ type HTTPConfig struct {
 type HTTPClient struct {
 	Config         HTTPConfig
 	Client         *http.Client
-	ResponseWaiter *pkg.ResponseWaiter
+	ResponseWaiter *waiter.ResponseWaiter
 	JsonFast       jsoniter.API
 }
 
-func NewHTTPClientFromParams(host string, port int, timeout time.Duration, contentType string, rw *pkg.ResponseWaiter) (*HTTPClient, error) {
+func NewHTTPClientFromParams(host string, port int, timeout time.Duration, contentType string, rw *waiter.ResponseWaiter) (*HTTPClient, error) {
 	configMap := map[string]interface{}{
 		"host":        host,
 		"port":        port,
@@ -42,7 +42,7 @@ func NewHTTPClientFromParams(host string, port int, timeout time.Duration, conte
 	return client, nil
 }
 
-func NewHTTPClientFromConfig(configMap map[string]interface{}, rw *pkg.ResponseWaiter) (*HTTPClient, error) {
+func NewHTTPClientFromConfig(configMap map[string]interface{}, rw *waiter.ResponseWaiter) (*HTTPClient, error) {
 	var config HTTPConfig
 
 	if host, ok := configMap["host"]; ok {

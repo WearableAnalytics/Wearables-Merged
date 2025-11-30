@@ -18,7 +18,7 @@ type Provider struct {
 	SourceName        string
 }
 
-func NewExampleProvider(deviceCount int, maxSize int) *Provider {
+func NewProvider(deviceCount int, maxSize int) *Provider {
 	var provider Provider
 
 	provider.DeviceCount = deviceCount

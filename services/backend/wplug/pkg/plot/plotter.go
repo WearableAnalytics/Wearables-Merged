@@ -1,4 +1,4 @@
-package pkg
+package plot
 
 import (
 	"encoding/csv"
