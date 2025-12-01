@@ -57,9 +57,12 @@ func (c Config) StartLoadGeneration(ctx context.Context) error {
 		return err
 	}
 
-	kconsumer, err := c.GenerateKafkaConsumer()
-	if err != nil {
-		return err
+	var kconsumer *client.KafkaConsumer
+	if c.Kafka.Enabled {
+		kconsumer, err = c.GenerateKafkaConsumer()
+		if err != nil {
+			return err
+		}
 	}
 
 	return wl.GenerateWorkload(ctx, kconsumer)
@@ -70,9 +73,11 @@ func (c Config) GenerateClient() (go_loadgen.Client[message.Message, message.Res
 	switch c.Client.Type {
 	case "http":
 		rw := waiter.GetResponseWaiter()
+		log.Printf("http response waiter: %v", rw)
 		return client.NewHTTPClientFromConfig(c.Client.Config, rw)
 	case "mqtt":
 		rw := waiter.GetResponseWaiter()
+		log.Printf("mqtt response waiter: %v", rw)
 		return client.NewMQTTClient(c.Client.Config, rw)
 	default:
 		return nil, fmt.Errorf("this client type is not supported")
@@ -107,7 +112,7 @@ func (c Config) GenerateWorkload() (*load.Workload, error) {
 	conf := c.Workload
 
 	provider := message.NewProvider(conf.VirtualUsers, conf.MessageSize)
-	log.Printf("after creating provider")
+	log.Printf("after creating provider: %v", provider)
 
 	collector, err := c.GenerateCollector()
 	if err != nil {

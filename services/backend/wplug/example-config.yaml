@@ -6,6 +6,7 @@ client:
     timeout: 10s
     consume-kafka: false
 kafka:
+  enabled: false
   topic: "test"
   partition: 1
   max-bytes: 1000
@@ -15,5 +16,5 @@ workload:
   vu: 100
   max-size: 10000 #10KB
 collector:
-  file: "test-configs/example.csv"
+  file: "example/test.csv"
   flush: 1s

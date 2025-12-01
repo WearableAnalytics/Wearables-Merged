@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 	"wplug/pkg/message"
@@ -13,10 +14,11 @@ import (
 )
 
 type HTTPConfig struct {
-	Host        string
-	Port        uint64
-	Timeout     time.Duration
-	ContentType string
+	Host         string
+	Port         uint64
+	Timeout      time.Duration
+	ContentType  string
+	ConsumeKafka bool
 }
 
 type HTTPClient struct {
@@ -26,12 +28,13 @@ type HTTPClient struct {
 	JsonFast       jsoniter.API
 }
 
-func NewHTTPClientFromParams(host string, port int, timeout time.Duration, contentType string, rw *waiter.ResponseWaiter) (*HTTPClient, error) {
+func NewHTTPClientFromParams(host string, port int, timeout time.Duration, contentType string, consumeKafka bool, rw *waiter.ResponseWaiter) (*HTTPClient, error) {
 	configMap := map[string]interface{}{
-		"host":        host,
-		"port":        port,
-		"timeout":     timeout,
-		"contentType": contentType,
+		"host":          host,
+		"port":          port,
+		"timeout":       timeout,
+		"content-type":  contentType,
+		"consume-kafka": consumeKafka,
 	}
 
 	client, err := NewHTTPClientFromConfig(configMap, rw)
@@ -70,7 +73,7 @@ func NewHTTPClientFromConfig(configMap map[string]interface{}, rw *waiter.Respon
 		config.Timeout = 10 * time.Second
 	}
 
-	if contentType, ok := configMap["contentType"]; ok {
+	if contentType, ok := configMap["content-type"]; ok {
 		config.ContentType = contentType.(string)
 	} else {
 		config.ContentType = "application/json"
@@ -80,10 +83,17 @@ func NewHTTPClientFromConfig(configMap map[string]interface{}, rw *waiter.Respon
 		Timeout: config.Timeout,
 	}
 
+	if consumeKafka, ok := configMap["consume-kafka"]; ok {
+		config.ConsumeKafka = consumeKafka.(bool)
+	} else {
+		config.ConsumeKafka = true
+	}
+
 	return &HTTPClient{
 		Config:         config,
 		Client:         client,
 		ResponseWaiter: rw,
+		JsonFast:       jsoniter.ConfigFastest,
 	}, nil
 }
 
@@ -91,7 +101,8 @@ func (c HTTPClient) CallEndpoint(ctx context.Context, req message.Message) messa
 	start := time.Now()
 
 	waiterCh := c.ResponseWaiter.Register(req.DeviceInfo.DeviceID)
-
+	log.Printf("c.Client = %v, c.Conf = %v, rw: %v, jsonFast: %v", c.Client, c.Config, c.ResponseWaiter, c.JsonFast)
+	log.Printf("http: before marshalling: req: %v", req)
 	b, err := c.JsonFast.Marshal(req)
 	if err != nil {
 		return message.Response{
@@ -121,6 +132,16 @@ func (c HTTPClient) CallEndpoint(ctx context.Context, req message.Message) messa
 		return message.Response{
 			Timestamp:   start,
 			Err:         fmt.Errorf("recieved statuscode: %d", resp.StatusCode),
+			Latency:     time.Since(start),
+			MessageSize: len(b),
+		}
+	}
+
+	// So we can generate load from without the need of consuming from kafka (for the beginning)
+	if c.Config.ConsumeKafka == false {
+		return message.Response{
+			Timestamp:   start,
+			Err:         nil,
 			Latency:     time.Since(start),
 			MessageSize: len(b),
 		}

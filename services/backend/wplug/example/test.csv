@@ -1,7 +1,7 @@
 timestamp,errors,latency,message-size
-2025-11-28 11:01:13.15596 +0100 CET m=+1.026848876,network Error : read tcp 127.0.0.1:51340->127.0.0.1:1883: read: connection reset by peer,62.037417ms,-1
-2025-11-28 11:01:14.156025 +0100 CET m=+2.026908126,network Error : read tcp 127.0.0.1:51345->127.0.0.1:1883: read: connection reset by peer,62.66275ms,-1
-2025-11-28 11:01:14.155953 +0100 CET m=+2.026836293,network Error : read tcp 127.0.0.1:51346->127.0.0.1:1883: read: connection reset by peer,62.785ms,-1
-2025-11-28 11:01:15.156139 +0100 CET m=+3.027015751,network Error : read tcp 127.0.0.1:51351->127.0.0.1:1883: read: connection reset by peer,60.679709ms,-1
-2025-11-28 11:01:15.155996 +0100 CET m=+3.026872585,network Error : read tcp 127.0.0.1:51352->127.0.0.1:1883: read: connection reset by peer,60.8855ms,-1
-2025-11-28 11:01:15.155937 +0100 CET m=+3.026813001,network Error : read tcp 127.0.0.1:51353->127.0.0.1:1883: read: connection reset by peer,60.951417ms,-1
+2025-12-01 11:16:28.153071 +0100 CET m=+1.008025626,"Post ""https://localhost:8080"": dial tcp 127.0.0.1:8080: connect: connection refused",9.320167ms,1724
+2025-12-01 11:16:29.15292 +0100 CET m=+2.007868709,"Post ""https://localhost:8080"": dial tcp 127.0.0.1:8080: connect: connection refused",6.614417ms,1755
+2025-12-01 11:16:29.152845 +0100 CET m=+2.007793084,"Post ""https://localhost:8080"": dial tcp 127.0.0.1:8080: connect: connection refused",6.813125ms,1616
+2025-12-01 11:16:30.152914 +0100 CET m=+3.007856251,"Post ""https://localhost:8080"": dial tcp 127.0.0.1:8080: connect: connection refused",4.681667ms,1891
+2025-12-01 11:16:30.152971 +0100 CET m=+3.007912334,"Post ""https://localhost:8080"": dial tcp 127.0.0.1:8080: connect: connection refused",4.628167ms,1482
+2025-12-01 11:16:30.152983 +0100 CET m=+3.007925001,"Post ""https://localhost:8080"": dial tcp 127.0.0.1:8080: connect: connection refused",5.352292ms,2010

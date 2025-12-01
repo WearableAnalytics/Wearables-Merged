@@ -12,6 +12,7 @@ import (
 )
 
 type KafkaConsumerConfig struct {
+	Enabled   bool     `yaml:"enabled"`
 	Topic     string   `yaml:"topic"`
 	Partition int      `yaml:"partition"`
 	MaxBytes  int      `yaml:"max-bytes"`

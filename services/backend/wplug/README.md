@@ -103,7 +103,7 @@ How to run this load generator:
 ```
 
 ```shell
-go run ./cmd --workload=smoke --example=true --message-size=500 --vu=10
+go run ./cmd --config "example-config.yaml"
 ```
 
 Make sure your ssh-config has following local-forwards:

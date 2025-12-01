@@ -35,7 +35,9 @@ func (s Workload) generateConfig() *go_loadgen.Config {
 func (s Workload) GenerateWorkload(ctx context.Context, kafkaConsumer *client.KafkaConsumer) error {
 	startTime := time.Now()
 
-	go kafkaConsumer.Start(ctx)
+	if kafkaConsumer != nil {
+		go kafkaConsumer.Start(ctx)
+	}
 
 	runner, err := go_loadgen.NewEndpointWorkload(s.Name, s.generateConfig(), s.Client, s.Provider, s.Collector)
 	if err != nil {

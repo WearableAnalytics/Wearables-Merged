@@ -1,6 +1,7 @@
 package waiter
 
 import (
+	"log"
 	"sync"
 	"wplug/pkg/message"
 )
@@ -10,11 +11,12 @@ type ResponseWaiter struct {
 	wait map[string]chan message.Message
 }
 
-var respWaiters = make([]*ResponseWaiter, 1)
+var respWaiters []*ResponseWaiter
 
 // GetResponseWaiter is used to enable that all async components use the same ResponseWaiter
 func GetResponseWaiter() *ResponseWaiter {
 	if len(respWaiters) == 0 {
+		log.Printf("len(respWaiters) == 0")
 		respWaiters = append(respWaiters, NewResponseWaiter())
 	}
 
