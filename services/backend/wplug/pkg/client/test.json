@@ -1,0 +1,98 @@
+{
+  "deviceInfo": {
+    "platform": "iOS",
+    "deviceID": "test-device-d380f6c9-c3d2-43fb-ae45-f59146b9145e",
+    "authorizationToken": "testToken"
+  },
+  "batchInfo": {
+    "collectionStart": "2025-12-01T14:07:56+01:00Z",
+    "collectionEnd": "2025-12-01T14:22:56+01:00Z"
+  },
+  "measurements": {
+    "instantaneous": [],
+    "cumulative": [
+      {
+        "type": "STEPS",
+        "value": 14,
+        "unit": "COUNT",
+        "periodStart": "2025-12-01T14:07:56+01:00",
+        "periodEnd": "2025-12-01T14:09:42+01:00",
+        "duration": 105
+      },
+      {
+        "type": "STEPS",
+        "value": 14,
+        "unit": "COUNT",
+        "periodStart": "2025-12-01T14:09:42+01:00",
+        "periodEnd": "2025-12-01T14:11:51+01:00",
+        "duration": 128
+      },
+      {
+        "type": "STEPS",
+        "value": 7,
+        "unit": "COUNT",
+        "periodStart": "2025-12-01T14:11:51+01:00",
+        "periodEnd": "2025-12-01T14:13:18+01:00",
+        "duration": 87
+      },
+      {
+        "type": "STEPS",
+        "value": 13,
+        "unit": "COUNT",
+        "periodStart": "2025-12-01T14:13:18+01:00",
+        "periodEnd": "2025-12-01T14:14:51+01:00",
+        "duration": 93
+      },
+      {
+        "type": "STEPS",
+        "value": 14,
+        "unit": "COUNT",
+        "periodStart": "2025-12-01T14:14:51+01:00",
+        "periodEnd": "2025-12-01T14:16:03+01:00",
+        "duration": 71
+      },
+      {
+        "type": "STEPS",
+        "value": 1,
+        "unit": "COUNT",
+        "periodStart": "2025-12-01T14:16:03+01:00",
+        "periodEnd": "2025-12-01T14:16:54+01:00",
+        "duration": 50
+      },
+      {
+        "type": "STEPS",
+        "value": 11,
+        "unit": "COUNT",
+        "periodStart": "2025-12-01T14:16:54+01:00",
+        "periodEnd": "2025-12-01T14:18:04+01:00",
+        "duration": 69
+      },
+      {
+        "type": "STEPS",
+        "value": 12,
+        "unit": "COUNT",
+        "periodStart": "2025-12-01T14:18:04+01:00",
+        "periodEnd": "2025-12-01T14:19:42+01:00",
+        "duration": 98
+      },
+      {
+        "type": "STEPS",
+        "value": 1,
+        "unit": "COUNT",
+        "periodStart": "2025-12-01T14:19:42+01:00",
+        "periodEnd": "2025-12-01T14:21:12+01:00",
+        "duration": 90
+      },
+      {
+        "type": "STEPS",
+        "value": 11,
+        "unit": "COUNT",
+        "periodStart": "2025-12-01T14:21:12+01:00",
+        "periodEnd": "2025-12-01T14:22:56+01:00",
+        "duration":104}
+    ],
+    "duration":[]
+  },
+  "sourceName":"TestiPhone",
+  "timestamp":"2025-12-01T14:22:56+01: 00Z"
+}

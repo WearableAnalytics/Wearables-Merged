@@ -10,15 +10,15 @@ type Message struct {
 }
 
 type DeviceInfo struct {
-	Platform           string `json:"platform,omitempty"`
-	DeviceID           string `json:"deviceID,omitempty"`
-	AuthorizationToken string `json:"authorizationToken,omitempty"`
+	Platform           string `json:"platform"`
+	DeviceID           string `json:"deviceId"`
+	AuthorizationToken string `json:"authorizationToken"`
 }
 
 type BatchInfo struct {
 	// Timestamps
-	CollectionStart string `json:"collectionStart,omitempty"`
-	CollectionEnd   string `json:"collectionEnd,omitempty"`
+	CollectionStart string `json:"collectionStart"`
+	CollectionEnd   string `json:"collectionEnd"`
 }
 
 type Measurements struct {
@@ -35,13 +35,13 @@ type Instantaneous struct {
 }
 
 type Cumulative struct {
-	Type  string `json:"type,omitempty"`
-	Value int    `json:"value,omitempty"`
-	Unit  string `json:"unit,omitempty"`
+	Type  string `json:"type"`
+	Value int    `json:"value"`
+	Unit  string `json:"unit"`
 	// Time
-	PeriodStart string `json:"periodStart,omitempty"`
-	PeriodEnd   string `json:"periodEnd,omitempty"`
-	Duration    int    `json:"duration,omitempty"` //sec
+	PeriodStart string `json:"periodStart"`
+	PeriodEnd   string `json:"periodEnd"`
+	Duration    int    `json:"duration"` //sec
 }
 
 type Duration struct{}

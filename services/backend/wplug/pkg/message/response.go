@@ -17,5 +17,15 @@ func (r Response) CSVHeaders() []string {
 }
 
 func (r Response) CSVRecord() []string {
-	return []string{r.Timestamp.String(), r.Err.Error(), r.Latency.String(), strconv.Itoa(r.MessageSize)}
+	errMsg := ""
+	if r.Err != nil {
+		errMsg = r.Err.Error()
+	}
+
+	return []string{
+		r.Timestamp.String(),
+		errMsg,
+		r.Latency.String(),
+		strconv.Itoa(r.MessageSize),
+	}
 }

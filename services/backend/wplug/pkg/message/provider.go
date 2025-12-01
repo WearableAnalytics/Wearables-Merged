@@ -2,6 +2,7 @@ package message
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
@@ -58,8 +59,8 @@ func (e Provider) GetData() Message {
 	return Message{
 		DeviceInfo: e.BaseDeviceInfo,
 		BatchInfo: BatchInfo{
-			fmt.Sprintf("%sZ", collectionStart.Format(time.RFC3339)),
-			fmt.Sprintf("%sZ", collectionEnd.Format(time.RFC3339))},
+			fmt.Sprintf("%s", collectionStart.Format(time.RFC3339)),
+			fmt.Sprintf("%s", collectionEnd.Format(time.RFC3339))},
 		Measurements: Measurements{
 			Instantaneous: instantaneous,
 			Cumulative:    cumulative,
@@ -67,7 +68,7 @@ func (e Provider) GetData() Message {
 		},
 		SourceName:      e.SourceName,
 		TotalStepsToday: nil,
-		Timestamp:       fmt.Sprintf("%sZ", collectionEnd.Format(time.RFC3339)),
+		Timestamp:       fmt.Sprintf("%s", collectionEnd.Format(time.RFC3339)),
 	}
 }
 
@@ -92,6 +93,7 @@ func (e Provider) GenerateCumulative(start time.Time, end time.Time, maxSize int
 	typeLen := len(base.Type)
 	unitLen := len(base.Unit)
 
+	value := -1
 	for size < maxSize && currentStart.Before(end) {
 		// Randomize period duration around approx (50%–150%)
 		randomFactor := 0.5 + rand.Float64()
@@ -105,7 +107,7 @@ func (e Provider) GenerateCumulative(start time.Time, end time.Time, maxSize int
 		}
 
 		// Compute value proportional to duration
-		value := int(float64(rand.Intn(100)) * (totalDuration.Minutes() / 100))
+		value = int(float64(rand.Intn(100)) * (totalDuration.Minutes() / 100))
 
 		cumulative := Cumulative{
 			Type:        base.Type,
@@ -122,6 +124,12 @@ func (e Provider) GenerateCumulative(start time.Time, end time.Time, maxSize int
 		size += typeLen + unitLen + len(cumulative.PeriodStart) + len(cumulative.PeriodEnd) + 8*2 + 8
 
 		currentStart = periodEnd
+	}
+
+	for i, cumulative := range cumulatives {
+		if cumulative.Value == -1 {
+			log.Printf("value has not been set for cumulative %d", i)
+		}
 	}
 
 	return cumulatives

@@ -1,8 +1,7 @@
 client:
   type: http
   config:
-    host: "localhost"
-    port: 8080
+    url: "https://wearables.cherep.co/import/ingest"
     timeout: 10s
     consume-kafka: false
 kafka:

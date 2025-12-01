@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,8 +15,7 @@ import (
 )
 
 type HTTPConfig struct {
-	Host         string
-	Port         uint64
+	Url          string
 	Timeout      time.Duration
 	ContentType  string
 	ConsumeKafka bool
@@ -48,16 +48,10 @@ func NewHTTPClientFromParams(host string, port int, timeout time.Duration, conte
 func NewHTTPClientFromConfig(configMap map[string]interface{}, rw *waiter.ResponseWaiter) (*HTTPClient, error) {
 	var config HTTPConfig
 
-	if host, ok := configMap["host"]; ok {
-		config.Host = host.(string)
+	if host, ok := configMap["url"]; ok {
+		config.Url = host.(string)
 	} else {
 		return nil, fmt.Errorf("config-map must include host")
-	}
-
-	if port, ok := configMap["port"]; ok {
-		config.Port = port.(uint64)
-	} else {
-		return nil, fmt.Errorf("config-map must include port")
 	}
 
 	// decimal numbers, each with optional fraction and a unit suffix,
@@ -101,9 +95,8 @@ func (c HTTPClient) CallEndpoint(ctx context.Context, req message.Message) messa
 	start := time.Now()
 
 	waiterCh := c.ResponseWaiter.Register(req.DeviceInfo.DeviceID)
-	log.Printf("c.Client = %v, c.Conf = %v, rw: %v, jsonFast: %v", c.Client, c.Config, c.ResponseWaiter, c.JsonFast)
-	log.Printf("http: before marshalling: req: %v", req)
-	b, err := c.JsonFast.Marshal(req)
+
+	b, err := json.Marshal(req)
 	if err != nil {
 		return message.Response{
 			Timestamp:   start,
@@ -113,12 +106,16 @@ func (c HTTPClient) CallEndpoint(ctx context.Context, req message.Message) messa
 		}
 	}
 
-	url := fmt.Sprintf("https://%s:%d", c.Config.Host, c.Config.Port)
-
 	body := bytes.NewReader(b)
 
 	send := time.Now()
-	resp, err := c.Client.Post(url, c.Config.ContentType, body)
+	log.Println(string(b))
+
+	if json.Valid(b) {
+		log.Printf("is valid json")
+	}
+
+	resp, err := c.Client.Post(c.Config.Url, c.Config.ContentType, body)
 	if err != nil {
 		return message.Response{
 			Timestamp:   start,
@@ -128,10 +125,23 @@ func (c HTTPClient) CallEndpoint(ctx context.Context, req message.Message) messa
 		}
 	}
 
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(resp.Body)
+	if err != nil {
+		return message.Response{
+			Timestamp:   start,
+			Err:         err,
+			Latency:     time.Since(start),
+			MessageSize: len(b),
+		}
+	}
+
+	respBodyStr := buf.String()
+
 	if resp.StatusCode != 200 {
 		return message.Response{
 			Timestamp:   start,
-			Err:         fmt.Errorf("recieved statuscode: %d", resp.StatusCode),
+			Err:         fmt.Errorf("recieved statuscode: %d with resp: %v, body: %s", resp.StatusCode, resp.Status, respBodyStr),
 			Latency:     time.Since(start),
 			MessageSize: len(b),
 		}
