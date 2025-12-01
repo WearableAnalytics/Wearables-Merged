@@ -13,10 +13,10 @@ import (
 )
 
 type HTTPConfig struct {
-	host        string
-	port        int
-	timeout     time.Duration
-	contentType string
+	Host        string
+	Port        uint64
+	Timeout     time.Duration
+	ContentType string
 }
 
 type HTTPClient struct {
@@ -46,13 +46,13 @@ func NewHTTPClientFromConfig(configMap map[string]interface{}, rw *waiter.Respon
 	var config HTTPConfig
 
 	if host, ok := configMap["host"]; ok {
-		config.host = host.(string)
+		config.Host = host.(string)
 	} else {
 		return nil, fmt.Errorf("config-map must include host")
 	}
 
 	if port, ok := configMap["port"]; ok {
-		config.port = port.(int)
+		config.Port = port.(uint64)
 	} else {
 		return nil, fmt.Errorf("config-map must include port")
 	}
@@ -65,19 +65,19 @@ func NewHTTPClientFromConfig(configMap map[string]interface{}, rw *waiter.Respon
 		if err != nil {
 			return nil, fmt.Errorf("parsing duration faild with err: %v", err)
 		}
-		config.timeout = dur
+		config.Timeout = dur
 	} else {
-		config.timeout = 10 * time.Second
+		config.Timeout = 10 * time.Second
 	}
 
 	if contentType, ok := configMap["contentType"]; ok {
-		config.contentType = contentType.(string)
+		config.ContentType = contentType.(string)
 	} else {
-		config.contentType = "application/json"
+		config.ContentType = "application/json"
 	}
 
 	client := &http.Client{
-		Timeout: config.timeout,
+		Timeout: config.Timeout,
 	}
 
 	return &HTTPClient{
@@ -102,12 +102,12 @@ func (c HTTPClient) CallEndpoint(ctx context.Context, req message.Message) messa
 		}
 	}
 
-	url := fmt.Sprintf("https://%s:%d", c.Config.host, c.Config.port)
+	url := fmt.Sprintf("https://%s:%d", c.Config.Host, c.Config.Port)
 
 	body := bytes.NewReader(b)
 
 	send := time.Now()
-	resp, err := c.Client.Post(url, c.Config.contentType, body)
+	resp, err := c.Client.Post(url, c.Config.ContentType, body)
 	if err != nil {
 		return message.Response{
 			Timestamp:   start,

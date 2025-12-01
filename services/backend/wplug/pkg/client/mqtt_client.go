@@ -26,7 +26,7 @@ import (
 type MQTTConfig struct {
 	Topic  string `yaml:"topic,omitempty"`
 	Broker string `yaml:"broker,omitempty"`
-	QoS    int    `yaml:"qos,omitempty"`
+	QoS    uint64 `yaml:"qos,omitempty"`
 }
 
 type MQTTClient struct {
@@ -56,7 +56,7 @@ func NewMQTTClient(configMap map[string]interface{}, rw *waiter.ResponseWaiter) 
 	var config MQTTConfig
 	config.Topic = "NaN"
 	config.Broker = "NaN"
-	config.QoS = -1
+	config.QoS = 3
 
 	for key, val := range configMap {
 		if key == "topic" {
@@ -67,11 +67,11 @@ func NewMQTTClient(configMap map[string]interface{}, rw *waiter.ResponseWaiter) 
 			config.Broker = val.(string)
 		}
 		if key == "qos" {
-			config.QoS = val.(int)
+			config.QoS = val.(uint64)
 		}
 	}
 
-	if config.Topic == "NaN" || config.Broker == "NaN" || config.QoS == -1 {
+	if config.Topic == "NaN" || config.Broker == "NaN" || config.QoS == 3 {
 		return nil, fmt.Errorf("required fields: topic, broker, qos")
 	}
 

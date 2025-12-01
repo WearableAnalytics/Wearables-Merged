@@ -1,0 +1,18 @@
+client:
+  type: http
+  config:
+    host: "localhost"
+    port: 8080
+    timeout: 10s
+kafka:
+  topic: "test"
+  partition: 1
+  max-bytes: 1000
+  brokers: ["http://localhost:9092"]
+workload:
+  preset: smoke
+  vu: 100
+  max-size: 10000 #10KB
+collector:
+  file: "test-configs/example.csv"
+  flush: 1s

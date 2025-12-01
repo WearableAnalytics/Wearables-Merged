@@ -11,6 +11,13 @@ import (
 	//franz "github.com/twmb/franz-go/pkg/kgo"
 )
 
+type KafkaConsumerConfig struct {
+	Topic     string   `yaml:"topic"`
+	Partition int      `yaml:"partition"`
+	MaxBytes  int      `yaml:"max-bytes"`
+	Brokers   []string `yaml:"brokers"`
+}
+
 type KafkaConsumer struct {
 	Reader         *kafka.Reader
 	ResponseWaiter *waiter.ResponseWaiter

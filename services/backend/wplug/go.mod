@@ -4,11 +4,11 @@ go 1.25.1
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
+	github.com/goccy/go-yaml v1.19.0
 	github.com/google/uuid v1.6.0
 	github.com/json-iterator/go v1.1.12
 	github.com/luccadibe/go-loadgen v0.1.2
 	github.com/segmentio/kafka-go v0.4.49
-	github.com/twmb/franz-go v1.20.5
 	github.com/urfave/cli/v3 v3.6.1
 	gonum.org/v1/plot v0.16.0
 )
@@ -27,7 +27,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/twmb/franz-go/pkg/kmsg v1.12.0 // indirect
 	golang.org/x/image v0.25.0 // indirect
 	golang.org/x/net v0.44.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
