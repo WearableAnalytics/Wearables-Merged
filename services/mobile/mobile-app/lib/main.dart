@@ -162,6 +162,9 @@ class _MainPageState extends State<MainPage> {
   final health = Health();
   DateTime? _lastSendTime;
   final TextEditingController _deviceIdController = TextEditingController();
+  bool _useLastSyncTime = true;
+  DateTime _fromDate = DateTime.now().subtract(const Duration(days: 7));
+  DateTime _toDate = DateTime.now();
 
   Future<void> _loadDeviceInfo() async {
     final deviceId = await StorageService.getOrCreateDeviceId();
@@ -187,6 +190,34 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
+  Future<void> _selectFromDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _fromDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: _toDate,
+    );
+    if (picked != null && picked != _fromDate) {
+      setState(() {
+        _fromDate = picked;
+      });
+    }
+  }
+
+  Future<void> _selectToDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _toDate,
+      firstDate: _fromDate,
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != _toDate) {
+      setState(() {
+        _toDate = picked;
+      });
+    }
+  }
+
   Future<void> _sendRecentHealthData() async {
     try {
       await health.configure();
@@ -208,12 +239,23 @@ class _MainPageState extends State<MainPage> {
       final lastSendTime = await StorageService.getLastDataSendTime();
 
       var now = DateTime.now();
-      // Use last send time as starting point, or default to 7 days ago if never sent
-      var from = lastSendTime ?? now.subtract(const Duration(days: 7));
+      // Use last send time or custom date range based on checkbox
+      DateTime from;
+      DateTime to;
+      
+      if (_useLastSyncTime) {
+        // Use last send time as starting point, or default to 7 days ago if never sent
+        from = lastSendTime ?? now.subtract(const Duration(days: 7));
+        to = now;
+      } else {
+        // Use custom date range
+        from = _fromDate;
+        to = _toDate;
+      }
 
       List<HealthDataPoint> healthData = await health.getHealthDataFromTypes(
         startTime: from,
-        endTime: now,
+        endTime: to,
         types: types,
       );
 
@@ -221,14 +263,6 @@ class _MainPageState extends State<MainPage> {
         _showErrorMessage('No health data found in the selected time period');
         return;
       }
-
-      // Show loading message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sending health data to server...'),
-          duration: Duration(seconds: 3),
-        ),
-      );
 
       // Send data in chunks to avoid 413 "Request Entity Too Large" error
       const int chunkSize = 500; // Limit chunks to 500 data points each
@@ -241,6 +275,47 @@ class _MainPageState extends State<MainPage> {
 
       int totalSent = 0;
       String? lastError;
+
+      if (!mounted) return;
+      
+      late StateSetter dialogSetState;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              dialogSetState = setState;
+              return AlertDialog(
+                title: const Row(
+                  children: [
+                    Icon(Icons.cloud_upload, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Text('Uploading Health Data'),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    LinearProgressIndicator(
+                      value: healthData.isNotEmpty ? totalSent / healthData.length : 0,
+                      backgroundColor: Colors.grey[300],
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      chunks.length > 1 
+                        ? 'Sending chunk ${(totalSent / chunkSize).ceil().clamp(1, chunks.length)} of ${chunks.length}...\n$totalSent / ${healthData.length} data points uploaded'
+                        : 'Uploading ${healthData.length} data points...',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
 
       for (int chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
         var chunk = chunks[chunkIndex];
@@ -260,7 +335,7 @@ class _MainPageState extends State<MainPage> {
               'chunkNumber': chunkIndex + 1,
               'totalChunks': chunks.length,
               'collectionStart': from.toIso8601String(),
-              'collectionEnd': now.toIso8601String(),
+              'collectionEnd': to.toIso8601String(),
               'lastSendTime': lastSendTime?.toIso8601String(),
               'dataPointCount': chunk.length,
             },
@@ -284,6 +359,7 @@ class _MainPageState extends State<MainPage> {
           
           if (response.statusCode >= 200 && response.statusCode < 300) {
             totalSent += chunk.length;
+            dialogSetState(() {});
           } else {
             lastError = 'Chunk ${chunkIndex + 1} failed\nStatus: ${response.statusCode}\nResponse: $responseBody';
           }
@@ -292,7 +368,7 @@ class _MainPageState extends State<MainPage> {
           
           // Small delay between chunks to be respectful to the server
           if (chunkIndex < chunks.length - 1) {
-            await Future.delayed(const Duration(milliseconds: 500));
+            await Future.delayed(const Duration(milliseconds: 200));
           }
           
         } catch (e) {
@@ -300,10 +376,16 @@ class _MainPageState extends State<MainPage> {
         }
       }
 
-      // Update last send time only if at least some data was sent successfully
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Update last send time only if at least some data was sent successfully and using last sync time
       if (totalSent > 0) {
-        await StorageService.updateLastDataSendTime(DateTime.now());
-        await _loadDeviceInfo(); // Refresh the UI with new last send time
+        if (_useLastSyncTime) {
+          await StorageService.updateLastDataSendTime(DateTime.now());
+          await _loadDeviceInfo(); // Refresh the UI with new last send time
+        }
         
         if (lastError != null) {
           _showSuccessMessage('Partially successful!\n\n$totalSent out of ${healthData.length} data points uploaded\n\nLast error: $lastError');
@@ -421,7 +503,7 @@ class _MainPageState extends State<MainPage> {
           ),
         ),
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -543,7 +625,106 @@ class _MainPageState extends State<MainPage> {
                   ),
                 ),
 
-                const Spacer(),
+                const SizedBox(height: 24),
+
+                // Date Selection Card
+                Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.date_range,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Data Range',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Use automatic sync (from last upload)'),
+                          subtitle: Text(
+                            _useLastSyncTime 
+                              ? 'Will send new data since last sync (or last 7 days if first time)'
+                              : 'Will send data from selected date range',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          value: _useLastSyncTime,
+                          onChanged: (bool? value) {
+                            setState(() {
+                              _useLastSyncTime = value ?? true;
+                            });
+                          },
+                        ),
+                        
+                        if (!_useLastSyncTime) ...[
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'From Date',
+                                      style: Theme.of(context).textTheme.labelMedium,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    OutlinedButton.icon(
+                                      onPressed: _selectFromDate,
+                                      icon: const Icon(Icons.calendar_today, size: 16),
+                                      label: Text(_formatDateTime(_fromDate).split(' ')[0]),
+                                      style: OutlinedButton.styleFrom(
+                                        alignment: Alignment.centerLeft,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'To Date',
+                                      style: Theme.of(context).textTheme.labelMedium,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    OutlinedButton.icon(
+                                      onPressed: _selectToDate,
+                                      icon: const Icon(Icons.calendar_today, size: 16),
+                                      label: Text(_formatDateTime(_toDate).split(' ')[0]),
+                                      style: OutlinedButton.styleFrom(
+                                        alignment: Alignment.centerLeft,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
 
                 // Main Action Button
                 Card(
@@ -582,7 +763,9 @@ class _MainPageState extends State<MainPage> {
                 const SizedBox(height: 16),
 
                 Text(
-                  'Uploads new health data since last sync (or last 7 days if first time)',
+                  _useLastSyncTime 
+                    ? 'Uploads new health data since last sync (or last 7 days if first time)'
+                    : 'Uploads health data from ${_formatDateTime(_fromDate).split(' ')[0]} to ${_formatDateTime(_toDate).split(' ')[0]}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
