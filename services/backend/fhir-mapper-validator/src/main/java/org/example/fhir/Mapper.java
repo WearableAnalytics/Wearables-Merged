@@ -151,6 +151,11 @@ public class Mapper {
             }
             value = resolved;
         }
+
+        if (field.getAppend() != null && !field.getAppend().isBlank() && value != null) {
+            value = new JsonPrimitive(value.getAsString() + field.getAppend().strip());
+        }
+
         if (value == null || value.isJsonNull()) {
             if (!field.isOptional()) {
                 throw new IllegalStateException("Missing required field '" + field.getName() + "' for target " + field.getTarget());

@@ -1,12 +1,132 @@
 metadata:
   fields:
     - name: device
-      source: deviceInfo.platform
+      source: deviceInfo.deviceId
       target: device.display
       optional: false
       type: string
 measurement:
   paths:
+    - path: measurements.instantaneous
+      arrayMapAll: true
+      fields:
+        - name: fhirType
+          value: "Observation"
+          target: resourceType
+          optional: false
+          type: string
+        - name: type
+          mapping: true
+          target: id
+          optional: false
+          type: string
+        - name: value
+          source: measurement.instantaneous.value
+          target: valueQuantity.value
+          optional: false
+          type: real
+        - name: unit
+          source: measurement.instantaneous.unit
+          target: valueQuantity.unit
+          optional: false
+          type: string
+        - name: start
+          source: measurement.instantaneous.timestamp
+          target: effectiveDateTime
+          append: "Z"
+          optional: false
+          type: string
+        - name: status
+          value: "final"
+          target: status
+          optional: false
+          type: string
+        - name: codingSystem
+          mapping: true
+          target: code.coding[0].system
+          optional: false
+          type: string
+        - name: codingCode
+          mapping: true
+          target: code.coding[0].code
+          optional: false
+          type: string
+        - name: codingDisplay
+          source: measurement.instantaneous.unit
+          target: code.coding[0].display
+          optional: false
+          type: string
+      mappings:
+        - path: code.coding[0].code
+          basedOn: measurement.instantaneous.unit
+          valueType: string
+          map:
+            - key: "COUNT"
+              value: "55423-8"
+            - key: "BEATS_PER_MINUTE"
+              value: "8867-4"
+            - key: "KILOCALORIE"
+              value: "41981-2"
+            - key: "PERCENT"
+              value: "percent"
+            - key: "MILLISECOND"
+              value: "ms"
+            - key: "METER"
+              value: "m"
+            - key: "MINUTE"
+              value: "min"
+            - key: "RESPIRATIONS_PER_MINUTE"
+              value: "count"
+        - path: code.coding[0].system
+          basedOn: measurement.instantaneous.unit
+          valueType: string
+          map:
+            - key: "METER"
+              value: "metric"
+            - key: "MILLISECOND"
+              value: "time"
+            - key: "MINUTE"
+              value: "time"
+            - key: "PERCENT"
+              value: "metric"
+            - key: "COUNT"
+              value: "https://loinc.org/"
+            - key: "BEATS_PER_MINUTE"
+              value: "https://loinc.org/"
+            - key: "KILOCALORIE"
+              value: "https://loinc.org/"
+            - key: "RESPIRATIONS_PER_MINUTE"
+              value: "metric"
+        - path: id
+          basedOn: measurements.instantaneous.type
+          valueType: string
+          map:
+            - key: "BLOOD_OXYGEN"
+              value: "blood-oxygen"
+            - key: "HEART_RATE"
+              value: "heartrate"
+            - key: "HEART_RATE_VARIABILITY_SDNN"
+              value: "heart-rate-variability"
+            - key: "SLEEP_IN_BED"
+              value: "sleep-in-bed"
+            - key: "RESTING_HEART_RATE"
+              value: "resting-heart-rate"
+            - key: "WALKING_HEART_RATE"
+              value: "walking-heart-rate"
+            - key: "SLEEP_ASLEEP_CORE"
+              value: "sleep-asleep-core"
+            - key: "SLEEP_ASLEEP_DEEP"
+              value: "sleep-asleep-deep"
+            - key: "RESPIRATORY_RATE"
+              value: "respiratory-rate"
+            - key: "STEPS"
+              value: "steps"
+            - key: "FLIGHTS_CLIMBED"
+              value: "flights-climbed"
+            - key: "SLEEP_ASLEEP_REM"
+              value: "sleep-asleep-rem"
+            - key: "EXERCISE_TIME"
+              value: "exercise-time"
     - path: measurements.cumulative
       arrayMapAll: true
       fields:
@@ -16,7 +136,7 @@ measurement:
           optional: false
           type: string
         - name: type
-          source: measurements.cumulative.type
+          mapping: true
           target: id
           optional: false
           type: string
@@ -33,11 +153,13 @@ measurement:
         - name: start
           source: measurement.cumulative.periodStart
           target: effectivePeriod.start
+          append: "Z"
           optional: false
           type: string
         - name: end
           source: measurement.cumulative.periodEnd
           target: effectivePeriod.end
+          append: "Z"
           optional: false
           type: string
         - name: status
@@ -46,7 +168,7 @@ measurement:
           optional: false
           type: string
         - name: codingSystem
-          value: "http://loinc.org"
+          mapping: true
           target: code.coding[0].system
           optional: false
           type: string
@@ -65,5 +187,69 @@ measurement:
           basedOn: measurement.cumulative.unit
           valueType: string
           map:
-            - key: "STEPS"
+            - key: "COUNT"
               value: "55423-8"
+            - key: "BEATS_PER_MINUTE"
+              value: "8867-4"
+            - key: "KILOCALORIE"
+              value: "41981-2"
+            - key: "PERCENT"
+              value: "percent"
+            - key: "MILLISECOND"
+              value: "ms"
+            - key: "METER"
+              value: "m"
+            - key: "MINUTE"
+              value: "min"
+            - key: "RESPIRATIONS_PER_MINUTE"
+              value: "count"
+        - path: code.coding[0].system
+          basedOn: measurement.cumulative.unit
+          valueType: string
+          map:
+            - key: "METER"
+              value: "metric"
+            - key: "MILLISECOND"
+              value: "time"
+            - key: "MINUTE"
+              value: "time"
+            - key: "PERCENT"
+              value: "metric"
+            - key: "COUNT"
+              value: "https://loinc.org/"
+            - key: "BEATS_PER_MINUTE"
+              value: "https://loinc.org/"
+            - key: "KILOCALORIE"
+              value: "https://loinc.org/"
+            - key: "RESPIRATIONS_PER_MINUTE"
+              value: "metric"
+        - path: id
+          basedOn: measurements.cumulative.type
+          valueType: string
+          map:
+            - key: "ACTIVE_ENERGY_BURNED"
+              value: "active-energy-burned"
+            - key: "BASAL_ENERGY_BURNED"
+              value: "basal-energy-burned"
+            - key: "DISTANCE_WALKING_RUNNING"
+              value: "distance-walking-running"
+            - key: "SLEEP_IN_BED"
+              value: "sleep-in-bed"
+            - key: "RESTING_HEART_RATE"
+              value: "resting-heart-rate"
+            - key: "WALKING_HEART_RATE"
+              value: "walking-heart-rate"
+            - key: "SLEEP_ASLEEP_CORE"
+              value: "sleep-asleep-core"
+            - key: "SLEEP_ASLEEP_DEEP"
+              value: "sleep-asleep-deep"
+            - key: "RESPIRATORY_RATE"
+              value: "respiratory-rate"
+            - key: "STEPS"
+              value: "steps"
+            - key: "FLIGHTS_CLIMBED"
+              value: "flights-climbed"
+            - key: "SLEEP_ASLEEP_REM"
+              value: "sleep-asleep-rem"
+            - key: "EXERCISE_TIME"
+              value: "exercise-time"

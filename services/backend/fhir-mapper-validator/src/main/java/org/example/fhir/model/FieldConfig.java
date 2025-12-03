@@ -9,6 +9,7 @@ public class FieldConfig {
     private Object value;
     private String target;
     private boolean optional;
+    private String append;
     private String type;
     private boolean mapping;
 }

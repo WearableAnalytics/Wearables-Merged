@@ -8,38 +8,13 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class LineProtocolParser {
 
     private static final Logger log = LoggerFactory.getLogger(LineProtocolParser.class);
 
-    private static final String PATH_EFFECTIVE_DATE_TIME = "effectiveDateTime"; // implicit timestamp mapping
-
     private static final FhirLineProtocolConfig CONFIG = ConfigLoader.loadConfig(Environment.FHIR_LP_MAPPING_YAML_PATH, FhirLineProtocolConfig.class);
-
-    private record MappingPattern(FhirLineProtocolConfig.Mapping raw, Pattern regex, boolean wildcard, boolean allowArray, String original) {}
-
-    private static final List<MappingPattern> FIELD_PATTERNS = compilePatterns(CONFIG.getFieldMappings());
-    private static final List<MappingPattern> TAG_PATTERNS = compilePatterns(CONFIG.getTagMappings());
-    private static final MappingPattern MEASUREMENT_PATTERN = compilePatterns(List.of(CONFIG.getMeasurementMapping())).get(0);
-
-    private static final MappingPattern TIMESTAMP_PATTERN = compilePatterns(List.of(CONFIG.getTimestampMapping())).get(0);
-
-    private static List<MappingPattern> compilePatterns(List<FhirLineProtocolConfig.Mapping> mappings) {
-        List<MappingPattern> list = new ArrayList<>();
-        if (mappings == null) return list;
-        for (FhirLineProtocolConfig.Mapping m : mappings) {
-            if (m == null || m.getSource() == null || m.getSource().isBlank()) continue;
-            String src = m.getSource().trim();
-            boolean wildcard = src.contains("[x]");
-            String regexStr = Pattern.quote(src).replace("\\[x\\]", "\\\\[\\\\d+\\\\]");
-            Pattern p = Pattern.compile("^" + regexStr + "$");
-            list.add(new MappingPattern(m, p, wildcard, m.isAllowArray(), src));
-        }
-        return list;
-    }
+    private static final List<FhirLineProtocolConfig.Variant> VARIANTS = CONFIG.resolvedVariants();
 
     public String parse(String jsonString) throws IllegalArgumentException {
         if (jsonString == null || jsonString.isBlank()) {
@@ -49,57 +24,83 @@ public class LineProtocolParser {
         if (!rootEl.isJsonObject()) throw new IllegalArgumentException("FHIR Observation must be a JSON object");
         JsonObject root = rootEl.getAsJsonObject();
 
-        // Flatten all primitive paths
         Map<String, JsonPrimitive> primitives = new LinkedHashMap<>();
         collectPrimitives(root, "", primitives);
+        if (primitives.isEmpty()) throw new IllegalArgumentException("No primitive values found in observation");
 
-        // Measurement from config
-        String measurement = extractSingle(MEASUREMENT_PATTERN, primitives);
+        FhirLineProtocolConfig.Variant variant = selectVariant(primitives);
+        if (variant == null) {
+            throw new IllegalArgumentException("No mapping variant matched observation");
+        }
+
+        return renderLineProtocol(primitives, variant);
+    }
+
+    private FhirLineProtocolConfig.Variant selectVariant(Map<String, JsonPrimitive> primitives) {
+        for (FhirLineProtocolConfig.Variant variant : VARIANTS) {
+            if (mappingResolvable(variant.getMeasurementMapping(), primitives)
+                    && mappingResolvable(variant.getTimestampMapping(), primitives)) {
+                return variant;
+            }
+        }
+        return null;
+    }
+
+    private boolean mappingResolvable(FhirLineProtocolConfig.Mapping mapping, Map<String, JsonPrimitive> primitives) {
+        return mapping != null && !findMatches(mapping, primitives).isEmpty();
+    }
+
+    private String renderLineProtocol(Map<String, JsonPrimitive> primitives, FhirLineProtocolConfig.Variant variant) {
+        if (variant.getMeasurementMapping() == null) {
+            throw new IllegalArgumentException("Variant missing measurement-mapping");
+        }
+        if (variant.getTimestampMapping() == null) {
+            throw new IllegalArgumentException("Variant missing timestamp-mapping");
+        }
+
+        String measurement = extractSingle(variant.getMeasurementMapping(), primitives);
         if (measurement == null || measurement.isBlank()) {
-            throw new IllegalArgumentException("Measurement value not found for pattern: " + MEASUREMENT_PATTERN.original());
+            throw new IllegalArgumentException("Measurement value not found for source: " + variant.getMeasurementMapping().getSource());
         }
         measurement = replaceSpaces(measurement);
 
-        String timestamp = extractSingle(TIMESTAMP_PATTERN, primitives);
+        String timestamp = extractSingle(variant.getTimestampMapping(), primitives);
         if (timestamp == null || timestamp.isBlank()) {
-            throw new IllegalArgumentException("Timestamp value not found for pattern: " + TIMESTAMP_PATTERN.original());
+            throw new IllegalArgumentException("Timestamp value not found for source: " + variant.getTimestampMapping().getSource());
         }
 
         Long tsNanos = normalizeIsoToNanos(timestamp);
 
-        // Fields
         LinkedHashMap<String, JsonPrimitive> fields = new LinkedHashMap<>();
-        for (MappingPattern mp : FIELD_PATTERNS) {
-            List<Map.Entry<String, JsonPrimitive>> matches = findMatches(mp, primitives);
+        for (FhirLineProtocolConfig.Mapping fieldMapping : safeMappings(variant.getFieldMappings())) {
+            List<Map.Entry<String, JsonPrimitive>> matches = findMatches(fieldMapping, primitives);
             if (matches.isEmpty()) continue;
-            if (!mp.allowArray && matches.size() > 1) {
-                throw new IllegalArgumentException("Multiple values matched field pattern (allow-array=false): " + mp.original());
+            if (!fieldMapping.isAllowArray() && matches.size() > 1) {
+                throw new IllegalArgumentException("Multiple values matched field mapping (allow-array=false): " + fieldMapping.getSource());
             }
             for (int i = 0; i < matches.size(); i++) {
-                var e = matches.get(i);
-                String key = deriveFieldKey(mp.original(), e.getKey(), i, matches.size());
-                fields.put(key, e.getValue());
+                Map.Entry<String, JsonPrimitive> match = matches.get(i);
+                String key = deriveKey(fieldMapping, match.getKey(), i, matches.size());
+                fields.put(key, match.getValue());
             }
         }
         if (fields.isEmpty()) throw new IllegalArgumentException("No fields produced by mapping configuration");
 
-        // Tags
         TreeMap<String, String> tags = new TreeMap<>();
-        for (MappingPattern mp : TAG_PATTERNS) {
-            List<Map.Entry<String, JsonPrimitive>> matches = findMatches(mp, primitives);
+        for (FhirLineProtocolConfig.Mapping tagMapping : safeMappings(variant.getTagMappings())) {
+            List<Map.Entry<String, JsonPrimitive>> matches = findMatches(tagMapping, primitives);
             if (matches.isEmpty()) continue;
-            if (!mp.allowArray && matches.size() > 1) {
-                throw new IllegalArgumentException("Multiple values matched tag pattern (allow-array=false): " + mp.original());
+            if (!tagMapping.isAllowArray() && matches.size() > 1) {
+                throw new IllegalArgumentException("Multiple values matched tag mapping (allow-array=false): " + tagMapping.getSource());
             }
             for (int i = 0; i < matches.size(); i++) {
-                var e = matches.get(i);
-                String key = deriveTagKey(mp, e.getKey(), i, matches.size());
-                String val = primitiveToString(e.getValue());
+                Map.Entry<String, JsonPrimitive> match = matches.get(i);
+                String key = deriveKey(tagMapping, match.getKey(), i, matches.size());
+                String val = primitiveToString(match.getValue());
                 if (val != null) tags.put(key, replaceSpaces(val));
             }
         }
 
-        // Build line protocol
         StringBuilder sb = new StringBuilder();
         sb.append(escapeMeasurement(measurement));
         for (var e : tags.entrySet()) {
@@ -117,22 +118,37 @@ public class LineProtocolParser {
         return sb.toString();
     }
 
-    private static List<Map.Entry<String, JsonPrimitive>> findMatches(MappingPattern pattern, Map<String, JsonPrimitive> primitives) {
-        List<Map.Entry<String, JsonPrimitive>> list = new ArrayList<>();
-        for (var e : primitives.entrySet()) {
-            if (pattern.regex().matcher(e.getKey()).matches()) list.add(e);
-        }
-        if (pattern.wildcard()) list.sort(Comparator.comparing(Map.Entry::getKey));
-        return list;
+    private static List<FhirLineProtocolConfig.Mapping> safeMappings(List<FhirLineProtocolConfig.Mapping> mappings) {
+        return mappings == null ? Collections.emptyList() : mappings;
     }
 
-    private static String extractSingle(MappingPattern pattern, Map<String, JsonPrimitive> primitives) {
-        List<Map.Entry<String, JsonPrimitive>> matches = findMatches(pattern, primitives);
+    private static List<Map.Entry<String, JsonPrimitive>> findMatches(FhirLineProtocolConfig.Mapping mapping, Map<String, JsonPrimitive> primitives) {
+        if (mapping == null || mapping.getSource() == null || mapping.getSource().isBlank()) {
+            return Collections.emptyList();
+        }
+        List<Map.Entry<String, JsonPrimitive>> matches = new ArrayList<>();
+        boolean wildcard = mapping.getSource().contains("[x]");
+        String normalized = wildcard ? mapping.getSource() : null;
+        for (var entry : primitives.entrySet()) {
+            String candidate = wildcard ? normalizePath(entry.getKey()) : entry.getKey();
+            if (Objects.equals(candidate, wildcard ? normalized : mapping.getSource())) {
+                matches.add(entry);
+            }
+        }
+        return matches;
+    }
+
+    private static String extractSingle(FhirLineProtocolConfig.Mapping mapping, Map<String, JsonPrimitive> primitives) {
+        List<Map.Entry<String, JsonPrimitive>> matches = findMatches(mapping, primitives);
         if (matches.isEmpty()) return null;
-        if (!pattern.allowArray() && matches.size() > 1) {
-            throw new IllegalArgumentException("Multiple values matched single-value pattern: " + pattern.original());
+        if (!mapping.isAllowArray() && matches.size() > 1) {
+            throw new IllegalArgumentException("Multiple values matched single-value mapping: " + mapping.getSource());
         }
         return primitiveToString(matches.get(0).getValue());
+    }
+
+    private static String normalizePath(String path) {
+        return path.replaceAll("\\[(\\d+)\\]", "[x]");
     }
 
     private static void collectPrimitives(JsonElement el, String path, Map<String, JsonPrimitive> out) {
@@ -157,54 +173,39 @@ public class LineProtocolParser {
         }
     }
 
-    private static String deriveFieldKey(String pattern, String matchedPath, int index, int total) {
-        // Look up mapping to see if alias provided
-        String alias = null;
-        for (var mp : FIELD_PATTERNS) {
-            if (mp.original().equals(pattern)) {
-                alias = mp.raw().getAlias();
-                break;
+    private static String deriveKey(FhirLineProtocolConfig.Mapping mapping, String matchedPath, int index, int total) {
+        String alias = mapping.getAlias();
+        if (alias != null && !alias.isBlank()) {
+            if (mapping.getSource().contains("[x]") && total > 1) {
+                String idx = extractLastIndex(matchedPath);
+                return idx == null ? alias + "_" + index : alias + "_" + idx;
             }
+            return alias;
         }
-        if (pattern.endsWith("valueQuantity.value")) alias = (alias != null && !alias.isBlank()) ? alias : "value";
-        if (pattern.endsWith("subject.reference")) alias = (alias != null && !alias.isBlank()) ? alias : "subject";
-        if (pattern.endsWith("status")) alias = (alias != null && !alias.isBlank()) ? alias : "status";
-        String base;
-        if (alias != null && !alias.isBlank()) {
-            base = alias;
-        } else {
-            base = pattern.replace("[x]", "");
-            if (base.contains(".")) base = base.substring(base.lastIndexOf('.') + 1);
-            base = base.replace('[', '_').replace(']', '_');
-            base = base.replaceAll("__+", "_");
-            if (base.endsWith("_")) base = base.substring(0, base.length() - 1);
-        }
-        if (total > 1) base = base + "_" + index;
-        return base;
-    }
-
-    private static String deriveTagKey(MappingPattern mp, String matchedPath, int index, int total) {
-        String alias = mp.raw().getAlias();
-        String base;
-        if (alias != null && !alias.isBlank()) {
-            base = alias;
-        } else {
-            base = mp.original().replace("[x]", "");
-            if (base.contains(".")) base = base.substring(base.lastIndexOf('.') + 1);
-            base = base.replace('[', '_').replace(']', '_');
-            base = base.replaceAll("__+", "_");
-            if (base.endsWith("_")) base = base.substring(0, base.length() - 1);
-        }
-        // Add index suffix logic
-        if (mp.wildcard()) {
-            Matcher m = Pattern.compile("\\[(\\d+)\\]").matcher(matchedPath);
-            String lastIdx = null;
-            while (m.find()) lastIdx = m.group(1);
-            if (lastIdx != null) base = base + "_" + lastIdx;
+        String base = mapping.getSource().replace("[x]", "");
+        if (base.contains(".")) base = base.substring(base.lastIndexOf('.') + 1);
+        base = base.replace('[', '_').replace(']', '_');
+        while (base.endsWith("_")) base = base.substring(0, base.length() - 1);
+        if (mapping.getSource().contains("[x]") && total > 1) {
+            String idx = extractLastIndex(matchedPath);
+            if (idx != null) base = base + "_" + idx;
+            else base = base + "_" + index;
         } else if (total > 1) {
             base = base + "_" + index;
         }
         return base;
+    }
+
+    private static String extractLastIndex(String path) {
+        int end = path.lastIndexOf(']');
+        if (end == -1) return null;
+        int start = path.lastIndexOf('[', end);
+        if (start == -1 || start >= end) return null;
+        String candidate = path.substring(start + 1, end);
+        for (int i = 0; i < candidate.length(); i++) {
+            if (!Character.isDigit(candidate.charAt(i))) return null;
+        }
+        return candidate;
     }
 
     private static String primitiveToString(JsonPrimitive p) {
@@ -249,7 +250,7 @@ public class LineProtocolParser {
             if (!raw.matches(".*[\\.eE].*")) {
                 try {
                     Long.parseLong(raw);
-                    return raw + 'i';
+                    return raw;
                 } catch (NumberFormatException ex) { /* fallback */ }
             }
             return raw;

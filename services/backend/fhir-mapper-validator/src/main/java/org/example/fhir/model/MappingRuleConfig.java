@@ -8,6 +8,7 @@ public class MappingRuleConfig {
     private String path;
     private String basedOn;
     private String valueType;
+    private String append;
     private List<RuleConfig> map;
 }
 

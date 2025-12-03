@@ -13,6 +13,7 @@ import org.example.config.KafkaConfig;
 import org.example.fhir.Mapper;
 import org.example.fhir.Validator;
 import org.example.lineprotocol.LineProtocolParser;
+import org.hl7.fhir.r5.elementmodel.JsonParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +46,7 @@ public class Main {
                 List<JsonObject> mapped = Mapper.mapFhir(value);
                 for (JsonObject obj : mapped) {
                     String json = obj.toString();
+                    log.debug(json);
                     if (Validator.validateFhir(json)) {
                         outputs.add(json);
                     } else {
@@ -65,7 +67,9 @@ public class Main {
         KStream<String, String> influxLp = fhirJson.mapValues(str -> {
             try {
                 log.debug("Received fhir payload: {}", str);
-                return lpParser.parse(str);
+                String lpString = lpParser.parse(str);
+                log.info(lpString);
+                return lpString;
             } catch (IllegalArgumentException iae) {
                 log.error("Line Protocol tranformation failed with exception", iae);
                 return "";
