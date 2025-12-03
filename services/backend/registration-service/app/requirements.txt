@@ -1,0 +1,16 @@
+SQLAlchemy~=2.0.44
+passlib~=1.7.4
+fastapi~=0.123.5
+itsdangerous~=2.2.0
+httpx~=0.28.1
+loguru~=0.7.3
+pydantic~=2.12.5
+pip~=24.3.1
+MarkupSafe~=3.0.3
+Werkzeug~=3.1.4
+click~=8.3.1
+Jinja2~=3.1.6
+blinker~=1.9.0
+uvicorn[standard]==0.30.0
+psycopg2-binary
+requests

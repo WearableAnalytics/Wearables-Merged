@@ -1,0 +1,48 @@
+services:
+  svc:
+    build:
+      context: .
+      dockerfile: app.Dockerfile
+    container_name: registration-svc
+    restart: no
+    env_file:
+      - app/.env
+    ports:
+      - "8000:8000"
+    networks:
+      - test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-latest}
+    container_name: postgres
+    restart: no
+    env_file:
+      - app/.env
+    volumes:
+      - test:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - test
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER:-test} -d ${POSTGRES_DB:-db}'" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  test:
+    name: test
+
+volumes:
+  test:
