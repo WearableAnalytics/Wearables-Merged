@@ -1,0 +1,10 @@
+
+1. Some Person asynchronously creates a new Event
+2. After a successful registration, the Service a unique-token, with an expiration date of e.g. 1-Month/3-Month/Never
+3. If the Patient arrives at the hospital, the Doctor/Research can type in the token and the system returns a QR-Code
+   with the assigned **event-key** for that person
+4. Patient scans that using our app, and the app receives
+    4.1 an Endpoint which returns all needed information (domain + event-id) => I'd prefer this
+    4.2 Directly (and only) the event-id
+
+

@@ -21,6 +21,27 @@ services:
       retries: 5
       start_period: 10s
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4.7
+    container_name: keycloak
+    command: start-dev
+    restart: unless-stopped
+    env_file:
+      - ./keycloak/.env
+    ports:
+      - "7070:7070"
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+    networks:
+      - keycloak
+    healthcheck:
+      test: [ "CMD-SHELL", "exec 3<>/dev/tcp/localhost/7070 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   postgres:
     image: postgres:${POSTGRES_VERSION:-latest}
     container_name: postgres
@@ -40,9 +61,29 @@ services:
       retries: 5
       start_period: 10s
 
+  keycloak-postgres:
+    image: postgres:${POSTGRES_VERSION:-latest}
+    container_name: keycloak-postgres
+    restart: unless-stopped
+    env_file:
+      - ./keycloak/.env
+    volumes:
+      - keycloak:/var/lib/postgresql/data
+    networks:
+      - keycloak
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER:-keycloak} -d ${POSTGRES_DB:-keycloak}'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 networks:
   test:
     name: test
+  keycloak:
+    name: keycloak
 
 volumes:
   test:
+  keycloak:

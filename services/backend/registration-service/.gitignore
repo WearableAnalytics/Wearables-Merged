@@ -135,7 +135,8 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+keycloak/.env
+app/.env
 .envrc
 .venv
 env/
