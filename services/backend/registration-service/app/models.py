@@ -11,6 +11,8 @@ class PatientRequest(BaseModel):
     context_id: str
     patient_mail: str
     appointment_date: str
+    event_duration: str
+    event_start_date: str
 
 
 class PatientResponse(BaseModel):
@@ -40,6 +42,8 @@ class PatientMaster(Base):
     phone_id = Column(String, index=True)
     watch_id = Column(String, index=True)
     context_id = Column(String, index=True)
+    event_duration = Column(String, index=True)
+    event_start_date = Column(String, index=True)
 
 
 class RegistrationToken(Base):
@@ -48,3 +52,5 @@ class RegistrationToken(Base):
     id = Column(String, primary_key=True, index=True)
     event_id = Column(String, index=True)
     status = Column(String, index=True)  # Pending/Done
+    start_time = Column(String, index=True)
+    duration= Column(String, index=True)

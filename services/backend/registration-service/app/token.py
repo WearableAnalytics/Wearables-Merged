@@ -18,6 +18,8 @@ class RegistrationTokenService:
     def create_registration_token(
             db: Session,
             event_id: str,
+            start_time: str,
+            duration: str,
             max_retries: int = 3,
     ) -> Optional[RegistrationToken]:
         for attempt in range(max_retries):
@@ -27,7 +29,9 @@ class RegistrationTokenService:
                 reg_token = RegistrationToken(
                     id=token_id,
                     event_id=event_id,
-                    status="PENDING"
+                    status="PENDING",
+                    start_time=start_time,
+                    duration=duration,
                 )
 
                 db.add(reg_token)
@@ -74,3 +78,5 @@ class RegistrationTokenService:
         except Exception as e:
             db.rollback()
             return False, f"Failed to validate token: {e}"
+
+

@@ -16,7 +16,8 @@ class Settings:
     smtp_port: int = os.getenv('SMTP_PORT', 587)
     sender_email: str = os.getenv('SENDER_EMAIL', "")
     app_password: str = os.getenv('APP_PASSWORD', "")
-
+    jwt_secret: str = os.getenv('JWT_SECRET', "secret")
+    jwt_algorithm: str = os.getenv('JWT_ALGORITHM', "HS256")
 
 @lru_cache()
 def get_settings() -> Settings:
