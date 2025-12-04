@@ -8,3 +8,6 @@ db_only:
 
 down:
     docker compose down -v
+
+restart_svc:
+    docker
