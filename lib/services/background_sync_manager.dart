@@ -1,7 +1,6 @@
 import 'package:background_fetch/background_fetch.dart';
 import 'package:flutter/foundation.dart';
 
-import 'health_sync_service.dart';
 import 'notification_service.dart';
 
 /// Configures `background_fetch` and wires it to the sync + notification flow.
@@ -22,10 +21,11 @@ class BackgroundSyncManager {
           startOnBoot: true,
           requiresBatteryNotLow: false,
           requiresCharging: false,
+          requiresStorageNotLow: false,
           requiresDeviceIdle: false,
-          requiredNetworkType: NetworkType.ANY,
+          requiredNetworkType: NetworkType.NONE,
         ),
-        _onBackgroundFetch,
+        _onTestBackgroundFetch,
         _onBackgroundTimeout,
       );
       debugPrint('BackgroundFetch configured. Status: $status');
@@ -41,34 +41,25 @@ class BackgroundSyncManager {
     }
   }
 
-  static Future<void> _onBackgroundFetch(String taskId) async {
-    await _performSync(taskId);
+  static Future<void> _onTestBackgroundFetch(String taskId) async {
+    debugPrint('[BackgroundFetch] Event received $taskId');
+    await NotificationService.showTestNotification(
+      message: 'Hello world from background fetch!',
+    );
+    BackgroundFetch.finish(taskId);
   }
 
   static Future<void> _onBackgroundTimeout(String taskId) async {
-    debugPrint('BackgroundFetch timeout: $taskId');
+    debugPrint('[BackgroundFetch] TASK TIMEOUT taskId: $taskId');
     BackgroundFetch.finish(taskId);
   }
 
   static Future<void> handleHeadlessTask(HeadlessTask task) async {
     if (task.timeout) {
+      debugPrint('[BackgroundFetch] Headless task timed-out: ${task.taskId}');
       BackgroundFetch.finish(task.taskId);
       return;
     }
-    await _performSync(task.taskId);
-  }
-
-  static Future<void> _performSync(String taskId) async {
-    try {
-      debugPrint('Background fetch triggered: $taskId');
-      await NotificationService.showSyncStartedNotification();
-      final result = await HealthSyncService().sendSinceLastSync(requestPermissions: false);
-      debugPrint('Background fetch completed: $taskId with status ${result.status}');
-      await NotificationService.showSyncResultNotification(result);
-    } catch (e) {
-      debugPrint('Background sync failed: $e');
-    } finally {
-      BackgroundFetch.finish(taskId);
-    }
+    await _onTestBackgroundFetch(task.taskId);
   }
 }
