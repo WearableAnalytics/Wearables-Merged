@@ -59,12 +59,12 @@ class RegistrationTokenService:
             token_id: str,
     ) -> tuple[bool, str] | None:
 
-        token = RegistrationToken.get_token(db, token_id)
+        token = RegistrationTokenService.get_token(db, token_id)
 
         if not token:
             return False, "Token not found"
 
-        if str(token.status).capitalize() != "PENDING":
+        if token.status.upper() != "PENDING":
             return False, "Token already used"
 
         try:
