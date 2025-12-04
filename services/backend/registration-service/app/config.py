@@ -12,6 +12,10 @@ class Settings:
     charite_url: str = os.getenv('CHARITE_URL', "http://localhost:9090")
     secret_key: str = os.getenv('SECRET_KEY', "secret")
     token_expiration: int = os.getenv('TOKEN_EXPIRATION', 60 * 15)
+    smtp_host: str = os.getenv('SMTP_HOST', "smtp.gmail.com")
+    smtp_port: int = os.getenv('SMTP_PORT', 587)
+    sender_email: str = os.getenv('SENDER_EMAIL', "")
+    app_password: str = os.getenv('APP_PASSWORD', "")
 
 
 @lru_cache()

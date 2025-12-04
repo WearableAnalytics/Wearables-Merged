@@ -29,7 +29,8 @@ services:
     env_file:
       - ./keycloak/.env
     ports:
-      - "7070:7070"
+      - "7070:8080"
+      - "7071:9000"
     depends_on:
       keycloak-postgres:
         condition: service_healthy
@@ -50,8 +51,6 @@ services:
       - app/.env
     volumes:
       - test:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     networks:
       - test
     healthcheck:

@@ -9,6 +9,8 @@ class PatientRequest(BaseModel):
     watch_id: str
     phone_id: str
     context_id: str
+    patient_mail: str
+    appointment_date: str
 
 class PatientResponse(BaseModel):
     status: str
@@ -24,10 +26,17 @@ class Patient(BaseModel):
 
 
 class PatientMaster(Base):
-    __tablename__ = "master"
+    __tablename__ = "event"
 
     id = Column(String, primary_key=True, index=True)
     patient_id = Column(String, index=True)
     phone_id = Column(String, index=True)
     watch_id = Column(String, index=True)
     context_id = Column(String, index=True)
+
+class RegistrationToken(Base):
+    __tablename__ = "registration_token"
+
+    id = Column(String, primary_key=True, index=True)
+    event_id = Column(String, index=True)
+    status = Column(String, index=True) # Pending/Done
