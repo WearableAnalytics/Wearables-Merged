@@ -1,8 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:health/health.dart';
-import 'dart:convert';
-import 'dart:io';
+
+import 'health_data_formatter.dart';
 import 'health_data_types.dart';
 import 'storage_service.dart';
 
@@ -18,6 +20,7 @@ class _DataViewPageState extends State<DataViewPage> {
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 1));
   DateTime _endDate = DateTime.now();
 
+  /// Collects health data for the selected interval and shows it as JSON.
   Future<void> _getHealthData() async {
     try {
       await health.configure();
@@ -49,7 +52,7 @@ class _DataViewPageState extends State<DataViewPage> {
       var midnight = DateTime(now.year, now.month, now.day);
       int? steps = await health.getTotalStepsInInterval(midnight, now);
 
-      Map<String, dynamic> healthJson = {
+      final Map<String, dynamic> healthJson = {
         'deviceInfo': {
           'platform': Platform.isIOS ? 'iOS' : 'Android',
           'deviceId': deviceId,
@@ -60,7 +63,9 @@ class _DataViewPageState extends State<DataViewPage> {
           'collectionEnd': _endDate.toIso8601String(),
           'lastSendTime': lastSendTime?.toIso8601String(),
         },
-        'measurements': _formatHealthDataByType(healthData),
+        // Use the shared formatter so the JSON looks identical
+        // to what the upload API receives.
+        'measurements': formatHealthDataByType(healthData),
         'sourceName': healthData.isNotEmpty ? healthData.first.sourceName : 'N/A',
         'sourcePlatform': healthData.isNotEmpty ? healthData.first.sourcePlatform.toString() : 'N/A',
         'totalStepsToday': steps,
@@ -179,9 +184,9 @@ class _DataViewPageState extends State<DataViewPage> {
     });
   }
 
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-  }
+String _formatDateTime(DateTime dateTime) {
+  return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+}
 
   @override
   Widget build(BuildContext context) {
@@ -401,144 +406,4 @@ class _QuickButton extends StatelessWidget {
       ),
     );
   }
-}
-
-Map<String, dynamic> _formatHealthDataByType(List<HealthDataPoint> healthData) {
-  Map<String, List<Map<String, dynamic>>> categorizedData = {
-    'instantaneous': [],
-    'cumulative': [],
-    'duration': [],
-  };
-
-  for (var data in healthData) {
-    String category = _categorizeHealthDataType(data.type);
-    Map<String, dynamic> formattedPoint = {};
-
-    switch (category) {
-      case 'instantaneous':
-        formattedPoint = {
-          'type': data.type.toString().replaceAll('HealthDataType.', ''),
-          'value': _parseValue(data.value),
-          'unit': data.unit.toString().replaceAll('HealthDataUnit.', ''),
-          'timestamp': data.dateFrom.toIso8601String(),
-        };
-        break;
-
-      case 'cumulative':
-        formattedPoint = {
-          'type': data.type.toString().replaceAll('HealthDataType.', ''),
-          'value': _parseValue(data.value),
-          'unit': data.unit.toString().replaceAll('HealthDataUnit.', ''),
-          'periodStart': data.dateFrom.toIso8601String(),
-          'periodEnd': data.dateTo.toIso8601String(),
-          'duration': data.dateTo.difference(data.dateFrom).inSeconds,
-        };
-        break;
-
-      case 'duration':
-        formattedPoint = {
-          'type': data.type.toString().replaceAll('HealthDataType.', ''),
-          'value': _parseValue(data.value),
-          'unit': data.unit.toString().replaceAll('HealthDataUnit.', ''),
-          'startTime': data.dateFrom.toIso8601String(),
-          'endTime': data.dateTo.toIso8601String(),
-          'durationMinutes': data.dateTo.difference(data.dateFrom).inMinutes,
-        };
-        break;
-    }
-
-    categorizedData[category]!.add(formattedPoint);
-  }
-
-  return categorizedData;
-}
-
-String _categorizeHealthDataType(HealthDataType type) {
-  switch (type) {
-    case HealthDataType.HEART_RATE:
-    case HealthDataType.RESTING_HEART_RATE:
-    case HealthDataType.WALKING_HEART_RATE:
-    case HealthDataType.BLOOD_OXYGEN:
-    case HealthDataType.BLOOD_PRESSURE_SYSTOLIC:
-    case HealthDataType.BLOOD_PRESSURE_DIASTOLIC:
-    case HealthDataType.BLOOD_GLUCOSE:
-    case HealthDataType.BODY_TEMPERATURE:
-    case HealthDataType.RESPIRATORY_RATE:
-      return 'instantaneous';
-    case HealthDataType.STEPS:
-    case HealthDataType.DISTANCE_WALKING_RUNNING:
-    case HealthDataType.FLIGHTS_CLIMBED:
-    case HealthDataType.ACTIVE_ENERGY_BURNED:
-    case HealthDataType.BASAL_ENERGY_BURNED:
-      return 'cumulative';
-    case HealthDataType.SLEEP_ASLEEP:
-    case HealthDataType.SLEEP_AWAKE:
-    case HealthDataType.SLEEP_DEEP:
-    case HealthDataType.SLEEP_LIGHT:
-    case HealthDataType.SLEEP_REM:
-    case HealthDataType.WORKOUT:
-    case HealthDataType.MINDFULNESS:
-      return 'duration';
-
-    default:
-      return 'instantaneous';
-  }
-}
-
-dynamic _parseValue(dynamic value) {
-  try {
-    if (value != null) {
-      try {
-        final numericValue = (value as dynamic).numericValue;
-        if (numericValue != null) {
-          return numericValue is double &&
-                  numericValue == numericValue.roundToDouble()
-              ? numericValue.round()
-              : numericValue;
-        }
-      } catch (_) { }
-
-      try {
-        final val = (value as dynamic).value;
-        if (val != null && val is num) {
-          return val is double && val == val.roundToDouble()
-              ? val.round()
-              : val;
-        }
-      } catch (_) { }
-    }
-  } catch (_) { }
-  if (value is String) {
-    final doubleValue = double.tryParse(value);
-    if (doubleValue != null) {
-      return doubleValue == doubleValue.roundToDouble()
-          ? doubleValue.round()
-          : doubleValue;
-    }
-  }
-  if (value is num) {
-    return value is double && value == value.roundToDouble()
-        ? value.round()
-        : value;
-  }
-  if (value != null) {
-    final valueStr = value.toString();
-    final regex = RegExp(r'numeric_value[\":\s]*([0-9]+\.?[0-9]*)');
-    final match = regex.firstMatch(valueStr);
-    if (match != null) {
-      final numericStr = match.group(1);
-      if (numericStr != null) {
-        try {
-          final doubleValue = double.parse(numericStr);
-          return doubleValue == doubleValue.roundToDouble()
-              ? doubleValue.round()
-              : doubleValue;
-        } catch (e) {
-          // Return original value if parsing fails
-        }
-      }
-    }
-  }
-
-  return value;
 }
