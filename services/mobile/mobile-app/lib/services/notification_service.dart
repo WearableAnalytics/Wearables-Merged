@@ -70,6 +70,20 @@ class NotificationService {
     }
   }
 
+  static Future<void> showTestNotification({String message = 'Hello from background fetch!'}) async {
+    try {
+      await ensureInitializedForBackground();
+      await _plugin.show(
+        DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        'Background Fetch Test',
+        message,
+        _notificationDetails,
+      );
+    } catch (e) {
+      debugPrint('Failed to show test notification: $e');
+    }
+  }
+
   static const NotificationDetails _notificationDetails = NotificationDetails(
     android: AndroidNotificationDetails(
       'health_sync_channel',
