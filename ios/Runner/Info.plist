@@ -6,6 +6,7 @@
 	<array>
 		<string>com.transistorsoft.flutter_background_fetch</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).health-sync</string>
+		<string>com.transistorsoft.fetch</string>
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>

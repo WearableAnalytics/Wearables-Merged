@@ -2,12 +2,14 @@ import 'package:background_fetch/background_fetch.dart';
 import 'package:flutter/foundation.dart';
 
 import 'notification_service.dart';
+import 'health_sync_service.dart';
 
 /// Configures `background_fetch` and wires it to the sync + notification flow.
 class BackgroundSyncManager {
   BackgroundSyncManager._();
 
   static bool _configured = false;
+  static final HealthSyncService _healthSyncService = HealthSyncService();
 
   static Future<void> initialize() async {
     if (_configured) return;
@@ -43,10 +45,7 @@ class BackgroundSyncManager {
 
   static Future<void> _onTestBackgroundFetch(String taskId) async {
     debugPrint('[BackgroundFetch] Event received $taskId');
-    await NotificationService.showTestNotification(
-      message: 'Hello world from background fetch!',
-    );
-    BackgroundFetch.finish(taskId);
+    await _runHealthSync(taskId);
   }
 
   static Future<void> _onBackgroundTimeout(String taskId) async {
@@ -60,6 +59,34 @@ class BackgroundSyncManager {
       BackgroundFetch.finish(task.taskId);
       return;
     }
-    await _onTestBackgroundFetch(task.taskId);
+    await _runHealthSync(task.taskId);
+  }
+
+  static Future<void> _runHealthSync(String taskId) async {
+    try {
+      await NotificationService.showSyncStartedNotification(
+        message: 'Starting data gathering for background sync...',
+      );
+
+      final result = await _healthSyncService.sendSinceLastSync(
+        requestPermissions: false,
+      );
+
+      await NotificationService.showSyncResultNotification(result);
+    } catch (e) {
+      debugPrint('[BackgroundFetch] Health sync failed: $e');
+      await NotificationService.showSyncResultNotification(
+        HealthSyncResult(
+          status: HealthSyncStatus.failed,
+          totalSent: 0,
+          totalAvailable: 0,
+          rangeStart: DateTime.now(),
+          rangeEnd: DateTime.now(),
+          lastError: 'Background sync failed: $e',
+        ),
+      );
+    } finally {
+      BackgroundFetch.finish(taskId);
+    }
   }
 }
