@@ -1,5 +1,7 @@
 import 'package:health/health.dart';
 
+/// Shared helpers for turning raw `HealthDataPoint` values from the
+/// `health` plugin into the JSON structure your backend expects.
 Map<String, dynamic> formatHealthDataByType(List<HealthDataPoint> healthData) {
   Map<String, List<Map<String, dynamic>>> categorizedData = {
     'instantaneous': [],
@@ -35,12 +37,20 @@ Map<String, dynamic> formatHealthDataByType(List<HealthDataPoint> healthData) {
       case 'duration':
         formattedPoint = {
           'type': data.type.toString().replaceAll('HealthDataType.', ''),
-          'value': parseValue(data.value),
+          'value': parseDurationValue(data),
           'unit': data.unit.toString().replaceAll('HealthDataUnit.', ''),
           'startTime': data.dateFrom.toIso8601String(),
           'endTime': data.dateTo.toIso8601String(),
           'durationMinutes': data.dateTo.difference(data.dateFrom).inMinutes,
         };
+
+        // Provide rich metadata for workouts when available.
+        if (data.type == HealthDataType.WORKOUT) {
+          var workoutDetails = extractWorkoutDetails(data.value);
+          if (workoutDetails != null) {
+            formattedPoint.addAll(workoutDetails);
+          }
+        }
         break;
     }
 
@@ -52,7 +62,6 @@ Map<String, dynamic> formatHealthDataByType(List<HealthDataPoint> healthData) {
 
 String categorizeHealthDataType(HealthDataType type) {
   switch (type) {
-    // Instantaneous - point-in-time measurements
     case HealthDataType.HEART_RATE:
     case HealthDataType.RESTING_HEART_RATE:
     case HealthDataType.WALKING_HEART_RATE:
@@ -83,7 +92,6 @@ String categorizeHealthDataType(HealthDataType type) {
     case HealthDataType.HEADACHE_UNSPECIFIED:
       return 'instantaneous';
 
-    // Cumulative - total count/amount over time
     case HealthDataType.STEPS:
     case HealthDataType.DISTANCE_WALKING_RUNNING:
     case HealthDataType.DISTANCE_SWIMMING:
@@ -100,7 +108,6 @@ String categorizeHealthDataType(HealthDataType type) {
     case HealthDataType.NUTRITION:
       return 'cumulative';
 
-    // Duration - time-based activities/states
     case HealthDataType.SLEEP_IN_BED:
     case HealthDataType.SLEEP_ASLEEP:
     case HealthDataType.SLEEP_AWAKE:
@@ -126,35 +133,26 @@ dynamic parseValue(dynamic value) {
       try {
         final numericValue = (value as dynamic).numericValue;
         if (numericValue != null) {
-          return numericValue is double &&
-                  numericValue == numericValue.roundToDouble()
-              ? numericValue.round()
-              : numericValue;
+          return numericValue is double && numericValue == numericValue.roundToDouble() ? numericValue.round() : numericValue;
         }
-      } catch (_) { }
+      } catch (_) {}
 
       try {
         final val = (value as dynamic).value;
         if (val != null && val is num) {
-          return val is double && val == val.roundToDouble()
-              ? val.round()
-              : val;
+          return val is double && val == val.roundToDouble() ? val.round() : val;
         }
-      } catch (_) { }
+      } catch (_) {}
     }
-  } catch (_) { }
+  } catch (_) {}
   if (value is String) {
     final doubleValue = double.tryParse(value);
     if (doubleValue != null) {
-      return doubleValue == doubleValue.roundToDouble()
-          ? doubleValue.round()
-          : doubleValue;
+      return doubleValue == doubleValue.roundToDouble() ? doubleValue.round() : doubleValue;
     }
   }
   if (value is num) {
-    return value is double && value == value.roundToDouble()
-        ? value.round()
-        : value;
+    return value is double && value == value.roundToDouble() ? value.round() : value;
   }
   if (value != null) {
     final valueStr = value.toString();
@@ -165,9 +163,7 @@ dynamic parseValue(dynamic value) {
       if (numericStr != null) {
         try {
           final doubleValue = double.parse(numericStr);
-          return doubleValue == doubleValue.roundToDouble()
-              ? doubleValue.round()
-              : doubleValue;
+          return doubleValue == doubleValue.roundToDouble() ? doubleValue.round() : doubleValue;
         } catch (e) {
           // Return original value if parsing fails
         }
@@ -176,4 +172,63 @@ dynamic parseValue(dynamic value) {
   }
 
   return value;
+}
+
+double parseDurationValue(HealthDataPoint data) {
+  return data.dateTo.difference(data.dateFrom).inMinutes.toDouble();
+}
+
+Map<String, dynamic>? extractWorkoutDetails(dynamic value) {
+  if (value == null) return null;
+
+  try {
+    final valueStr = value.toString();
+
+    final activityRegex = RegExp(r'workout_activity_type[\":\s]*([A-Z_]+)');
+    final activityMatch = activityRegex.firstMatch(valueStr);
+
+    final energyRegex = RegExp(r'total_energy_burned[\":\s]*([0-9]+\.?[0-9]*)');
+    final energyMatch = energyRegex.firstMatch(valueStr);
+
+    final distanceRegex = RegExp(r'total_distance[\":\s]*([0-9]+\.?[0-9]*)');
+    final distanceMatch = distanceRegex.firstMatch(valueStr);
+
+    final energyUnitRegex = RegExp(r'total_energy_burned_unit[\":\s]*([A-Z]+)');
+    final energyUnitMatch = energyUnitRegex.firstMatch(valueStr);
+
+    final distanceUnitRegex = RegExp(r'total_distance_unit[\":\s]*([A-Z]+)');
+    final distanceUnitMatch = distanceUnitRegex.firstMatch(valueStr);
+
+    Map<String, dynamic> details = {};
+
+    if (activityMatch != null) {
+      details['workoutActivityType'] = activityMatch.group(1);
+    }
+
+    if (energyMatch != null) {
+      final energyValue = double.tryParse(energyMatch.group(1) ?? '');
+      if (energyValue != null) {
+        details['totalEnergyBurned'] = energyValue;
+      }
+    }
+
+    if (distanceMatch != null) {
+      final distanceValue = double.tryParse(distanceMatch.group(1) ?? '');
+      if (distanceValue != null) {
+        details['totalDistance'] = distanceValue;
+      }
+    }
+
+    if (energyUnitMatch != null) {
+      details['totalEnergyBurnedUnit'] = energyUnitMatch.group(1);
+    }
+
+    if (distanceUnitMatch != null) {
+      details['totalDistanceUnit'] = distanceUnitMatch.group(1);
+    }
+
+    return details.isNotEmpty ? details : null;
+  } catch (e) {
+    return null;
+  }
 }
