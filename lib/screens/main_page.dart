@@ -114,11 +114,15 @@ class _MainPageState extends State<MainPage> {
         );
       },
     );
-    tempController.dispose();
+
+    // Dispose controller after the dialog finishes its own disposal cycle.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      tempController.dispose();
+    });
 
     if (result != null && result.isNotEmpty) {
       setState(() {
-        _deviceIdController.text = result;
+        _deviceIdController.text = result.trim();
       });
     }
   }
