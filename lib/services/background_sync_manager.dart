@@ -25,7 +25,7 @@ class BackgroundSyncManager {
           requiresCharging: false,
           requiresStorageNotLow: false,
           requiresDeviceIdle: false,
-          requiredNetworkType: NetworkType.NONE,
+          requiredNetworkType: NetworkType.ANY,
         ),
         _onTestBackgroundFetch,
         _onBackgroundTimeout,
