@@ -56,13 +56,13 @@ class NotificationService {
     }
   }
 
-  static Future<void> showSyncStartedNotification() async {
+  static Future<void> showSyncStartedNotification({String message = 'Starting background fetch...'}) async {
     try {
       await ensureInitializedForBackground();
       await _plugin.show(
         DateTime.now().millisecondsSinceEpoch ~/ 1000,
         'Health Data Sync',
-        'Starting background fetch...',
+        message,
         _notificationDetails,
       );
     } catch (e) {

@@ -49,6 +49,6 @@ SPEC CHECKSUMS:
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
   TSBackgroundFetch: e91020924db32f27d0a43df7dec6f73f10743571
 
-PODFILE CHECKSUM: ff9ad2ec3bf53af900abf7184fa166ce7710baca
+PODFILE CHECKSUM: 7cfb691a8e67656ad6fbc98d86eaee5b4a459abc
 
 COCOAPODS: 1.16.2
