@@ -45,4 +45,10 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_deviceIdKey, deviceId);
   }
+
+  /// Removes the stored "last data send" timestamp so next sync acts fresh.
+  static Future<void> clearLastDataSendTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastDataSendKey);
+  }
 }
