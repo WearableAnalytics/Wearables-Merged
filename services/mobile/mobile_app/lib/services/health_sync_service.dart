@@ -214,6 +214,7 @@ class HealthSyncService {
       if (responseBody.isNotEmpty) {
         print('Successful upload response: $responseBody');
       }
+    } finally {
       client.close(force: true);
     }
   }
