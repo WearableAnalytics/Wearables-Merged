@@ -9,19 +9,33 @@ class NotificationService {
 
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
+  static Completer<void>? _initializingCompleter;
 
   static Future<void> initialize({bool requestPermissions = true}) async {
     if (_initialized) return;
+    if (_initializingCompleter != null) {
+      // Another initialization is in progress, await it.
+      await _initializingCompleter!.future;
+      return;
+    }
+    _initializingCompleter = Completer<void>();
+    try {
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosInit = DarwinInitializationSettings();
+      const settings = InitializationSettings(android: androidInit, iOS: iosInit);
 
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosInit = DarwinInitializationSettings();
-    const settings = InitializationSettings(android: androidInit, iOS: iosInit);
+      await _plugin.initialize(settings);
+      _initialized = true;
 
-    await _plugin.initialize(settings);
-    _initialized = true;
-
-    if (requestPermissions) {
-      await _requestPermissions();
+      if (requestPermissions) {
+        await _requestPermissions();
+      }
+      _initializingCompleter!.complete();
+    } catch (e, st) {
+      _initializingCompleter!.completeError(e, st);
+      rethrow;
+    } finally {
+      _initializingCompleter = null;
     }
   }
 
