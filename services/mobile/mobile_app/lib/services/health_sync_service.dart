@@ -209,8 +209,11 @@ class HealthSyncService {
         final body = await response.transform(utf8.decoder).join();
         throw HttpException('Status ${response.statusCode}: $body');
       }
-      await response.drain();
-    } finally {
+      final responseBody = await response.transform(utf8.decoder).join();
+      // Optionally log or process the response body for successful requests
+      if (responseBody.isNotEmpty) {
+        print('Successful upload response: $responseBody');
+      }
       client.close(force: true);
     }
   }
