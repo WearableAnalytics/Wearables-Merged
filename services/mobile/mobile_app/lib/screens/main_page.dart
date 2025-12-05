@@ -49,26 +49,32 @@ class _MainPageState extends State<MainPage> {
     final newDeviceId = _deviceIdController.text.trim();
     if (newDeviceId.isNotEmpty) {
       final currentId = await StorageService.getOrCreateDeviceId();
-      if (_resetLastSync && newDeviceId == currentId) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Device ID unchanged. Update it before resetting last sync time.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-        return;
+
+      // Update device ID only if it has changed
+      if (newDeviceId != currentId) {
+        await StorageService.setCustomDeviceId(newDeviceId);
       }
 
-      await StorageService.setCustomDeviceId(newDeviceId);
+      // Reset last sync time if requested
       if (_resetLastSync) {
         await StorageService.clearLastDataSendTime();
       }
+
       await _loadDeviceInfo();
       if (!mounted) return;
+      String message;
+      if (newDeviceId != currentId && _resetLastSync) {
+        message = 'Device ID updated and last sync reset.';
+      } else if (newDeviceId != currentId) {
+        message = 'Device ID updated successfully.';
+      } else if (_resetLastSync) {
+        message = 'Last sync time reset.';
+      } else {
+        message = 'No changes made.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_resetLastSync ? 'Device ID and last sync reset.' : 'Device ID updated successfully'),
+          content: Text(message),
           duration: const Duration(seconds: 2),
         ),
       );
