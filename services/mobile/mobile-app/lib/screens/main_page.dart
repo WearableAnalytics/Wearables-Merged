@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import '../data_view_page.dart';
 import '../services/health_sync_service.dart';
 import '../storage_service.dart';
+import 'qr_scan_page.dart';
+
+enum _DeviceIdInputChoice { manual, qr }
 
 /// Main dashboard screen that lets the user review device info and
 /// trigger a manual sync of health data to the backend.
@@ -43,6 +46,106 @@ class _MainPageState extends State<MainPage> {
       _lastSendTime = lastSendTime;
       _deviceIdController.text = deviceId;
     });
+  }
+
+  Future<void> _promptForDeviceId() async {
+    if (!mounted) return;
+    final choice = await showModalBottomSheet<_DeviceIdInputChoice>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.keyboard),
+                title: const Text('Enter manually'),
+                onTap: () => Navigator.of(ctx).pop(_DeviceIdInputChoice.manual),
+              ),
+              ListTile(
+                leading: const Icon(Icons.qr_code_scanner),
+                title: const Text('Scan QR code'),
+                onTap: () => Navigator.of(ctx).pop(_DeviceIdInputChoice.qr),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    switch (choice) {
+      case _DeviceIdInputChoice.manual:
+        await _showManualEntryDialog();
+        break;
+      case _DeviceIdInputChoice.qr:
+        await _launchQrScanner();
+        break;
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _showManualEntryDialog() async {
+    final tempController = TextEditingController(text: _deviceIdController.text);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Enter Device ID'),
+          content: TextField(
+            controller: tempController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Enter device ID',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(tempController.text.trim()),
+              child: const Text('Use ID'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // Dispose controller after the dialog finishes its own disposal cycle.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      tempController.dispose();
+    });
+
+    if (result != null && result.isNotEmpty) {
+      setState(() {
+        _deviceIdController.text = result.trim();
+      });
+    }
+  }
+
+  Future<void> _launchQrScanner() async {
+    final scannedValue = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => const QrScanPage(),
+      ),
+    );
+
+    if (scannedValue != null && scannedValue.trim().isNotEmpty) {
+      setState(() {
+        _deviceIdController.text = scannedValue.trim();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Device ID scanned from QR code.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _updateDeviceId() async {
@@ -292,29 +395,49 @@ class _MainPageState extends State<MainPage> {
                               style: Theme.of(context).textTheme.labelMedium,
                             ),
                             const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: _deviceIdController,
-                                    decoration: const InputDecoration(
-                                      border: OutlineInputBorder(),
-                                      isDense: true,
-                                      hintText: 'Enter device ID',
+                            InkWell(
+                              onTap: _promptForDeviceId,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Theme.of(context).colorScheme.outlineVariant,
+                                  ),
+                                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _deviceIdController.text,
+                                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Tap to enter manually or scan a QR code',
+                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(width: 12),
+                                    const Icon(Icons.qr_code, size: 24),
+                                  ],
                                 ),
-                                const SizedBox(width: 12),
-                                ElevatedButton.icon(
-                                  onPressed: _updateDeviceId,
-                                  icon: const Icon(Icons.save, size: 18),
-                                  label: const Text('Update'),
-                                  style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
+                            const SizedBox(height: 8),
                             CheckboxListTile(
                               contentPadding: EdgeInsets.zero,
                               title: const Text('Reset last sync time as well'),
@@ -326,6 +449,18 @@ class _MainPageState extends State<MainPage> {
                                 });
                               },
                               controlAffinity: ListTileControlAffinity.leading,
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _updateDeviceId,
+                                icon: const Icon(Icons.save, size: 18),
+                                label: const Text('Update'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                ),
+                              ),
                             ),
                           ],
                         ),
