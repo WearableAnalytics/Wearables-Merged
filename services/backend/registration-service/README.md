@@ -22,6 +22,11 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SENDER_EMAIL=example@gmail.com
 APP_PASSWORD=pass word uidf sfgf
+
+# JWT
+JWT_SECRET=secret
+JWT_ALGORITHM=HS256
+
 ```
 
 Please also set in `/keycloak` the environment variables:
