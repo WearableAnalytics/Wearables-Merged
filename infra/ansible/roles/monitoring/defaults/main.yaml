@@ -1,0 +1,75 @@
+---
+# Default variables for monitoring role
+
+# Monitoring namespace
+monitoring_namespace: monitoring
+
+# Helm chart configuration
+helm_chart_name: kube-prometheus-stack
+helm_chart_repo: prometheus-community
+helm_chart_url: https://prometheus-community.github.io/helm-charts
+helm_release_name: kube-prometheus-stack
+
+# Grafana configuration
+grafana_admin_user: admin
+grafana_admin_password: admin  # Change after first login!
+
+# Storage configuration
+storage_class: local-path
+
+# Prometheus storage
+prometheus_storage_size: 20Gi
+prometheus_retention: 15d
+prometheus_retention_size: 18GB
+
+# Grafana storage
+grafana_storage_size: 5Gi
+
+# AlertManager storage
+alertmanager_storage_size: 2Gi
+
+# Resource limits - Prometheus
+prometheus_requests_memory: 1Gi
+prometheus_requests_cpu: 500m
+prometheus_limits_memory: 2Gi
+prometheus_limits_cpu: 1000m
+
+# Resource limits - Grafana
+grafana_requests_memory: 256Mi
+grafana_requests_cpu: 250m
+grafana_limits_memory: 512Mi
+grafana_limits_cpu: 500m
+
+# Resource limits - AlertManager
+alertmanager_requests_memory: 128Mi
+alertmanager_requests_cpu: 50m
+alertmanager_limits_memory: 256Mi
+alertmanager_limits_cpu: 100m
+
+# Scrape intervals
+scrape_interval: 30s
+evaluation_interval: 30s
+
+# K3s version (optional)
+k3s_version: v1.28.5+k3s1
+
+# Pre-installed dashboard IDs
+grafana_dashboards:
+  - id: 7249
+    name: kubernetes-cluster
+    revision: 1
+  - id: 1860
+    name: node-exporter
+    revision: 31
+  - id: 2
+    name: prometheus-stats
+    revision: 2
+  - id: 15282
+    name: k3s-monitoring
+    revision: 1
+
+# Alert thresholds
+alert_node_down_threshold: 5m
+alert_memory_threshold: 90
+alert_cpu_threshold: 80
+alert_disk_threshold: 10

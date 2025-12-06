@@ -1,0 +1,19 @@
+hcloud_token = "your-hetzner-api-token"
+server_name  = "k3s-prod"
+server_type  = "cx21"
+location     = "nbg1"
+
+users = {
+  "robin" = {
+    ssh_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... robin@laptop"
+    sudo    = true
+  }
+  "developer1" = {
+    ssh_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQ... dev1@work"
+    sudo    = true
+  }
+  "developer2" = {
+    ssh_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... dev2@work"
+    sudo    = false
+  }
+}

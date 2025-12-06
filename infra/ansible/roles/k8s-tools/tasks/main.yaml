@@ -1,0 +1,98 @@
+---
+- name: Install kubectl bash completion
+  shell: kubectl completion bash > /etc/bash_completion.d/kubectl
+  args:
+    creates: /etc/bash_completion.d/kubectl
+
+- name: Install kubectl for all sudo users
+  lineinfile:
+    path: "/home/{{ item.name }}/.bashrc"
+    line: "alias k=kubectl"
+    state: present
+  loop: "{{ users }}"
+  when: item.sudo
+
+- name: Check if k9s is already installed
+  stat:
+    path: /usr/local/bin/k9s
+  register: k9s_installed
+
+- name: Get latest k9s release version
+  uri:
+    url: https://api.github.com/repos/derailed/k9s/releases/latest
+    return_content: yes
+  register: k9s_release
+  when: not k9s_installed.stat.exists
+
+- name: Set k9s version
+  set_fact:
+    k9s_version: "{{ k9s_release.json.tag_name }}"
+  when: not k9s_installed.stat.exists
+
+- name: Download k9s
+  get_url:
+    url: "https://github.com/derailed/k9s/releases/download/{{ k9s_version }}/k9s_Linux_amd64.tar.gz"
+    dest: /tmp/k9s.tar.gz
+    mode: '0644'
+  when: not k9s_installed.stat.exists
+
+- name: Extract k9s
+  unarchive:
+    src: /tmp/k9s.tar.gz
+    dest: /tmp
+    remote_src: yes
+  when: not k9s_installed.stat.exists
+
+- name: Install k9s binary
+  copy:
+    src: /tmp/k9s
+    dest: /usr/local/bin/k9s
+    mode: '0755'
+    remote_src: yes
+  when: not k9s_installed.stat.exists
+
+- name: Cleanup k9s download
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/k9s.tar.gz
+    - /tmp/k9s
+    - /tmp/LICENSE
+    - /tmp/README.md
+  when: not k9s_installed.stat.exists
+
+- name: Setup kubeconfig for all sudo users
+  file:
+    path: "/home/{{ item.name }}/.kube"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0755'
+  loop: "{{ users }}"
+  when: item.sudo
+
+- name: Copy kubeconfig for all sudo users
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/{{ item.name }}/.kube/config"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0600'
+    remote_src: yes
+  loop: "{{ users }}"
+  when: item.sudo
+
+- name: Display k9s and kubectl info
+  debug:
+    msg:
+      - "=== Kubernetes Tools Installed ==="
+      - "kubectl: kubectl version --client"
+      - "kubectl completion: enabled for bash"
+      - "k9s: k9s version"
+      - "Alias: k=kubectl"
+      - ""
+      - "Usage:"
+      - "  - kubectl get pods -A"
+      - "  - k get nodes"
+      - "  - k9s"

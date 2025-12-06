@@ -1,0 +1,56 @@
+---
+- name: Create user groups
+  group:
+    name: "{{ item.name }}"
+    state: present
+  loop: "{{ users }}"
+
+- name: Create users
+  user:
+    name: "{{ item.name }}"
+    groups: "{{ item.name }}"
+    shell: /bin/bash
+    create_home: yes
+    state: present
+    password: "!"  # Locked password - users must set their own
+  loop: "{{ users }}"
+
+- name: Create SSH directory
+  file:
+    path: "/home/{{ item.name }}/.ssh"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0700'
+  loop: "{{ users }}"
+
+- name: Add SSH keys
+  authorized_key:
+    user: "{{ item.name }}"
+    key: "{{ item.ssh_key }}"
+    state: present
+  loop: "{{ users }}"
+
+- name: Add sudo users to sudo group
+  user:
+    name: "{{ item.name }}"
+    groups: sudo
+    append: yes
+  when: item.sudo
+  loop: "{{ users }}"
+
+- name: Configure NOPASSWD sudo for automation user (rknntns)
+  lineinfile:
+    path: /etc/sudoers.d/rknntns
+    line: "rknntns ALL=(ALL) NOPASSWD:ALL"
+    create: yes
+    mode: '0440'
+    validate: 'visudo -cf %s'
+  when: "'rknntns' in users | map(attribute='name') | list"
+
+- name: Ensure sudo group requires password (default behavior)
+  lineinfile:
+    path: /etc/sudoers
+    regexp: '^%sudo'
+    line: '%sudo   ALL=(ALL:ALL) ALL'
+    validate: 'visudo -cf %s'
