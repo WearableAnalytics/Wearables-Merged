@@ -14,5 +14,5 @@ Unified repository for the Wearables clinical analytics platform.
 ## Migration Notice
 
 This repository was created by merging multiple repositories while preserving Git history.
-See `docs/migration/` for details and links to archived repositories.
+See `docs/migration/MIGRATION_SUMMARY.md` for details and links to archived repositories.
 
