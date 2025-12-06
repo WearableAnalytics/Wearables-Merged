@@ -105,7 +105,7 @@ git log --oneline --graph --all
    - Update deployment scripts
 
 3. **Update Team Documentation**
-   - Notify team of new repository structure
+   - Notify team of new repository structure -> Done via Discord Do we need to add it to the Notion as well?
    - Update onboarding docs
    - Update CI/CD pipelines
 
