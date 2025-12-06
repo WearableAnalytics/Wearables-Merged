@@ -14,9 +14,8 @@ public class ConfigLoader {
     public static <T> T loadConfig(String path, Class<T> clazz) {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         mapper.findAndRegisterModules();
-
         try {
-            log.debug("Loading YAML config from path: {}", path);
+            log.info("Loading YAML config from path: {}", path);
             return mapper.readValue(new File(path), clazz);
         } catch (Exception e) {
             log.error("Failed to load YAML config from {}", path, e);
