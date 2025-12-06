@@ -1,17 +1,20 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 
 import '../health_data_formatter.dart';
 import '../health_data_types.dart';
 import '../storage_service.dart';
+import 'device_lock_service.dart';
 
 enum HealthSyncStatus {
   success,
   partialSuccess,
   nothingToSend,
   permissionDenied,
+  protectedDataUnavailable,
   failed,
 }
 
@@ -92,6 +95,18 @@ class HealthSyncService {
       }
     }
 
+    final protectedAvailable = await DeviceLockService.isProtectedDataAvailable();
+    if (!protectedAvailable) {
+      return HealthSyncResult(
+        status: HealthSyncStatus.protectedDataUnavailable,
+        totalSent: 0,
+        totalAvailable: 0,
+        rangeStart: now,
+        rangeEnd: now,
+        lastError: 'Protected health data is locked. Unlock the device to sync.',
+      );
+    }
+
     final deviceId = await StorageService.getOrCreateDeviceId();
     final lastSendTime = await StorageService.getLastDataSendTime();
     final from = lastSendTime ?? now.subtract(fallbackWindow);
@@ -104,6 +119,16 @@ class HealthSyncService {
         types: types,
       );
     } catch (e) {
+      if (_isProtectedDataError(e)) {
+        return HealthSyncResult(
+          status: HealthSyncStatus.protectedDataUnavailable,
+          totalSent: 0,
+          totalAvailable: 0,
+          rangeStart: from,
+          rangeEnd: now,
+          lastError: 'Protected health data is locked. Unlock the device to sync.',
+        );
+      }
       return HealthSyncResult(
         status: HealthSyncStatus.failed,
         totalSent: 0,
@@ -115,6 +140,17 @@ class HealthSyncService {
     }
 
     if (healthData.isEmpty) {
+      final stillLocked = !await DeviceLockService.isProtectedDataAvailable();
+      if (stillLocked) {
+        return HealthSyncResult(
+          status: HealthSyncStatus.protectedDataUnavailable,
+          totalSent: 0,
+          totalAvailable: 0,
+          rangeStart: from,
+          rangeEnd: now,
+          lastError: 'Protected health data is locked. Unlock the device to sync.',
+        );
+      }
       return HealthSyncResult(
         status: HealthSyncStatus.nothingToSend,
         totalSent: 0,
@@ -125,10 +161,25 @@ class HealthSyncService {
     }
 
     final midnight = DateTime(now.year, now.month, now.day);
-    final steps = await _health.getTotalStepsInInterval(midnight, now);
+    String? lastError;
+    int? steps;
+    try {
+      steps = await _health.getTotalStepsInInterval(midnight, now);
+    } catch (e) {
+      if (_isProtectedDataError(e)) {
+        return HealthSyncResult(
+          status: HealthSyncStatus.protectedDataUnavailable,
+          totalSent: 0,
+          totalAvailable: healthData.length,
+          rangeStart: from,
+          rangeEnd: now,
+          lastError: 'Protected health data is locked. Unlock the device to sync.',
+        );
+      }
+      lastError = 'Failed to read step count: $e';
+    }
 
     int totalSent = 0;
-    String? lastError;
     final totalAvailable = healthData.length;
     final chunks = _chunkHealthData(healthData);
 
@@ -150,7 +201,7 @@ class HealthSyncService {
           await Future.delayed(const Duration(milliseconds: 500));
         }
       } catch (e) {
-        lastError = 'Chunk ${chunkIndex + 1} failed: $e';
+        lastError ??= 'Chunk ${chunkIndex + 1} failed: $e';
       }
     }
 
@@ -239,5 +290,24 @@ class HealthSyncService {
       return HealthSyncStatus.partialSuccess;
     }
     return HealthSyncStatus.success;
+  }
+
+  bool _isProtectedDataError(Object error) {
+    if (error is PlatformException) {
+      final code = error.code.toLowerCase();
+      final message = error.message?.toLowerCase() ?? '';
+      final details = error.details?.toString().toLowerCase() ?? '';
+      if (_protectedDataMatch(code) || _protectedDataMatch(message) || _protectedDataMatch(details)) {
+        return true;
+      }
+    }
+
+    final text = error.toString().toLowerCase();
+    return _protectedDataMatch(text) || (text.contains('hkerrordomain') && text.contains('code=4'));
+  }
+
+  bool _protectedDataMatch(String value) {
+    if (value.isEmpty) return false;
+    return value.contains('protected') && (value.contains('unlock') || value.contains('locked') || value.contains('data is not available'));
   }
 }

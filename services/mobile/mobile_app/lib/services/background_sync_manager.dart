@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import 'notification_service.dart';
 import 'health_sync_service.dart';
+import 'device_lock_service.dart';
 
 /// Configures `background_fetch` and wires it to the sync + notification flow.
 class BackgroundSyncManager {
@@ -17,7 +18,8 @@ class BackgroundSyncManager {
     try {
       final status = await BackgroundFetch.configure(
         BackgroundFetchConfig(
-          minimumFetchInterval: 15,
+          // Aim for a ~6h cadence; iOS still schedules opportunistically.
+          minimumFetchInterval: 360,
           stopOnTerminate: false,
           enableHeadless: true,
           startOnBoot: true,
@@ -64,6 +66,12 @@ class BackgroundSyncManager {
 
   static Future<void> _runHealthSync(String taskId) async {
     try {
+      final protectedDataAvailable = await DeviceLockService.isProtectedDataAvailable();
+      if (!protectedDataAvailable) {
+        await NotificationService.showSyncResultNotification(_protectedDataLockedResult());
+        return;
+      }
+
       await NotificationService.showSyncStartedNotification(
         message: 'Starting data gathering for background sync...',
       );
@@ -90,5 +98,17 @@ class BackgroundSyncManager {
     } finally {
       BackgroundFetch.finish(taskId);
     }
+  }
+
+  static HealthSyncResult _protectedDataLockedResult() {
+    final now = DateTime.now();
+    return HealthSyncResult(
+      status: HealthSyncStatus.protectedDataUnavailable,
+      totalSent: 0,
+      totalAvailable: 0,
+      rangeStart: now,
+      rangeEnd: now,
+      lastError: 'Protected data unavailable; unlock the device and open the app to sync.',
+    );
   }
 }
