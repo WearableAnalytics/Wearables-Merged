@@ -69,7 +69,9 @@ class BackgroundSyncManager {
       );
 
       final result = await _healthSyncService.sendSinceLastSync(
-        requestPermissions: false,
+        // In headless/background we must still ensure permissions are granted;
+        // `requestPermissions` will no-op if already granted.
+        requestPermissions: true,
       );
 
       await NotificationService.showSyncResultNotification(result);

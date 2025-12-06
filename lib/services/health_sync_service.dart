@@ -65,8 +65,20 @@ class HealthSyncService {
     }
 
     final types = allRequestedHealthDataTypes;
-    if (requestPermissions) {
-      final permissions = permissionsFor(types);
+    final permissions = permissionsFor(types);
+    final alreadyGranted = await _health.hasPermissions(types, permissions: permissions) ?? false;
+    if (!alreadyGranted) {
+      if (!requestPermissions) {
+        return HealthSyncResult(
+          status: HealthSyncStatus.permissionDenied,
+          totalSent: 0,
+          totalAvailable: 0,
+          rangeStart: now,
+          rangeEnd: now,
+          lastError: 'Health permissions not granted',
+        );
+      }
+
       final granted = await _health.requestAuthorization(types, permissions: permissions);
       if (!granted) {
         return HealthSyncResult(
