@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: importservice
+  labels:
+    app: importservice
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: importservice
+  template:
+    metadata:
+      labels:
+        app: importservice
+    spec:
+      containers:
+        - name: importservice
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "{{ .Values.env.KAFKA_BOOTSTRAP_SERVERS }}"
+            - name: KAFKA_TOPIC
+              value: "{{ .Values.env.KAFKA_TOPIC }}"
+          livenessProbe:
+            httpGet:
+              path: "{{ .Values.livenessProbe.path }}"
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: "{{ .Values.readinessProbe.path }}"
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}

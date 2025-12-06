@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Release.Name }}-deployment"
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{.Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: "{{ .Release.Name }}-deployment"
+  template:
+    metadata:
+      labels:
+        app: "{{ .Release.Name }}-deployment"
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Values.name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          volumeMounts:
+            - name: "{{ .Values.name }}-storage"
+              mountPath: /var/lib/influxdb2
+      volumes:
+        - name: "{{ .Values.name }}-storage"
+          persistentVolumeClaim:
+            claimName: "{{ .Release.Name }}-pvc"

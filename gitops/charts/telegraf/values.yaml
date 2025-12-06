@@ -1,0 +1,23 @@
+port: 8125
+
+image:
+  repository: telegraf
+  tag: 1.36
+  pullPolicy: IfNotPresent
+
+config:
+  kafkaConsumer: 
+    name: kafka
+    namespace: kafka
+    port:
+    version: 4.0.0
+    topics:
+    - wearables-lp
+  influxProducer:
+    name: influxdb #name of influx (without service or deployment) 
+    namespace: influx #namespace influx is deployed in
+    port: 8086 #open influx port
+    org: ""
+    bucket: ""
+    token: ""
+

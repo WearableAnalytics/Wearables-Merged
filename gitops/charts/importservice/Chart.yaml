@@ -1,0 +1,6 @@
+apiVersion: v2
+name: importservice
+description: Helm chart for Wearables Import Service (ingestion)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,15 @@
+replicaCount: 1
+name: influxdb
+
+service:
+  port: 8086
+  type: ClusterIP
+
+image:
+  repository: influxdb
+  pullPolicy: IfNotPresent
+  tag: "2.7"
+
+persistence:
+  size: 10Gi
+  storageClass: cinder-csi

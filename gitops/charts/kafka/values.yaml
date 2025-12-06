@@ -1,0 +1,68 @@
+# it true kafka controller and broker are run together, if false they are run separately (and each use a pvc)
+enableDualRole: true
+
+kafka:
+  metadataVersion: 4.1-IV1
+  version: 4.1.0
+  listeners:
+    - name: plain
+      port: 9092
+      type: internal
+      tls: false
+    - name: tls
+      port: 9093
+      type: internal
+      tls: true
+    - name: bench
+      port: 9094
+      type: internal
+      tls: false
+      configuration:
+        brokers:
+          - broker: 0
+            advertisedHost: localhost
+            advertisedPort: 19092
+
+kafkaNodePools:
+  replicas: 1
+  volume:
+    size: 5Gi
+
+dualRole:
+  resources:
+      requests:
+        cpu: 4
+        memory: 4Gi 
+      limits:
+        cpu: 6
+        memory: 6Gi
+
+controllerName: k-controller
+brokerName: k-broker
+
+kafkaConnect:
+  replicas: 1
+  image: lndocker3s/kafka-connect
+  tag: latest
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 1
+  group:
+    id: connect-cluster
+
+sourceConnector:
+  mosquittoName: mosquitto # Must match your mosquitto DEPLOYMENT name
+  mosquittoNamespace: mosquitto # Must match your mosquitto namespace
+  mosquittoPort: 1883
+  class: io.lenses.streamreactor.connect.mqtt.source.MqttSourceConnector
+  tasksMax: 1
+
+offsets.topic.replication.factor: 1
+transaction.state.log.replication.factor: 1
+transaction.state.log.min.isr: 1
+default.replication.factor: 1
+min.insync.replicas: 1

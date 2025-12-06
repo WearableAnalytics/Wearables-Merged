@@ -1,0 +1,32 @@
+replicaCount: 1
+
+image:
+  repository: gmsdaniil/wearables-ingestion
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8000
+
+env:
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  KAFKA_TOPIC: "wearables-raw"
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPU: 80
+
+livenessProbe:
+  enabled: true
+  path: /health
+  initialDelaySeconds: 15
+  periodSeconds: 20
+
+readinessProbe:
+  enabled: true
+  path: /health
+  initialDelaySeconds: 5
+  periodSeconds: 10

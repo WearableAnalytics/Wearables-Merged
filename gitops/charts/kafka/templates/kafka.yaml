@@ -1,0 +1,35 @@
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  kafka:
+    version: {{ .Values.kafka.version }}
+    metadataVersion: {{ .Values.kafka.metadataVersion}}
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+      - name: bench
+        port: 9094
+        type: internal
+        tls: false
+        configuration:
+          brokers:
+            - broker: 0
+              advertisedHost: localhost
+              advertisedPort: 19092
+    config:
+      offsets.topic.replication.factor: {{ index .Values "offsets.topic.replication.factor" }}
+      transaction.state.log.replication.factor: {{ index .Values "transaction.state.log.replication.factor" }}
+      transaction.state.log.min.isr: {{ index .Values "transaction.state.log.min.isr" }}
+      default.replication.factor: {{ index .Values "default.replication.factor" }}
+      min.insync.replicas: {{ index .Values "min.insync.replicas" }}
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}

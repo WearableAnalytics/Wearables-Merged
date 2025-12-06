@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ .Release.Name }}-config"
+data:
+  telegraf.conf: |
+    [global_tags]
+
+    [agent]
+      interval = "10s"
+      round_interval = true
+      metric_batch_size = 1000
+      metric_buffer_limit = 10000
+      collection_jitter = "1s"
+      flush_interval = "5s"
+      flush_jitter = "0s"
+      precision = ""
+      debug = true
+      quiet = false
+      logfile = ""
+      hostname = ""
+      omit_hostname = false
+
+    [[inputs.kafka_consumer]]
+      brokers = ["{{ .Values.config.kafkaConsumer.name }}-kafka-bootstrap.{{ .Values.config.kafkaConsumer.namespace }}.svc.cluster.local:9092"]
+      topics = [{{ range $i, $t := .Values.config.kafkaConsumer.topics }}{{ if $i }}, {{ end }}"{{ $t }}"{{ end }}]
+      max_message_len = 1000000
+      consumer_fetch_default = "1MB"
+      version = "{{ .Values.config.kafkaConsumer.version }}"
+      data_format = "influx"
+
+    [[outputs.influxdb_v2]]
+      urls = ["http://{{ .Values.config.influxProducer.name }}-service.{{ .Values.config.influxProducer.namespace }}.svc.cluster.local:{{ .Values.config.influxProducer.port }}"]
+      token = "{{ .Values.config.influxProducer.token }}"
+      organization = "{{ .Values.config.influxProducer.org }}"
+      bucket = "{{ .Values.config.influxProducer.bucket }}"

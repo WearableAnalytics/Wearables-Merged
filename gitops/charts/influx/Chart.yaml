@@ -1,0 +1,6 @@
+apiVersion: v2
+name: influx
+description: A chart to deploy influxdb in our kubernetes cluster
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

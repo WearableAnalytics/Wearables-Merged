@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  replicas:  {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Release.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.imagePullPolicy}}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.mapperEnvConfigMap }}
+          volumeMounts:
+            - name: {{ .Values.mappingConfigVol}}
+              mountPath: /config
+      volumes:
+        - name: {{ .Values.mappingConfigVol }}
+          configMap:
+            name: {{ .Values.mappingConfig }}
+          

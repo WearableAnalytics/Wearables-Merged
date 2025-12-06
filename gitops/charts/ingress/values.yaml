@@ -1,0 +1,40 @@
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    # Force HTTPS redirect
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Increase proxy timeout for long-running requests
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+  
+  # Host configuration
+  host: "wearables.cherep.co"
+  
+  # TLS configuration
+  tls:
+    enabled: true
+    secretName: wearables-tls
+    # If using cert-manager, add these annotations:
+    certManager:
+      enabled: true  # Automatic Let's Encrypt certificates
+      issuer: letsencrypt-prod
+      email: "admin@cherep.co"  # Email for Let's Encrypt notifications
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+
+# Backend services configuration
+services:
+  importservice:
+    name: importservice
+    port: 8000
+    path: /import/(.*)
+    pathType: ImplementationSpecific
+
+# Namespace where ingress will be deployed
+# NOTE: Services referenced by ingress must be in the same namespace
+namespace: importservice  # Changed to match your service namespace

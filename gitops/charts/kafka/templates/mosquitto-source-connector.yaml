@@ -1,0 +1,22 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaConnector
+metadata:
+  name: "{{ .Release.Name }}-mosquitto-source"
+  labels:
+    strimzi.io/cluster: "{{ .Release.Name }}"
+spec:
+  class: {{ .Values.sourceConnector.class }}
+  tasksMax: {{ .Values.sourceConnector.tasksMax }}
+  config:
+    connect.mqtt.hosts: "tcp://{{ .Values.sourceConnector.mosquittoName }}-service.{{ .Values.sourceConnector.mosquittoNamespace }}.svc.cluster.local:{{ .Values.sourceConnector.mosquittoPort }}"
+    connect.mqtt.client.id: "kafka-connect-source"
+    connect.mqtt.service.quality: 1
+    connect.mqtt.connection.timeout: 60
+    connect.mqtt.keep.alive: 60
+
+    connect.mqtt.kcql: "INSERT INTO wearables-raw SELECT * FROM 'wearables/#'"
+
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.converters.ByteArrayConverter
+    value.converter.schemas.enable: false

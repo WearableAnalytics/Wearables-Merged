@@ -1,0 +1,19 @@
+replicas: 1
+
+mapperEnvConfigMap: mapper-app-env-config
+mappingConfig: mapping-config
+mappingConfigVol: mapping-config-vol
+
+envs:
+  brokerEnv: "kafka-kafka-bootstrap:9092"
+  appId: "mapper-validator"
+  fhirMappingYamlPath:  "/config/mapping.yaml"
+  lpMappingYamlPath: "/config/fhir-to-lineprotocol.yaml"
+  inputTopic: "wearables-raw"
+  fhirOutput: "wearables-fhir"
+  lpOutput: "wearables-lp"
+
+image:
+  repository: lndocker3s/mapper-validator
+  tag: 0.0.22
+  imagePullPolicy: Always
