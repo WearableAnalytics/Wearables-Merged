@@ -226,6 +226,9 @@ class _MainPageState extends State<MainPage> {
       case HealthSyncStatus.permissionDenied:
         _showErrorMessage('Authorization not granted. Please enable health permissions and try again.');
         break;
+      case HealthSyncStatus.protectedDataUnavailable:
+        _showErrorMessage('Unlock your phone to access health data and try again.');
+        break;
       case HealthSyncStatus.failed:
         _showErrorMessage('Failed to send health data.\n\n${result.lastError ?? "Unknown error"}');
         break;

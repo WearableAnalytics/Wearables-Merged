@@ -12,21 +12,32 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
   static Completer<void>? _initializingCompleter;
+  static Future<void> Function()? _onNotificationTap;
 
-  static Future<void> initialize({bool requestPermissions = true}) async {
+  static Future<void> initialize({
+    bool requestPermissions = true,
+    Future<void> Function()? onNotificationTap,
+  }) async {
     if (_initialized) return;
     if (_initializingCompleter != null) {
       // Another initialization is in progress, await it.
       await _initializingCompleter!.future;
       return;
     }
+    _onNotificationTap = onNotificationTap;
     _initializingCompleter = Completer<void>();
     try {
       const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
       const iosInit = DarwinInitializationSettings();
-      const settings = InitializationSettings(android: androidInit, iOS: iosInit);
+      final settings = InitializationSettings(
+        android: androidInit,
+        iOS: iosInit,
+      );
 
-      await _plugin.initialize(settings);
+      await _plugin.initialize(
+        settings,
+        onDidReceiveNotificationResponse: _handleNotificationResponse,
+      );
       _initialized = true;
 
       if (requestPermissions) {
@@ -72,7 +83,8 @@ class NotificationService {
     }
   }
 
-  static Future<void> showSyncStartedNotification({String message = 'Starting background fetch...'}) async {
+  /// Returns true if the notification was shown (or we assume it was); false on error.
+  static Future<bool> showSyncStartedNotification({String message = 'Starting background fetch...'}) async {
     try {
       await ensureInitializedForBackground();
       await _plugin.show(
@@ -81,8 +93,10 @@ class NotificationService {
         message,
         _notificationDetails,
       );
+      return true;
     } catch (e) {
       debugPrint('Failed to show start notification: $e');
+      return false;
     }
   }
 
@@ -121,8 +135,20 @@ class NotificationService {
         return 'No new health data found since your last sync.';
       case HealthSyncStatus.permissionDenied:
         return 'Cannot sync health data until permissions are granted.';
+      case HealthSyncStatus.protectedDataUnavailable:
+        return 'Phone locked. Unlock and open the app to finish syncing.';
       case HealthSyncStatus.failed:
         return 'Health data sync failed: ${result.lastError ?? "Unknown error"}.';
+    }
+  }
+
+  static void _handleNotificationResponse(NotificationResponse response) {
+    // Only trigger on user taps (ignore dismisses or other response types).
+    if (response.notificationResponseType == NotificationResponseType.selectedNotification) {
+      final handler = _onNotificationTap;
+      if (handler != null) {
+        unawaited(handler());
+      }
     }
   }
 }
