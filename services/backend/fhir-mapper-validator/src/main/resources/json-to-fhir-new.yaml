@@ -1,0 +1,229 @@
+metadata:
+  fields:
+    - name: device
+      source: deviceInfo.deviceId
+      target: device.display
+      optional: false
+      type: string
+measurement:
+  paths:
+    - path: measurements.instantaneous
+      arrayMapAll: true
+      fields:
+        - name: fhirType
+          value: "Observation"
+          target: resourceType
+          optional: false
+          type: string
+        - name: type
+          source: measurements.instantaneous.type
+          target: id
+          transform:
+            - type: toLowerCase
+            - type: replace
+              params: ["_", "-"]
+          optional: false
+          type: string
+        - name: value
+          source: measurements.instantaneous.value
+          target: valueQuantity.value
+          optional: false
+          type: real
+        - name: unit
+          source: measurements.instantaneous.unit
+          target: valueQuantity.unit
+          transform:
+            - type: toLowerCase
+            - type: replace
+              params: ["_", "-"]
+          optional: false
+          type: string
+        - name: start
+          source: measurements.instantaneous.timestamp
+          target: effectiveDateTime
+          transform:
+            - type: append
+              params: ["Z"]
+          optional: false
+          type: string
+        - name: status
+          value: "final"
+          target: status
+          optional: false
+          type: string
+        - name: codingSystem
+          target: code.coding[0].system
+          transform:
+            - type: mapBasedOn
+          optional: false
+          type: string
+        - name: codingCode
+          target: code.coding[0].code
+          transform:
+            - type: mapBasedOn
+          optional: false
+          type: string
+        - name: codingDisplay
+          source: measurements.instantaneous.unit
+          target: code.coding[0].display
+          transform:
+            - type: toLowerCase
+            - type: replace
+              params: [ "_", "-" ]
+          optional: false
+          type: string
+      mappings:
+        - path: code.coding[0].code
+          basedOn: measurements.instantaneous.unit
+          valueType: string
+          map:
+            - key: "COUNT"
+              value: "55423-8"
+            - key: "BEATS_PER_MINUTE"
+              value: "8867-4"
+            - key: "KILOCALORIE"
+              value: "41981-2"
+            - key: "PERCENT"
+              value: "percent"
+            - key: "MILLISECOND"
+              value: "ms"
+            - key: "METER"
+              value: "m"
+            - key: "MINUTE"
+              value: "min"
+            - key: "RESPIRATIONS_PER_MINUTE"
+              value: "count"
+        - path: code.coding[0].system
+          basedOn: measurements.instantaneous.unit
+          valueType: string
+          map:
+            - key: "METER"
+              value: "metric"
+            - key: "MILLISECOND"
+              value: "time"
+            - key: "MINUTE"
+              value: "time"
+            - key: "PERCENT"
+              value: "metric"
+            - key: "COUNT"
+              value: "https://loinc.org/"
+            - key: "BEATS_PER_MINUTE"
+              value: "https://loinc.org/"
+            - key: "KILOCALORIE"
+              value: "https://loinc.org/"
+            - key: "RESPIRATIONS_PER_MINUTE"
+              value: "metric"
+    - path: measurements.cumulative
+      arrayMapAll: true
+      fields:
+        - name: fhirType
+          value: "Observation"
+          target: resourceType
+          optional: false
+          type: string
+        - name: type
+          source: measurements.cumulative.type
+          target: id
+          transform:
+            - type: toLowerCase
+            - type: replace
+              params: ["_", "-"]
+          optional: false
+          type: string
+        - name: value
+          source: measurements.cumulative.value
+          target: valueQuantity.value
+          optional: false
+          type: real
+        - name: unit
+          source: measurements.cumulative.unit
+          target: valueQuantity.unit
+          transform:
+            - type: toLowerCase
+            - type: replace
+              params: [ "_", "-" ]
+          optional: false
+          type: string
+        - name: start
+          source: measurements.cumulative.periodStart
+          target: effectivePeriod.start
+          transform:
+            - type: append
+              params: ["Z"]
+          optional: false
+          type: string
+        - name: end
+          source: measurements.cumulative.periodEnd
+          target: effectivePeriod.end
+          transform:
+            - type: append
+              params: ["Z"]
+          optional: false
+          type: string
+        - name: status
+          value: "final"
+          target: status
+          optional: false
+          type: string
+        - name: codingSystem
+          target: code.coding[0].system
+          transform:
+            - type: mapBasedOn
+          optional: false
+          type: string
+        - name: codingCode
+          target: code.coding[0].code
+          transform:
+            - type: mapBasedOn
+          optional: false
+          type: string
+        - name: codingDisplay
+          source: measurements.cumulative.unit
+          target: code.coding[0].display
+          transform:
+            - type: toLowerCase
+            - type: replace
+              params: [ "_", "-" ]
+          optional: false
+          type: string
+      mappings:
+        - path: code.coding[0].code
+          basedOn: measurements.cumulative.unit
+          valueType: string
+          map:
+            - key: "COUNT"
+              value: "55423-8"
+            - key: "BEATS_PER_MINUTE"
+              value: "8867-4"
+            - key: "KILOCALORIE"
+              value: "41981-2"
+            - key: "PERCENT"
+              value: "percent"
+            - key: "MILLISECOND"
+              value: "ms"
+            - key: "METER"
+              value: "m"
+            - key: "MINUTE"
+              value: "min"
+            - key: "RESPIRATIONS_PER_MINUTE"
+              value: "count"
+        - path: code.coding[0].system
+          basedOn: measurements.cumulative.unit
+          valueType: string
+          map:
+            - key: "METER"
+              value: "metric"
+            - key: "MILLISECOND"
+              value: "time"
+            - key: "MINUTE"
+              value: "time"
+            - key: "PERCENT"
+              value: "metric"
+            - key: "COUNT"
+              value: "https://loinc.org/"
+            - key: "BEATS_PER_MINUTE"
+              value: "https://loinc.org/"
+            - key: "KILOCALORIE"
+              value: "https://loinc.org/"
+            - key: "RESPIRATIONS_PER_MINUTE"
+              value: "metric"

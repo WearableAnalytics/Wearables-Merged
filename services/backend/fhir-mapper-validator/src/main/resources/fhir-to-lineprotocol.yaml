@@ -1,0 +1,63 @@
+variants:
+  - measurement-mapping:
+      source: id
+      allow-array: false
+    timestamp-mapping:
+      source: effectivePeriod.start
+      allow-array: false
+    field-mappings:
+      - source: status
+        allow-array: false
+        alias: status
+      - source: valueQuantity.value
+        allow-array: false
+        alias: value
+    tag-mappings:
+      - source: resourceType
+        allow-array: false
+        alias: resource-type
+      - source: category.coding[x].code
+        allow-array: true
+        alias: category
+      - source: code.coding[x].code
+        allow-array: true
+        alias: code
+      - source: code.coding[x].display
+        allow-array: true
+        alias: display
+      - source: valueQuantity.unit
+        allow-array: false
+        alias: unit
+      - source: device.display
+        allow-array: false
+        alias: device-id
+  - measurement-mapping:
+      source: id
+      allow-array: false
+    timestamp-mapping:
+      source: effectiveDateTime
+      allow-array: false
+    field-mappings:
+      - source: status
+        allow-array: false
+        alias: status
+      - source: valueQuantity.value
+        allow-array: false
+        alias: value
+    tag-mappings:
+      - source: resourceType
+        allow-array: false
+        alias: resource_type
+      - source: category.coding[x].code
+        allow-array: true
+        alias: category
+      - source: code.coding[x].code
+        allow-array: true
+        alias: code
+      - source: code.coding[x].display
+        allow-array: true
+        alias: display
+      - source: valueQuantity.unit
+        allow-array: false
+        alias: unit
+

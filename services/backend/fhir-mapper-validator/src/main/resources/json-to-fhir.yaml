@@ -1,0 +1,42 @@
+mappingsList:
+  - source: device.id
+    target: device
+    optional: false
+    type: string
+  - source: user.id
+    target: user
+    optional: false
+    type: string
+  - source: heart_rate.bpm
+    target: valueQuantity.value
+    optional: false
+    type: integer
+  - source: timestamp_utc
+    target: effectiveDateTime
+    optional: false
+    type: string
+  - source: heart_rate.unit
+    target: valueQuantity.unit
+    optional: false
+    type: string
+  - source: metadata.type
+    target: resourceType
+    optional: false
+    type: string
+  - source: context.status
+    target: status
+    optional: false
+    type: string
+  - source: heart_rate.id
+    target: id
+    optional: false
+    type: string
+  - target: code.coding[0].system
+    optional: false
+    value: "http://loinc.org"
+  - target: code.coding[0].code
+    value: "55423-8" #loinc code for number of steps in unspecified time
+    optional: false
+  - target: code.coding[0].display
+    value: "Heart rate"
+    optional: false

@@ -1,0 +1,10 @@
+# export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+# eval $(minikube -p minikube docker-env)
+# These two commands need to be executed in the terminal before executing the just command
+mk:
+    mvn -q -DskipTests package
+    docker image rm kafka-streams-fhir:latest -f
+    eval $(minikube -p minikube docker-env)
+    docker build -t kafka-streams-fhir:latest .
+    kubectl delete deployment kafka-streams-fhir -n kafka --ignore-not-found=true
+    kubectl apply -f ./kafka-streams-fhir.yaml
