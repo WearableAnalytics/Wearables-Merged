@@ -1,0 +1,78 @@
+# Terraform
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
+!**/*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+
+# Ansible
+*.retry
+.vault-password
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv
+
+# Java/Maven
+target/
+*.class
+*.jar
+!**/wrapper/*.jar
+*.war
+*.ear
+.mvn/
+dependency-reduced-pom.xml
+
+# Go
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# Dart/Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.g.dart
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Secrets
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+secrets/
+.env
+.env.local
+influxtoken
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# CI/CD
+.github/actions-runner/
