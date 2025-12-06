@@ -15,6 +15,10 @@ class BackgroundSyncManager {
   static Future<void> initialize() async {
     if (_configured) return;
 
+    // Ensure notification taps always start a foreground sync, even if the app was only
+    // launched in the background for a fetch.
+    NotificationService.registerOnNotificationTap(handleNotificationTap);
+
     try {
       final status = await BackgroundFetch.configure(
         BackgroundFetchConfig(
@@ -66,6 +70,9 @@ class BackgroundSyncManager {
 
   static Future<void> _runHealthSync(String taskId) async {
     try {
+      // Set tap handler in case this is the first time the app ever runs (BG-only launch).
+      NotificationService.registerOnNotificationTap(handleNotificationTap);
+
       final protectedDataAvailable = await DeviceLockService.isProtectedDataAvailable();
       if (!protectedDataAvailable) {
         await NotificationService.showSyncResultNotification(_protectedDataLockedResult());
@@ -98,6 +105,38 @@ class BackgroundSyncManager {
     } finally {
       BackgroundFetch.finish(taskId);
     }
+  }
+
+  /// Runs a foreground sync when the user taps a notification.
+  static Future<void> handleNotificationTap() async {
+    debugPrint('[BackgroundSyncManager] Notification tap: starting sync');
+    try {
+      final protectedDataAvailable = await DeviceLockService.isProtectedDataAvailable();
+      if (!protectedDataAvailable) {
+        await NotificationService.showSyncResultNotification(_protectedDataLockedResult());
+        return;
+      }
+
+      await NotificationService.showSyncStartedNotification(
+        message: 'Starting sync from notification...',
+      );
+
+      final result = await _healthSyncService.sendSinceLastSync(requestPermissions: true);
+      await NotificationService.showSyncResultNotification(result);
+    } catch (e) {
+      debugPrint('[BackgroundSyncManager] Notification tap sync failed: $e');
+      await NotificationService.showSyncResultNotification(
+        HealthSyncResult(
+          status: HealthSyncStatus.failed,
+          totalSent: 0,
+          totalAvailable: 0,
+          rangeStart: DateTime.now(),
+          rangeEnd: DateTime.now(),
+          lastError: 'Notification tap sync failed: $e',
+        ),
+      );
+    }
+    debugPrint('[BackgroundSyncManager] Notification tap: sync flow finished');
   }
 
   static HealthSyncResult _protectedDataLockedResult() {

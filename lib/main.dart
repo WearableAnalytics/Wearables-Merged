@@ -10,7 +10,9 @@ import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.initialize(onNotificationTap: _runForegroundSyncFromNotification);
+  NotificationService.registerOnNotificationTap(BackgroundSyncManager.handleNotificationTap);
+  await NotificationService.initialize(onNotificationTap: BackgroundSyncManager.handleNotificationTap);
+  await NotificationService.handleLaunchNotificationTap();
   await BackgroundSyncManager.initialize();
   _kickOffInitialForegroundSync();
   BackgroundFetch.registerHeadlessTask(backgroundFetchHeadlessTask);
@@ -60,13 +62,6 @@ void backgroundFetchHeadlessTask(HeadlessTask task) async {
 }
 
 Future<void> _runForegroundSyncFromNotification() async {
-  try {
-    final result = await HealthSyncService().sendSinceLastSync(requestPermissions: true);
-    debugPrint(
-      'Foreground sync (notification tap) completed: ${result.status} (sent ${result.totalSent}/${result.totalAvailable}).',
-    );
-  } catch (e, st) {
-    debugPrint('Foreground sync (notification tap) failed: $e');
-    debugPrint('$st');
-  }
+  // Kept for backwards compatibility; delegate to the centralized handler.
+  await BackgroundSyncManager.handleNotificationTap();
 }
