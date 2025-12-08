@@ -1,0 +1,16 @@
+replicaCount: 1
+
+image:
+  repository: postgres
+  pullPolicy: Always
+  tag: "14"
+
+postgres:
+  storageSize: 10Gi
+  storageClassName: local-path
+
+secretRef: "postgres-secret"
+
+service:
+  type: NodePort
+  port: 5432
