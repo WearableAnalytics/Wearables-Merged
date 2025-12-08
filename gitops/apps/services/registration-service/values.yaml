@@ -1,0 +1,15 @@
+replicaCount: 1
+
+image:
+  repository: lndocker3s/registration-service
+  pullPolicy: Always
+  tag: "0.1.0"
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8000
+
+secretRef: "registration-service-secrets"
