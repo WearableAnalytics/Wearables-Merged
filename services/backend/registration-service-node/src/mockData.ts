@@ -5,13 +5,13 @@ export type CaseStatus = Case['status'];
 export type CaseRecord = Case;
 
 const chariteCases: ChariteCase[] = [
-  { cCaseId: 'C-123456', firstName: 'Max', lastName: 'Mustermann', birthDate: '1980-01-01' },
-  { cCaseId: 'C-654321', firstName: 'Jane', lastName: 'Doe', birthDate: '1975-05-20' },
+  { cCaseId: 'C-123456', firstName: 'Max', lastName: 'Mustermann', birthDate: new Date('1980-01-01') },
+  { cCaseId: 'C-654321', firstName: 'Jane', lastName: 'Doe', birthDate: new Date('1975-05-20') },
 ];
 
 const patients: Patient[] = [
-  { patientId: 'P-98765', firstName: 'Max', lastName: 'Mustermann', birthDate: '1980-01-01' },
-  { patientId: 'P-24680', firstName: 'Mia', lastName: 'Muster', birthDate: '1985-12-03' },
+  { patientId: 'P-98765', firstName: 'Max', lastName: 'Mustermann', birthDate: new Date('1980-01-01') },
+  { patientId: 'P-24680', firstName: 'Mia', lastName: 'Muster', birthDate: new Date('1985-12-03') },
 ];
 
 const cases: CaseRecord[] = [
@@ -77,7 +77,8 @@ function ensurePatientForChariteCase(chariteCase: ChariteCase): Patient {
 }
 
 export function buildPatientVerifier(patient: Patient) {
-  const [year, month, day] = patient.birthDate.split('-');
+  const birthDateString = patient.birthDate.toISOString().split('T')[0];
+  const [year, month, day] = birthDateString.split('-');
   const initials = `${patient.firstName.charAt(0)}${patient.lastName.charAt(0)}`.toUpperCase();
   const birthPortion = `${day ?? '01'}${month ?? '01'}`;
 
