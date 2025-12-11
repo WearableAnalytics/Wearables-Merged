@@ -1,8 +1,10 @@
 import { Configuration, CasesApi, CharitCasesApi, PatientsApi } from './openapi-client';
 
 // Shared configuration for all generated API classes.
+export const API_BASE_PATH = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001/api';
+
 const sharedConfig = new Configuration({
-  basePath: import.meta.env.VITE_API_BASE_URL ?? '/api',
+  basePath: API_BASE_PATH,
   credentials: 'include',
 });
 
