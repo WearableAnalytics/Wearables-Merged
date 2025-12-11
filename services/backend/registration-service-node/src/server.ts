@@ -18,8 +18,9 @@ import type {
 const app = express();
 const port = Number(process.env.PORT) || 3001;
 const apiPrefix = (process.env.API_PREFIX ?? '/api').replace(/\/$/, '');
+const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
 
-app.use(cors());
+app.use(cors({ origin: frontendUrl, credentials: true }));
 app.use(express.json());
 
 const route = (path: string) => `${apiPrefix}${path}`;

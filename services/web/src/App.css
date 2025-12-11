@@ -1,42 +1,100 @@
-#root {
-  max-width: 1280px;
+.page {
+  min-height: 100vh;
+  background: radial-gradient(circle at 10% 20%, #e0f2fe, #e2e8f0 35%), #f8fafc;
+  color: #0f172a;
+  padding: 48px 24px 64px;
+}
+
+.hero {
+  max-width: 1040px;
+  margin: 0 auto 24px;
+}
+
+.eyebrow {
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.hero h1 {
+  margin: 0 0 12px;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.description {
+  margin: 0;
+  color: #475569;
+}
+
+.panel {
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.panel-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.panel-header h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.muted {
+  margin: 0;
+  color: #64748b;
 }
 
-.card {
-  padding: 2em;
+.status {
+  padding: 24px;
+  color: #0f172a;
 }
 
-.read-the-docs {
-  color: #888;
+.status.error {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-top: 1px solid #fecdd3;
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table thead {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.data-table th,
+.data-table td {
+  padding: 14px 18px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.data-table tbody tr:hover {
+  background: #f1f5f9;
+}
+
+.mono {
+  font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  color: #475569;
+  font-size: 13px;
 }
