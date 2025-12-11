@@ -59,6 +59,10 @@ build/
 *~
 .DS_Store
 
+# Node/npm
+node_modules/
+npm-debug.log*
+
 # Secrets
 *.pem
 *.key
