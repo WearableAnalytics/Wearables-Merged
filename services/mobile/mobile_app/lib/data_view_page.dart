@@ -66,8 +66,12 @@ class _DataViewPageState extends State<DataViewPage> {
         // Use the shared formatter so the JSON looks identical
         // to what the upload API receives.
         'measurements': formatHealthDataByType(healthData),
-        'sourceName': healthData.isNotEmpty ? healthData.first.sourceName : 'N/A',
-        'sourcePlatform': healthData.isNotEmpty ? healthData.first.sourcePlatform.toString() : 'N/A',
+        'sourceName': healthData.isNotEmpty
+            ? healthData.first.sourceName
+            : 'N/A',
+        'sourcePlatform': healthData.isNotEmpty
+            ? healthData.first.sourcePlatform.toString()
+            : 'N/A',
         'totalStepsToday': steps,
         'timestamp': DateTime.now().toIso8601String(),
       };
@@ -191,9 +195,7 @@ class _DataViewPageState extends State<DataViewPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Health Data Viewer'),
-      ),
+      appBar: AppBar(title: const Text('Health Data Viewer')),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -208,179 +210,250 @@ class _DataViewPageState extends State<DataViewPage> {
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                // Quick Selection Card
-                Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.schedule,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Quick Time Selection',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: [
-                            _QuickButton('Last Hour', const Duration(hours: 1), _setQuickPeriod),
-                            _QuickButton('Last 6h', const Duration(hours: 6), _setQuickPeriod),
-                            _QuickButton('Last 24h', const Duration(days: 1), _setQuickPeriod),
-                            _QuickButton('Last Week', const Duration(days: 7), _setQuickPeriod),
-                          ],
-                        ),
-                      ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
                     ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Custom Period Selection Card
-                Card(
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
+                        Column(
                           children: [
-                            Icon(
-                              Icons.date_range,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Custom Period',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'From',
-                                    style: Theme.of(context).textTheme.labelMedium,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _formatDateTime(_startDate),
-                                    style: Theme.of(context).textTheme.bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ElevatedButton.icon(
-                              onPressed: _selectStartDate,
-                              icon: const Icon(Icons.edit, size: 16),
-                              label: const Text('Change'),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'To',
-                                    style: Theme.of(context).textTheme.labelMedium,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _formatDateTime(_endDate),
-                                    style: Theme.of(context).textTheme.bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ElevatedButton.icon(
-                              onPressed: _selectEndDate,
-                              icon: const Icon(Icons.edit, size: 16),
-                              label: const Text('Change'),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.timelapse,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.onPrimaryContainer,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Duration: ${_endDate.difference(_startDate).inHours}h ${_endDate.difference(_startDate).inMinutes % 60}m',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                  fontWeight: FontWeight.w500,
+                            // Quick Selection Card
+                            Card(
+                              elevation: 2,
+                              child: Padding(
+                                padding: const EdgeInsets.all(20.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.schedule,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Quick Time Selection',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 8,
+                                      children: [
+                                        _QuickButton(
+                                          'Last Hour',
+                                          const Duration(hours: 1),
+                                          _setQuickPeriod,
+                                        ),
+                                        _QuickButton(
+                                          'Last 6h',
+                                          const Duration(hours: 6),
+                                          _setQuickPeriod,
+                                        ),
+                                        _QuickButton(
+                                          'Last 24h',
+                                          const Duration(days: 1),
+                                          _setQuickPeriod,
+                                        ),
+                                        _QuickButton(
+                                          'Last Week',
+                                          const Duration(days: 7),
+                                          _setQuickPeriod,
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: 16),
+                            // Custom Period Selection Card
+                            Card(
+                              elevation: 2,
+                              child: Padding(
+                                padding: const EdgeInsets.all(20.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.date_range,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Custom Period',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'From',
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.labelMedium,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                _formatDateTime(_startDate),
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.bodyMedium,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        ElevatedButton.icon(
+                                          onPressed: _selectStartDate,
+                                          icon: const Icon(
+                                            Icons.edit,
+                                            size: 16,
+                                          ),
+                                          label: const Text('Change'),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'To',
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.labelMedium,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                _formatDateTime(_endDate),
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.bodyMedium,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        ElevatedButton.icon(
+                                          onPressed: _selectEndDate,
+                                          icon: const Icon(
+                                            Icons.edit,
+                                            size: 16,
+                                          ),
+                                          label: const Text('Change'),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primaryContainer
+                                            .withOpacity(0.3),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.timelapse,
+                                            size: 16,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onPrimaryContainer,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Duration: ${_endDate.difference(_startDate).inHours}h ${_endDate.difference(_startDate).inMinutes % 60}m',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onPrimaryContainer,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Column(
+                          children: [
+                            const SizedBox(height: 24),
+                            // Get Data Button
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _getHealthData,
+                                icon: const Icon(Icons.visibility),
+                                label: const Text('View Health Data'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  backgroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.secondary,
+                                  foregroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.onSecondary,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Get Data Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _getHealthData,
-                    icon: const Icon(Icons.visibility),
-                    label: const Text('View Health Data'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
-                      foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           ),
         ),

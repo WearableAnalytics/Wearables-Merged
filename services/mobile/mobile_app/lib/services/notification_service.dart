@@ -9,7 +9,8 @@ import 'health_sync_service.dart';
 class NotificationService {
   NotificationService._();
 
-  static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
   static Completer<void>? _initializingCompleter;
   static Future<void> Function()? _onNotificationTap;
@@ -23,13 +24,17 @@ class NotificationService {
     bool requestPermissions = true,
     Future<void> Function()? onNotificationTap,
   }) async {
-    debugPrint('NotificationService.initialize(requestPermissions: $requestPermissions)');
+    debugPrint(
+      'NotificationService.initialize(requestPermissions: $requestPermissions)',
+    );
     // Always keep the most recent tap handler, even if already initialized by a headless task.
     if (onNotificationTap != null) {
       _onNotificationTap = onNotificationTap;
     }
     if (_initialized) {
-      debugPrint('NotificationService.initialize: already initialized, handler updated.');
+      debugPrint(
+        'NotificationService.initialize: already initialized, handler updated.',
+      );
       return;
     }
     if (_initializingCompleter != null) {
@@ -75,7 +80,9 @@ class NotificationService {
   /// Checks if the app was launched from a notification tap and triggers the handler if so.
   static Future<void> handleLaunchNotificationTap() async {
     if (!_initialized) {
-      debugPrint('NotificationService.handleLaunchNotificationTap: not initialized; skipping');
+      debugPrint(
+        'NotificationService.handleLaunchNotificationTap: not initialized; skipping',
+      );
       return;
     }
     final details = await _plugin.getNotificationAppLaunchDetails();
@@ -90,19 +97,27 @@ class NotificationService {
   }
 
   static Future<void> _requestPermissions() async {
-    await _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()?.requestPermissions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
 
-    await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestNotificationsPermission();
   }
 
-  static Future<void> showSyncResultNotification(HealthSyncResult result) async {
+  static Future<void> showSyncResultNotification(
+    HealthSyncResult result,
+  ) async {
     try {
       await ensureInitializedForBackground();
-      debugPrint('NotificationService.showSyncResultNotification: ${result.status}');
+      debugPrint(
+        'NotificationService.showSyncResultNotification: ${result.status}',
+      );
 
       await _plugin.show(
         DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -116,7 +131,9 @@ class NotificationService {
   }
 
   /// Returns true if the notification was shown (or we assume it was); false on error.
-  static Future<bool> showSyncStartedNotification({String message = 'Starting background fetch...'}) async {
+  static Future<bool> showSyncStartedNotification({
+    String message = 'Starting background fetch...',
+  }) async {
     try {
       await ensureInitializedForBackground();
       debugPrint('NotificationService.showSyncStartedNotification: $message');
@@ -133,7 +150,9 @@ class NotificationService {
     }
   }
 
-  static Future<void> showTestNotification({String message = 'Hello from background fetch!'}) async {
+  static Future<void> showTestNotification({
+    String message = 'Hello from background fetch!',
+  }) async {
     try {
       await ensureInitializedForBackground();
       debugPrint('NotificationService.showTestNotification: $message');
@@ -183,13 +202,18 @@ class NotificationService {
       'payload=${response.payload}',
     );
     // Only trigger on user taps (ignore dismisses or other response types).
-    if (response.notificationResponseType == NotificationResponseType.selectedNotification) {
+    if (response.notificationResponseType ==
+        NotificationResponseType.selectedNotification) {
       final handler = _onNotificationTap;
       if (handler != null) {
-        debugPrint('NotificationService._handleNotificationResponse: invoking tap handler');
+        debugPrint(
+          'NotificationService._handleNotificationResponse: invoking tap handler',
+        );
         unawaited(handler());
       } else {
-        debugPrint('NotificationService._handleNotificationResponse: no tap handler registered');
+        debugPrint(
+          'NotificationService._handleNotificationResponse: no tap handler registered',
+        );
       }
     }
   }

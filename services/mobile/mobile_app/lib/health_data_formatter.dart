@@ -133,14 +133,19 @@ dynamic parseValue(dynamic value) {
       try {
         final numericValue = (value as dynamic).numericValue;
         if (numericValue != null) {
-          return numericValue is double && numericValue == numericValue.roundToDouble() ? numericValue.round() : numericValue;
+          return numericValue is double &&
+                  numericValue == numericValue.roundToDouble()
+              ? numericValue.round()
+              : numericValue;
         }
       } catch (_) {}
 
       try {
         final val = (value as dynamic).value;
         if (val != null && val is num) {
-          return val is double && val == val.roundToDouble() ? val.round() : val;
+          return val is double && val == val.roundToDouble()
+              ? val.round()
+              : val;
         }
       } catch (_) {}
     }
@@ -148,11 +153,15 @@ dynamic parseValue(dynamic value) {
   if (value is String) {
     final doubleValue = double.tryParse(value);
     if (doubleValue != null) {
-      return doubleValue == doubleValue.roundToDouble() ? doubleValue.round() : doubleValue;
+      return doubleValue == doubleValue.roundToDouble()
+          ? doubleValue.round()
+          : doubleValue;
     }
   }
   if (value is num) {
-    return value is double && value == value.roundToDouble() ? value.round() : value;
+    return value is double && value == value.roundToDouble()
+        ? value.round()
+        : value;
   }
   if (value != null) {
     final valueStr = value.toString();
@@ -163,7 +172,9 @@ dynamic parseValue(dynamic value) {
       if (numericStr != null) {
         try {
           final doubleValue = double.parse(numericStr);
-          return doubleValue == doubleValue.roundToDouble() ? doubleValue.round() : doubleValue;
+          return doubleValue == doubleValue.roundToDouble()
+              ? doubleValue.round()
+              : doubleValue;
         } catch (e) {
           // Return original value if parsing fails
         }
