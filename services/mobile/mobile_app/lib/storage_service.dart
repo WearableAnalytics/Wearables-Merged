@@ -11,18 +11,19 @@ class StorageService {
   static Future<String> getOrCreateDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
     String? deviceId = prefs.getString(_deviceIdKey);
-    
+
     if (deviceId == null) {
       // Generate a unique device ID
       final random = Random.secure();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final randomPart = random.nextInt(999999).toString().padLeft(6, '0');
-      deviceId = '${Platform.isIOS ? 'iOS' : 'Android'}_${timestamp}_$randomPart';
-      
+      deviceId =
+          '${Platform.isIOS ? 'iOS' : 'Android'}_${timestamp}_$randomPart';
+
       // Store it for future use
       await prefs.setString(_deviceIdKey, deviceId);
     }
-    
+
     return deviceId;
   }
 
@@ -30,7 +31,9 @@ class StorageService {
   static Future<DateTime?> getLastDataSendTime() async {
     final prefs = await SharedPreferences.getInstance();
     final timestamp = prefs.getInt(_lastDataSendKey);
-    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+    return timestamp != null
+        ? DateTime.fromMillisecondsSinceEpoch(timestamp)
+        : null;
   }
 
   // Update the last data send time

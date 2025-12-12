@@ -63,16 +63,15 @@ final List<HealthDataType> allRequestedHealthDataTypes = [
   HealthDataType.ELECTROCARDIOGRAM,
   HealthDataType.NUTRITION,
 
-
   // // Cumulative - total count over time
   // HealthDataType.STEPS,
   // HealthDataType.ACTIVE_ENERGY_BURNED,
-  
+
   // // Instantaneous - point-in-time measurements
   // HealthDataType.HEART_RATE,
   // HealthDataType.RESTING_HEART_RATE,
-  // // HealthDataType.BLOOD_PRESSURE_SYSTOLIC, 
-  // // HealthDataType.BLOOD_PRESSURE_DIASTOLIC, 
+  // // HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
+  // // HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
   // HealthDataType.BLOOD_OXYGEN,
   // HealthDataType.RESPIRATORY_RATE,
   // HealthDataType.BODY_TEMPERATURE,
@@ -80,7 +79,7 @@ final List<HealthDataType> allRequestedHealthDataTypes = [
   // // HealthDataType.BLOOD_GLUCOSE,
   // HealthDataType.BODY_FAT_PERCENTAGE,
   // HealthDataType.BODY_MASS_INDEX,
-  
+
   // // Duration - time-based measurements
   // HealthDataType.SLEEP_ASLEEP,
   // HealthDataType.SLEEP_DEEP,
