@@ -10,8 +10,12 @@ import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  NotificationService.registerOnNotificationTap(BackgroundSyncManager.handleNotificationTap);
-  await NotificationService.initialize(onNotificationTap: BackgroundSyncManager.handleNotificationTap);
+  NotificationService.registerOnNotificationTap(
+    BackgroundSyncManager.handleNotificationTap,
+  );
+  await NotificationService.initialize(
+    onNotificationTap: BackgroundSyncManager.handleNotificationTap,
+  );
   await NotificationService.handleLaunchNotificationTap();
   await BackgroundSyncManager.initialize();
   _kickOffInitialForegroundSync();
@@ -22,7 +26,9 @@ Future<void> main() async {
 void _kickOffInitialForegroundSync() {
   unawaited(() async {
     try {
-      final result = await HealthSyncService().sendSinceLastSync(requestPermissions: true);
+      final result = await HealthSyncService().sendSinceLastSync(
+        requestPermissions: true,
+      );
       debugPrint(
         'Initial foreground sync completed: ${result.status} (sent ${result.totalSent}/${result.totalAvailable}).',
       );
@@ -43,10 +49,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 2,
-        ),
+        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 2),
       ),
       // MainPage is defined in lib/screens/main_page.dart
       home: const MainPage(),

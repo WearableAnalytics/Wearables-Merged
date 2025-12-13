@@ -20,3 +20,13 @@ To test background fetch in the iOS simulator, run the following command in term
 ```
 e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.transistorsoft.fetch"]
 ```
+
+
+## Run app on device
+
+### ios
+
+1. activate dev mode on device
+2. connect device via usb
+3. discover device by running `flutter devices` in terminal
+4. run `flutter run -d <device id>` in terminal

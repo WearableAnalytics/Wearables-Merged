@@ -2,35 +2,62 @@ import Flutter
 import UIKit
 import BackgroundTasks
 import TSBackgroundFetch
+import Foundation
+import Darwin
 
-private final class ProtectedDataMonitor {
-  static let shared = ProtectedDataMonitor()
-  private var isAvailable: Bool
+private final class DeviceLockMonitor {
+  static let shared = DeviceLockMonitor()
+
+  private var notificationToken: Int32 = 0
+  private var isLocked: Bool = false
+  private let stateQueue = DispatchQueue(
+    label: "com.cherep.device_state.lock_monitor",
+    attributes: .concurrent
+  )
 
   private init() {
-    isAvailable = UIApplication.shared.isProtectedDataAvailable
+    startMonitoringLockState()
+  }
 
-    NotificationCenter.default.addObserver(
-      forName: UIApplication.protectedDataWillBecomeUnavailableNotification,
-      object: nil,
-      queue: .main
-    ) { [weak self] _ in
-      self?.isAvailable = false
+  func currentLockState() -> Bool {
+    stateQueue.sync { isLocked }
+  }
+
+  private func startMonitoringLockState() {
+    var token: Int32 = 0
+    let status = notify_register_dispatch(
+      "com.apple.springboard.lockstate",
+      &token,
+      DispatchQueue.main
+    ) { [weak self] notificationToken in
+      self?.refreshLockState(token: notificationToken)
     }
 
-    NotificationCenter.default.addObserver(
-      forName: UIApplication.protectedDataDidBecomeAvailableNotification,
-      object: nil,
-      queue: .main
-    ) { [weak self] _ in
-      self?.isAvailable = true
+    notificationToken = token
+
+    if status == NOTIFY_STATUS_OK {
+      refreshLockState(token: token)
+    } else {
+      // Fallback to protected data availability as a conservative estimate.
+      updateLockState(isLocked: !UIApplication.shared.isProtectedDataAvailable)
     }
   }
 
-  func currentAvailability() -> Bool {
-    // Always read the system value in case we missed notifications while suspended.
-    isAvailable = UIApplication.shared.isProtectedDataAvailable
-    return isAvailable
+  private func refreshLockState(token: Int32) {
+    var state: UInt64 = 0
+    let status = notify_get_state(token, &state)
+    if status == NOTIFY_STATUS_OK {
+      // Any non-zero state means the device is locked.
+      updateLockState(isLocked: state != 0)
+    } else {
+      updateLockState(isLocked: !UIApplication.shared.isProtectedDataAvailable)
+    }
+  }
+
+  private func updateLockState(isLocked: Bool) {
+    stateQueue.async(flags: .barrier) { [weak self] in
+      self?.isLocked = isLocked
+    }
   }
 }
 
@@ -50,25 +77,31 @@ private final class ProtectedDataMonitor {
       TSBackgroundFetch.sharedInstance().registerAppRefreshTask()
     }
 
-    guard let controller = window?.rootViewController as? FlutterViewController else {
-      assertionFailure("FlutterViewController unavailable; cannot set up method channel")
-      return flutterInitialized
+    // Use the Flutter plugin registrar rather than the rootViewController; the latter is not guaranteed
+    // to be available in didFinishLaunchingWithOptions once UISceneDelegate is enabled.
+    setupDeviceLockChannel()
+
+    return flutterInitialized
+  }
+
+  private func setupDeviceLockChannel() {
+    guard let registrar = self.registrar(forPlugin: "DeviceLockChannel") else {
+      assertionFailure("Flutter registrar unavailable; cannot set up method channel")
+      return
     }
 
     let channel = FlutterMethodChannel(
-      name: "com.cherep.device_state/protected_data",
-      binaryMessenger: controller.binaryMessenger
+      name: "com.cherep.device_state/lock_state",
+      binaryMessenger: registrar.messenger()
     )
 
     channel.setMethodCallHandler { call, result in
       switch call.method {
-      case "isProtectedDataAvailable":
-        result(ProtectedDataMonitor.shared.currentAvailability())
+      case "isDeviceLocked":
+        result(DeviceLockMonitor.shared.currentLockState())
       default:
         result(FlutterMethodNotImplemented)
       }
     }
-
-    return flutterInitialized
   }
 }
