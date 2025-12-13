@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { GuestNavbar } from './components/custom/navbar/guestNavbar';
 import { Routing } from './Routing';
 
-const GUEST_ROUTES = ['/', '/new-case', '/logout'];
+const GUEST_ROUTES = ['/', '/add-case', '/logout'];
 
 function App() {
   const navigate = useNavigate();

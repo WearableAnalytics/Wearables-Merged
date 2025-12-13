@@ -2,15 +2,18 @@ import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { API_BASE_PATH, defaultApi } from '@/api/defaultApi';
-import type { ChariteCase } from '@/api/openapi-client';
+import type { CaseCreated, ChariteCase } from '@/api/openapi-client';
 import { ResponseError } from '@/api/openapi-client/runtime';
 import { Loader2, Search } from 'lucide-react';
 
-export function NewCasePage() {
+export function AddCasePage() {
   const [caseId, setCaseId] = useState('');
   const [result, setResult] = useState<ChariteCase | null>(null);
+  const [created, setCreated] = useState<CaseCreated | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
   const formattedBasePath = useMemo(() => API_BASE_PATH.replace(/\/$/, ''), []);
@@ -29,6 +32,7 @@ export function NewCasePage() {
     if (!trimmedId) {
       setError('Please enter a Charité case ID.');
       setResult(null);
+      setCreated(null);
       setHasSearched(false);
       return;
     }
@@ -37,6 +41,7 @@ export function NewCasePage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setCreated(null);
 
     try {
       const data = await defaultApi.chariteCasesCCaseIdGet({ cCaseId: trimmedId });
@@ -57,8 +62,8 @@ export function NewCasePage() {
   return (
     <>
       <PageHeader
-        label="New Case"
-        title="Create a New Case"
+        label="Add Case"
+        title="Add a Case"
         description="Search for an existing Charité case by ID."
       />
 
@@ -74,12 +79,14 @@ export function NewCasePage() {
                 type="search"
                 inputMode="numeric"
                 maxLength={200}
-                placeholder={`Enter Charité Case ID (${formattedBasePath}/charite/cases/:id)`}
+                placeholder={`Enter Charité Case ID`}
                 value={caseId}
                 onChange={(event) => setCaseId(event.target.value)}
                 onFocus={() => {
                   setResult(null);
                   setError(null);
+                  setCreated(null);
+                  setCreateError(null);
                   setHasSearched(false);
                 }}
                 className="w-full rounded-full border border-slate-200 bg-white px-6 py-4 pr-16 text-lg shadow-[0_16px_40px_rgba(15,23,42,0.08)] outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-50"
@@ -145,6 +152,71 @@ export function NewCasePage() {
                     <dd className="m-0 text-base text-slate-900">{result.cCaseId}</dd>
                   </div>
                 </dl>
+
+                <div className="mt-4 flex flex-col gap-3">
+                  <button
+                    type="button"
+                    disabled={creating}
+                    onClick={async () => {
+                      if (!result?.cCaseId || creating) return;
+                      setCreating(true);
+                      setCreateError(null);
+                      setCreated(null);
+                      try {
+                        const data = await defaultApi.casesFromChariteCasePost({
+                          casesFromChariteCasePostRequest: { cCaseId: result.cCaseId },
+                        });
+                        setCreated(data);
+                      } catch (err) {
+                        if (err instanceof ResponseError) {
+                          setCreateError(err.response.status === 404 ? 'Charité case not found anymore.' : 'Unable to create internal case.');
+                        } else if (err instanceof Error) {
+                          setCreateError(err.message);
+                        } else {
+                          setCreateError('Unable to create internal case.');
+                        }
+                      } finally {
+                        setCreating(false);
+                      }
+                    }}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-base font-semibold text-white transition hover:scale-[1.01] hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 active:scale-95 disabled:opacity-80 disabled:hover:scale-100"
+                  >
+                    {creating ? <Loader2 aria-hidden className="h-4 w-4 animate-spin" /> : null}
+                    Add case to system
+                  </button>
+
+                  {createError ? (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+                      {createError}
+                    </div>
+                  ) : null}
+
+                  {created ? (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                      <p className="m-0 font-semibold">Case created</p>
+                      <ul className="m-1 ml-4 list-disc space-y-1">
+                        <li>
+                          Patient ID:{' '}
+                          <span className="font-mono font-semibold tracking-[0.02em] text-emerald-800">
+                            {created.patientId}
+                          </span>
+                        </li>
+                        <li>
+                          Case ID:{' '}
+                          <span className="font-mono font-semibold tracking-[0.02em] text-emerald-800">
+                            {created.caseId}
+                          </span>
+                        </li>
+                        <li>
+                          Case token:{' '}
+                          <span className="font-mono font-semibold tracking-[0.02em] text-emerald-800">
+                            {created.caseToken}
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 

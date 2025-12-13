@@ -42,7 +42,7 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-6">
             <NavButton path="/">Overview</NavButton>
-            <NavButton path="/new-case">New Case</NavButton>
+            <NavButton path="/add-case">Add Case</NavButton>
           </div>
 
           {/* Desktop Login Button */}
@@ -76,8 +76,8 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
               >
                 Overview
               </NavButtonMobile>
-              <NavButtonMobile path="/new-case" className="w-full justify-start text-left" onClick={handleMobileLinkClick}>
-                New Case
+              <NavButtonMobile path="/add-case" className="w-full justify-start text-left" onClick={handleMobileLinkClick}>
+                Add Case
               </NavButtonMobile>
               <div className="pt-2 border-t border-muted">
                 <NavButtonMobile
