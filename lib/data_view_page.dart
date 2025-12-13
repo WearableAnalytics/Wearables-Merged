@@ -66,8 +66,12 @@ class _DataViewPageState extends State<DataViewPage> {
         // Use the shared formatter so the JSON looks identical
         // to what the upload API receives.
         'measurements': formatHealthDataByType(healthData),
-        'sourceName': healthData.isNotEmpty ? healthData.first.sourceName : 'N/A',
-        'sourcePlatform': healthData.isNotEmpty ? healthData.first.sourcePlatform.toString() : 'N/A',
+        'sourceName': healthData.isNotEmpty
+            ? healthData.first.sourceName
+            : 'N/A',
+        'sourcePlatform': healthData.isNotEmpty
+            ? healthData.first.sourcePlatform.toString()
+            : 'N/A',
         'totalStepsToday': steps,
         'timestamp': DateTime.now().toIso8601String(),
       };
@@ -191,9 +195,7 @@ class _DataViewPageState extends State<DataViewPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Health Data Viewer'),
-      ),
+      appBar: AppBar(title: const Text('Health Data Viewer')),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -227,9 +229,8 @@ class _DataViewPageState extends State<DataViewPage> {
                             const SizedBox(width: 8),
                             Text(
                               'Quick Time Selection',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -238,10 +239,26 @@ class _DataViewPageState extends State<DataViewPage> {
                           spacing: 12,
                           runSpacing: 8,
                           children: [
-                            _QuickButton('Last Hour', const Duration(hours: 1), _setQuickPeriod),
-                            _QuickButton('Last 6h', const Duration(hours: 6), _setQuickPeriod),
-                            _QuickButton('Last 24h', const Duration(days: 1), _setQuickPeriod),
-                            _QuickButton('Last Week', const Duration(days: 7), _setQuickPeriod),
+                            _QuickButton(
+                              'Last Hour',
+                              const Duration(hours: 1),
+                              _setQuickPeriod,
+                            ),
+                            _QuickButton(
+                              'Last 6h',
+                              const Duration(hours: 6),
+                              _setQuickPeriod,
+                            ),
+                            _QuickButton(
+                              'Last 24h',
+                              const Duration(days: 1),
+                              _setQuickPeriod,
+                            ),
+                            _QuickButton(
+                              'Last Week',
+                              const Duration(days: 7),
+                              _setQuickPeriod,
+                            ),
                           ],
                         ),
                       ],
@@ -268,9 +285,8 @@ class _DataViewPageState extends State<DataViewPage> {
                             const SizedBox(width: 8),
                             Text(
                               'Custom Period',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -284,12 +300,16 @@ class _DataViewPageState extends State<DataViewPage> {
                                 children: [
                                   Text(
                                     'From',
-                                    style: Theme.of(context).textTheme.labelMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.labelMedium,
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     _formatDateTime(_startDate),
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                                 ],
                               ),
@@ -312,12 +332,16 @@ class _DataViewPageState extends State<DataViewPage> {
                                 children: [
                                   Text(
                                     'To',
-                                    style: Theme.of(context).textTheme.labelMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.labelMedium,
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     _formatDateTime(_endDate),
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                                 ],
                               ),
@@ -334,7 +358,9 @@ class _DataViewPageState extends State<DataViewPage> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer.withOpacity(0.3),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
@@ -343,15 +369,20 @@ class _DataViewPageState extends State<DataViewPage> {
                               Icon(
                                 Icons.timelapse,
                                 size: 16,
-                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer,
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 'Duration: ${_endDate.difference(_startDate).inHours}h ${_endDate.difference(_startDate).inMinutes % 60}m',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimaryContainer,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                               ),
                             ],
                           ),
@@ -373,7 +404,9 @@ class _DataViewPageState extends State<DataViewPage> {
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       backgroundColor: Theme.of(context).colorScheme.secondary,
-                      foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                      foregroundColor: Theme.of(
+                        context,
+                      ).colorScheme.onSecondary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

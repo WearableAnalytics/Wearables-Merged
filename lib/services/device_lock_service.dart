@@ -6,11 +6,15 @@ import 'package:flutter/services.dart';
 class DeviceLockService {
   DeviceLockService._();
 
-  static const _channel = MethodChannel('com.cherep.device_state/protected_data');
+  static const _channel = MethodChannel(
+    'com.cherep.device_state/protected_data',
+  );
 
   static Future<bool> isProtectedDataAvailable() async {
     try {
-      final available = await _channel.invokeMethod<bool>('isProtectedDataAvailable');
+      final available = await _channel.invokeMethod<bool>(
+        'isProtectedDataAvailable',
+      );
       final unlocked = available ?? true;
       debugPrint('Device lock status: ${unlocked ? "unlocked" : "locked"}');
       return unlocked;

@@ -69,7 +69,8 @@ class HealthSyncService {
 
     final types = allRequestedHealthDataTypes;
     final permissions = permissionsFor(types);
-    final alreadyGranted = await _health.hasPermissions(types, permissions: permissions) ?? false;
+    final alreadyGranted =
+        await _health.hasPermissions(types, permissions: permissions) ?? false;
     if (!alreadyGranted) {
       if (!requestPermissions) {
         return HealthSyncResult(
@@ -82,7 +83,10 @@ class HealthSyncService {
         );
       }
 
-      final granted = await _health.requestAuthorization(types, permissions: permissions);
+      final granted = await _health.requestAuthorization(
+        types,
+        permissions: permissions,
+      );
       if (!granted) {
         return HealthSyncResult(
           status: HealthSyncStatus.permissionDenied,
@@ -95,7 +99,8 @@ class HealthSyncService {
       }
     }
 
-    final protectedAvailable = await DeviceLockService.isProtectedDataAvailable();
+    final protectedAvailable =
+        await DeviceLockService.isProtectedDataAvailable();
     if (!protectedAvailable) {
       return HealthSyncResult(
         status: HealthSyncStatus.protectedDataUnavailable,
@@ -103,7 +108,8 @@ class HealthSyncService {
         totalAvailable: 0,
         rangeStart: now,
         rangeEnd: now,
-        lastError: 'Protected health data is locked. Unlock the device to sync.',
+        lastError:
+            'Protected health data is locked. Unlock the device to sync.',
       );
     }
 
@@ -126,7 +132,8 @@ class HealthSyncService {
           totalAvailable: 0,
           rangeStart: from,
           rangeEnd: now,
-          lastError: 'Protected health data is locked. Unlock the device to sync.',
+          lastError:
+              'Protected health data is locked. Unlock the device to sync.',
         );
       }
       return HealthSyncResult(
@@ -148,7 +155,8 @@ class HealthSyncService {
           totalAvailable: 0,
           rangeStart: from,
           rangeEnd: now,
-          lastError: 'Protected health data is locked. Unlock the device to sync.',
+          lastError:
+              'Protected health data is locked. Unlock the device to sync.',
         );
       }
       return HealthSyncResult(
@@ -173,7 +181,8 @@ class HealthSyncService {
           totalAvailable: healthData.length,
           rangeStart: from,
           rangeEnd: now,
-          lastError: 'Protected health data is locked. Unlock the device to sync.',
+          lastError:
+              'Protected health data is locked. Unlock the device to sync.',
         );
       }
       lastError = 'Failed to read step count: $e';
@@ -256,7 +265,9 @@ class HealthSyncService {
       },
       'measurements': formatHealthDataByType(chunk),
       'sourceName': chunk.isNotEmpty ? chunk.first.sourceName : 'N/A',
-      'sourcePlatform': chunk.isNotEmpty ? chunk.first.sourcePlatform.toString() : 'N/A',
+      'sourcePlatform': chunk.isNotEmpty
+          ? chunk.first.sourcePlatform.toString()
+          : 'N/A',
       'totalStepsToday': stepsToday,
       'timestamp': DateTime.now().toIso8601String(),
     };
@@ -267,7 +278,9 @@ class HealthSyncService {
       final request = await client.postUrl(Uri.parse(_endpoint));
       request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
       request.add(utf8.encode(jsonEncode(payload)));
-      final response = await request.close().timeout(const Duration(seconds: 30));
+      final response = await request.close().timeout(
+        const Duration(seconds: 30),
+      );
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final body = await response.transform(utf8.decoder).join();
         throw HttpException('Status ${response.statusCode}: $body');
@@ -297,17 +310,23 @@ class HealthSyncService {
       final code = error.code.toLowerCase();
       final message = error.message?.toLowerCase() ?? '';
       final details = error.details?.toString().toLowerCase() ?? '';
-      if (_protectedDataMatch(code) || _protectedDataMatch(message) || _protectedDataMatch(details)) {
+      if (_protectedDataMatch(code) ||
+          _protectedDataMatch(message) ||
+          _protectedDataMatch(details)) {
         return true;
       }
     }
 
     final text = error.toString().toLowerCase();
-    return _protectedDataMatch(text) || (text.contains('hkerrordomain') && text.contains('code=4'));
+    return _protectedDataMatch(text) ||
+        (text.contains('hkerrordomain') && text.contains('code=4'));
   }
 
   bool _protectedDataMatch(String value) {
     if (value.isEmpty) return false;
-    return value.contains('protected') && (value.contains('unlock') || value.contains('locked') || value.contains('data is not available'));
+    return value.contains('protected') &&
+        (value.contains('unlock') ||
+            value.contains('locked') ||
+            value.contains('data is not available'));
   }
 }

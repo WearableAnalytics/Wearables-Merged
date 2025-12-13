@@ -37,10 +37,7 @@ class _QrScanPageState extends State<QrScanPage> {
       ),
       body: Stack(
         children: [
-          MobileScanner(
-            fit: BoxFit.cover,
-            onDetect: _onDetect,
-          ),
+          MobileScanner(fit: BoxFit.cover, onDetect: _onDetect),
           Align(
             alignment: Alignment.center,
             child: Container(
@@ -67,16 +64,16 @@ class _QrScanPageState extends State<QrScanPage> {
                   'Align the QR code within the frame to capture the device ID.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        shadows: const [
-                          Shadow(
-                            offset: Offset(0, 1),
-                            blurRadius: 4,
-                            color: Colors.black54,
-                          ),
-                        ],
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    shadows: const [
+                      Shadow(
+                        offset: Offset(0, 1),
+                        blurRadius: 4,
+                        color: Colors.black54,
                       ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
