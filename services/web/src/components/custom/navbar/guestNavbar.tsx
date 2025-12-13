@@ -41,16 +41,14 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-6">
-            <NavButton path="/">About</NavButton>
-            <NavButton path="/for-startups">For Startups</NavButton>
-            <NavButton path="/for-retirees">For Retirees</NavButton>
-            <NavButton path="/signup">Sign Up</NavButton>
+            <NavButton path="/">Overview</NavButton>
+            <NavButton path="/new-case">New Case</NavButton>
           </div>
 
           {/* Desktop Login Button */}
           <div className="hidden md:block">
-            <NavButton path="/login" invertedColors={true}>
-              Login
+            <NavButton path="/logout" invertedColors={true}>
+              Logout
             </NavButton>
           </div>
 
@@ -76,37 +74,19 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
                 className="w-full justify-start text-left"
                 onClick={handleMobileLinkClick}
               >
-                About
+                Overview
               </NavButtonMobile>
-              <NavButtonMobile
-                path="/for-startups"
-                className="w-full justify-start text-left"
-                onClick={handleMobileLinkClick}
-              >
-                For Startups
-              </NavButtonMobile>
-              <NavButtonMobile
-                path="/for-retirees"
-                className="w-full justify-start text-left"
-                onClick={handleMobileLinkClick}
-              >
-                For Retirees
-              </NavButtonMobile>
-              <NavButtonMobile
-                path="/signup"
-                className="w-full justify-start text-left"
-                onClick={handleMobileLinkClick}
-              >
-                Sign Up
+              <NavButtonMobile path="/new-case" className="w-full justify-start text-left" onClick={handleMobileLinkClick}>
+                New Case
               </NavButtonMobile>
               <div className="pt-2 border-t border-muted">
                 <NavButtonMobile
                   invertedColors={true}
-                  path="/login"
+                  path="/logout"
                   className="w-full justify-start text-left"
                   onClick={handleMobileLinkClick}
                 >
-                  Login
+                  Logout
                 </NavButtonMobile>
               </div>
             </div>
