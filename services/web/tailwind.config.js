@@ -9,11 +9,7 @@ export default {
   	extend: {
   		fontFamily: {
   			sora: [
-  				'Sora',
   				'Inter',
-  				'SF Pro Display',
-  				'system-ui',
-  				'-apple-system',
   				'sans-serif'
   			]
   		},
