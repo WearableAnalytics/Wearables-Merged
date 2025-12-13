@@ -37,7 +37,8 @@ class BackgroundSyncManager {
         _onBackgroundTimeout,
       );
       debugPrint('BackgroundFetch configured. Status: $status');
-      if (status == BackgroundFetch.STATUS_DENIED || status == BackgroundFetch.STATUS_RESTRICTED) {
+      if (status == BackgroundFetch.STATUS_DENIED ||
+          status == BackgroundFetch.STATUS_RESTRICTED) {
         debugPrint('BackgroundFetch unavailable (denied or restricted by OS).');
       } else {
         await BackgroundFetch.start();
@@ -73,9 +74,12 @@ class BackgroundSyncManager {
       // Set tap handler in case this is the first time the app ever runs (BG-only launch).
       NotificationService.registerOnNotificationTap(handleNotificationTap);
 
-      final protectedDataAvailable = await DeviceLockService.isProtectedDataAvailable();
+      final protectedDataAvailable =
+          await DeviceLockService.isProtectedDataAvailable();
       if (!protectedDataAvailable) {
-        await NotificationService.showSyncResultNotification(_protectedDataLockedResult());
+        await NotificationService.showSyncResultNotification(
+          _protectedDataLockedResult(),
+        );
         return;
       }
 
@@ -111,9 +115,12 @@ class BackgroundSyncManager {
   static Future<void> handleNotificationTap() async {
     debugPrint('[BackgroundSyncManager] Notification tap: starting sync');
     try {
-      final protectedDataAvailable = await DeviceLockService.isProtectedDataAvailable();
+      final protectedDataAvailable =
+          await DeviceLockService.isProtectedDataAvailable();
       if (!protectedDataAvailable) {
-        await NotificationService.showSyncResultNotification(_protectedDataLockedResult());
+        await NotificationService.showSyncResultNotification(
+          _protectedDataLockedResult(),
+        );
         return;
       }
 
@@ -121,7 +128,9 @@ class BackgroundSyncManager {
         message: 'Starting sync from notification...',
       );
 
-      final result = await _healthSyncService.sendSinceLastSync(requestPermissions: true);
+      final result = await _healthSyncService.sendSinceLastSync(
+        requestPermissions: true,
+      );
       await NotificationService.showSyncResultNotification(result);
     } catch (e) {
       debugPrint('[BackgroundSyncManager] Notification tap sync failed: $e');
@@ -147,7 +156,8 @@ class BackgroundSyncManager {
       totalAvailable: 0,
       rangeStart: now,
       rangeEnd: now,
-      lastError: 'Protected data unavailable; unlock the device and open the app to sync.',
+      lastError:
+          'Protected data unavailable; unlock the device and open the app to sync.',
     );
   }
 }

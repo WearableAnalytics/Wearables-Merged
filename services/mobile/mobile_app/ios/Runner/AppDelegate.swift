@@ -50,14 +50,16 @@ private final class ProtectedDataMonitor {
       TSBackgroundFetch.sharedInstance().registerAppRefreshTask()
     }
 
-    guard let controller = window?.rootViewController as? FlutterViewController else {
-      assertionFailure("FlutterViewController unavailable; cannot set up method channel")
+    // Use the Flutter plugin registrar rather than the rootViewController; the latter is not guaranteed
+    // to be available in didFinishLaunchingWithOptions once UISceneDelegate is enabled.
+    guard let registrar = self.registrar(forPlugin: "ProtectedDataChannel") else {
+      assertionFailure("Flutter registrar unavailable; cannot set up method channel")
       return flutterInitialized
     }
 
     let channel = FlutterMethodChannel(
       name: "com.cherep.device_state/protected_data",
-      binaryMessenger: controller.binaryMessenger
+      binaryMessenger: registrar.messenger()
     )
 
     channel.setMethodCallHandler { call, result in
