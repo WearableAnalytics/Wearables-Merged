@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    font-family: 'Sora', 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+    color: #0f172a;
+    background-color: #f8fafc;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-sky-50 text-slate-900;
+  }
+
+  a {
+    @apply text-sky-600 no-underline;
+  }
+
+  a:hover {
+    @apply text-sky-700;
+  }
+}

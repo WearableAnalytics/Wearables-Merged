@@ -38,106 +38,127 @@ const scalePoints = [
   'Delivers real-time views and ML-driven signals without slowing down.',
   'Security stays intact from device to dashboard.',
 ];
+
+import '../styles/tailwind.css';
 ---
 
-<main class="page">
-  <div class="ambient">
-    <span class="orb orb-a"></span>
-    <span class="orb orb-b"></span>
-    <span class="orb orb-c"></span>
+<main class="relative min-h-screen overflow-hidden bg-[#f7fbff] text-[#0d1f3b] px-[clamp(20px,5vw,56px)] pt-7 pb-20 font-sans">
+  <div class="pointer-events-none absolute inset-0">
+    <span class="absolute -top-20 -left-28 h-[360px] w-[360px] rounded-full blur-[40px] opacity-55 bg-[radial-gradient(circle,rgba(12,157,216,0.26),transparent_60%)]"></span>
+    <span class="absolute bottom-[10%] right-[12%] h-[280px] w-[280px] rounded-full blur-[40px] opacity-55 bg-[radial-gradient(circle,rgba(38,198,184,0.32),transparent_60%)]"></span>
+    <span class="absolute -bottom-10 left-[22%] h-[220px] w-[220px] rounded-full blur-[40px] opacity-55 bg-[radial-gradient(circle,rgba(12,157,216,0.18),transparent_55%)]"></span>
   </div>
 
-  <header class="nav">
-    <div class="brand">
-      <div class="mark">
-        <span></span>
-        <span></span>
+  <header class="relative z-10 mb-8 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="relative grid h-[42px] w-[42px] place-items-center overflow-hidden rounded-[12px] bg-[linear-gradient(135deg,rgba(12,157,216,0.1),rgba(38,198,184,0.2))]">
+        <span class="absolute h-[10px] w-[70%] rounded-full bg-[linear-gradient(135deg,#0c9dd8,#26c6b8)]"></span>
+        <span class="absolute h-[70%] w-[10px] rounded-full bg-[linear-gradient(135deg,#0c9dd8,#26c6b8)]"></span>
       </div>
       <div>
-        <p class="eyebrow">Wearables</p>
-        <p class="brand-name">Clinical Platform</p>
+        <p class="m-0 text-[11px] uppercase tracking-[0.12em] font-bold text-[#5a6c82]">Wearables</p>
+        <p class="m-[2px_0_0] text-[18px] font-bold tracking-[0.01em]">Clinical Platform</p>
       </div>
     </div>
-    <div class="nav-actions">
-      <a href="#product">Product</a>
-      <a href="#personas">Teams</a>
-      <button class="outline" data-action="launch-app">Access App</button>
+    <div class="flex items-center gap-[14px] text-[14px] font-semibold text-[#5a6c82]">
+      <a class="transition hover:text-[#0d1f3b]" href="#product">Product</a>
+      <a class="transition hover:text-[#0d1f3b]" href="#personas">Teams</a>
+      <button
+        class="rounded-full border border-[#e6eef6] bg-white/90 px-[14px] py-[10px] font-bold text-[#0d1f3b] shadow-[0_6px_20px_rgba(12,157,216,0.12)] transition hover:-translate-y-[1px]"
+        data-action="launch-app"
+      >
+        Access App
+      </button>
     </div>
   </header>
 
-  <section class="hero">
-    <div class="hero-copy">
-      <p class="pill">Real-time wearables platform for care and research.</p>
-      <h1>
+  <section class="relative z-10 grid items-center gap-[30px] lg:grid-cols-2">
+    <div class="flex flex-col gap-3">
+      <p class="inline-flex items-center gap-2 rounded-full border border-[#e6eef6] bg-white px-3 py-2 text-[13px] text-[#5a6c82] tracking-[0.01em]">
+        Real-time wearables platform for care and research.
+      </p>
+      <h1 class="mt-2 mb-3 text-[clamp(36px,5vw,56px)] leading-[1.08] font-bold">
         Calm, clinical insight from every wearable-without extra work.
       </h1>
-      <p class="lede">
+      <p class="mb-[18px] text-[17px] leading-[1.65] text-[#5a6c82]">
         One modern surface to connect devices, see live vitals, and act fast. Built for hospitals and research teams who
         need clarity, not dashboards full of noise.
       </p>
-      <div class="hero-actions">
-        <button class="primary" data-action="launch-app">Access App</button>
-        <a class="link" href="#product">See how it works</a>
+      <div class="mb-3 flex flex-wrap items-center gap-[14px]">
+        <button
+          class="rounded-xl border-0 bg-[linear-gradient(120deg,#0c9dd8,#26c6b8)] px-[18px] py-3 font-extrabold text-white shadow-[0_14px_36px_rgba(12,157,216,0.22)] transition hover:-translate-y-[2px] hover:shadow-[0_18px_48px_rgba(12,157,216,0.28)]"
+          data-action="launch-app"
+        >
+          Access App
+        </button>
+        <a class="border-b border-[rgba(12,157,216,0.3)] pb-[2px] font-bold text-[#0d1f3b]" href="#product">See how it works</a>
       </div>
-      <div class="tags">
-        <span>Streamed vitals</span>
-        <span>Secure end-to-end</span>
-        <span>Clinician-friendly</span>
-        <span>Research-ready</span>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <span class="rounded-full border border-[#e6eef6] bg-[rgba(13,31,59,0.03)] px-[10px] py-2 text-[13px] text-[#5a6c82]">Streamed vitals</span>
+        <span class="rounded-full border border-[#e6eef6] bg-[rgba(13,31,59,0.03)] px-[10px] py-2 text-[13px] text-[#5a6c82]">Secure end-to-end</span>
+        <span class="rounded-full border border-[#e6eef6] bg-[rgba(13,31,59,0.03)] px-[10px] py-2 text-[13px] text-[#5a6c82]">Clinician-friendly</span>
+        <span class="rounded-full border border-[#e6eef6] bg-[rgba(13,31,59,0.03)] px-[10px] py-2 text-[13px] text-[#5a6c82]">Research-ready</span>
       </div>
     </div>
 
-    <div class="hero-panel">
-      <div class="panel-header">
-        <p class="eyebrow">Instant signal</p>
-        <h3>Live stories from raw data</h3>
-        <p class="muted">
+    <div class="flex flex-col gap-4 rounded-[20px] border border-[#e6eef6] bg-white/90 p-5 shadow-[0_30px_70px_rgba(13,31,59,0.12)] backdrop-blur">
+      <div>
+        <p class="m-0 text-[11px] uppercase tracking-[0.12em] font-bold text-[#5a6c82]">Instant signal</p>
+        <h3 class="m-[4px_0] text-[22px] font-semibold">Live stories from raw data</h3>
+        <p class="m-0 text-[#5a6c82] leading-[1.6]">
           Convert raw signals into live vitals, trends, and alerts you can act on now.
         </p>
       </div>
-      <div class="panel-body">
-        <div class="stat">
-          <p class="stat-value">1.8s</p>
-          <p class="stat-label">Stream latency</p>
+      <div class="grid grid-cols-1 gap-3 rounded-[14px] bg-[linear-gradient(120deg,rgba(12,157,216,0.08),rgba(38,198,184,0.07))] p-3 sm:grid-cols-3">
+        <div class="flex flex-col gap-1">
+          <p class="m-0 text-[22px] font-extrabold text-[#0d1f3b]">1.8s</p>
+          <p class="m-0 text-[13px] text-[#5a6c82]">Stream latency</p>
         </div>
-        <div class="stat">
-          <p class="stat-value">24/7</p>
-          <p class="stat-label">Continuous coverage</p>
+        <div class="flex flex-col gap-1">
+          <p class="m-0 text-[22px] font-extrabold text-[#0d1f3b]">24/7</p>
+          <p class="m-0 text-[13px] text-[#5a6c82]">Continuous coverage</p>
         </div>
-        <div class="stat">
-          <p class="stat-value">Grafana</p>
-          <p class="stat-label">Dashboards included</p>
+        <div class="flex flex-col gap-1">
+          <p class="m-0 text-[22px] font-extrabold text-[#0d1f3b]">Grafana</p>
+          <p class="m-0 text-[13px] text-[#5a6c82]">Dashboards included</p>
         </div>
       </div>
-      <div class="panel-footer">
+      <div class="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p class="eyebrow">Fast setup</p>
-          <p class="muted">Link devices to the platform in minutes-no new hardware.</p>
+          <p class="m-0 text-[11px] uppercase tracking-[0.12em] font-bold text-[#5a6c82]">Fast setup</p>
+          <p class="m-0 text-[#5a6c82]">Link devices to the platform in minutes-no new hardware.</p>
         </div>
-        <button class="ghost" data-action="launch-app">Access App</button>
+        <button
+          class="rounded-xl border border-[#e6eef6] bg-[#f7fbff] px-[14px] py-[10px] font-bold text-[#0d1f3b] shadow-[0_10px_24px_rgba(13,31,59,0.12)] transition hover:-translate-y-[1px]"
+          data-action="launch-app"
+        >
+          Access App
+        </button>
       </div>
     </div>
   </section>
 
-  <section id="product" class="product">
+  <section id="product" class="relative z-10 mt-[50px] mb-[18px] grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-[14px]">
     {productPoints.map((item) => (
-      <article class="card">
-        <p class="card-title">{item.title}</p>
-        <p class="muted">{item.body}</p>
+      <article class="rounded-[14px] border border-[#e6eef6] bg-white/90 p-[18px] shadow-[0_18px_42px_rgba(13,31,59,0.08)]">
+        <p class="m-0 mb-2 font-bold text-[#0d1f3b]">{item.title}</p>
+        <p class="m-0 text-[#5a6c82] leading-[1.6]">{item.body}</p>
       </article>
     ))}
   </section>
 
-  <section id="personas" class="personas">
-    <div class="section-head">
-      <p class="pill soft">Built for the teams who rely on it</p>
-      <h2>From bedside to bench-one platform stays in sync.</h2>
+  <section id="personas" class="relative z-10 my-[46px] flex flex-col gap-[18px]">
+    <div class="max-w-[760px]">
+      <p class="inline-flex items-center gap-2 rounded-full border border-[rgba(12,157,216,0.14)] bg-[rgba(12,157,216,0.08)] px-3 py-2 text-[13px] text-[#0c5c89]">
+        Built for the teams who rely on it
+      </p>
+      <h2 class="mt-[6px] mb-3 text-[clamp(26px,4vw,34px)] font-semibold">From bedside to bench-one platform stays in sync.</h2>
     </div>
-    <div class="persona-grid">
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
       {personas.map((persona) => (
-        <article class="persona-card">
-          <p class="card-title">{persona.title}</p>
-          <ul>
+        <article class="rounded-[16px] border border-[rgba(12,157,216,0.12)] bg-[linear-gradient(180deg,rgba(12,157,216,0.04),rgba(255,255,255,0.94))] p-[18px] shadow-[0_20px_46px_rgba(13,31,59,0.08)]">
+          <p class="m-0 mb-2 font-bold text-[#0d1f3b]">{persona.title}</p>
+          <ul class="mt-2 list-disc space-y-2 pl-[18px] text-[#5a6c82] leading-[1.6]">
             {persona.items.map((item) => (
               <li>{item}</li>
             ))}
@@ -147,33 +168,42 @@ const scalePoints = [
     </div>
   </section>
 
-  <section class="scale">
-    <div class="section-head">
-      <p class="pill soft">Why it scales</p>
-      <h2>Stays fast, secure, and reliable as data grows.</h2>
-      <p class="muted">
+  <section class="relative z-10 my-10 rounded-[18px] border border-[#e6eef6] bg-white p-6 shadow-[0_26px_60px_rgba(13,31,59,0.1)]">
+    <div class="max-w-[760px]">
+      <p class="inline-flex items-center gap-2 rounded-full border border-[rgba(12,157,216,0.14)] bg-[rgba(12,157,216,0.08)] px-3 py-2 text-[13px] text-[#0c5c89]">
+        Why it scales
+      </p>
+      <h2 class="mt-[6px] mb-3 text-[clamp(26px,4vw,34px)] font-semibold">Stays fast, secure, and reliable as data grows.</h2>
+      <p class="m-0 text-[#5a6c82] leading-[1.6]">
         Real-time views and ML-driven signals arrive without lag, while privacy holds from device to dashboard.
       </p>
     </div>
-    <div class="scale-grid">
+    <div class="mt-3 grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
       {scalePoints.map((point) => (
-        <div class="scale-item">
-          <span class="dot"></span>
-          <p>{point}</p>
+        <div class="grid grid-cols-[auto_1fr] items-start gap-3 border-t border-[#e6eef6] py-[10px] first:border-t-0">
+          <span class="mt-1 inline-block h-3 w-3 rounded-full bg-[linear-gradient(135deg,#0c9dd8,#26c6b8)]"></span>
+          <p class="m-0 text-[#0d1f3b]">{point}</p>
         </div>
       ))}
     </div>
   </section>
 
-  <section class="cta">
-    <div>
-      <p class="pill soft">Ready to see it live?</p>
-      <h3>Access the app, connect a device, and watch the story form in real time.</h3>
-      <p class="muted">No extra setup. Just the stream, the insights, and the alerts your team needs.</p>
+  <section class="relative z-10 mt-9 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] items-center gap-4 rounded-[18px] border border-[rgba(12,157,216,0.18)] bg-[linear-gradient(130deg,rgba(12,157,216,0.1),rgba(38,198,184,0.1))] px-[22px] py-[24px]">
+    <div class="space-y-2">
+      <p class="inline-flex items-center gap-2 rounded-full border border-[rgba(12,157,216,0.14)] bg-[rgba(12,157,216,0.08)] px-3 py-2 text-[13px] text-[#0c5c89]">
+        Ready to see it live?
+      </p>
+      <h3 class="m-0 text-[22px] font-semibold">Access the app, connect a device, and watch the story form in real time.</h3>
+      <p class="m-0 text-[#5a6c82]">No extra setup. Just the stream, the insights, and the alerts your team needs.</p>
     </div>
-    <div class="cta-actions">
-      <button class="primary" data-action="launch-app">Access App</button>
-      <a class="link" href="#personas">Meet the workflows</a>
+    <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+      <button
+        class="rounded-xl border-0 bg-[linear-gradient(120deg,#0c9dd8,#26c6b8)] px-[18px] py-3 font-extrabold text-white shadow-[0_14px_36px_rgba(12,157,216,0.22)] transition hover:-translate-y-[2px] hover:shadow-[0_18px_48px_rgba(12,157,216,0.28)]"
+        data-action="launch-app"
+      >
+        Access App
+      </button>
+      <a class="border-b border-[rgba(12,157,216,0.3)] pb-[2px] font-bold text-[#0d1f3b]" href="#personas">Meet the workflows</a>
     </div>
   </section>
 </main>
@@ -192,486 +222,3 @@ const scalePoints = [
     });
   });
 </script>
-
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap');
-
-  :global(*) {
-    box-sizing: border-box;
-  }
-
-  :global(body) {
-    margin: 0;
-    font-family: 'Sora', 'Inter', system-ui, -apple-system, sans-serif;
-    color: #0d1f3b;
-    background: #f7fbff;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  :root {
-    --ink: #0d1f3b;
-    --accent: #0c9dd8;
-    --mint: #26c6b8;
-    --line: #e6eef6;
-    --muted: #5a6c82;
-  }
-
-  .page {
-    min-height: 100vh;
-    position: relative;
-    padding: 28px clamp(20px, 5vw, 56px) 80px;
-    overflow: hidden;
-  }
-
-  .ambient {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
-
-  .orb {
-    position: absolute;
-    filter: blur(40px);
-    border-radius: 50%;
-    opacity: 0.55;
-  }
-
-  .orb-a {
-    width: 360px;
-    height: 360px;
-    background: radial-gradient(circle, rgba(12, 157, 216, 0.26), transparent 60%);
-    top: -80px;
-    left: -120px;
-  }
-
-  .orb-b {
-    width: 280px;
-    height: 280px;
-    background: radial-gradient(circle, rgba(38, 198, 184, 0.32), transparent 60%);
-    bottom: 10%;
-    right: 12%;
-  }
-
-  .orb-c {
-    width: 220px;
-    height: 220px;
-    background: radial-gradient(circle, rgba(12, 157, 216, 0.18), transparent 55%);
-    bottom: -40px;
-    left: 22%;
-  }
-
-  .nav {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 32px;
-  }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .mark {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, rgba(12, 157, 216, 0.1), rgba(38, 198, 184, 0.2));
-    display: grid;
-    place-items: center;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .mark span {
-    position: absolute;
-    background: linear-gradient(135deg, #0c9dd8, #26c6b8);
-    border-radius: 999px;
-  }
-
-  .mark span:first-child {
-    width: 70%;
-    height: 10px;
-  }
-
-  .mark span:last-child {
-    width: 10px;
-    height: 70%;
-  }
-
-  .brand-name {
-    margin: 2px 0 0;
-    font-weight: 700;
-    font-size: 18px;
-    letter-spacing: 0.01em;
-  }
-
-  .eyebrow {
-    margin: 0;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--muted);
-    font-weight: 700;
-  }
-
-  .nav-actions {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .nav-actions a {
-    color: var(--muted);
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 14px;
-  }
-
-  .outline {
-    padding: 10px 14px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.9);
-    color: var(--ink);
-    font-weight: 700;
-    cursor: pointer;
-    transition: transform 150ms ease, box-shadow 150ms ease;
-  }
-
-  .outline:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(12, 157, 216, 0.12);
-  }
-
-  .hero {
-    position: relative;
-    z-index: 1;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 30px;
-    align-items: center;
-  }
-
-  h1 {
-    font-size: clamp(36px, 5vw, 56px);
-    margin: 10px 0 12px;
-    line-height: 1.08;
-  }
-
-  h2 {
-    margin: 6px 0 12px;
-    font-size: clamp(26px, 4vw, 34px);
-  }
-
-  h3 {
-    margin: 8px 0 6px;
-    font-size: 22px;
-  }
-
-  .lede {
-    color: var(--muted);
-    font-size: 17px;
-    line-height: 1.65;
-    max-width: 640px;
-    margin: 0 0 18px;
-  }
-
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    border-radius: 999px;
-    background: #ffffff;
-    border: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 13px;
-    letter-spacing: 0.01em;
-  }
-
-  .pill.soft {
-    background: rgba(12, 157, 216, 0.08);
-    border-color: rgba(12, 157, 216, 0.14);
-    color: #0c5c89;
-  }
-
-  .hero-actions {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 12px;
-  }
-
-  .primary {
-    padding: 12px 18px;
-    border-radius: 12px;
-    border: none;
-    background: linear-gradient(120deg, #0c9dd8, #26c6b8);
-    color: white;
-    font-weight: 800;
-    cursor: pointer;
-    letter-spacing: 0.01em;
-    box-shadow: 0 14px 36px rgba(12, 157, 216, 0.22);
-    transition: transform 150ms ease, box-shadow 150ms ease;
-  }
-
-  .primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 18px 48px rgba(12, 157, 216, 0.28);
-  }
-
-  .link {
-    color: var(--ink);
-    font-weight: 700;
-    text-decoration: none;
-    border-bottom: 1px solid rgba(12, 157, 216, 0.3);
-    padding-bottom: 2px;
-  }
-
-  .tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
-  }
-
-  .tags span {
-    padding: 8px 10px;
-    border-radius: 999px;
-    background: rgba(13, 31, 59, 0.03);
-    border: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 13px;
-  }
-
-  .hero-panel {
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid var(--line);
-    box-shadow: 0 30px 70px rgba(13, 31, 59, 0.12);
-    border-radius: 20px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    backdrop-filter: blur(6px);
-  }
-
-  .panel-header h3 {
-    margin: 4px 0;
-  }
-
-  .muted {
-    margin: 0;
-    color: var(--muted);
-    line-height: 1.6;
-  }
-
-  .panel-body {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    padding: 12px;
-    border-radius: 14px;
-    background: linear-gradient(120deg, rgba(12, 157, 216, 0.08), rgba(38, 198, 184, 0.07));
-  }
-
-  .stat {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .stat-value {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 800;
-    color: var(--ink);
-  }
-
-  .stat-label {
-    margin: 0;
-    color: var(--muted);
-    font-size: 13px;
-  }
-
-  .panel-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding-top: 6px;
-  }
-
-  .ghost {
-    padding: 10px 14px;
-    border-radius: 12px;
-    border: 1px solid var(--line);
-    background: #f7fbff;
-    color: var(--ink);
-    font-weight: 700;
-    cursor: pointer;
-    transition: transform 150ms ease, box-shadow 150ms ease;
-  }
-
-  .ghost:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 24px rgba(13, 31, 59, 0.12);
-  }
-
-  .product {
-    position: relative;
-    z-index: 1;
-    margin: 50px 0 18px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 14px;
-  }
-
-  .card {
-    padding: 18px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid var(--line);
-    box-shadow: 0 18px 42px rgba(13, 31, 59, 0.08);
-  }
-
-  .card-title {
-    margin: 0 0 8px;
-    font-weight: 700;
-    color: var(--ink);
-  }
-
-  .personas {
-    position: relative;
-    z-index: 1;
-    margin: 46px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
-
-  .section-head {
-    max-width: 760px;
-  }
-
-  .persona-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 16px;
-  }
-
-  .persona-card {
-    padding: 18px 18px 14px;
-    border-radius: 16px;
-    background: linear-gradient(180deg, rgba(12, 157, 216, 0.04), rgba(255, 255, 255, 0.94));
-    border: 1px solid rgba(12, 157, 216, 0.12);
-    box-shadow: 0 20px 46px rgba(13, 31, 59, 0.08);
-  }
-
-  .persona-card ul {
-    margin: 8px 0 0;
-    padding-left: 18px;
-    color: var(--muted);
-    line-height: 1.6;
-  }
-
-  .persona-card li {
-    margin-bottom: 8px;
-  }
-
-  .scale {
-    position: relative;
-    z-index: 1;
-    margin: 40px 0;
-    padding: 24px;
-    border-radius: 18px;
-    background: #ffffff;
-    border: 1px solid var(--line);
-    box-shadow: 0 26px 60px rgba(13, 31, 59, 0.1);
-  }
-
-  .scale-grid {
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 12px;
-  }
-
-  .scale-item {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 10px;
-    align-items: flex-start;
-    padding: 10px 0;
-    border-top: 1px solid var(--line);
-  }
-
-  .scale-item:first-child {
-    border-top: none;
-  }
-
-  .dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #0c9dd8, #26c6b8);
-    display: inline-block;
-    margin-top: 4px;
-  }
-
-  .cta {
-    position: relative;
-    z-index: 1;
-    margin-top: 36px;
-    padding: 22px 22px 24px;
-    border-radius: 18px;
-    background: linear-gradient(130deg, rgba(12, 157, 216, 0.1), rgba(38, 198, 184, 0.1));
-    border: 1px solid rgba(12, 157, 216, 0.18);
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
-    align-items: center;
-  }
-
-  .cta h3 {
-    margin: 6px 0 6px;
-  }
-
-  .cta-actions {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
-
-  @media (max-width: 768px) {
-    .nav {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 12px;
-    }
-
-    .nav-actions {
-      width: 100%;
-      justify-content: space-between;
-    }
-
-    .panel-footer {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .hero-actions {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .cta-actions {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-  }
-</style>
