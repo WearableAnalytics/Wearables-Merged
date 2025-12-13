@@ -1,5 +1,5 @@
 import { Route, Routes } from 'react-router-dom';
-import { AddCasePage } from './pages/AddCase/AddCase';
+import { AddCasePage } from './pages/add-case/AddCase';
 import { OverviewPage } from './pages/Overview';
 import { LogoutPage } from './pages/Logout';
 import { NotFoundPage } from './pages/NotFound';
