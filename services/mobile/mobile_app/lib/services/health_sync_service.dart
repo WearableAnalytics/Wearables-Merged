@@ -99,9 +99,8 @@ class HealthSyncService {
       }
     }
 
-    final protectedAvailable =
-        await DeviceLockService.isProtectedDataAvailable();
-    if (!protectedAvailable) {
+    final unlocked = await DeviceLockService.isDeviceUnlocked();
+    if (!unlocked) {
       return HealthSyncResult(
         status: HealthSyncStatus.protectedDataUnavailable,
         totalSent: 0,
@@ -147,7 +146,7 @@ class HealthSyncService {
     }
 
     if (healthData.isEmpty) {
-      final stillLocked = !await DeviceLockService.isProtectedDataAvailable();
+      final stillLocked = !await DeviceLockService.isDeviceUnlocked();
       if (stillLocked) {
         return HealthSyncResult(
           status: HealthSyncStatus.protectedDataUnavailable,
