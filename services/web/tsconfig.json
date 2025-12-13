@@ -1,8 +1,11 @@
 {
-  "extends": "astro/tsconfigs/strict",
+  "extends": "./tsconfig.app.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "types": ["@astrojs/react/types", "astro/client"]
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
-  "include": ["src/**/*"]
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }
