@@ -1,106 +1,165 @@
 ---
-const highlights = [
-  { title: 'Live vitals', body: 'Continuous streams from wearables are unified and normalized in real time.' },
-  { title: 'Clinical signals', body: 'Surface anomalies, trends, and alerts that clinicians can act on quickly.' },
-  { title: 'Privacy-first', body: 'Zero-knowledge storage options and audited access for every session.' },
+const productPoints = [
+  {
+    title: 'What it is',
+    body: 'One place that connects any wearable, streams data instantly, and keeps it secure end-to-end.',
+  },
+  {
+    title: 'What it does',
+    body: 'Converts raw signals into clear patient stories-live vitals, trends, and meaningful alerts you can act on now.',
+  },
+  {
+    title: 'Where it shows up',
+    body: 'A web app for clinicians, ready-made Grafana dashboards for oversight, and a companion app that links devices to the platform in minutes.',
+  },
 ];
 
-const steps = [
-  { label: '01', title: 'Connect', body: 'Securely connect every wearable vendor in minutes with built-in SSO.' },
-  { label: '02', title: 'Observe', body: 'Real-time dashboards for clinicians, care teams, and operations.' },
-  { label: '03', title: 'Intervene', body: 'Trigger playbooks, notify teams, and close the loop inside the app.' },
+const personas = [
+  {
+    title: 'For practitioners',
+    items: [
+      'Run assessments like the six-minute walk test.',
+      'Monitor patients continuously with calm, reliable views.',
+      'Get alerted before small issues become big ones.',
+    ],
+  },
+  {
+    title: 'For researchers',
+    items: [
+      'Explore rich, longitudinal datasets with built-in insights.',
+      'Visualize trends without wrangling-just analysis.',
+      'Export what you need while keeping data protected.',
+    ],
+  },
+];
+
+const scalePoints = [
+  'Built to stay fast and reliable as data grows.',
+  'Delivers real-time views and ML-driven signals without slowing down.',
+  'Security stays intact from device to dashboard.',
 ];
 ---
 
 <main class="page">
-  <div class="glow"></div>
+  <div class="ambient">
+    <span class="orb orb-a"></span>
+    <span class="orb orb-b"></span>
+    <span class="orb orb-c"></span>
+  </div>
+
   <header class="nav">
     <div class="brand">
-      <div class="dot"></div>
-      <span>Wearables Console</span>
+      <div class="mark">
+        <span></span>
+        <span></span>
+      </div>
+      <div>
+        <p class="eyebrow">Wearables</p>
+        <p class="brand-name">Clinical Platform</p>
+      </div>
     </div>
     <div class="nav-actions">
-      <a href="#how">How it works</a>
-      <a href="#features">Features</a>
-      <button class="ghost" data-action="launch-app">Open console</button>
+      <a href="#product">Product</a>
+      <a href="#personas">Teams</a>
+      <button class="outline" data-action="launch-app">Access App</button>
     </div>
   </header>
 
   <section class="hero">
     <div class="hero-copy">
-      <p class="pill">Continuous patient signal</p>
+      <p class="pill">Real-time wearables platform for care and research.</p>
       <h1>
-        Precision monitoring
-        <span class="gradient">for every bed</span>
+        Calm, clinical insight from every wearable-without extra work.
       </h1>
       <p class="lede">
-        We turn noisy wearable streams into calm, clinical clarity. Cohesive data, actionable alerts,
-        and a console built for care teams who cannot afford to miss a beat.
+        One modern surface to connect devices, see live vitals, and act fast. Built for hospitals and research teams who
+        need clarity, not dashboards full of noise.
       </p>
-      <div class="meta">
-        <div>
-          <p class="eyebrow">Latency</p>
-          <p class="metric">sub-2s</p>
-        </div>
-        <div>
-          <p class="eyebrow">Coverage</p>
-          <p class="metric">24/7</p>
-        </div>
-        <div>
-          <p class="eyebrow">Deploy</p>
-          <p class="metric">cloud / edge</p>
-        </div>
+      <div class="hero-actions">
+        <button class="primary" data-action="launch-app">Access App</button>
+        <a class="link" href="#product">See how it works</a>
+      </div>
+      <div class="tags">
+        <span>Streamed vitals</span>
+        <span>Secure end-to-end</span>
+        <span>Clinician-friendly</span>
+        <span>Research-ready</span>
       </div>
     </div>
 
-    <div class="panel">
+    <div class="hero-panel">
       <div class="panel-header">
-        <div>
-          <p class="eyebrow">Register / Login</p>
-          <h2>SSO access in seconds</h2>
-          <p class="muted">Preview the console instantly—no email required.</p>
+        <p class="eyebrow">Instant signal</p>
+        <h3>Live stories from raw data</h3>
+        <p class="muted">
+          Convert raw signals into live vitals, trends, and alerts you can act on now.
+        </p>
+      </div>
+      <div class="panel-body">
+        <div class="stat">
+          <p class="stat-value">1.8s</p>
+          <p class="stat-label">Stream latency</p>
         </div>
-        <button class="chip">SOC2 ready</button>
+        <div class="stat">
+          <p class="stat-value">24/7</p>
+          <p class="stat-label">Continuous coverage</p>
+        </div>
+        <div class="stat">
+          <p class="stat-value">Grafana</p>
+          <p class="stat-label">Dashboards included</p>
+        </div>
       </div>
-      <div class="launch-actions">
-        <p class="helper">One click to enter the console experience.</p>
-        <button class="primary" data-action="launch-app">Enter console</button>
-      </div>
-      <div class="chips">
-        <span>Streamed vitals</span>
-        <span>Audit-ready</span>
-        <span>FHIR exports</span>
-        <span>On-call routing</span>
+      <div class="panel-footer">
+        <div>
+          <p class="eyebrow">Fast setup</p>
+          <p class="muted">Link devices to the platform in minutes-no new hardware.</p>
+        </div>
+        <button class="ghost" data-action="launch-app">Access App</button>
       </div>
     </div>
   </section>
 
-  <section class="grid" id="features">
-    {highlights.map((item) => (
+  <section id="product" class="product">
+    {productPoints.map((item) => (
       <article class="card">
-        <div class="badge">{item.title}</div>
-        <p>{item.body}</p>
+        <p class="card-title">{item.title}</p>
+        <p class="muted">{item.body}</p>
       </article>
     ))}
   </section>
 
-  <section class="timeline" id="how">
-    <div class="timeline-copy">
-      <p class="pill">How it works</p>
-      <h3>Built for teams who need reliable signals, not raw data.</h3>
+  <section id="personas" class="personas">
+    <div class="section-head">
+      <p class="pill soft">Built for the teams who rely on it</p>
+      <h2>From bedside to bench-one platform stays in sync.</h2>
+    </div>
+    <div class="persona-grid">
+      {personas.map((persona) => (
+        <article class="persona-card">
+          <p class="card-title">{persona.title}</p>
+          <ul>
+            {persona.items.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="scale">
+    <div class="section-head">
+      <p class="pill soft">Why it scales</p>
+      <h2>Stays fast, secure, and reliable as data grows.</h2>
       <p class="muted">
-        Every stream is normalized, encrypted, and labeled before it reaches your clinicians. Alert fatigue drops,
-        response time shrinks, and patients stay seen.
+        Real-time views and ML-driven signals arrive without lag, while privacy holds from device to dashboard.
       </p>
     </div>
-    <div class="steps">
-      {steps.map((step) => (
-        <div class="step">
-          <span class="step-id">{step.label}</span>
-          <div>
-            <p class="step-title">{step.title}</p>
-            <p class="muted">{step.body}</p>
-          </div>
+    <div class="scale-grid">
+      {scalePoints.map((point) => (
+        <div class="scale-item">
+          <span class="dot"></span>
+          <p>{point}</p>
         </div>
       ))}
     </div>
@@ -108,13 +167,13 @@ const steps = [
 
   <section class="cta">
     <div>
-      <p class="pill">Ready when you are</p>
-      <h3>Jump into the console and see live patient data.</h3>
-      <p class="muted">One click to the console. No waiting for approvals.</p>
+      <p class="pill soft">Ready to see it live?</p>
+      <h3>Access the app, connect a device, and watch the story form in real time.</h3>
+      <p class="muted">No extra setup. Just the stream, the insights, and the alerts your team needs.</p>
     </div>
     <div class="cta-actions">
-      <button class="ghost" data-action="launch-app">Open console</button>
-      <a class="text-link" href="#features">Explore features</a>
+      <button class="primary" data-action="launch-app">Access App</button>
+      <a class="link" href="#personas">Meet the workflows</a>
     </div>
   </section>
 </main>
@@ -135,36 +194,70 @@ const steps = [
 </script>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
-
-  :global(body) {
-    margin: 0;
-    font-family: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
-    color: #0b162a;
-    background: #04060b;
-  }
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap');
 
   :global(*) {
     box-sizing: border-box;
   }
 
+  :global(body) {
+    margin: 0;
+    font-family: 'Sora', 'Inter', system-ui, -apple-system, sans-serif;
+    color: #0d1f3b;
+    background: #f7fbff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :root {
+    --ink: #0d1f3b;
+    --accent: #0c9dd8;
+    --mint: #26c6b8;
+    --line: #e6eef6;
+    --muted: #5a6c82;
+  }
+
   .page {
     min-height: 100vh;
     position: relative;
-    padding: 32px clamp(20px, 5vw, 48px) 80px;
-    background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15), transparent 25%),
-      radial-gradient(circle at 90% 10%, rgba(16, 185, 129, 0.18), transparent 28%),
-      linear-gradient(135deg, #04060b 0%, #0b1221 60%, #0d172f 100%);
+    padding: 28px clamp(20px, 5vw, 56px) 80px;
     overflow: hidden;
   }
 
-  .glow {
+  .ambient {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.04), transparent 40%),
-      radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.12), transparent 35%);
-    filter: blur(14px);
     pointer-events: none;
+  }
+
+  .orb {
+    position: absolute;
+    filter: blur(40px);
+    border-radius: 50%;
+    opacity: 0.55;
+  }
+
+  .orb-a {
+    width: 360px;
+    height: 360px;
+    background: radial-gradient(circle, rgba(12, 157, 216, 0.26), transparent 60%);
+    top: -80px;
+    left: -120px;
+  }
+
+  .orb-b {
+    width: 280px;
+    height: 280px;
+    background: radial-gradient(circle, rgba(38, 198, 184, 0.32), transparent 60%);
+    bottom: 10%;
+    right: 12%;
+  }
+
+  .orb-c {
+    width: 220px;
+    height: 220px;
+    background: radial-gradient(circle, rgba(12, 157, 216, 0.18), transparent 55%);
+    bottom: -40px;
+    left: 22%;
   }
 
   .nav {
@@ -177,33 +270,81 @@ const steps = [
   }
 
   .brand {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 10px;
-    font-weight: 700;
-    color: #e2e8f0;
-    letter-spacing: 0.02em;
+    gap: 12px;
   }
 
-  .dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #22d3ee, #60a5fa);
-    box-shadow: 0 0 0 6px rgba(96, 165, 250, 0.15);
+  .mark {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(12, 157, 216, 0.1), rgba(38, 198, 184, 0.2));
+    display: grid;
+    place-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mark span {
+    position: absolute;
+    background: linear-gradient(135deg, #0c9dd8, #26c6b8);
+    border-radius: 999px;
+  }
+
+  .mark span:first-child {
+    width: 70%;
+    height: 10px;
+  }
+
+  .mark span:last-child {
+    width: 10px;
+    height: 70%;
+  }
+
+  .brand-name {
+    margin: 2px 0 0;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.01em;
+  }
+
+  .eyebrow {
+    margin: 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    font-weight: 700;
   }
 
   .nav-actions {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 14px;
   }
 
   .nav-actions a {
-    color: #cbd5e1;
+    color: var(--muted);
     text-decoration: none;
     font-weight: 600;
     font-size: 14px;
+  }
+
+  .outline {
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--ink);
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 150ms ease, box-shadow 150ms ease;
+  }
+
+  .outline:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(12, 157, 216, 0.12);
   }
 
   .hero {
@@ -211,56 +352,32 @@ const steps = [
     z-index: 1;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 28px;
+    gap: 30px;
     align-items: center;
   }
 
-  .hero-copy h1 {
-    margin: 8px 0 12px;
-    font-size: clamp(38px, 6vw, 56px);
-    color: #f8fafc;
+  h1 {
+    font-size: clamp(36px, 5vw, 56px);
+    margin: 10px 0 12px;
     line-height: 1.08;
   }
 
-  .gradient {
-    display: inline-block;
-    background: linear-gradient(120deg, #34d399, #22d3ee, #a855f7);
-    -webkit-background-clip: text;
-    color: transparent;
+  h2 {
+    margin: 6px 0 12px;
+    font-size: clamp(26px, 4vw, 34px);
+  }
+
+  h3 {
+    margin: 8px 0 6px;
+    font-size: 22px;
   }
 
   .lede {
-    color: #cbd5e1;
-    max-width: 560px;
-    margin: 0 0 18px;
+    color: var(--muted);
     font-size: 17px;
-    line-height: 1.7;
-  }
-
-  .meta {
-    display: flex;
-    gap: 22px;
-    padding: 14px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 14px;
-    backdrop-filter: blur(4px);
-    width: fit-content;
-  }
-
-  .eyebrow {
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-size: 11px;
-    color: #94a3b8;
-    margin: 0 0 4px;
-  }
-
-  .metric {
-    margin: 0;
-    color: #e2e8f0;
-    font-weight: 700;
-    font-size: 18px;
+    line-height: 1.65;
+    max-width: 640px;
+    margin: 0 0 18px;
   }
 
   .pill {
@@ -269,225 +386,292 @@ const steps = [
     gap: 8px;
     padding: 8px 12px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #cbd5e1;
+    background: #ffffff;
+    border: 1px solid var(--line);
+    color: var(--muted);
     font-size: 13px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
   }
 
-  .panel {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 18px;
-    padding: 22px;
-    backdrop-filter: blur(8px);
-    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+  .pill.soft {
+    background: rgba(12, 157, 216, 0.08);
+    border-color: rgba(12, 157, 216, 0.14);
+    color: #0c5c89;
   }
 
-  .panel-header {
+  .hero-actions {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 16px;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
   }
 
-  .panel-header h2 {
+  .primary {
+    padding: 12px 18px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(120deg, #0c9dd8, #26c6b8);
+    color: white;
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    box-shadow: 0 14px 36px rgba(12, 157, 216, 0.22);
+    transition: transform 150ms ease, box-shadow 150ms ease;
+  }
+
+  .primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 48px rgba(12, 157, 216, 0.28);
+  }
+
+  .link {
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(12, 157, 216, 0.3);
+    padding-bottom: 2px;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .tags span {
+    padding: 8px 10px;
+    border-radius: 999px;
+    background: rgba(13, 31, 59, 0.03);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .hero-panel {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--line);
+    box-shadow: 0 30px 70px rgba(13, 31, 59, 0.12);
+    border-radius: 20px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    backdrop-filter: blur(6px);
+  }
+
+  .panel-header h3 {
     margin: 4px 0;
-    color: #f8fafc;
   }
 
   .muted {
     margin: 0;
-    color: #94a3b8;
+    color: var(--muted);
     line-height: 1.6;
   }
 
-  .chip {
-    padding: 8px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.05);
-    color: #cbd5e1;
-    font-weight: 600;
+  .panel-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 12px;
+    border-radius: 14px;
+    background: linear-gradient(120deg, rgba(12, 157, 216, 0.08), rgba(38, 198, 184, 0.07));
   }
 
-  .launch-actions {
+  .stat {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    align-items: flex-start;
+    gap: 4px;
   }
 
-  .primary {
-    padding: 12px 16px;
-    border-radius: 12px;
-    border: none;
-    background: linear-gradient(135deg, #22d3ee, #60a5fa);
-    color: #0b1221;
-    font-weight: 800;
-    cursor: pointer;
-    letter-spacing: 0.01em;
-  }
-
-  .helper {
+  .stat-value {
     margin: 0;
-    color: #94a3b8;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--ink);
+  }
+
+  .stat-label {
+    margin: 0;
+    color: var(--muted);
     font-size: 13px;
   }
 
-  .chips {
+  .panel-footer {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 6px;
   }
 
-  .chips span {
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #cbd5e1;
-    font-size: 13px;
+  .ghost {
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: #f7fbff;
+    color: var(--ink);
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 150ms ease, box-shadow 150ms ease;
   }
 
-  .grid {
+  .ghost:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(13, 31, 59, 0.12);
+  }
+
+  .product {
     position: relative;
     z-index: 1;
-    margin: 36px 0;
+    margin: 50px 0 18px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 14px;
   }
 
   .card {
     padding: 18px;
     border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
-    color: #cbd5e1;
-    box-shadow: 0 12px 38px rgba(0, 0, 0, 0.22);
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--line);
+    box-shadow: 0 18px 42px rgba(13, 31, 59, 0.08);
   }
 
-  .badge {
-    display: inline-flex;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: rgba(96, 165, 250, 0.12);
-    color: #e2e8f0;
+  .card-title {
+    margin: 0 0 8px;
     font-weight: 700;
-    margin-bottom: 8px;
-    font-size: 13px;
+    color: var(--ink);
   }
 
-  .timeline {
+  .personas {
     position: relative;
     z-index: 1;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 24px;
-    align-items: center;
-    padding: 26px;
-    border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  .timeline h3 {
-    margin: 8px 0 12px;
-    color: #f8fafc;
-    font-size: clamp(24px, 4vw, 32px);
-  }
-
-  .steps {
+    margin: 46px 0;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 18px;
   }
 
-  .step {
+  .section-head {
+    max-width: 760px;
+  }
+
+  .persona-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .persona-card {
+    padding: 18px 18px 14px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(12, 157, 216, 0.04), rgba(255, 255, 255, 0.94));
+    border: 1px solid rgba(12, 157, 216, 0.12);
+    box-shadow: 0 20px 46px rgba(13, 31, 59, 0.08);
+  }
+
+  .persona-card ul {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .persona-card li {
+    margin-bottom: 8px;
+  }
+
+  .scale {
+    position: relative;
+    z-index: 1;
+    margin: 40px 0;
+    padding: 24px;
+    border-radius: 18px;
+    background: #ffffff;
+    border: 1px solid var(--line);
+    box-shadow: 0 26px 60px rgba(13, 31, 59, 0.1);
+  }
+
+  .scale-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+  }
+
+  .scale-item {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 12px;
-    align-items: center;
-    padding: 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.02);
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
   }
 
-  .step-id {
-    width: 40px;
-    height: 40px;
-    display: grid;
-    place-items: center;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #22d3ee, #60a5fa);
-    color: #0b1221;
-    font-weight: 800;
+  .scale-item:first-child {
+    border-top: none;
   }
 
-  .step-title {
-    margin: 0 0 4px;
-    color: #e2e8f0;
-    font-weight: 700;
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0c9dd8, #26c6b8);
+    display: inline-block;
+    margin-top: 4px;
   }
 
   .cta {
     position: relative;
     z-index: 1;
-    margin-top: 40px;
-    padding: 22px 24px;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(96, 165, 250, 0.08));
+    margin-top: 36px;
+    padding: 22px 22px 24px;
+    border-radius: 18px;
+    background: linear-gradient(130deg, rgba(12, 157, 216, 0.1), rgba(38, 198, 184, 0.1));
+    border: 1px solid rgba(12, 157, 216, 0.18);
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 16px;
     align-items: center;
   }
 
   .cta h3 {
-    margin: 6px 0 4px;
-    color: #0b1221;
-  }
-
-  .cta .muted {
-    color: #0b1221;
-    opacity: 0.8;
+    margin: 6px 0 6px;
   }
 
   .cta-actions {
     display: flex;
-    align-items: center;
     gap: 12px;
-    justify-content: flex-end;
-  }
-
-  .ghost {
-    padding: 10px 14px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.06);
-    color: #f8fafc;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .text-link {
-    color: #0b1221;
-    font-weight: 700;
-    text-decoration: none;
+    align-items: center;
   }
 
   @media (max-width: 768px) {
+    .nav {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
     .nav-actions {
-      gap: 10px;
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .panel-footer {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .hero-actions {
+      flex-direction: column;
+      align-items: flex-start;
     }
 
     .cta-actions {
-      justify-content: flex-start;
+      flex-direction: column;
+      align-items: flex-start;
     }
   }
 </style>
