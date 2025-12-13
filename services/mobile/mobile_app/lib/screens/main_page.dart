@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
 import '../data_view_page.dart';
 import '../services/health_sync_service.dart';
 import '../services/sync_activity_notifier.dart';
 import '../storage_service.dart';
 import 'qr_scan_page.dart';
+import '../widgets/sending_status_overlay.dart';
 
 enum _DeviceIdInputChoice { manual, qr }
 
@@ -139,13 +138,6 @@ class _MainPageState extends State<MainPage> {
       setState(() {
         _deviceIdController.text = scannedValue.trim();
       });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Device ID scanned from QR code.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
     }
   }
 
@@ -166,19 +158,6 @@ class _MainPageState extends State<MainPage> {
 
       await _loadDeviceInfo();
       if (!mounted) return;
-      String message;
-      if (newDeviceId != currentId && _resetLastSync) {
-        message = 'Device ID updated and last sync reset.';
-      } else if (newDeviceId != currentId) {
-        message = 'Device ID updated successfully.';
-      } else if (_resetLastSync) {
-        message = 'Last sync time reset.';
-      } else {
-        message = 'No changes made.';
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-      );
       setState(() {
         _resetLastSync = false;
       });
@@ -188,94 +167,8 @@ class _MainPageState extends State<MainPage> {
   Future<void> _sendRecentHealthData() async {
     if (SyncActivityNotifier.isSyncing.value) return;
 
-    final result = await _healthSyncService.sendSinceLastSync();
+    await _healthSyncService.sendSinceLastSync();
     await _loadDeviceInfo();
-
-    if (!mounted) return;
-
-    switch (result.status) {
-      case HealthSyncStatus.success:
-        _showSuccessMessage(
-          'Data sent successfully!\n\n${result.totalSent} data points uploaded.',
-        );
-        break;
-      case HealthSyncStatus.partialSuccess:
-        _showSuccessMessage(
-          'Partially successful!\n\n${result.totalSent} out of ${result.totalAvailable} data points uploaded.\n\nLast error: ${result.lastError}',
-        );
-        break;
-      case HealthSyncStatus.nothingToSend:
-        _showErrorMessage('No new health data found to upload.');
-        break;
-      case HealthSyncStatus.permissionDenied:
-        _showErrorMessage(
-          'Authorization not granted. Please enable health permissions and try again.',
-        );
-        break;
-      case HealthSyncStatus.protectedDataUnavailable:
-        _showErrorMessage(
-          'Unlock your phone to access health data and try again.',
-        );
-        break;
-      case HealthSyncStatus.failed:
-        _showErrorMessage(
-          'Failed to send health data.\n\n${result.lastError ?? "Unknown error"}',
-        );
-        break;
-    }
-  }
-
-  void _showSuccessMessage(String message) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          icon: const Icon(Icons.check_circle, color: Colors.green, size: 48),
-          title: const Text('Success'),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showErrorMessage(String message) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          icon: const Icon(Icons.error, color: Colors.red, size: 48),
-          title: const Text('Error'),
-          content: SingleChildScrollView(child: SelectableText(message)),
-          actions: [
-            TextButton.icon(
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: message));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Error details copied to clipboard'),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                }
-              },
-              icon: const Icon(Icons.copy, size: 16),
-              label: const Text('Copy'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   String _formatDateTime(DateTime dateTime) {
@@ -284,9 +177,21 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final headerBackground = colorScheme.primaryContainer.withOpacity(0.1);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Health Monitor'),
+        backgroundColor: headerBackground,
+        surfaceTintColor: headerBackground,
+        elevation: 0,
+        centerTitle: false,
+        automaticallyImplyLeading: false,
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
+        title: const SendingStatusOverlay(
+          padding: EdgeInsets.zero,
+          useSafeArea: false,
+        ),
         actions: [
           IconButton(
             onPressed: () {
@@ -642,56 +547,6 @@ class _MainPageState extends State<MainPage> {
                     );
                   },
                 ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: ValueListenableBuilder<bool>(
-                valueListenable: SyncActivityNotifier.isSyncing,
-                builder: (context, isSyncing, _) {
-                  if (!isSyncing) return const SizedBox.shrink();
-                  final colorScheme = Theme.of(context).colorScheme;
-                  return Align(
-                    alignment: Alignment.topLeft,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer.withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Sending',
-                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: colorScheme.onPrimaryContainer,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
               ),
             ),
           ),

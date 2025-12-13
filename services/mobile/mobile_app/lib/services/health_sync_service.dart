@@ -55,18 +55,24 @@ class HealthSyncService {
   }) async {
     final now = DateTime.now();
     final activity = SyncActivityNotifier.startSync();
+    HealthSyncResult complete(HealthSyncResult result) {
+      SyncActivityNotifier.reportResult(_mapOutcome(result.status));
+      return result;
+    }
 
     try {
       try {
         await _health.configure();
       } catch (e) {
-        return HealthSyncResult(
-          status: HealthSyncStatus.failed,
-          totalSent: 0,
-          totalAvailable: 0,
-          rangeStart: now,
-          rangeEnd: now,
-          lastError: 'Unable to configure health plugin: $e',
+        return complete(
+          HealthSyncResult(
+            status: HealthSyncStatus.failed,
+            totalSent: 0,
+            totalAvailable: 0,
+            rangeStart: now,
+            rangeEnd: now,
+            lastError: 'Unable to configure health plugin: $e',
+          ),
         );
       }
 
@@ -77,13 +83,15 @@ class HealthSyncService {
               false;
       if (!alreadyGranted) {
         if (!requestPermissions) {
-          return HealthSyncResult(
-            status: HealthSyncStatus.permissionDenied,
-            totalSent: 0,
-            totalAvailable: 0,
-            rangeStart: now,
-            rangeEnd: now,
-            lastError: 'Health permissions not granted',
+          return complete(
+            HealthSyncResult(
+              status: HealthSyncStatus.permissionDenied,
+              totalSent: 0,
+              totalAvailable: 0,
+              rangeStart: now,
+              rangeEnd: now,
+              lastError: 'Health permissions not granted',
+            ),
           );
         }
 
@@ -92,27 +100,31 @@ class HealthSyncService {
           permissions: permissions,
         );
         if (!granted) {
-          return HealthSyncResult(
-            status: HealthSyncStatus.permissionDenied,
-            totalSent: 0,
-            totalAvailable: 0,
-            rangeStart: now,
-            rangeEnd: now,
-            lastError: 'Authorization not granted',
+          return complete(
+            HealthSyncResult(
+              status: HealthSyncStatus.permissionDenied,
+              totalSent: 0,
+              totalAvailable: 0,
+              rangeStart: now,
+              rangeEnd: now,
+              lastError: 'Authorization not granted',
+            ),
           );
         }
       }
 
       final unlocked = await DeviceLockService.isDeviceUnlocked();
       if (!unlocked) {
-        return HealthSyncResult(
-          status: HealthSyncStatus.protectedDataUnavailable,
-          totalSent: 0,
-          totalAvailable: 0,
-          rangeStart: now,
-          rangeEnd: now,
-          lastError:
-              'Protected health data is locked. Unlock the device to sync.',
+        return complete(
+          HealthSyncResult(
+            status: HealthSyncStatus.protectedDataUnavailable,
+            totalSent: 0,
+            totalAvailable: 0,
+            rangeStart: now,
+            rangeEnd: now,
+            lastError:
+                'Protected health data is locked. Unlock the device to sync.',
+          ),
         );
       }
 
@@ -129,45 +141,53 @@ class HealthSyncService {
         );
       } catch (e) {
         if (_isProtectedDataError(e)) {
-          return HealthSyncResult(
-            status: HealthSyncStatus.protectedDataUnavailable,
+          return complete(
+            HealthSyncResult(
+              status: HealthSyncStatus.protectedDataUnavailable,
+              totalSent: 0,
+              totalAvailable: 0,
+              rangeStart: from,
+              rangeEnd: now,
+              lastError:
+                  'Protected health data is locked. Unlock the device to sync.',
+            ),
+          );
+        }
+        return complete(
+          HealthSyncResult(
+            status: HealthSyncStatus.failed,
             totalSent: 0,
             totalAvailable: 0,
             rangeStart: from,
             rangeEnd: now,
-            lastError:
-                'Protected health data is locked. Unlock the device to sync.',
-          );
-        }
-        return HealthSyncResult(
-          status: HealthSyncStatus.failed,
-          totalSent: 0,
-          totalAvailable: 0,
-          rangeStart: from,
-          rangeEnd: now,
-          lastError: 'Failed to read health data: $e',
+            lastError: 'Failed to read health data: $e',
+          ),
         );
       }
 
       if (healthData.isEmpty) {
         final stillLocked = !await DeviceLockService.isDeviceUnlocked();
         if (stillLocked) {
-          return HealthSyncResult(
-            status: HealthSyncStatus.protectedDataUnavailable,
+          return complete(
+            HealthSyncResult(
+              status: HealthSyncStatus.protectedDataUnavailable,
+              totalSent: 0,
+              totalAvailable: 0,
+              rangeStart: from,
+              rangeEnd: now,
+              lastError:
+                  'Protected health data is locked. Unlock the device to sync.',
+            ),
+          );
+        }
+        return complete(
+          HealthSyncResult(
+            status: HealthSyncStatus.nothingToSend,
             totalSent: 0,
             totalAvailable: 0,
             rangeStart: from,
             rangeEnd: now,
-            lastError:
-                'Protected health data is locked. Unlock the device to sync.',
-          );
-        }
-        return HealthSyncResult(
-          status: HealthSyncStatus.nothingToSend,
-          totalSent: 0,
-          totalAvailable: 0,
-          rangeStart: from,
-          rangeEnd: now,
+          ),
         );
       }
 
@@ -178,14 +198,16 @@ class HealthSyncService {
         steps = await _health.getTotalStepsInInterval(midnight, now);
       } catch (e) {
         if (_isProtectedDataError(e)) {
-          return HealthSyncResult(
-            status: HealthSyncStatus.protectedDataUnavailable,
-            totalSent: 0,
-            totalAvailable: healthData.length,
-            rangeStart: from,
-            rangeEnd: now,
-            lastError:
-                'Protected health data is locked. Unlock the device to sync.',
+          return complete(
+            HealthSyncResult(
+              status: HealthSyncStatus.protectedDataUnavailable,
+              totalSent: 0,
+              totalAvailable: healthData.length,
+              rangeStart: from,
+              rangeEnd: now,
+              lastError:
+                  'Protected health data is locked. Unlock the device to sync.',
+            ),
           );
         }
         lastError = 'Failed to read step count: $e';
@@ -222,16 +244,32 @@ class HealthSyncService {
       }
 
       final status = _determineStatus(totalSent, totalAvailable, lastError);
-      return HealthSyncResult(
-        status: status,
-        totalSent: totalSent,
-        totalAvailable: totalAvailable,
-        rangeStart: from,
-        rangeEnd: now,
-        lastError: lastError,
+      return complete(
+        HealthSyncResult(
+          status: status,
+          totalSent: totalSent,
+          totalAvailable: totalAvailable,
+          rangeStart: from,
+          rangeEnd: now,
+          lastError: lastError,
+        ),
       );
     } finally {
       activity.close();
+    }
+  }
+
+  SyncOutcome _mapOutcome(HealthSyncStatus status) {
+    switch (status) {
+      case HealthSyncStatus.success:
+      case HealthSyncStatus.partialSuccess:
+        return SyncOutcome.success;
+      case HealthSyncStatus.nothingToSend:
+        return SyncOutcome.nothingToSend;
+      case HealthSyncStatus.permissionDenied:
+      case HealthSyncStatus.protectedDataUnavailable:
+      case HealthSyncStatus.failed:
+        return SyncOutcome.failure;
     }
   }
 
