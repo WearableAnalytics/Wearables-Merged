@@ -1,0 +1,34 @@
+deployment:
+  image: 
+    repository: traefik
+    tag: v3.0
+  args:
+    - "--providers.kubernetesingress=true"
+    - "--entrypoints.web.address=:80"
+    # for https later
+    # - "--entrypoints.websecure.address=:443"
+    - "--api.dashboard=true"
+    - "--log.level=TRACE"
+  ports:
+    - name: web
+      containerPort: 80
+    - name: admin
+      containerPort: 8080
+
+
+service:
+  ports:
+  - name: web
+    protocol: TCP
+    port: 80
+    targetPort: 80
+  - name: admin
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+  
+  # IMPORTANT
+  lbNetworkId: "a33fd200-d1c7-4e7a-b496-a0302db68560"
+  lbSubnetId: "bd8ffe1c-2611-48b9-bace-280e64215bb5"
+  workerNodeSubnetId: "f36c7488-2bc4-4171-bc7d-25e0cca40c9e"
+  lpIP: "194.94.4.68"
