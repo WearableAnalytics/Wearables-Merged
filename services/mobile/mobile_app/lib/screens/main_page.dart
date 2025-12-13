@@ -188,15 +188,6 @@ class _MainPageState extends State<MainPage> {
   Future<void> _sendRecentHealthData() async {
     if (SyncActivityNotifier.isSyncing.value) return;
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sending health data to server...'),
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
-
     final result = await _healthSyncService.sendSinceLastSync();
     await _loadDeviceInfo();
 
