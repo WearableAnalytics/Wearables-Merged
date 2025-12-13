@@ -3,6 +3,7 @@ import UIKit
 import BackgroundTasks
 import TSBackgroundFetch
 import Foundation
+import Darwin
 
 private final class DeviceLockMonitor {
   static let shared = DeviceLockMonitor()
@@ -43,7 +44,7 @@ private final class DeviceLockMonitor {
   }
 
   private func refreshLockState(token: Int32) {
-    var state: UInt32 = 0
+    var state: UInt64 = 0
     let status = notify_get_state(token, &state)
     if status == NOTIFY_STATUS_OK {
       // Any non-zero state means the device is locked.
