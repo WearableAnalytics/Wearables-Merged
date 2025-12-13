@@ -8,6 +8,7 @@ import '../health_data_formatter.dart';
 import '../health_data_types.dart';
 import '../storage_service.dart';
 import 'device_lock_service.dart';
+import 'sync_activity_notifier.dart';
 
 enum HealthSyncStatus {
   success,
@@ -53,180 +54,223 @@ class HealthSyncService {
     bool requestPermissions = true,
   }) async {
     final now = DateTime.now();
+    final activity = SyncActivityNotifier.startSync();
+    HealthSyncResult complete(HealthSyncResult result) {
+      SyncActivityNotifier.reportResult(_mapOutcome(result.status));
+      return result;
+    }
 
     try {
-      await _health.configure();
-    } catch (e) {
-      return HealthSyncResult(
-        status: HealthSyncStatus.failed,
-        totalSent: 0,
-        totalAvailable: 0,
-        rangeStart: now,
-        rangeEnd: now,
-        lastError: 'Unable to configure health plugin: $e',
-      );
-    }
-
-    final types = allRequestedHealthDataTypes;
-    final permissions = permissionsFor(types);
-    final alreadyGranted =
-        await _health.hasPermissions(types, permissions: permissions) ?? false;
-    if (!alreadyGranted) {
-      if (!requestPermissions) {
-        return HealthSyncResult(
-          status: HealthSyncStatus.permissionDenied,
-          totalSent: 0,
-          totalAvailable: 0,
-          rangeStart: now,
-          rangeEnd: now,
-          lastError: 'Health permissions not granted',
-        );
-      }
-
-      final granted = await _health.requestAuthorization(
-        types,
-        permissions: permissions,
-      );
-      if (!granted) {
-        return HealthSyncResult(
-          status: HealthSyncStatus.permissionDenied,
-          totalSent: 0,
-          totalAvailable: 0,
-          rangeStart: now,
-          rangeEnd: now,
-          lastError: 'Authorization not granted',
-        );
-      }
-    }
-
-    final protectedAvailable =
-        await DeviceLockService.isProtectedDataAvailable();
-    if (!protectedAvailable) {
-      return HealthSyncResult(
-        status: HealthSyncStatus.protectedDataUnavailable,
-        totalSent: 0,
-        totalAvailable: 0,
-        rangeStart: now,
-        rangeEnd: now,
-        lastError:
-            'Protected health data is locked. Unlock the device to sync.',
-      );
-    }
-
-    final deviceId = await StorageService.getOrCreateDeviceId();
-    final lastSendTime = await StorageService.getLastDataSendTime();
-    final from = lastSendTime ?? now.subtract(fallbackWindow);
-
-    List<HealthDataPoint> healthData;
-    try {
-      healthData = await _health.getHealthDataFromTypes(
-        startTime: from,
-        endTime: now,
-        types: types,
-      );
-    } catch (e) {
-      if (_isProtectedDataError(e)) {
-        return HealthSyncResult(
-          status: HealthSyncStatus.protectedDataUnavailable,
-          totalSent: 0,
-          totalAvailable: 0,
-          rangeStart: from,
-          rangeEnd: now,
-          lastError:
-              'Protected health data is locked. Unlock the device to sync.',
-        );
-      }
-      return HealthSyncResult(
-        status: HealthSyncStatus.failed,
-        totalSent: 0,
-        totalAvailable: 0,
-        rangeStart: from,
-        rangeEnd: now,
-        lastError: 'Failed to read health data: $e',
-      );
-    }
-
-    if (healthData.isEmpty) {
-      final stillLocked = !await DeviceLockService.isProtectedDataAvailable();
-      if (stillLocked) {
-        return HealthSyncResult(
-          status: HealthSyncStatus.protectedDataUnavailable,
-          totalSent: 0,
-          totalAvailable: 0,
-          rangeStart: from,
-          rangeEnd: now,
-          lastError:
-              'Protected health data is locked. Unlock the device to sync.',
-        );
-      }
-      return HealthSyncResult(
-        status: HealthSyncStatus.nothingToSend,
-        totalSent: 0,
-        totalAvailable: 0,
-        rangeStart: from,
-        rangeEnd: now,
-      );
-    }
-
-    final midnight = DateTime(now.year, now.month, now.day);
-    String? lastError;
-    int? steps;
-    try {
-      steps = await _health.getTotalStepsInInterval(midnight, now);
-    } catch (e) {
-      if (_isProtectedDataError(e)) {
-        return HealthSyncResult(
-          status: HealthSyncStatus.protectedDataUnavailable,
-          totalSent: 0,
-          totalAvailable: healthData.length,
-          rangeStart: from,
-          rangeEnd: now,
-          lastError:
-              'Protected health data is locked. Unlock the device to sync.',
-        );
-      }
-      lastError = 'Failed to read step count: $e';
-    }
-
-    int totalSent = 0;
-    final totalAvailable = healthData.length;
-    final chunks = _chunkHealthData(healthData);
-
-    for (int chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-      final chunk = chunks[chunkIndex];
       try {
-        await _sendChunk(
-          chunk: chunk,
-          chunkIndex: chunkIndex,
-          totalChunks: chunks.length,
-          from: from,
-          to: now,
-          lastSendTime: lastSendTime,
-          deviceId: deviceId,
-          stepsToday: steps,
-        );
-        totalSent += chunk.length;
-        if (chunkIndex < chunks.length - 1) {
-          await Future.delayed(const Duration(milliseconds: 500));
-        }
+        await _health.configure();
       } catch (e) {
-        lastError ??= 'Chunk ${chunkIndex + 1} failed: $e';
+        return complete(
+          HealthSyncResult(
+            status: HealthSyncStatus.failed,
+            totalSent: 0,
+            totalAvailable: 0,
+            rangeStart: now,
+            rangeEnd: now,
+            lastError: 'Unable to configure health plugin: $e',
+          ),
+        );
       }
-    }
 
-    if (totalSent > 0) {
-      await StorageService.updateLastDataSendTime(now);
-    }
+      final types = allRequestedHealthDataTypes;
+      final permissions = permissionsFor(types);
+      final alreadyGranted =
+          await _health.hasPermissions(types, permissions: permissions) ??
+              false;
+      if (!alreadyGranted) {
+        if (!requestPermissions) {
+          return complete(
+            HealthSyncResult(
+              status: HealthSyncStatus.permissionDenied,
+              totalSent: 0,
+              totalAvailable: 0,
+              rangeStart: now,
+              rangeEnd: now,
+              lastError: 'Health permissions not granted',
+            ),
+          );
+        }
 
-    final status = _determineStatus(totalSent, totalAvailable, lastError);
-    return HealthSyncResult(
-      status: status,
-      totalSent: totalSent,
-      totalAvailable: totalAvailable,
-      rangeStart: from,
-      rangeEnd: now,
-      lastError: lastError,
-    );
+        final granted = await _health.requestAuthorization(
+          types,
+          permissions: permissions,
+        );
+        if (!granted) {
+          return complete(
+            HealthSyncResult(
+              status: HealthSyncStatus.permissionDenied,
+              totalSent: 0,
+              totalAvailable: 0,
+              rangeStart: now,
+              rangeEnd: now,
+              lastError: 'Authorization not granted',
+            ),
+          );
+        }
+      }
+
+      final unlocked = await DeviceLockService.isDeviceUnlocked();
+      if (!unlocked) {
+        return complete(
+          HealthSyncResult(
+            status: HealthSyncStatus.protectedDataUnavailable,
+            totalSent: 0,
+            totalAvailable: 0,
+            rangeStart: now,
+            rangeEnd: now,
+            lastError:
+                'Protected health data is locked. Unlock the device to sync.',
+          ),
+        );
+      }
+
+      final deviceId = await StorageService.getOrCreateDeviceId();
+      final lastSendTime = await StorageService.getLastDataSendTime();
+      final from = lastSendTime ?? now.subtract(fallbackWindow);
+
+      List<HealthDataPoint> healthData;
+      try {
+        healthData = await _health.getHealthDataFromTypes(
+          startTime: from,
+          endTime: now,
+          types: types,
+        );
+      } catch (e) {
+        if (_isProtectedDataError(e)) {
+          return complete(
+            HealthSyncResult(
+              status: HealthSyncStatus.protectedDataUnavailable,
+              totalSent: 0,
+              totalAvailable: 0,
+              rangeStart: from,
+              rangeEnd: now,
+              lastError:
+                  'Protected health data is locked. Unlock the device to sync.',
+            ),
+          );
+        }
+        return complete(
+          HealthSyncResult(
+            status: HealthSyncStatus.failed,
+            totalSent: 0,
+            totalAvailable: 0,
+            rangeStart: from,
+            rangeEnd: now,
+            lastError: 'Failed to read health data: $e',
+          ),
+        );
+      }
+
+      if (healthData.isEmpty) {
+        final stillLocked = !await DeviceLockService.isDeviceUnlocked();
+        if (stillLocked) {
+          return complete(
+            HealthSyncResult(
+              status: HealthSyncStatus.protectedDataUnavailable,
+              totalSent: 0,
+              totalAvailable: 0,
+              rangeStart: from,
+              rangeEnd: now,
+              lastError:
+                  'Protected health data is locked. Unlock the device to sync.',
+            ),
+          );
+        }
+        return complete(
+          HealthSyncResult(
+            status: HealthSyncStatus.nothingToSend,
+            totalSent: 0,
+            totalAvailable: 0,
+            rangeStart: from,
+            rangeEnd: now,
+          ),
+        );
+      }
+
+      final midnight = DateTime(now.year, now.month, now.day);
+      String? lastError;
+      int? steps;
+      try {
+        steps = await _health.getTotalStepsInInterval(midnight, now);
+      } catch (e) {
+        if (_isProtectedDataError(e)) {
+          return complete(
+            HealthSyncResult(
+              status: HealthSyncStatus.protectedDataUnavailable,
+              totalSent: 0,
+              totalAvailable: healthData.length,
+              rangeStart: from,
+              rangeEnd: now,
+              lastError:
+                  'Protected health data is locked. Unlock the device to sync.',
+            ),
+          );
+        }
+        lastError = 'Failed to read step count: $e';
+      }
+
+      int totalSent = 0;
+      final totalAvailable = healthData.length;
+      final chunks = _chunkHealthData(healthData);
+
+      for (int chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+        final chunk = chunks[chunkIndex];
+        try {
+          await _sendChunk(
+            chunk: chunk,
+            chunkIndex: chunkIndex,
+            totalChunks: chunks.length,
+            from: from,
+            to: now,
+            lastSendTime: lastSendTime,
+            deviceId: deviceId,
+            stepsToday: steps,
+          );
+          totalSent += chunk.length;
+          if (chunkIndex < chunks.length - 1) {
+            await Future.delayed(const Duration(milliseconds: 500));
+          }
+        } catch (e) {
+          lastError ??= 'Chunk ${chunkIndex + 1} failed: $e';
+        }
+      }
+
+      if (totalSent > 0) {
+        await StorageService.updateLastDataSendTime(now);
+      }
+
+      final status = _determineStatus(totalSent, totalAvailable, lastError);
+      return complete(
+        HealthSyncResult(
+          status: status,
+          totalSent: totalSent,
+          totalAvailable: totalAvailable,
+          rangeStart: from,
+          rangeEnd: now,
+          lastError: lastError,
+        ),
+      );
+    } finally {
+      activity.close();
+    }
+  }
+
+  SyncOutcome _mapOutcome(HealthSyncStatus status) {
+    switch (status) {
+      case HealthSyncStatus.success:
+      case HealthSyncStatus.partialSuccess:
+        return SyncOutcome.success;
+      case HealthSyncStatus.nothingToSend:
+        return SyncOutcome.nothingToSend;
+      case HealthSyncStatus.permissionDenied:
+      case HealthSyncStatus.protectedDataUnavailable:
+      case HealthSyncStatus.failed:
+        return SyncOutcome.failure;
+    }
   }
 
   List<List<HealthDataPoint>> _chunkHealthData(List<HealthDataPoint> data) {

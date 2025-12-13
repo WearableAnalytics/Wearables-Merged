@@ -189,7 +189,7 @@ class NotificationService {
       case HealthSyncStatus.permissionDenied:
         return 'Cannot sync health data until permissions are granted.';
       case HealthSyncStatus.protectedDataUnavailable:
-        return 'Phone locked. Unlock and open the app to finish syncing.';
+        return 'Phone locked. Please synchronize the data manually.';
       case HealthSyncStatus.failed:
         return 'Health data sync failed: ${result.lastError ?? "Unknown error"}.';
     }

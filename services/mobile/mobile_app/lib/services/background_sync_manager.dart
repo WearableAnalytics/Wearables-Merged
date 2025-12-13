@@ -74,9 +74,8 @@ class BackgroundSyncManager {
       // Set tap handler in case this is the first time the app ever runs (BG-only launch).
       NotificationService.registerOnNotificationTap(handleNotificationTap);
 
-      final protectedDataAvailable =
-          await DeviceLockService.isProtectedDataAvailable();
-      if (!protectedDataAvailable) {
+      final unlocked = await DeviceLockService.isDeviceUnlocked();
+      if (!unlocked) {
         await NotificationService.showSyncResultNotification(
           _protectedDataLockedResult(),
         );
@@ -115,9 +114,8 @@ class BackgroundSyncManager {
   static Future<void> handleNotificationTap() async {
     debugPrint('[BackgroundSyncManager] Notification tap: starting sync');
     try {
-      final protectedDataAvailable =
-          await DeviceLockService.isProtectedDataAvailable();
-      if (!protectedDataAvailable) {
+      final unlocked = await DeviceLockService.isDeviceUnlocked();
+      if (!unlocked) {
         await NotificationService.showSyncResultNotification(
           _protectedDataLockedResult(),
         );

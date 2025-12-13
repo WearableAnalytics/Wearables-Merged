@@ -29,4 +29,4 @@ e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWith
 1. activate dev mode on device
 2. connect device via usb
 3. discover device by running `flutter devices` in terminal
-4. run `flutter run -<device id>` in terminal
+4. run `flutter run -d <device id>` in terminal
