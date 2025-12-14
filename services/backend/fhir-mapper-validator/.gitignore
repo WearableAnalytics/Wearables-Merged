@@ -40,3 +40,13 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+#Config
+config
+
+#testing-resources
+daniil2.json
+logs
+output.json
+output-lp.txt
+src/main/resources/daniil.json

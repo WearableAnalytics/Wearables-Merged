@@ -30,7 +30,7 @@ public class LineProtocolParser {
 
         FhirLineProtocolConfig.Variant variant = selectVariant(primitives);
         if (variant == null) {
-            throw new IllegalArgumentException("No mapping variant matched observation");
+            throw new IllegalArgumentException("No mapping variant matched observation ");
         }
 
         return renderLineProtocol(primitives, variant);
@@ -151,6 +151,7 @@ public class LineProtocolParser {
         return path.replaceAll("\\[(\\d+)\\]", "[x]");
     }
 
+    //Iterate through the FHIR json and extract all primitive values (leafs) of it
     private static void collectPrimitives(JsonElement el, String path, Map<String, JsonPrimitive> out) {
         if (el == null || el.isJsonNull()) return;
         if (el.isJsonPrimitive()) {

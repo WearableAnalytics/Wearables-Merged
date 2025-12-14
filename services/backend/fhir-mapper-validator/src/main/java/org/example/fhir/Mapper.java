@@ -1,6 +1,7 @@
 package org.example.fhir;
 
 import com.google.gson.*;
+import org.checkerframework.checker.units.qual.A;
 import org.example.config.Environment;
 import org.example.fhir.model.*;
 import org.example.util.ConfigLoader;
@@ -19,7 +20,7 @@ public class Mapper {
 
     private static final MappingYaml TEMPLATE = ConfigLoader.loadConfig(Environment.MAPPING_YAML_PATH, MappingYaml.class);
 
-    public static List<JsonObject> mapFhir(String str) {
+    public static MapReturn mapFhir(String str) {
         if (TEMPLATE == null) {
             throw new IllegalStateException("No mapping template loaded");
         }
@@ -32,9 +33,11 @@ public class Mapper {
         MeasurementConfig measurementCfg = TEMPLATE.getMeasurement();
         if (measurementCfg == null || measurementCfg.getPaths() == null || measurementCfg.getPaths().isEmpty()) {
             log.warn("No measurement paths configured – returning metadata-only document");
-            return List.of(metadataTemplate.deepCopy());
+            return new MapReturn(new ArrayList<>(), new ArrayList<>());
         }
+
         List<JsonObject> observations = new ArrayList<>();
+        List<JsonObject> invalid = new ArrayList<>();
         for (MeasurementPathConfig pathConfig : measurementCfg.getPaths()) {
             if (pathConfig == null) continue;
             //measurement array is one array of measurements inside the incoming json (e.g., cumulative, period, instantaneous)
@@ -47,20 +50,18 @@ public class Mapper {
                 for (int idx = 0; idx < measurementArray.size(); idx++) {
                     JsonElement measurementElement = measurementArray.get(idx);
                     JsonObject template = metadataTemplate.deepCopy().getAsJsonObject();
-                    log.debug("Template is {}", template);
-                    log.debug("Incoming is {} and we are looking at {}", incoming, measurementElement);
-                    applyFields(template, TEMPLATE.getMetadata(), pathConfig, incoming, measurementElement, idx);
-                    log.debug("Template after metadata is {}", template);
-                    log.debug("Incoming after metadata is {} and we are looking at {}", incoming, measurementElement);
-                    applyFields(template, pathConfig, pathConfig, incoming, measurementElement, idx);
-                    if (!template.isEmpty()) observations.add(template);
+                    boolean res1 = applyFields(template, TEMPLATE.getMetadata(), pathConfig, incoming, measurementElement, idx);
+                    boolean res2 = applyFields(template, pathConfig, pathConfig, incoming, measurementElement, idx);
+                    if (!template.isEmpty() && res1 && res2) observations.add(template);
+                    else invalid.add(template);
                 }
             } else {
                 throw new RuntimeException("Mapping of only a subset of measurements is not yet supported");
                 //TODO implement filtering function to decide what to map instead of index based
             }
         }
-        return observations;
+        MapReturn mr = new MapReturn(observations, invalid);
+        return mr;
     }
 
     private static JsonObject buildMetadataBlock(JsonObject root) {
@@ -77,28 +78,40 @@ public class Mapper {
         return el.getAsJsonArray();
     }
 
-    private static void applyFields(JsonObject target,
-                                    MetadataConfig metadataCfg,
-                                    MeasurementPathConfig measurementCfg,
-                                    JsonObject root,
-                                    JsonElement measurementElement,
-                                    int idx) {
-        if (metadataCfg.getFields() == null) return;
+    private static boolean applyFields(JsonObject target,
+                                       MetadataConfig metadataCfg,
+                                       MeasurementPathConfig measurementCfg,
+                                       JsonObject root,
+                                       JsonElement measurementElement,
+                                       int idx) {
+        if (metadataCfg == null || metadataCfg.getFields() == null || metadataCfg.getFields().isEmpty()) return false;
         for (FieldConfig field : metadataCfg.getFields()) {
-            applySingleField(target, field, measurementCfg, root, measurementElement, idx);
+            try{
+                applySingleField(target, field, measurementCfg, root, measurementElement, idx);
+            }catch (IllegalStateException ise) {
+                log.warn("Found illegal state in metadata, skipping datapoint with exception: {}", ise.toString());
+                return false;
+            }
         }
+        return true;
     }
 
-    private static void applyFields(JsonObject target,
-                                    MeasurementPathConfig fieldCfg,
-                                    MeasurementPathConfig measurementCfg,
-                                    JsonObject root,
-                                    JsonElement measurementElement,
-                                    int idx) {
-        if (fieldCfg == null || fieldCfg.getFields() == null) return;
+    private static boolean applyFields(JsonObject target,
+                                       MeasurementPathConfig fieldCfg,
+                                       MeasurementPathConfig measurementCfg,
+                                       JsonObject root,
+                                       JsonElement measurementElement,
+                                       int idx) {
+        if (fieldCfg == null || fieldCfg.getFields() == null || fieldCfg.getFields().isEmpty()) return false;
         for (FieldConfig field : fieldCfg.getFields()) {
-            applySingleField(target, field, measurementCfg, root, measurementElement, idx);
+            try{
+                applySingleField(target, field, measurementCfg, root, measurementElement, idx);
+            } catch (IllegalStateException ise) {
+                log.warn("Found illegal state in measurements, skipping datapoint with exception: {}", ise.toString());
+                return false;
+            }
         }
+        return true;
     }
 
     private static void applySingleField(JsonObject outgoingElementTemplate,
@@ -106,7 +119,7 @@ public class Mapper {
                                          MeasurementPathConfig measurementCfg,
                                          JsonObject rootOfIncoming,
                                          JsonElement measurementElement,
-                                         int idx) {
+                                         int idx) throws IllegalStateException {
         if (field == null) return;
         if (field.getTarget() == null || field.getTarget().isBlank()) {
             log.warn("Skipping field '{}' because outgoingElementTemplate is missing", field.getName());
@@ -114,13 +127,13 @@ public class Mapper {
         }
         JsonElement value;
         if (field.getTransform() != null && !field.getTransform().isEmpty()) {
-            log.debug("found field that needs to be transformed: {}", field.getName());
+            //log.debug("found field that needs to be transformed: {}", field.getName());
             value = resolveTransformationField(field, measurementCfg, rootOfIncoming, measurementElement, idx);
         } else if (field.getValue() != null) {
-            log.debug("found field that needs to be retrieved from value: {}", field.getName());
+            //log.debug("found field that needs to be retrieved from value: {}", field.getName());
             value = toJsonElement(field.getValue());
         } else {
-            log.debug("found field {} that needs to be retrieved from source: {}", field.getName(), field.getSource());
+            //log.debug("found field {} that needs to be retrieved from source: {}", field.getName(), field.getSource());
             String sourcePath = expandPathForMeasurement(field.getSource(), measurementCfg, idx);
             if (sourcePath == null || sourcePath.isBlank()) {
                 if (!field.isOptional()) {
@@ -169,7 +182,7 @@ public class Mapper {
         for (ValueTransformation vt : field.getTransform()) {
 
             String type = vt.getType();
-            log.debug("mapping field {} with rule {}", field.getName(), type);
+            //log.debug("mapping field {} with rule {}", field.getName(), type);
 
             if (value == null && !Objects.equals(type, "mapBasedOn")) {
                 log.warn("field {} transformation '{}' skipped because value is null", field.getName(), type);
@@ -234,7 +247,7 @@ public class Mapper {
                     break;
 
                 case "mapBasedOn":
-                    log.debug("transforming {} with mapBasedOn", field.getName());
+                    //log.debug("transforming {} with mapBasedOn", field.getName());
                     value = resolveMappingValue(field, measurementCfg, root, measurementElement);
                     break;
 
@@ -290,21 +303,20 @@ public class Mapper {
         List<PathToken> tokens = tokenize(path);
         JsonElement current = root;
         //iterate through the json tree via the tokens we have just created until we find the field (as a JsonElement) that we are looking for
-        log.debug(tokens.toString());
+        //log.debug(tokens.toString());
 
         for (PathToken token : tokens) {
             if (current == null || current.isJsonNull()) return null;
             if (token instanceof FieldToken field) {
-                log.debug("next field {} in path of {}", field.name, path);
+                //log.debug("next field {} in path of {}", field.name, path);
                 if (!current.isJsonObject()) {
-                    log.debug("current field is {} and not json object but {}", current, current.getClass());
+                    //log.debug("current field is {} and not json object but {}", current, current.getClass());
                     return null;
                 }
                 current = current.getAsJsonObject().get(field.name);
             } else if (token instanceof IndexToken indexToken) {
-                log.error("this shouldn't happen");
                 if (!current.isJsonArray()) {
-                    log.debug("current field is {} and not json array but {}", current, current.getClass());
+                    //log.debug("current field is {} and not json array but {}", current, current.getClass());
                     return null;
                 }
                 JsonArray arr = current.getAsJsonArray();
@@ -312,7 +324,6 @@ public class Mapper {
                 current = arr.get(indexToken.index);
             }
         }
-        log.debug("current is of type {} and value {}", current.getClass(), current);
         return current;
     }
 
@@ -343,6 +354,7 @@ public class Mapper {
         List<PathToken> tokens = tokenize(targetPath);
         if (tokens.isEmpty()) return;
         JsonElement current = outgoingElementTemplate;
+
         for (int i = 0; i < tokens.size(); i++) {
             PathToken token = tokens.get(i);
 
