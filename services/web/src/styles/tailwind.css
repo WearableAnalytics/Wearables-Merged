@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    font-family: 'Sora', 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter',sans-serif;
     color: #0f172a;
     background-color: #f8fafc;
     text-rendering: optimizeLegibility;
