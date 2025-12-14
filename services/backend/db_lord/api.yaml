@@ -1,0 +1,721 @@
+swagger: "2.0"
+info:
+  title: Database Management API
+  description: Database Management API
+  version: 1.0.0
+host: www
+schemes:
+  - https
+paths:
+  /patient:
+    post:
+      tags:
+        - Patients
+      summary: Stores a patient in the Relational Database
+      description: Stores a freshly created patient in our database
+      operationId: create_patient
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/PatientPost'
+      responses:
+        201:
+          description: Patient created
+          schema:
+            $ref: '#/definitions/Patient'
+
+  /patient/{patientId}:
+    get:
+      tags:
+        - Patients
+      summary: Get all information of a specfic patient
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns all information about the patient
+    put:
+      tags:
+        - Patients
+      summary: Overwrites an already existing Patient
+      consumes:
+        - application/json
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          type: string
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/Patient'
+      responses:
+        204:
+          description: Overwriting of the resource succeeded
+        201:
+          description: Resources was freshly created
+    delete:
+      tags:
+        - Patients
+      summary: Deletes a Patient in the Database
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          type: string
+      responses:
+        204:
+          description: Resource deleted
+
+  /wearable:
+    post:
+      tags:
+        - Wearables
+      summary: Creates a new Wearable-Device in the Database
+      consumes:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/WearablePost'
+      responses:
+        201:
+          description: Wearable device created
+          schema:
+            $ref: '#/definitions/Wearable'
+
+  /wearable/{wearableID}:
+    get:
+      tags:
+        - Wearables
+      summary: Returns all information about a device based on the ID
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: wearableID
+          required: true
+          type: string
+      responses:
+        200:
+          description: Successfully retrieved measurements
+          schema:
+            $ref: '#/definitions/Wearable'
+    put:
+      tags:
+        - Wearables
+      summary: Update an Wearable in our Database
+      consumes:
+        - application/json
+      parameters:
+        - in: path
+          name: wearableID
+          required: true
+          type: string
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/WearablePost'
+      responses:
+        204:
+          description: Overwritten the wearable device
+    delete:
+      tags:
+        - Wearables
+      summary: Delete an Wearable in our Database
+      parameters:
+        - in: path
+          name: wearableID
+          required: true
+          type: string
+      responses:
+        204:
+          description: Successfully deleted resource
+
+  /device:
+    post:
+      tags:
+        - Devices
+      summary: Create a new Smartphone in our Database
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/DevicePost'
+      responses:
+        201:
+          description: Successfully created resource in Database
+          schema:
+            $ref: '#/definitions/Device'
+
+  /device/{deviceID}:
+    get:
+      tags:
+        - Devices
+      summary: Retrieve all Data stored for a Device-ID
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: deviceID
+          required: true
+          type: string
+      responses:
+        200:
+          description: All information stored for that Device-ID
+          schema:
+            $ref: '#/definitions/Device'
+    put:
+      tags:
+        - Devices
+      summary: Overwrite existing resource
+      consumes:
+        - application/json
+      parameters:
+        - in: path
+          name: deviceID
+          required: true
+          type: string
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/DevicePost'
+      responses:
+        201:
+          description: Created new resource
+        204:
+          description: Overwrite successful
+    delete:
+      tags:
+        - Devices
+      summary: Delete existing resource in our Database
+      parameters:
+        - in: path
+          name: deviceID
+          required: true
+          type: string
+      responses:
+        204:
+          description: Deleted successfully
+
+  /context:
+    post:
+      tags:
+        - Contexts
+      summary: Create a new context in the Database
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/ContextPost'
+      responses:
+        201:
+          description: Successfully create new context-resource
+          schema:
+            $ref: '#/definitions/Context'
+
+  /context/{contextID}:
+    get:
+      tags:
+        - Contexts
+      summary: Retrieve all information for a specific context-ID
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: contextID
+          required: true
+          type: string
+      responses:
+        200:
+          description: All informations for a context-id
+          schema:
+            $ref: '#/definitions/Context'
+    put:
+      tags:
+        - Contexts
+      summary: Overwrites a resource
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: contextID
+          required: true
+          type: string
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/Context'
+      responses: 
+        201:
+          description: Created resource under given key
+          schema:
+            $ref: '#/definitions/Context'
+        204:
+          description: Overwritten resource
+    delete:
+      tags:
+        - Contexts
+      summary: Deletes a resource
+      parameters:
+        - in: path
+          name: contextID
+          required: true
+          type: string
+      responses:
+        204:
+          description: Successfully deleted resource
+
+  /case:
+    post:
+      tags:
+        - Cases
+      summary: Create a new Case which combines all of the other resources
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/CasePost'
+      responses:
+        201:
+          description: Successfully create case in database
+          schema:
+            $ref: '#/definitions/Case'
+  /case/{caseId}:
+    get:
+      tags:
+        - Cases
+      summary: Retrieve all data stored for a case
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: caseId
+          required: true
+          type: string
+      responses:
+        200:
+          description: All informations about a single case
+          schema:
+            $ref: '#/definitions/Case'
+    put:
+      tags:
+        - Cases
+      summary: Overwrite an already existing resource
+      consumes:
+        - application/json
+      parameters:
+        - in: path
+          name: caseId
+          required: true
+          type: string
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/Case'
+      responses:
+        201:
+          description: Created new resource
+        204:
+          description: Updated existing resource
+    delete:
+      tags:
+        - Cases
+      summary: Delete an already existing resource
+      parameters:
+        - in: path
+          name: caseId
+          required: true
+          type: string
+      responses:
+        204:
+          description: Deleted existing resource
+
+definitions:
+
+  PatientPost:
+    type: object
+    properties:
+      Charite-ID:
+        type: string
+        format: uuid
+        description: "Charité internal representation of the Patient"
+        example: "8374267sih234"
+      Lastname:
+        type: string
+        description: "Lastname of the Patient"
+        example: "Pork"
+      Firstname:
+        type: string
+        description: "Firstname of the Patient"
+        example: "Joana"
+      Sex:
+        type: string
+        description: "Sex of the Patient"
+        example: "Female"
+      BirthDate:
+        type: string
+        format: date
+        description: "Birth-Date of the Patient (can be used to calculate age)"
+      Weight:
+        type: float
+        description: "Weight of the Patient"
+
+
+  Patient:
+    type: object
+    properties:
+      Patient-ID:
+        type: string
+        description: Unique patient identifier
+        example: "id-1234"
+      Age:
+        type: integer
+        description: Patient age
+        example: 12
+      Contexts:
+        type: array
+        items:
+          $ref: '#/definitions/Context'
+        description: Patient context information
+      Wearables:
+        type: array
+        items:
+          $ref: '#/definitions/Wearable'
+      Devices:
+        type: array
+        items:
+          $ref: '#/definitions/Device'
+        description: Patient devices information
+    required:
+      - Patient-ID:
+
+
+  Wearable:
+    type: object
+    properties:
+      Wearable-ID:
+        type: string
+        description: Unique identifier for the device in our system
+        example: "APL7984563592432saf1342"
+      Serial-Number:
+        type: string
+        description: Wearable serial number
+        example: "XYXYY628348YAGFFSIJF0Y"
+      OS-Version:
+        type: string
+        description: Version of the Wearable Firmware
+        example: "26.0"
+      Name:
+        type: string
+        description: Model-Name of the Wearable-Device
+        example: "Apple Watch Series 10 (GPS + Cellular)"
+      Model-Number:
+        type: string
+        description: Model-Number of the Wearable-Device
+        example: "A3003"
+      Manufacturer:
+        type: string
+        description: Manufacturer of the Watch
+        example: "Apple Inc."
+    required:
+      - Wearable-ID
+      - Serial-Number
+      - OS-Version
+      - Name
+      - Model-Number
+      - Manufacturer
+
+  WearablePost:
+    type: object
+    properties:
+      Serial-Number:
+        type: string
+        description: Wearable serial number
+        example: "XYXYY628348YAGFFSIJF0Y"
+      OS-Version:
+        type: string
+        description: Firmware-Version of the Wearable-Device
+        example: "26.0"
+      Name:
+        type: string
+        description: Model-Name of the Wearable-Device
+        example: "Apple Watch Series 10 (GPS + Cellular)"
+      Model-Number:
+        type: string
+        description: Model-Number of the Wearable-Device
+        example: "A3003"
+      Manufacturer:
+        type: string
+        description: Manufacturer of the Watch
+        example: "Apple Inc."
+    required:
+      - Serial-Number
+      - OS-Version
+      - Name
+      - Model-Number
+      - Manufacturer
+
+  DevicePost:
+    type: object
+    properties:
+      Serial-Number:
+        type: string
+        description: Serial-Number of the Smartphone
+        example: "XYXYX929875TZRD0"
+      OS-Version:
+        type: string
+        description: Smartphone-OS Version
+        example: "26.0"
+      Name:
+        type: string
+        description: Model-Name of the Smartphone
+        example: "Apple iPhone 13 Pro Max"
+      Model-Number:
+        type: string
+        description: Model-Number of the Smartphone
+        example: "A3003"
+      Manufacturer:
+        type: string
+        description: Manufacturer of the Phone
+        example: "Apple Inc."
+    required:
+      - Serial-Number
+      - OS-Version
+      - Name
+      - Model-Number
+      - Manufacturer
+
+  Device:
+    type: object
+    properties:
+      Device-ID:
+        type: string
+        description: Unique identifier for the device in our Database
+        example: "APL34897268isudgi17"
+      Serial-Number:
+        type: string
+        description: Serial-Number of the Smartphone
+        example: "XYXYX929875TZRD0"
+      OS-Version:
+        type: string
+        description: Smartphone-OS Version
+        example: "26.0"
+      Name:
+        type: string
+        description: Model-Name of the Smartphone
+        example: "Apple iPhone 13 Pro Max"
+      Model-Number:
+        type: string
+        description: Model-Number of the Smartphone
+        example: "A3003"
+      Manufacturer:
+        type: string
+        description: Manufacturer of the Phone
+        example: "Apple Inc."
+    required:
+      - Device-ID
+      - Serial-Number
+      - OS-Version
+      - Name
+      - Model-Number
+      - Manufacturer
+
+  ContextPost:
+    type: object
+    properties:
+      Group-Name:
+        type: string
+        description: Name of the Group in the context
+        example: "Placebo-Group-1234"
+      Coordinator:
+        type: string
+        description: Identifier of the Coordinator of the Context
+        example: "D445"
+    required:
+      - Coordinator
+
+  Context:
+    type: object
+    properties:
+      Context-ID:
+        type: string
+        description: Unique identifier of the specific context in our system
+        example: "ijsdha1345787934625s"
+      Group-Name:
+        type: string
+        description: Name of the Group in the context
+        example: "Placebo-Group-1234"
+      Coordinator:
+        type: string
+        description: Identifier of the Coordinator of the Context (usually the doctor)
+        example: "D445"
+    required:
+      - Context-ID
+      - Coordinator
+
+  Case:
+    type: object
+    properties:
+      Case-ID:
+        type: string
+        description: Unique identifier of the case
+        example: "083z45"
+      Status:
+        type: string
+        description: "currently not defined"
+        example: "Status-Code 1"
+      Patient-ID:
+        type: string
+        description: "patient that has this case"
+        example: "id-1234"
+      Devices:
+        type: array
+        items:
+          $ref: '#/definitions/CaseDevice'
+        description: "Referencing the Device to the Case"
+      Wearables:
+        type: array
+        items:
+          $ref: '#/definitions/CaseWearable'
+        description: "Referencing the Wearbale to the Case"
+      Contexts:
+        type: array
+        items:
+          type: string
+        description: "reference of the context in which the case happens"
+        example: "ijsdha1345787934625s"
+    required:
+      - Case-ID
+      - Status
+      - Patient-ID
+      - Wearables
+      - Devices
+      - Contexts
+
+  CasePost:
+    type: object
+    properties:
+      Status:
+        type: string
+        description: "currently not defined"
+        example: "Status-Code 1"
+      Patient-ID:
+        type: string
+        description: "patient that has this case"
+        example: "id-1234"
+      Devices:
+        type: array
+        items:
+          $ref: '#/definitions/CaseDevice'
+        description: "Referencing the Device to the Case"
+      Wearables:
+        type: array
+        items:
+          $ref: '#/definitions/CaseWearable'
+        description: "Referencing the Wearable to the Case"
+      Contexts:
+        type: array
+        items:
+          type: string
+          example: "ijsdha1345787934625s"
+        description: "reference of the context in which the case happens"
+    required:
+      - Status
+      - Patient-ID
+      - Wearables
+      - Devices
+      - Contexts
+  
+  CaseDevice:
+    type: object
+    properties:
+      Device-ID:
+        type: string
+        description: "reference of the smartphone used in the case"
+        example: "APL34897268isudgi17"
+      Assigned-From:
+        type: integer
+        format: int64
+        description: "Unix Timestamp of the moment the device use in the case starts"
+      Assigned-To:
+        type: integer
+        format: int64
+        description: "Unix Timestamp of the moment the device use in the case stops"
+    required:
+      - Device-ID
+      - Assigned-From
+
+  CaseWearable:
+    type: object
+    properties:
+      Wearable-ID:
+        type: string
+        description: "reference of the wearable device used in the case"
+        example: "APL7984563592432saf1342"
+      Assigned-From:
+        type: integer
+        format: int64
+        description: "Unix timestamp from which the wearable use in the case starts"
+      Assigned-To:
+        type: integer
+        format: int64
+        description: "Unix Timestamp from which the wearbale use in the case stops"
+    required:
+      - Wearable-ID
+      - Assigned-From
+
+  Error:
+    type: object
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+      details:
+        type: string
+    required:
+      - code
+      - message
+
+tags:
+  - name: Patients
+    description: Patient management endpoints
+  - name: Wearables
+    description: Wearable management endpoints
+  - name: Devices
+    description: Smartphone management endpoints
+  - name: Contexts
+    description: Context management endpoints
+  - name: Cases
+    description: Case management endpoints
