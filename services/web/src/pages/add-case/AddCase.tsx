@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
 import { AddCaseResultCard } from '@/pages/add-case/components/AddCaseResultCard';
 import { AddCaseSearchForm } from '@/pages/add-case/components/AddCaseSearchForm';
@@ -8,6 +9,7 @@ import type { CaseCreated, ChariteCase } from '@/api/openapi-client';
 import { ResponseError } from '@/api/openapi-client/runtime';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { Loader2 } from 'lucide-react';
+import { useActiveCase } from '@/lib/activeCase';
 
 export function AddCasePage() {
   const [caseId, setCaseId] = useState('');
@@ -18,6 +20,8 @@ export function AddCasePage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const navigate = useNavigate();
+  const { setActiveCase } = useActiveCase();
 
   const formatDate = (value: ChariteCase['birthDate']) =>
     new Date(value).toLocaleDateString('en-GB', {
@@ -82,6 +86,23 @@ export function AddCasePage() {
         casesFromChariteCasePostRequest: { cCaseId: result.cCaseId },
       });
       setCreated(data);
+
+      try {
+        const [caseDetails, patientDetails] = await Promise.all([
+          defaultApi.casesCaseIdGet({ caseId: data.caseId }),
+          defaultApi.patientsPatientIdGet({ patientId: data.patientId }),
+        ]);
+
+        setActiveCase({
+          caseData: { ...caseDetails, caseToken: caseDetails.caseToken ?? data.caseToken },
+          patient: patientDetails,
+        });
+        navigate(`/cases/${data.caseId}`);
+      } catch (hydrateError) {
+        setCreateError(
+          hydrateError instanceof Error ? hydrateError.message : 'Case created but failed to load details.',
+        );
+      }
     } catch (err) {
       if (err instanceof ResponseError) {
         setCreateError(
