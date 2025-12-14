@@ -9,4 +9,6 @@ data:
   FHIR_LP_MAPPING_YAML_PATH: {{ .Values.envs.lpMappingYamlPath }}
   INPUT_TOPIC: {{ .Values.envs.inputTopic }}
   FHIR_OUTPUT_TOPIC: {{ .Values.envs.fhirOutput }}
+  FHIR_DLQ_TOPIC: {{ .Values.envs.fhirDlq }}
   LP_OUTPUT_TOPIC: {{ .Values.envs.lpOutput }}
+  LP_DLQ_TOPIC: {{ .Values.envs.lpDlq }}
