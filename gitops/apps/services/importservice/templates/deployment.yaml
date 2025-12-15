@@ -8,14 +8,14 @@ spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: importservice
+      app: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: importservice
+        app: {{ .Release.Name }}
     spec:
       containers:
-        - name: importservice
+        - name: {{ .Release.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:

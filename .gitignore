@@ -74,6 +74,9 @@ secrets/
 .env.local
 influxtoken
 
+# Docs
+docs/.$architecture.drawio.bkp
+
 # Kubernetes
 kubeconfig
 *.kubeconfig

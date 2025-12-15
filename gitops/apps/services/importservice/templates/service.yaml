@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: importservice
+  name: {{ .Release.Name }}
   labels:
-    app: importservice
+    app: {{ .Release.Name }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -12,4 +12,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: importservice
+    app: {{ .Release.Name }}

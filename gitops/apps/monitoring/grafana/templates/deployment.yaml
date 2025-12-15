@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Release.Name }}
+  name: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      securityContext:
+        fsGroup: 472
+        supplementalGroups:
+          - 0
+      containers:
+        - name: {{ .Release.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+          env:
+          - name: GF_SERVER_ROOT_URL
+            value: https://{{ .Values.ingress.host }}{{ .Values.ingress.prefix }}
+          - name: GF_SERVER_SERVE_FROM_SUB_PATH
+            value: "true"
+          ports:
+            - containerPort: {{ .Values.container.port }}
+              name: "http-{{ .Release.Name }}"
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /robots.txt
+              port: {{ .Values.container.port }}
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: {{ .Values.container.port }}
+            timeoutSeconds: 1
+          resources:
+            requests:
+              cpu: {{ .Values.resourceRequests.cpu }}
+              memory: {{ .Values.resourceRequests.mem }}
+          volumeMounts:
+            - mountPath: /var/lib/grafana
+              name: "{{ .Release.Name }}-storage"
+      volumes:
+        - name: "{{ .Release.Name }}-storage"
+          persistentVolumeClaim:
+            claimName: "{{ .Release.Name }}-pvc"

@@ -1,0 +1,19 @@
+image:
+  repository: grafana/grafana
+  tag: latest
+  imagePullPolicy: IfNotPresent
+container:
+  port: 3000
+resourceRequests:
+  cpu: 1
+  mem: 2Gi
+persistence:
+  storage: 1Gi
+  storageClassName: cinder-csi
+  accessModes: ["ReadWriteOnce"]
+ingress: 
+  host: "denbi.cherep.co"
+  prefix: "/grafana"
+certificate:
+  name: wearables-cert
+  secretName: wearables-tls

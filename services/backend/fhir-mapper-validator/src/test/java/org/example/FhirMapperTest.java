@@ -3,6 +3,7 @@ package org.example;
 import com.google.gson.JsonObject;
 import org.example.fhir.Mapper;
 import org.example.fhir.Validator;
+import org.example.fhir.model.MapReturn;
 import org.example.lineprotocol.LineProtocolParser;
 import org.junit.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -27,19 +28,21 @@ public class FhirMapperTest {
         Validator.initiliazeFhirValidator();
 
         Path path = Paths.get(
-                getClass().getClassLoader().getResource("input.json").toURI()
+                getClass().getClassLoader().getResource("daniil.json").toURI()
         );
         String input = Files.readString(path);
 
-        List<JsonObject> results = Mapper.mapFhir(input);
+        MapReturn results = Mapper.mapFhir(input);
 
-        if (results.size() <= 1){
+        List<JsonObject> valid = results.getValid();
+
+        if (valid.size() <= 1){
             throw new RuntimeException("there should be more than one element here");
         }
 
-        System.out.println(results.size());
+        System.out.println(valid.size());
 
-        for (JsonObject r : results){
+        for (JsonObject r : valid){
             System.out.println(r.toString());
             boolean res = Validator.validateFhir(r.toString());
             if (!res) throw new RuntimeException("cant parse");
@@ -54,7 +57,7 @@ public class FhirMapperTest {
         List<String> lpRes = new ArrayList<>();
 
         LineProtocolParser lpParser = new LineProtocolParser();
-        for (JsonObject r : results){
+        for (JsonObject r : valid){
             String res = lpParser.parse(r.toString());
             lpRes.add(res);
         }
