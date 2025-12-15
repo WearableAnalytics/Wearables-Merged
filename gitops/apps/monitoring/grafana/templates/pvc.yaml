@@ -7,4 +7,4 @@ spec:
   resources:
     requests:
       storage: {{ .Values.persistence.storage }}
-    storageClassName: {{ .Values.persistence.storageClassName }}
+  storageClassName: {{ .Values.persistence.storageClassName }}

@@ -14,5 +14,6 @@ persistence:
 ingress: 
   host: "denbi.cherep.co"
   prefix: "/grafana"
-  certificateSecret:  wearables-tls
-
+certificate:
+  name: wearables-cert
+  secretName: wearables-tls

@@ -12,4 +12,4 @@ spec:
         - name: {{ .Release.Name }}
           port: {{ .Values.container.port }}
   tls:
-    secretName: {{ .Values.ingress.certificateSecret }}
+    secretName: {{ .Values.certificate.secretName }}
