@@ -7,7 +7,7 @@ host: www
 schemes:
   - https
 paths:
-  /patient:
+  /patients:
     post:
       tags:
         - Patients
@@ -29,8 +29,60 @@ paths:
           description: Patient created
           schema:
             $ref: '#/definitions/Patient'
+    get:
+      tags:
+        - Patients
+      summary: Retrieve all patients that fulfill a certain query
+      produces:
+        - application/json
+      parameters:
+        - in: query
+          name: lastname
+          required: false
+          type: string
+        - in: query
+          name: firstname
+          required: false
+          type: string
+        - in: query
+          name: sex
+          required: false
+          type: string
+          enum:
+            - "female"
+            - "male"
+            - "other"
+        - in: query
+          name: birthRangeStart
+          required: false
+          type: string
+          format: date
+          description: "Start date of birth range (must be <= birthRangeEnd)"
+        - in: query
+          name: birthRangeEnd
+          required: false
+          type: string
+          format: date
+          description: "End date of birth range (must be >= birthRangeStart)"
+        - in: query
+          name: weightRangeStart
+          required: false
+          type: number
+          minimum: 0
+          description: "Minimum weight (must be <= weightRangeEnd)"
+        - in: query
+          name: weightRangeEnd
+          required: false
+          type: number
+          minimum: 0
+          description: "Maximum weight (must be >= weightRangeStart)"
+      responses:
+        200:
+          description: List of Patients that fullfill the query
+          schema:
+            $ref: '#/definitions/PatientList'
 
-  /patient/{patientId}:
+  /patients/{patientId}:
     get:
       tags:
         - Patients
@@ -40,6 +92,8 @@ paths:
       responses:
         200:
           description: Returns all information about the patient
+          schema:
+            $ref: '#/definitions/Patient'
     put:
       tags:
         - Patients
@@ -55,7 +109,7 @@ paths:
           name: body
           required: true
           schema:
-            $ref: '#/definitions/Patient'
+            $ref: '#/definitions/PatientPost'
       responses:
         204:
           description: Overwriting of the resource succeeded
@@ -74,7 +128,197 @@ paths:
         204:
           description: Resource deleted
 
-  /wearable:
+  /patients/{patientId}/wearables:
+    get:
+      tags:
+        - Patients
+      summary: Retrieve all wearable devices used by a patient
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          type: string
+        - in: query
+          name: manufacturer
+          required: false
+          type: string
+          description: "Name of the Manufacturer of the Wearable"
+        - in: query
+          name: name
+          required: false
+          type: string
+          description: "Concrete Name (e.g. Apple Watch Series 10 (GPS + Cellular))"
+        - in: query
+          name: osVersion
+          required: false
+          type: string
+          description: "Version of the Wearables' Firmware: 26.0"
+        - in: query
+          name: serialNumber
+          required: false
+          type: string
+        - in: query
+          name: from
+          required: false
+          type: integer
+          format: int64
+          description: "Unix Timestamp of start time"
+        - in: query
+          name: to
+          required: false
+          type: integer
+          format: int64
+          description: "Unix Timestamp of end time"
+      responses:
+        200:
+          description: List of Wearables used by the Patient
+          schema:
+            $ref: '#/definitions/PatientWearables'
+
+  /patients/{patientId}/devices:
+    get:
+      tags:
+        - Patients
+      summary: Retrieve all devices used by a patient
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          type: string
+        - in: query
+          name: manufacturer
+          required: false
+          type: string
+        - in: query
+          name: name
+          required: false
+          type: string
+        - in: query
+          name: osVersion
+          required: false
+          type: string
+        - in: query
+          name: serialNumber
+          required: false
+          type: string
+        - in: query
+          name: from
+          required: false
+          type: integer
+          format: int64
+          description: "Unix Timestamp of start time"
+        - in: query
+          name: to
+          required: false
+          type: integer
+          format: int64
+          description: "Unix Timestamp of end time"
+      responses:
+        200:
+          description: List of Devices used by Patient
+          schema:
+            $ref: '#/definitions/PatientDevices'
+  
+  /patients/{patientId}/contexts:
+    get:
+      tags:
+        - Patients
+      summary: Retrieve all context in which a Patient participated
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          type: string
+        - in: query
+          name: coordinator
+          required: false
+          type: string
+        - in: query
+          name: groupName
+          required: false
+          type: string
+      responses:
+        200:
+          description: List of contexts in which the Patient participated
+          schema:
+            $ref: '#/definitions/PatientContexts'
+
+  /patients/{patientId}/cases:
+    get:
+      tags:
+        - Patients
+      summary: Retrieve all Cases of a Patient
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          type: string
+        - in: query
+          name: status
+          required: false
+          type: string
+      responses:
+        200:
+          description: List of Cases in which the Patient had
+          schema:
+            $ref: '#/definitions/PatientCases'
+
+  /patients/{patientId}/measurements:
+    get:
+      tags:
+        - Patients
+      summary: Retrieve measurements for a patient
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: patientId
+          required: true
+          type: string
+        - in: query
+          name: signal
+          required: false
+          type: string
+          description: "Type of Measurement (e.g. spo2)"
+        - in: query
+          name: from
+          required: false
+          type: integer
+          format: int64
+          description: "Unix Timestamp of start of time period"
+        - in: query
+          name: to
+          required: false
+          type: integer
+          format: int64
+          description: "Unix Timestamp of end of time period"
+        - in: query
+          name: appVersion
+          required: false
+          type: string
+        - in: query
+          name: caseId
+          required: false
+          type: array
+          items:
+            type: string
+          collectionFormat: multi
+          description: "List of cases that shall be included"
+      responses:
+        200:
+          description: List of Measurements of that Patient
+          schema:
+            $ref: '#/definitions/PatientMeasurements'
+
+  /wearables:
     post:
       tags:
         - Wearables
@@ -93,7 +337,7 @@ paths:
           schema:
             $ref: '#/definitions/Wearable'
 
-  /wearable/{wearableID}:
+  /wearables/{wearableID}:
     get:
       tags:
         - Wearables
@@ -142,7 +386,7 @@ paths:
         204:
           description: Successfully deleted resource
 
-  /device:
+  /devices:
     post:
       tags:
         - Devices
@@ -163,7 +407,7 @@ paths:
           schema:
             $ref: '#/definitions/Device'
 
-  /device/{deviceID}:
+  /devices/{deviceID}:
     get:
       tags:
         - Devices
@@ -214,7 +458,7 @@ paths:
         204:
           description: Deleted successfully
 
-  /context:
+  /contexts:
     post:
       tags:
         - Contexts
@@ -235,7 +479,7 @@ paths:
           schema:
             $ref: '#/definitions/Context'
 
-  /context/{contextID}:
+  /contexts/{contextID}:
     get:
       tags:
         - Contexts
@@ -269,7 +513,7 @@ paths:
           name: body
           required: true
           schema:
-            $ref: '#/definitions/Context'
+            $ref: '#/definitions/ContextPost'
       responses: 
         201:
           description: Created resource under given key
@@ -290,7 +534,7 @@ paths:
         204:
           description: Successfully deleted resource
 
-  /case:
+  /cases:
     post:
       tags:
         - Cases
@@ -310,7 +554,7 @@ paths:
           description: Successfully create case in database
           schema:
             $ref: '#/definitions/Case'
-  /case/{caseId}:
+  /cases/{caseId}:
     get:
       tags:
         - Cases
@@ -342,7 +586,7 @@ paths:
           name: body
           required: true
           schema:
-            $ref: '#/definitions/Case'
+            $ref: '#/definitions/CasePost'
       responses:
         201:
           description: Created new resource
@@ -362,338 +606,482 @@ paths:
           description: Deleted existing resource
 
 definitions:
-
-  PatientPost:
+  PatientBase:
     type: object
     properties:
-      Charite-ID:
+      chariteId:
         type: string
-        format: uuid
         description: "Charité internal representation of the Patient"
         example: "8374267sih234"
-      Lastname:
+      lastName:
         type: string
         description: "Lastname of the Patient"
         example: "Pork"
-      Firstname:
+      firstName:
         type: string
         description: "Firstname of the Patient"
         example: "Joana"
-      Sex:
+      sex:
         type: string
+        enum:
+          - "female"
+          - "male"
+          - "other"
         description: "Sex of the Patient"
-        example: "Female"
-      BirthDate:
+        example: "female"
+      birthDate:
         type: string
         format: date
         description: "Birth-Date of the Patient (can be used to calculate age)"
-      Weight:
-        type: float
+      weight:
+        type: number
         description: "Weight of the Patient"
+    required:
+      - chariteId
+      - lastName
+      - firstName
+      - sex
+      - birthDate
+      - weight
 
+  PatientPost:
+    allOf:
+      - $ref: '#/definitions/PatientBase'
 
   Patient:
+    allOf:
+      - $ref: '#/definitions/PatientBase'
+      - type: object
+        properties:
+          patientId:
+            type: string
+            description: Unique patient identifier
+            example: "id-1234"
+        required:
+          - patientId
+
+  PatientList:
     type: object
     properties:
-      Patient-ID:
-        type: string
-        description: Unique patient identifier
-        example: "id-1234"
-      Age:
-        type: integer
-        description: Patient age
-        example: 12
-      Contexts:
+      patients:
         type: array
         items:
-          $ref: '#/definitions/Context'
-        description: Patient context information
-      Wearables:
-        type: array
-        items:
-          $ref: '#/definitions/Wearable'
-      Devices:
-        type: array
-        items:
-          $ref: '#/definitions/Device'
-        description: Patient devices information
+          $ref: '#/definitions/Patient'
     required:
-      - Patient-ID:
+      - patients
+  
+  PatientMeasurements:
+    type: object
+    properties:
+      measurements:
+        type: array
+        items:
+          $ref: '#/definitions/Measurement'
+    required:
+      - measurements
 
+  Measurement:
+    type: object
+    properties: 
+      timestamp:
+        type: integer
+        format: int64
+        description: "Unix Timestamp pf the measurement"
+      measurement:
+        type: string
+        description: "Measurement series name (e.g. heart-rate)"
+        example: "heart-rate"
+      tags:
+        type: object
+        properties:
+          patientId:
+            type: string
+          caseId:
+            type: string
+          deviceId:
+            type: string
+          wearableId:
+            type: string
+          contextId:
+            type: string
+        additionalProperties:
+          type: string
+          description: "Optional additional tags (unit, location, ...)"
+      signal:
+        $ref: '#/definitions/Signal'
+    required:
+      - timestamp
+      - measurement
+      - tags
+      - signal
+
+  Signal:
+    type: object
+    properties:
+      type:
+        type: string
+        example: "heart-rate"
+      value:
+        type: number
+        example: 50
+      unit:
+        type: string
+        example: "bpm"
+    required:
+      - type
+      - value
+      - unit
 
   Wearable:
     type: object
     properties:
-      Wearable-ID:
+      wearableId:
         type: string
         description: Unique identifier for the device in our system
         example: "APL7984563592432saf1342"
-      Serial-Number:
+      serialNumber:
         type: string
         description: Wearable serial number
         example: "XYXYY628348YAGFFSIJF0Y"
-      OS-Version:
+      osVersion:
         type: string
         description: Version of the Wearable Firmware
         example: "26.0"
-      Name:
+      name:
         type: string
         description: Model-Name of the Wearable-Device
         example: "Apple Watch Series 10 (GPS + Cellular)"
-      Model-Number:
+      modelNumber:
         type: string
         description: Model-Number of the Wearable-Device
         example: "A3003"
-      Manufacturer:
+      manufacturer:
         type: string
         description: Manufacturer of the Watch
         example: "Apple Inc."
     required:
-      - Wearable-ID
-      - Serial-Number
-      - OS-Version
-      - Name
-      - Model-Number
-      - Manufacturer
+      - wearableId
+      - serialNumber
+      - osVersion
+      - name
+      - modelNumber
+      - manufacturer
 
   WearablePost:
     type: object
     properties:
-      Serial-Number:
+      serialNumber:
         type: string
         description: Wearable serial number
         example: "XYXYY628348YAGFFSIJF0Y"
-      OS-Version:
+      osVersion:
         type: string
         description: Firmware-Version of the Wearable-Device
         example: "26.0"
-      Name:
+      name:
         type: string
         description: Model-Name of the Wearable-Device
         example: "Apple Watch Series 10 (GPS + Cellular)"
-      Model-Number:
+      modelNumber:
         type: string
         description: Model-Number of the Wearable-Device
         example: "A3003"
-      Manufacturer:
+      manufacturer:
         type: string
         description: Manufacturer of the Watch
         example: "Apple Inc."
     required:
-      - Serial-Number
-      - OS-Version
-      - Name
-      - Model-Number
-      - Manufacturer
+      - serialNumber
+      - osVersion
+      - name
+      - modelNumber
+      - manufacturer
+
+  PatientWearables:
+    type: object
+    properties:
+      wearables:
+        type: array
+        items:
+          $ref: '#/definitions/WearablePatient'
+    required:
+      - wearables
+
+  WearablePatient:
+    type: object
+    properties:
+      wearable:
+        $ref: '#/definitions/Wearable'
+        description: "Information about the Wearable-Device"
+      timePeriod:
+        $ref: '#/definitions/TimePeriod'
+        description: "Time-Period in which the User had the Wearable-Device"
+    required:
+      - wearable
+      - timePeriod
+  
+  TimePeriod:
+    type: object
+    properties:
+      assignedFrom:
+        type: integer
+        format: int64
+        description: "Unix Timestamp of the moment the device use in the case starts"
+      assignedTo:
+        type: integer
+        format: int64
+        description: "Unix Timestamp of the moment the device use in the case stops"
+
 
   DevicePost:
     type: object
     properties:
-      Serial-Number:
+      serialNumber:
         type: string
         description: Serial-Number of the Smartphone
         example: "XYXYX929875TZRD0"
-      OS-Version:
+      osVersion:
         type: string
         description: Smartphone-OS Version
         example: "26.0"
-      Name:
+      name:
         type: string
         description: Model-Name of the Smartphone
         example: "Apple iPhone 13 Pro Max"
-      Model-Number:
+      modelNumber:
         type: string
         description: Model-Number of the Smartphone
         example: "A3003"
-      Manufacturer:
+      manufacturer:
         type: string
         description: Manufacturer of the Phone
         example: "Apple Inc."
     required:
-      - Serial-Number
-      - OS-Version
-      - Name
-      - Model-Number
-      - Manufacturer
+      - serialNumber
+      - osVersion
+      - name
+      - modelNumber
+      - manufacturer
 
   Device:
     type: object
     properties:
-      Device-ID:
+      deviceId:
         type: string
         description: Unique identifier for the device in our Database
         example: "APL34897268isudgi17"
-      Serial-Number:
+      serialNumber:
         type: string
         description: Serial-Number of the Smartphone
         example: "XYXYX929875TZRD0"
-      OS-Version:
+      osVersion:
         type: string
         description: Smartphone-OS Version
         example: "26.0"
-      Name:
+      name:
         type: string
         description: Model-Name of the Smartphone
         example: "Apple iPhone 13 Pro Max"
-      Model-Number:
+      modelNumber:
         type: string
         description: Model-Number of the Smartphone
         example: "A3003"
-      Manufacturer:
+      manufacturer:
         type: string
         description: Manufacturer of the Phone
         example: "Apple Inc."
     required:
-      - Device-ID
-      - Serial-Number
-      - OS-Version
-      - Name
-      - Model-Number
-      - Manufacturer
+      - deviceId
+      - serialNumber
+      - osVersion
+      - name
+      - modelNumber
+      - manufacturer
+
+  PatientDevice:
+    type: object
+    properties:
+      device:
+        $ref: '#/definitions/Device'
+      timePeriod:
+        $ref: '#/definitions/TimePeriod'
+    required:
+      - device
+      - timePeriod
+
+  PatientDevices:
+    type: object
+    properties:
+      devices:
+        type: array
+        items:
+          $ref: '#/definitions/PatientDevice'
+    required:
+      - devices
 
   ContextPost:
     type: object
     properties:
-      Group-Name:
+      groupName:
         type: string
         description: Name of the Group in the context
         example: "Placebo-Group-1234"
-      Coordinator:
+      coordinator:
         type: string
         description: Identifier of the Coordinator of the Context
         example: "D445"
     required:
-      - Coordinator
+      - coordinator
 
   Context:
     type: object
     properties:
-      Context-ID:
+      contextId:
         type: string
         description: Unique identifier of the specific context in our system
         example: "ijsdha1345787934625s"
-      Group-Name:
+      groupName:
         type: string
         description: Name of the Group in the context
         example: "Placebo-Group-1234"
-      Coordinator:
+      coordinator:
         type: string
         description: Identifier of the Coordinator of the Context (usually the doctor)
         example: "D445"
     required:
-      - Context-ID
-      - Coordinator
+      - contextId
+      - coordinator
+
+  PatientContexts:
+    type: object
+    properties:
+      contexts:
+        type: array
+        items:
+          $ref: '#/definitions/Context'
+    required:
+      - contexts
 
   Case:
     type: object
     properties:
-      Case-ID:
+      caseId:
         type: string
         description: Unique identifier of the case
         example: "083z45"
-      Status:
+      status:
         type: string
         description: "currently not defined"
         example: "Status-Code 1"
-      Patient-ID:
+      patientId:
         type: string
         description: "patient that has this case"
         example: "id-1234"
-      Devices:
+      devices:
         type: array
         items:
           $ref: '#/definitions/CaseDevice'
         description: "Referencing the Device to the Case"
-      Wearables:
+      wearables:
         type: array
         items:
           $ref: '#/definitions/CaseWearable'
         description: "Referencing the Wearbale to the Case"
-      Contexts:
+      contexts:
         type: array
         items:
           type: string
         description: "reference of the context in which the case happens"
         example: "ijsdha1345787934625s"
     required:
-      - Case-ID
-      - Status
-      - Patient-ID
-      - Wearables
-      - Devices
-      - Contexts
+      - caseId
+      - status
+      - patientId
+      - wearables
+      - devices
+      - contexts
 
   CasePost:
     type: object
     properties:
-      Status:
+      status:
         type: string
         description: "currently not defined"
         example: "Status-Code 1"
-      Patient-ID:
+      patientId:
         type: string
         description: "patient that has this case"
         example: "id-1234"
-      Devices:
+      devices:
         type: array
         items:
           $ref: '#/definitions/CaseDevice'
         description: "Referencing the Device to the Case"
-      Wearables:
+      wearables:
         type: array
         items:
           $ref: '#/definitions/CaseWearable'
         description: "Referencing the Wearable to the Case"
-      Contexts:
+      contexts:
         type: array
         items:
           type: string
           example: "ijsdha1345787934625s"
         description: "reference of the context in which the case happens"
     required:
-      - Status
-      - Patient-ID
-      - Wearables
-      - Devices
-      - Contexts
-  
+      - status
+      - patientId
+      - wearables
+      - devices
+      - contexts
+
+  PatientCases:
+    type: object
+    properties:
+      Cases:
+        type: array
+        items:
+          $ref: '#/definitions/Case'
+    required:
+      - Cases
+
   CaseDevice:
     type: object
     properties:
-      Device-ID:
+      deviceId:
         type: string
         description: "reference of the smartphone used in the case"
         example: "APL34897268isudgi17"
-      Assigned-From:
+      assignedFrom:
         type: integer
         format: int64
         description: "Unix Timestamp of the moment the device use in the case starts"
-      Assigned-To:
+      assignedTo:
         type: integer
         format: int64
         description: "Unix Timestamp of the moment the device use in the case stops"
     required:
-      - Device-ID
-      - Assigned-From
+      - deviceId
+      - assignedFrom
 
   CaseWearable:
     type: object
     properties:
-      Wearable-ID:
+      wearableId:
         type: string
         description: "reference of the wearable device used in the case"
         example: "APL7984563592432saf1342"
-      Assigned-From:
+      assignedFrom:
         type: integer
         format: int64
         description: "Unix timestamp from which the wearable use in the case starts"
-      Assigned-To:
+      assignedTo:
         type: integer
         format: int64
         description: "Unix Timestamp from which the wearbale use in the case stops"
     required:
-      - Wearable-ID
-      - Assigned-From
+      - wearableId
+      - assignedFrom
 
   Error:
     type: object
