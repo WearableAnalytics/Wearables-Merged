@@ -17,4 +17,4 @@ spec:
           #format: namespace-name@providername
           serversTransport: ingress-long-timeout@kubernetescrd
   tls:
-    secretName: {{ .Values.ingress.certificateSecret }}
+    secretName: {{ .Values.certificate.secretName }}
