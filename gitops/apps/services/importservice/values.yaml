@@ -38,3 +38,7 @@ ingress:
   replacement: /$1
   certificateSecret: wearables-tls
 
+certificate:
+  name: wearables-cert
+  secretName: wearables-tls
+
