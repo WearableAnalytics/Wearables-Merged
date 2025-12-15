@@ -1,0 +1,9 @@
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: long-timeout
+spec:
+  forwardingTimeouts:
+    dialTimeout: {{ .Values.serversTransport.forwardingTimeouts.dialTimeout }}
+    responseHeaderTimeout: {{ .Values.serversTransport.forwardingTimeouts.responseHeaderTimeout }}
+    idleConnTimeout: {{ .Values.serversTransport.forwardingTimeouts.idleConnTimeout }}
