@@ -24,6 +24,8 @@ For the GitOps approach I also suggest prohibiting pushes to main and working wi
 
 ## Setup
 
+The helm commands need to be run from the direct parent directory of where the respective service is defined.
+
 ### Apps
 
 Before being able to deploy anything Kafka related, the strimzi operator needs to be deployed
@@ -81,27 +83,41 @@ Setup the import service
 
 `helm upgrade --install importservice  ./importservice --values ./importservice/values.yaml --namespace importservice --create-namespace`
 
+This will also configure IngressRoutes and needed middleware to resolve paths properly.
+
+**Install grafana**
+
+`helm upgrade --install grafana ./grafana --values grafana/values.yaml --namespace grafana --create-namespace`
+
+This will also configure IngressRoutes and needed middleware to resolve paths properly.
+
 ### Network
 
 The deNBI cloud uses OpenStack and kubermatic. We have been assigned a public IP adress at `194.94.4.68`.
 
+We have also been given a (possibly non-permanent solution) domain by Elias. The DNS entry for https://wearable-analytics.de points to our IP.
+
 For security reasons the cluster nodes are running in a different network than the load balancer / ingress controller (traefik). You can take a look at the OpenStack dashboard under Network > Network Topology to get a better understanding.
+
+The network is built up as follows:
+
+Ingress Controller traefik (as k8s LB) deployed in ns `ingress`. General use traefik middleware and certificate for that namespace are also deployed in `ingress`. 
+
+All services that should be externally exposed have their own https and http routes that are defined in their respective folders. Each namespace also needs an own cert for TLS since they and the secrets they rely on / manage are namespace scoped in k8s.
 
 **Install the ingress controller**
 
-The ingress controller is the publicly exposed service that forwards trafficto our services based ON `Ingress` resources. The latter are just route definitions and need a ingress controller to work.
+The ingress controller is the publicly exposed service that forwards trafficto our services based ON `IngressRoute` resources. The latter are just route definitions and need a ingress controller to work.
 
 `helm upgrade --install traefik  ./ingresscontroller --values ./ingresscontroller/values.yaml --namespace ingress --create-namespace`
 
-This creates afew things (take a look into the folder). It is important that the network IDs provided are correct otherwise this will not work.
+This creates afew things (take a look into the folder). It is important that the network IDs provided are correct otherwise this will not work. (The LB runs in a different network than our worker nodes)
 
 **Install the ingress**
 
-This creates an ingress (route) and the ingress class it is based on. (in our case traefik)
+This creates reusable ingress resources (like middleware etc.) and the ingress class they are based on (-> traefik).
 
 `helm upgrade --install traefik  ./ingresscontroller --values ./ingresscontroller/values.yaml --namespace ingress --create-namespace`
-
-**ATTENTION**: This needs to run in the same namespace as the import service, otherwise the Ingress route does not work
 
 ## More
 
