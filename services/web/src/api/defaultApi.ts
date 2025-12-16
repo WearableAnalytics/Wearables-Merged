@@ -37,6 +37,67 @@ export class DefaultApi {
     return data;
   };
 
+  register = async (email: string) => {
+    const response = await fetch(`${API_BASE_PATH}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message =
+        (data && (data.message ?? data.error)) ??
+        (response.status === 409
+          ? 'This email is already registered. Please log in instead.'
+          : 'Unable to register.');
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  me = async () => {
+    const response = await fetch(`${API_BASE_PATH}/me`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (response.status === 401) {
+      return null;
+    }
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to load session.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return (data as { user?: unknown }).user ?? null;
+  };
+
+  logout = async () => {
+    const response = await fetch(`${API_BASE_PATH}/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({} as Record<string, unknown>));
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to log out.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return response.json().catch(() => ({} as Record<string, unknown>));
+  };
+
   // Cases
   casesCaseIdGet = this.casesApi.casesCaseIdGet.bind(this.casesApi);
   casesFromChariteCasePost = this.casesApi.casesFromChariteCasePost.bind(this.casesApi);

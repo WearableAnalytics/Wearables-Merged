@@ -17,17 +17,26 @@ declare global {
 
 type CookieRequest = Request & { cookies?: Record<string, string> };
 
+export const parseCookies = (cookieHeader?: string): Record<string, string> => {
+  if (!cookieHeader) return {};
+
+  return cookieHeader.split(';').reduce<Record<string, string>>((acc, cookiePart) => {
+    const [rawName, ...rest] = cookiePart.split('=');
+    if (!rawName || rest.length === 0) return acc;
+
+    const name = rawName.trim();
+    if (!name) return acc;
+
+    acc[name] = decodeURIComponent(rest.join('='));
+    return acc;
+  }, {});
+};
+
 export const getUserFromRequest = (req: Request): JwtPayload | undefined => {
   try {
     const cookies =
       (req as CookieRequest).cookies ??
-      (req.headers.cookie
-        ? req.headers.cookie.split(';').reduce<Record<string, string>>((acc, cookie) => {
-            const [name, value] = cookie.split('=');
-            acc[name] = decodeURIComponent(value);
-            return acc;
-          }, {})
-        : {});
+      parseCookies(req.headers.cookie);
     const token = cookies.jwt;
     if (!token) return undefined;
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret') as JwtPayload;

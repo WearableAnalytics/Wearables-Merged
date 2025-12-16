@@ -2,7 +2,7 @@ import express from 'express';
 import type { CookieOptions, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { auth } from '../../middleware.js';
+import { auth, parseCookies } from '../../middleware.js';
 
 type UserRecord = {
   id: string;
@@ -12,7 +12,7 @@ type UserRecord = {
 
 const router = express.Router();
 const requestCookies = (req: Request) =>
-  (req as Request & { cookies?: Record<string, string> }).cookies ?? {};
+  (req as Request & { cookies?: Record<string, string> }).cookies ?? parseCookies(req.headers.cookie);
 
 // In-memory store for temporary tokens
 const tokenStore = new Map<string, { email: string; expiresAt: Date }>();
