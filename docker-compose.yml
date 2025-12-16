@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+      args:
+        # Point the frontend to your API. Override in .env or CLI.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://backend:3001}
+    ports:
+      - "8080:80"
+    restart: unless-stopped

@@ -83,3 +83,8 @@ kubeconfig
 
 # CI/CD
 .github/actions-runner/
+
+
+
+*.log
+*.tmp

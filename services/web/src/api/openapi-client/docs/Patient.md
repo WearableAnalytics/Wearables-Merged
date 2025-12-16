@@ -1,7 +1,6 @@
 
 # Patient
 
-Internal patient
 
 ## Properties
 

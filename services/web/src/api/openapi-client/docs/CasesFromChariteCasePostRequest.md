@@ -1,7 +1,6 @@
 
 # CasesFromChariteCasePostRequest
 
-Create internal case from Charité case payload
 
 ## Properties
 

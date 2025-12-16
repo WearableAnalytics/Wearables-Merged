@@ -61,7 +61,7 @@
           "lastName",
           "birthDate"
         ],
-        "description": "External read-only Charité case"
+        "additionalProperties": false
       },
       "Patient": {
         "type": "object",
@@ -94,7 +94,7 @@
           "lastName",
           "birthDate"
         ],
-        "description": "Internal patient"
+        "additionalProperties": false
       },
       "Case": {
         "type": "object",
@@ -125,6 +125,7 @@
           },
           "caseToken": {
             "type": "string",
+            "nullable": true,
             "description": "JWT token for case access",
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
           }
@@ -134,7 +135,7 @@
           "patientId",
           "status"
         ],
-        "description": "Internal case"
+        "additionalProperties": false
       },
       "CaseCreated": {
         "type": "object",
@@ -160,7 +161,7 @@
           "caseId",
           "caseToken"
         ],
-        "description": "Response after case creation"
+        "additionalProperties": false
       },
       "CaseVerified": {
         "type": "object",
@@ -190,7 +191,7 @@
           "patientVerifier",
           "status"
         ],
-        "description": "Response after token verification"
+        "additionalProperties": false
       },
       "Error": {
         "type": "object",
@@ -209,7 +210,7 @@
         "required": [
           "message"
         ],
-        "description": "Error response"
+        "additionalProperties": false
       }
     },
     "parameters": {}
@@ -465,7 +466,7 @@
                 "required": [
                   "cCaseId"
                 ],
-                "description": "Create internal case from Charité case payload"
+                "additionalProperties": false
               }
             }
           }
@@ -537,7 +538,7 @@
                 "required": [
                   "caseToken"
                 ],
-                "description": "Verify case token payload"
+                "additionalProperties": false
               }
             }
           }

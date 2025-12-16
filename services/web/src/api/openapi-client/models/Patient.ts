@@ -14,7 +14,7 @@
 
 import { mapValues } from '../runtime';
 /**
- * Internal patient
+ * 
  * @export
  * @interface Patient
  */

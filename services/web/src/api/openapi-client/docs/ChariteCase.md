@@ -1,7 +1,6 @@
 
 # ChariteCase
 
-External read-only Charité case
 
 ## Properties
 

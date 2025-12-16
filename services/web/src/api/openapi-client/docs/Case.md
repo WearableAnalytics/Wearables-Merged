@@ -1,7 +1,6 @@
 
 # Case
 
-Internal case
 
 ## Properties
 

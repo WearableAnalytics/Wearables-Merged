@@ -1,7 +1,6 @@
 
 # CaseCreated
 
-Response after case creation
 
 ## Properties
 

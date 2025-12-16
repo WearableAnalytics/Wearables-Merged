@@ -1,7 +1,6 @@
 
 # ModelError
 
-Error response
 
 ## Properties
 

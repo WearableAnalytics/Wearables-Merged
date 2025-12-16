@@ -14,7 +14,7 @@
 
 import { mapValues } from '../runtime';
 /**
- * Internal case
+ * 
  * @export
  * @interface Case
  */
@@ -48,7 +48,7 @@ export interface Case {
      * @type {string}
      * @memberof Case
      */
-    caseToken?: string;
+    caseToken?: string | null;
 }
 
 

@@ -14,7 +14,7 @@
 
 import { mapValues } from '../runtime';
 /**
- * Create internal case from Charité case payload
+ * 
  * @export
  * @interface CasesFromChariteCasePostRequest
  */

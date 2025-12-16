@@ -1,7 +1,6 @@
 
 # CaseVerified
 
-Response after token verification
 
 ## Properties
 

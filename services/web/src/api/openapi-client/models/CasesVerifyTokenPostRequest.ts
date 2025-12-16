@@ -14,7 +14,7 @@
 
 import { mapValues } from '../runtime';
 /**
- * Verify case token payload
+ * 
  * @export
  * @interface CasesVerifyTokenPostRequest
  */

@@ -1,73 +1,17 @@
-# React + TypeScript + Vite
+# Wearables Web – Containers
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Single image (Kubernetes-friendly)
+- Build (run from repo root): `docker build -f services/web/Dockerfile -t wearables-web --build-arg VITE_API_BASE_URL=https://api.example.com .`
+- Run: `docker run -p 8080:80 wearables-web`
+- Deploy separately to Kubernetes behind an Ingress that routes `/` to this service and `/api` to the backend. Set `VITE_API_BASE_URL` at build time to the backend URL you want baked into the bundle.
+- Env file option: create `services/web/.env.production` with `VITE_API_BASE_URL=...`; the Docker build will read it when it runs `npm run build`.
 
-Currently, two official plugins are available:
+## Local with Docker Compose
+- Compose file: `docker-compose.yml` builds the same web image.
+- `VITE_API_BASE_URL` is passed as a build-arg. Set it in a `.env` next to `docker-compose.yml`, e.g. `VITE_API_BASE_URL=http://backend:3001` (or `http://host.docker.internal:3001` if your API runs on the host).
+- Run: `docker compose up --build web` (frontend at http://localhost:8080).
+- Add your backend as another Compose service named `backend` so the default `http://backend:3001` works, or point `VITE_API_BASE_URL` to whatever backend you run.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## API URL behavior
+- `VITE_API_BASE_URL` is compiled into the frontend bundle during `npm run build`; the image does not auto-read runtime env vars for it.
+- Kubernetes: keep frontend and backend as separate services; let the Ingress/Gateway route `/api` to the backend. Rebuild with the correct API URL (or add a runtime config layer later if you want to avoid rebuilds per environment).

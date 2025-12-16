@@ -22,7 +22,8 @@ export const ChariteCaseSchema = registry.register(
         .describe('Patient date of birth')
         .openapi({ format: 'date', example: '1980-01-01' }),
     })
-    .describe('External read-only Charité case'),
+    .describe('External read-only Charité case')
+    .strict(),
 );
 
 export const PatientSchema = registry.register(
@@ -37,7 +38,8 @@ export const PatientSchema = registry.register(
         .describe('Patient date of birth')
         .openapi({ format: 'date', example: '1980-01-01' }),
     })
-    .describe('Internal patient'),
+    .describe('Internal patient')
+    .strict(),
 );
 
 const caseStatusSchema = z.enum(['active', 'inactive']).describe('Case status').openapi({
@@ -58,11 +60,13 @@ export const CaseSchema = registry.register(
       status: caseStatusSchema,
       caseToken: z
         .string()
+        .nullable()
         .describe('JWT token for case access')
         .openapi({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
         .optional(),
     })
-    .describe('Internal case'),
+    .describe('Internal case')
+    .strict(),
 );
 
 export const CaseCreatedSchema = registry.register(
@@ -76,7 +80,8 @@ export const CaseCreatedSchema = registry.register(
         .describe('JWT token for case access')
         .openapi({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' }),
     })
-    .describe('Response after case creation'),
+    .describe('Response after case creation')
+    .strict(),
 );
 
 export const CaseVerifiedSchema = registry.register(
@@ -92,7 +97,8 @@ export const CaseVerifiedSchema = registry.register(
         .openapi({ example: 'M0212B' }),
       status: caseStatusSchema,
     })
-    .describe('Response after token verification'),
+    .describe('Response after token verification')
+    .strict(),
 );
 
 export const ErrorSchema = registry.register(
@@ -102,7 +108,8 @@ export const ErrorSchema = registry.register(
       message: z.string().describe('Error message').openapi({ example: 'Resource not found' }),
       code: z.string().describe('Error code').openapi({ example: 'NOT_FOUND' }).optional(),
     })
-    .describe('Error response'),
+    .describe('Error response')
+    .strict(),
 );
 
 // Request bodies
@@ -113,7 +120,8 @@ const CreateCaseFromChariteBodySchema = z
       .describe('Charité case identifier')
       .openapi({ example: 'C-123456' }),
   })
-  .describe('Create internal case from Charité case payload');
+  .describe('Create internal case from Charité case payload')
+  .strict();
 
 const VerifyCaseTokenBodySchema = z
   .object({
@@ -122,7 +130,8 @@ const VerifyCaseTokenBodySchema = z
       .describe('JWT case token')
       .openapi({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpX...' }),
   })
-  .describe('Verify case token payload');
+  .describe('Verify case token payload')
+  .strict();
 
 // Paths
 registry.registerPath({

@@ -1,7 +1,6 @@
 
 # CasesVerifyTokenPostRequest
 
-Verify case token payload
 
 ## Properties
 
