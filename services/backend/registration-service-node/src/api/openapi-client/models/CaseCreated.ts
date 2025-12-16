@@ -14,7 +14,7 @@
 
 import { mapValues } from '../runtime';
 /**
- * Response after case creation
+ * 
  * @export
  * @interface CaseCreated
  */

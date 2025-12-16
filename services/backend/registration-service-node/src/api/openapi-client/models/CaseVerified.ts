@@ -14,7 +14,7 @@
 
 import { mapValues } from '../runtime';
 /**
- * Response after token verification
+ * 
  * @export
  * @interface CaseVerified
  */

@@ -7,7 +7,7 @@
 From this package directory:
 
 ```bash
-npm run generate:api-schema
+npm run generate:api
 ```
 
 This writes `openapi.json` (update the script if you prefer YAML). Commit the generated file only if something downstream consumes it from git; otherwise keep it ignored and regenerate on demand.***

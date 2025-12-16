@@ -14,7 +14,7 @@
 
 import { mapValues } from '../runtime';
 /**
- * Error response
+ * 
  * @export
  * @interface ModelError
  */

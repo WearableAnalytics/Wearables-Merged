@@ -14,7 +14,7 @@
 
 import { mapValues } from '../runtime';
 /**
- * External read-only Charité case
+ * 
  * @export
  * @interface ChariteCase
  */
