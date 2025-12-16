@@ -61,6 +61,7 @@ build/
 
 # Node/npm
 node_modules/
+**/node_modules/
 npm-debug.log*
 
 # Secrets
@@ -83,7 +84,6 @@ kubeconfig
 
 # CI/CD
 .github/actions-runner/
-
 
 
 *.log
