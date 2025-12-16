@@ -1,5 +1,5 @@
 ingress:
-  host: "denbi.cherep.co"
+  host: "wearable-analytics.de"
 
 serversTransport:
   forwardingTimeouts:
