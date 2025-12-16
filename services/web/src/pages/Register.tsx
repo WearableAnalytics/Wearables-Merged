@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/custom/PageHeader';
 import { Loader2 } from 'lucide-react';
 import { useActiveCase } from '@/lib/activeCase';
 
-export function AddCasePage() {
+export function RegisterPage() {
   const [caseId, setCaseId] = useState('');
   const [result, setResult] = useState<ChariteCase | null>(null);
   const [created, setCreated] = useState<CaseCreated | null>(null);
@@ -134,7 +134,7 @@ export function AddCasePage() {
             onChange={(value) => setCaseId(value)}
             onFocusReset={resetFeedback}
             onSubmit={handleSearch}
-            inputId="case-search"
+            inputId="register-case-search"
             inputLabel="Search for a case by ID"
             inputType="search"
             inputMode="numeric"

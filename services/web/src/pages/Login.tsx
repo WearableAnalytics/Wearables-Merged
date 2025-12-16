@@ -1,0 +1,88 @@
+import type { FormEvent } from 'react';
+import { useState } from 'react';
+import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
+import { defaultApi } from '@/api/defaultApi';
+import { PageHeader } from '@/components/custom/PageHeader';
+import { SearchForm } from '@/components/custom/SearchForm';
+import { ArrowRight, Loader2 } from 'lucide-react';
+
+export function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const resetFeedback = () => {
+    setError(null);
+    setMessage(null);
+  };
+
+  const handleLogin = async (event: FormEvent) => {
+    event.preventDefault();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setError('Please enter your email address.');
+      setMessage(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const data = await defaultApi.login(trimmedEmail);
+      const successMessage = (data as { message?: string }).message ?? 'Check your email for the login link.';
+      setMessage(successMessage);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to log in.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <PageHeader
+        label="Login"
+        title="Sign in with your email"
+        description="Enter the email you used to register to receive a login link."
+      />
+
+      <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">
+        <div className="w-full max-w-3xl px-4">
+          <SearchForm
+            value={email}
+            loading={loading}
+            onChange={(value) => setEmail(value)}
+            onFocusReset={resetFeedback}
+            onSubmit={handleLogin}
+            inputId="login-email"
+            inputLabel="Email address"
+            inputType="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="Enter your email address"
+            submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
+            submitLabel="Send login link"
+          />
+
+          <div className="mt-6 space-y-3 min-h-[120px]">
+            {error ? <AddCaseNotice tone="error" message={error} /> : null}
+
+            {loading ? (
+              <AddCaseNotice
+                tone="loading"
+                icon={<Loader2 aria-hidden className="h-5 w-5 animate-spin text-slate-600" />}
+                message="Sending login link…"
+              />
+            ) : null}
+
+            {!loading && message ? <AddCaseNotice tone="info" message={message} /> : null}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

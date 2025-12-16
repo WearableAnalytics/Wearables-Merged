@@ -13,6 +13,30 @@ export class DefaultApi {
   private charitCasesApi = new CharitCasesApi(sharedConfig);
   private patientsApi = new PatientsApi(sharedConfig);
 
+  // Auth (custom)
+  login = async (email: string) => {
+    const response = await fetch(`${API_BASE_PATH}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message =
+        (data && (data.message ?? data.error)) ??
+        (response.status === 404
+          ? 'This email is not registered. Please sign up first.'
+          : 'Unable to log in.');
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
   // Cases
   casesCaseIdGet = this.casesApi.casesCaseIdGet.bind(this.casesApi);
   casesFromChariteCasePost = this.casesApi.casesFromChariteCasePost.bind(this.casesApi);
