@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
 import { ResponseError } from '@/api/openapi-client/runtime';
-import { InfoItem } from '@/pages/add-case/components/InfoItem';
+import { InfoItem } from '@/components/custom/InfoItem';
 import { useActiveCase } from '@/lib/activeCase';
-import QRCode from 'qrcode';
+import { CaseQrCard } from './components/CaseQrCard';
+import { CaseQrModal } from './components/CaseQrModal';
 
 export function CasePage() {
   const { caseId } = useParams();
@@ -16,7 +17,7 @@ export function CasePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { setActiveCase, clearActiveCase, activeCase } = useActiveCase();
-  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isQrOpen, setIsQrOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,34 +88,9 @@ export function CasePage() {
     [patient],
   );
 
-  useEffect(() => {
-    if (!caseData?.caseToken || !qrCanvasRef.current) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const targetSize = 110;
-    const renderSize = Math.floor(targetSize * dpr);
-    const canvasEl = qrCanvasRef.current;
-
-    QRCode.toCanvas(canvasEl, caseData.caseToken, {
-      width: renderSize,
-      margin: 0,
-      color: {
-        dark: '#0f172a',
-        light: '#ffffff',
-      },
-    })
-      .then(() => {
-        canvasEl.style.width = `${targetSize}px`;
-        canvasEl.style.height = `${targetSize}px`;
-      })
-      .catch(() => {
-        /* noop: keep silent if QR rendering fails */
-      });
-  }, [caseData?.caseToken]);
-
   return (
     <>
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
         <div className="flex-1">
           <PageHeader
             label="Case"
@@ -122,24 +98,8 @@ export function CasePage() {
             description={caseData ? `Internal case ${caseData.caseId}` : 'Loading case…'}
           />
         </div>
-        <div className="w-full md:w-auto md:max-w-[380px] md:self-start">
-          <div className="w-full rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)] p-3 flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Access for app</p>
-              <p className="m-0 text-sm font-medium text-slate-700">Scan with Wearables app</p>
-            </div>
-            <div className="flex items-center">
-              {caseData?.caseToken ? (
-                <div className="rounded-xl bg-white p-2">
-                  <canvas ref={qrCanvasRef} className="h-[110px] w-[110px]" aria-label="Case access QR code" />
-                </div>
-              ) : (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                  No token available
-                </div>
-              )}
-            </div>
-          </div>
+        <div className="w-full md:w-auto md:max-w-[380px] md:self-center">
+          <CaseQrCard caseToken={caseData?.caseToken} onOpen={() => setIsQrOpen(true)} />
         </div>
       </div>
 
@@ -176,6 +136,8 @@ export function CasePage() {
           </>
         )}
       </section>
+
+      <CaseQrModal isOpen={isQrOpen} caseToken={caseData?.caseToken} onClose={() => setIsQrOpen(false)} />
     </>
   );
 }

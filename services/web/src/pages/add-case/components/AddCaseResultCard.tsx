@@ -1,7 +1,7 @@
 import type { CaseCreated, ChariteCase } from '@/api/openapi-client';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { InfoItem } from './InfoItem';
+import { InfoItem } from '../../../components/custom/InfoItem';
 
 type AddCaseResultCardProps = {
   caseData: ChariteCase;
