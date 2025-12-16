@@ -12,11 +12,13 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3",
     "nanoid": "^5.0.7"
   },
   "devDependencies": {
     "@openapitools/openapi-generator-cli": "^2.25.2",
     "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.7.9",
     "tsx": "^4.21.0",
     "typescript": "^5.6.3"

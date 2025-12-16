@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express, { Request, Response } from 'express';
+import authRouter from './api/routes/auth.js';
 import {
   casesForPatient,
   createCaseFromCharite,
@@ -26,6 +27,7 @@ const frontendOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:5173,http
 
 app.use(cors({ origin: frontendOrigins, credentials: true }));
 app.use(express.json());
+app.use(apiPrefix, authRouter);
 
 const route = (path: string) => `${apiPrefix}${path}`;
 
