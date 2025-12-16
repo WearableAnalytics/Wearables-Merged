@@ -10,6 +10,7 @@ import { ResponseError } from '@/api/openapi-client/runtime';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { Loader2 } from 'lucide-react';
 import { useActiveCase } from '@/lib/activeCase';
+import { SignedInAs } from '@/components/custom/SignedInAs';
 
 export function AddCasePage() {
   const [caseId, setCaseId] = useState('');
@@ -125,6 +126,7 @@ export function AddCasePage() {
         title="Add a Case"
         description="Search for an existing Charité case by ID."
       />
+      <SignedInAs />
 
       <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">
         <div className="w-full max-w-3xl px-4">

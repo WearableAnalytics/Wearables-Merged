@@ -35,6 +35,7 @@ export function LoginPage() {
       const data = await defaultApi.login(trimmedEmail);
       const successMessage = (data as { message?: string }).message ?? 'Check your email for the login link.';
       setMessage(successMessage);
+      window.dispatchEvent(new Event('auth-change'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to log in.');
     } finally {

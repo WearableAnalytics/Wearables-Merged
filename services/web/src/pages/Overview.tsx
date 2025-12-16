@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/custom/PageHeader';
 import { API_BASE_PATH, defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
 import { Button } from '@/components/ui/button';
+import { SignedInAs } from '@/components/custom/SignedInAs';
 
 export function OverviewPage() {
   const [cases, setCases] = useState<(Case & { patient?: Patient })[]>([]);
@@ -64,6 +65,7 @@ export function OverviewPage() {
           </>
         }
       />
+      <SignedInAs />
 
       <section className="bg-white border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.06)] rounded-2xl p-4 md:p-5">
         <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between mb-4">

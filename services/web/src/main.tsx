@@ -4,13 +4,16 @@ import { BrowserRouter } from 'react-router-dom';
 import './styles/tailwind.css';
 import App from './App.tsx';
 import { ActiveCaseProvider } from './lib/activeCase';
+import { AuthProvider } from './context/AuthContext';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <ActiveCaseProvider>
-        <App />
-      </ActiveCaseProvider>
+      <AuthProvider>
+        <ActiveCaseProvider>
+          <App />
+        </ActiveCaseProvider>
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
 );

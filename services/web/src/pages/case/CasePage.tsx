@@ -7,6 +7,7 @@ import type { Case, Patient } from '@/api/openapi-client';
 import { ResponseError } from '@/api/openapi-client/runtime';
 import { InfoItem } from '@/components/custom/InfoItem';
 import { useActiveCase } from '@/lib/activeCase';
+import { SignedInAs } from '@/components/custom/SignedInAs';
 import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
 
@@ -102,6 +103,7 @@ export function CasePage() {
           <CaseQrCard caseToken={caseData?.caseToken} onOpen={() => setIsQrOpen(true)} />
         </div>
       </div>
+      <SignedInAs />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
         {error ? (

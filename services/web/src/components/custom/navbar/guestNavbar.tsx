@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveCase } from '@/lib/activeCase';
+import { useAuth } from '@/context/AuthContext';
 
 import { NavButton, NavButtonMobile } from './navButtons';
 
@@ -20,9 +21,12 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
   location,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { activeCase, patient } = useActiveCase();
+  const { user, logout } = useAuth();
   const isCasePage = location.pathname.startsWith('/cases/');
   const activePatientName = patient ? `${patient.firstName} ${patient.lastName}` : null;
+  const isAuthenticated = !!user;
 
   const activePatientNavLabel =
     patient && patient.lastName
@@ -44,6 +48,18 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
     setIsMobileMenuOpen(false);
   };
 
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+    } catch (err) {
+      console.error('Logout failed:', err);
+    } finally {
+      setIsLoggingOut(false);
+      void navigate('/login');
+    }
+  };
+
   return (
     <nav className="w-full fixed top-0 left-0 right-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -51,23 +67,36 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
           <Logo alwaysGuestRoutes={alwaysGuestRoutes} navigate={navigate} location={location} />
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-6">
-            <NavButton path="/">Overview</NavButton>
-            {isCasePage && activeCase && activePatientNavLabel ? (
-              <NavButton path={`/cases/${activeCase.caseId}`}>
-                <span className="max-w-[180px] truncate" title={activePatientName ?? undefined}>
-                  {activePatientNavLabel}
-                </span>
-              </NavButton>
-            ) : null}
-            <NavButton path="/add-case">Add Case</NavButton>
-          </div>
+          {isAuthenticated ? (
+            <div className="hidden md:flex items-center space-x-6">
+              <NavButton path="/overview">Overview</NavButton>
+              {isCasePage && activeCase && activePatientNavLabel ? (
+                <NavButton path={`/cases/${activeCase.caseId}`}>
+                  <span className="max-w-[180px] truncate" title={activePatientName ?? undefined}>
+                    {activePatientNavLabel}
+                  </span>
+                </NavButton>
+              ) : null}
+              <NavButton path="/add-case">Add Case</NavButton>
+            </div>
+          ) : (
+            <div className="hidden md:flex items-center space-x-6" />
+          )}
 
-          {/* Desktop Login Button */}
-          <div className="hidden md:block">
-            <NavButton path="/logout" invertedColors={true}>
-              Logout
-            </NavButton>
+          {/* Desktop Auth Buttons */}
+          <div className="hidden md:flex items-center space-x-3">
+            {isAuthenticated ? (
+              <NavButton invertedColors={true} onClick={handleLogout} isDisabled={isLoggingOut}>
+                Logout
+              </NavButton>
+            ) : (
+              <>
+                <NavButton path="/login" invertedColors={true}>
+                  Login
+                </NavButton>
+                <NavButton path="/register">Register</NavButton>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -87,36 +116,63 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
         {isMobileMenuOpen && (
           <div className="md:hidden absolute top-16 left-0 right-0 bg-background border-b border-border shadow-lg z-50">
             <div className="px-4 py-3 space-y-2">
-              <NavButtonMobile
-                path="/"
-                className="w-full justify-start text-left"
-                onClick={handleMobileLinkClick}
-              >
-                Overview
-              </NavButtonMobile>
-              {isCasePage && activeCase && activePatientMobileLabel ? (
-                <NavButtonMobile
-                  path={`/cases/${activeCase.caseId}`}
-                  className="w-full justify-start text-left"
-                  onClick={handleMobileLinkClick}
-                >
-                  <span className="block max-w-full truncate" title={activePatientName ?? undefined}>
-                    {activePatientName}
-                  </span>
-                </NavButtonMobile>
+              {isAuthenticated ? (
+                <>
+                  <NavButtonMobile
+                    path="/overview"
+                    className="w-full justify-start text-left"
+                    onClick={handleMobileLinkClick}
+                  >
+                    Overview
+                  </NavButtonMobile>
+                  {isCasePage && activeCase && activePatientMobileLabel ? (
+                    <NavButtonMobile
+                      path={`/cases/${activeCase.caseId}`}
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      <span className="block max-w-full truncate" title={activePatientName ?? undefined}>
+                        {activePatientName}
+                      </span>
+                    </NavButtonMobile>
+                  ) : null}
+                  <NavButtonMobile path="/add-case" className="w-full justify-start text-left" onClick={handleMobileLinkClick}>
+                    Add Case
+                  </NavButtonMobile>
+                </>
               ) : null}
-              <NavButtonMobile path="/add-case" className="w-full justify-start text-left" onClick={handleMobileLinkClick}>
-                Add Case
-              </NavButtonMobile>
               <div className="pt-2 border-t border-muted">
-                <NavButtonMobile
-                  invertedColors={true}
-                  path="/logout"
-                  className="w-full justify-start text-left"
-                  onClick={handleMobileLinkClick}
-                >
-                  Logout
-                </NavButtonMobile>
+                {isAuthenticated ? (
+                  <NavButtonMobile
+                    invertedColors={true}
+                    className="w-full justify-start text-left"
+                    onClick={() => {
+                      handleMobileLinkClick();
+                      void handleLogout();
+                    }}
+                    isDisabled={isLoggingOut}
+                  >
+                    Logout
+                  </NavButtonMobile>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <NavButtonMobile
+                      invertedColors={true}
+                      path="/login"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      Login
+                    </NavButtonMobile>
+                    <NavButtonMobile
+                      path="/register"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      Register
+                    </NavButtonMobile>
+                  </div>
+                )}
               </div>
             </div>
           </div>

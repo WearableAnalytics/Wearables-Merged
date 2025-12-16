@@ -63,7 +63,7 @@ export const NavButtonMobile: React.FC<{
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={isDisabled ? undefined : handleClick}
       id={id}
       className={`text-sm font-medium px-4 py-2 rounded-full border transition-shadow transition-colors cursor-pointer ${
         isActive
