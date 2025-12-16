@@ -8,9 +8,23 @@ RUN npm ci --no-audit --no-fund
 
 # Copy source and build. Override VITE_API_BASE_URL at build time if needed.
 COPY services/web ./
-ARG VITE_API_BASE_URL=/api
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
-RUN npm run build
+ARG VITE_BACKEND_URL
+ARG VITE_API_BASE_URL
+RUN BUILD_VITE_BACKEND_URL="$VITE_BACKEND_URL" \
+  BUILD_VITE_API_BASE_URL="$VITE_API_BASE_URL" \
+  && if [ -f .env ]; then set -a; . .env; set +a; fi \
+  && if [ -n "$BUILD_VITE_BACKEND_URL" ]; then VITE_BACKEND_URL="$BUILD_VITE_BACKEND_URL"; fi \
+  && if [ -n "$BUILD_VITE_API_BASE_URL" ]; then VITE_API_BASE_URL="$BUILD_VITE_API_BASE_URL"; fi \
+  && apiPath="${VITE_API_BASE_URL:-/api}" \
+  && case "$apiPath" in */) apiPath="${apiPath%/}";; esac \
+  && case "$apiPath" in \
+    http://*|https://*) finalApi="$apiPath" ;; \
+    *) \
+      case "$apiPath" in /*) path="$apiPath" ;; *) path="/$apiPath" ;; esac; \
+      if [ -n "$VITE_BACKEND_URL" ]; then finalApi="${VITE_BACKEND_URL%/}${path}"; else finalApi="$path"; fi ;; \
+    esac \
+  && echo "VITE_API_BASE_URL resolved to $finalApi" \
+  && VITE_API_BASE_URL="$finalApi" npm run build
 
 # Serve the compiled assets with Nginx
 FROM nginx:1.27-alpine AS runner

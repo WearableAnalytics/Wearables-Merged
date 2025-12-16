@@ -18,9 +18,13 @@ import type {
 const app = express();
 const port = Number(process.env.PORT) || 3001;
 const apiPrefix = (process.env.API_PREFIX ?? '/api').replace(/\/$/, '');
-const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+// Allow local dev (5173) and dockerized frontend (8080) by default; override via FRONTEND_URL.
+const frontendOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:5173,http://localhost:8080')
+  .split(',')
+  .map((url) => url.trim())
+  .filter(Boolean);
 
-app.use(cors({ origin: frontendUrl, credentials: true }));
+app.use(cors({ origin: frontendOrigins, credentials: true }));
 app.use(express.json());
 
 const route = (path: string) => `${apiPrefix}${path}`;
