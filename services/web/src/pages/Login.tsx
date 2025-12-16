@@ -1,14 +1,18 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
 import { defaultApi } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { SearchForm } from '@/components/custom/SearchForm';
 import { ArrowRight, Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 export function LoginPage() {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -16,6 +20,12 @@ export function LoginPage() {
     setError(null);
     setMessage(null);
   };
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/overview', { replace: true });
+    }
+  }, [user, authLoading, navigate]);
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();
@@ -27,7 +37,7 @@ export function LoginPage() {
       return;
     }
 
-    setLoading(true);
+    setIsSubmitting(true);
     setError(null);
     setMessage(null);
 
@@ -39,7 +49,7 @@ export function LoginPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to log in.');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -55,7 +65,7 @@ export function LoginPage() {
         <div className="w-full max-w-3xl px-4">
           <SearchForm
             value={email}
-            loading={loading}
+            loading={isSubmitting}
             onChange={(value) => setEmail(value)}
             onFocusReset={resetFeedback}
             onSubmit={handleLogin}
@@ -72,7 +82,7 @@ export function LoginPage() {
           <div className="mt-6 space-y-3 min-h-[120px]">
             {error ? <AddCaseNotice tone="error" message={error} /> : null}
 
-            {loading ? (
+            {isSubmitting ? (
               <AddCaseNotice
                 tone="loading"
                 icon={<Loader2 aria-hidden className="h-5 w-5 animate-spin text-slate-600" />}
@@ -80,7 +90,7 @@ export function LoginPage() {
               />
             ) : null}
 
-            {!loading && message ? <AddCaseNotice tone="info" message={message} /> : null}
+            {!isSubmitting && message ? <AddCaseNotice tone="info" message={message} /> : null}
           </div>
         </div>
       </div>

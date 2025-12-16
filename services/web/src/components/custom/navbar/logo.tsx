@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 interface LogoProps {
   userType?: 'Retiree' | 'Startup'; // undefined ⇒ guest / not authenticated
@@ -9,8 +10,15 @@ interface LogoProps {
 }
 
 export const Logo: React.FC<LogoProps> = ({ userType, alwaysGuestRoutes, navigate, location }) => {
+  const { user } = useAuth();
+
   const handleClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (user) {
+      void navigate('/overview');
+      return;
+    }
+
     if (!userType || alwaysGuestRoutes.includes(location.pathname)) {
       void navigate('/'); // guest → home
     } else if (userType === 'Retiree') {

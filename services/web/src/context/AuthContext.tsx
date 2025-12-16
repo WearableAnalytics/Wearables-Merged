@@ -28,7 +28,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const fetchUser = useCallback(async (): Promise<void> => {
     try {
       const currentUser = await defaultApi.me();
-      setUser(currentUser);
+      setUser(currentUser as User | null);
     } catch (error) {
       console.error('Auth error:', error);
       setUser(null);
