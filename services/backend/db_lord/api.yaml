@@ -3,9 +3,8 @@ info:
   title: Database Management API
   description: Database Management API
   version: 1.0.0
-host: www
 schemes:
-  - https
+  - http
 paths:
   /patients:
     post:
@@ -23,7 +22,7 @@ paths:
           name: body
           required: true
           schema:
-            $ref: '#/definitions/PatientPost'
+            $ref: '#/definitions/PatientBase'
       responses:
         201:
           description: Patient created
@@ -109,7 +108,7 @@ paths:
           name: body
           required: true
           schema:
-            $ref: '#/definitions/PatientPost'
+            $ref: '#/definitions/PatientBase'
       responses:
         204:
           description: Overwriting of the resource succeeded
@@ -644,10 +643,6 @@ definitions:
       - birthDate
       - weight
 
-  PatientPost:
-    allOf:
-      - $ref: '#/definitions/PatientBase'
-
   Patient:
     allOf:
       - $ref: '#/definitions/PatientBase'
@@ -718,12 +713,15 @@ definitions:
   Signal:
     type: object
     properties:
-      type:
+      code:
         type: string
-        example: "heart-rate"
+        example: "8867-4"
+      system:
+        type: string
+        example: "http://loinc.org"
       value:
         type: number
-        example: 50
+        example: 72
       unit:
         type: string
         example: "bpm"
