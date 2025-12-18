@@ -27,39 +27,41 @@ class ContextBase(BaseModel):
 
 
 # CREATE MODELS
-class PatientCreate(PatientBase):
-    id: UUID4
+class Patient(PatientBase):
+    id: str
 
 
-class DeviceCreate(DeviceBase):
-    id: UUID4
+class Device(DeviceBase):
+    id: str
 
 
-class WearableCreate(DeviceBase):
-    id: UUID4
+class Wearable(DeviceBase):
+    id: str
 
 
-class ContextCreate(ContextBase):
-    id: UUID4
+class Context(ContextBase):
+    id: str
 
 
 class CaseDeviceLink(BaseModel):
-    device_id: UUID4
+    device_id: str
     assigned_from: datetime
     assigned_to: Optional[datetime]
 
 
 class CaseWearableLink(BaseModel):
-    wearable_id: UUID4
+    wearable_id: str
     assigned_from: datetime
     assigned_to: Optional[datetime]
 
-
-class CaseCreate(BaseModel):
-    id: UUID4
-    status: str
-    patient_id: UUID4
+class CaseBase(BaseModel):
+    patient_id: str
     # Optional lists to link directly while creating a case
     linked_devices: List[CaseDeviceLink] = []
     linked_wearables: List[CaseWearableLink] = []
-    linked_context_ids: List[UUID4] = []
+    linked_context_ids: List[str] = []
+
+
+class Case(CaseBase):
+    id: str
+    status: str
