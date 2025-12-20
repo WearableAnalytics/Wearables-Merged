@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Objects;
 
+import static org.example.JsonUtils.*;
 import static org.example.fhir.Mapper.*;
 
 public class Transformations {

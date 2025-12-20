@@ -5,6 +5,9 @@ metadata:
       target: device.display
       optional: false
       type: string
+      lineProtocol:
+        name: device-id
+        type: tag
 measurement:
   paths:
     - path: measurements.instantaneous
@@ -15,6 +18,9 @@ measurement:
           target: resourceType
           optional: false
           type: string
+          lineProtocol:
+            name: resourceType
+            type: tag
         - name: type
           source: measurements.instantaneous.type
           target: id
@@ -29,6 +35,9 @@ measurement:
           target: valueQuantity.value
           optional: false
           type: real
+          lineProtocol:
+            name: value
+            type: field
         - name: unit
           source: measurements.instantaneous.unit
           target: valueQuantity.unit
@@ -38,6 +47,9 @@ measurement:
               params: ["_", "-"]
           optional: false
           type: string
+          lineProtocol:
+            name: unit
+            type: tag
         - name: start
           source: measurements.instantaneous.timestamp
           target: effectiveDateTime
@@ -51,18 +63,27 @@ measurement:
           target: status
           optional: false
           type: string
+          lineProtocol:
+            name: status
+            type: field
         - name: codingSystem
           target: code.coding[0].system
           transform:
             - type: mapBasedOn
           optional: false
           type: string
+          lineProtocol:
+            name: category
+            type: tag
         - name: codingCode
           target: code.coding[0].code
           transform:
             - type: mapBasedOn
           optional: false
           type: string
+          lineProtocol:
+            name: code
+            type: tag
         - name: codingDisplay
           source: measurements.instantaneous.unit
           target: code.coding[0].display
@@ -72,6 +93,9 @@ measurement:
               params: [ "_", "-" ]
           optional: false
           type: string
+          lineProtocol:
+            name: display
+            type: tag
       mappings:
         - path: code.coding[0].code
           basedOn: measurements.instantaneous.unit
@@ -121,6 +145,9 @@ measurement:
           target: resourceType
           optional: false
           type: string
+          lineProtocol:
+            name: resourceType
+            type: tag
         - name: type
           source: measurements.cumulative.type
           target: id
@@ -130,11 +157,16 @@ measurement:
               params: ["_", "-"]
           optional: false
           type: string
+          lineProtocol:
+            type: measurement
         - name: value
           source: measurements.cumulative.value
           target: valueQuantity.value
           optional: false
           type: real
+          lineProtocol:
+            name: value
+            type: field
         - name: unit
           source: measurements.cumulative.unit
           target: valueQuantity.unit
@@ -144,6 +176,9 @@ measurement:
               params: [ "_", "-" ]
           optional: false
           type: string
+          lineProtocol:
+            name: unit
+            type: tag
         - name: start
           source: measurements.cumulative.periodStart
           target: effectivePeriod.start
@@ -152,6 +187,8 @@ measurement:
               params: ["Z"]
           optional: false
           type: string
+          lineProtocol:
+            type: timestamp
         - name: end
           source: measurements.cumulative.periodEnd
           target: effectivePeriod.end
@@ -165,6 +202,9 @@ measurement:
           target: status
           optional: false
           type: string
+          lineProtocol:
+            name: status
+            type: value
         - name: codingSystem
           target: code.coding[0].system
           transform:
@@ -177,6 +217,9 @@ measurement:
             - type: mapBasedOn
           optional: false
           type: string
+          lineProtocol:
+            name: code
+            type: tag
         - name: codingDisplay
           source: measurements.cumulative.unit
           target: code.coding[0].display
@@ -186,6 +229,9 @@ measurement:
               params: [ "_", "-" ]
           optional: false
           type: string
+          lineProtocol:
+            name: display
+            type: tag
       mappings:
         - path: code.coding[0].code
           basedOn: measurements.cumulative.unit
