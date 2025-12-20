@@ -2,17 +2,16 @@
 
 - This is the proof-of-concept implementation I did of the mapping and validation logic running inside Kafka Streams
 - It's written in Java for the provided libraries but most importantly because Kafka Streams only support Java
-- PLEASE KEEP IN MIND that in its current state it's just a proof of concept, so the mapping logic and validation are just to show it works and in no way production ready
 
 # What does it do?
 
 - Kafka Streams instance reads from the "raw" topic
-- Takes the input and uses the yaml file map the "source" field to the "target" field
-- in doing so a FHIR json is automatically generated
+- Takes the input and uses the yaml file to create a FHIR json (validity is the responsibility of the developer)
 - When all fields are inserted into the json, it is validated using the FHIR library
-- If validation is successful, the result is written to the "fhir" topic
+- If validation is successful, it is parsed to LineProtocol and written to influx
+- If validation is not successful, or an error occurs either in mapping to FHIR or LineProtocol the message is pushed to a DLQ
 
-# Configure via YAML (state: 28.11.2025)
+# Configure via YAML (state: 20.12.2025)
 
 ## Metadata and Measurements
 - metadata is data that is the same for all measurements from a device (e.g., platform)
@@ -22,10 +21,10 @@
 
 ## Paths
 - are used to differentiate between different types of measurements that might contain different fields
-- right now we have instantaneous, duration, cumulative
+- right now we have instantaneous, duration, cumulative but they can be added as needed to group / categorize the data
 ```yaml
 path: #path of the category (needs to be an array) [REQUIRED]
-arrayMapAll: #whether all entries in the category should be mapped, alternatively index can be provided [REQUIRED]
+arrayMapAll: #whether all entries in the category should be mapped, alternatively index can be provided [REQUIRED] and [DEPRECATED] so only 'true' is supported
 fields: #list of fields that are contained in the measurements of the category [REQUIRED]
 ```
 
@@ -35,43 +34,51 @@ fields: #list of fields that are contained in the measurements of the category [
 ```yaml
 name: # internal name of the field (only used inside the mapper) [REQUIRED]
 source: # absolute path of the field inside the incoming json [REQUIRED]
-mapping: #specified whether a mapping rule should be applied
 value: #specified if one value should always be used for a field
-# ONE OF source, mapping or value is [REQUIRED]
+transform: #specified if a transformation should be applied
+# ONE OF source, transform or value is [REQUIRED]
 target: #absolute path of the field inside the FHIR json [REQUIRED]
 optional: #specifies if a field is optional [REQUIRED]
 type: #specifies the type of the field [REQUIRED]
+lineProtocol: # specifies the name of the field and the type
 ```
 
-## Mapping
-- mappings define mapping rules for the value in the specified path
-- e.g., if you find KEY, map to VALUE
+## Transform
+- transform describes a transformation that should be applied to a field
+- e.g., append, prepend, map, mapBasedOn, flatMap, substring, split
+- note that not all of them are implemented yet
 
 ```yaml
-path: #path of the FHIR field that should be mapped [REQUIRED]
-basedOn: #path of the value that the mapping should be based on [REQUIRED]
-valueType: #the type of the resulting new value [REQUIRED]
-map: #list of mapping rules (see Map) [REQUIRED]
+type: #describes the tpe of transformation [REQUIRED]
+params: #array of parameters that are passed to the transformation, they differ between transformations [REQUIRED]
+```
+
+## Mappings
+
+```yaml
+path: #specifies the path that the field should be set at, is used to find the correct mapping list for a transformation [REQUIRED]
+basedOn: #specifies the field referenced by the key [REQUIRED]
+valueType: # type of the value [REQUIRED]
+map: #actual mappings [REQUIRED]
 ```
 
 ## Map
-- a rule that specifies a mapping
+- a rule that specifies a `mapBasedOn` transformation
 ```yaml
 key: #original value of the 'basedOn' field [REQUIRED]
 value: #new value that should be set for the 'path' field [REQUIRED]
 ```
 
+## LineProtocol
 
-# Setup
+- Describes how the FHIR fields should be mapped to LineProtocol. The `type` field specifies the type of field.
+  - 'measurement' must occur exactly once
+  - 'timestamp' must occur exactly once
+  - 'tag' may occur zero or more times
+  - 'field' may occur one or more times
+  - all other values set for that field will be ignored
 
-1. Run Minikube 
-   1. Install minikube
-   2. Start the cluster
-2. Install the strimzi cluster operator
-3. Run a default kafka configuration (you dont have to modify the default values / config)
-4. Create a topic called kafka
-5. Create kafka-topics: wearables-raw and wearables-fhir
-6. Run the just-command
-   1. Install just command runner (its worth it trust me)
-   2. Run the command
-7. Write the test.json message to "raw" kafka topic, it should get mapped and written to the "fhir" topic
+```yaml
+name: #describes the key in the line-protocol, ignored for measurement and timestamp [REQUIRED]
+type: #the type of field in LP
+```

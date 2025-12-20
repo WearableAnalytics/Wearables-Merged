@@ -1,220 +1,199 @@
 package org.example.lineprotocol;
 
 import com.google.gson.*;
+import org.apache.kafka.common.protocol.types.Field;
 import org.example.config.Environment;
-import org.example.util.ConfigLoader;
+import org.example.fhir.MappingYaml;
+import org.example.fhir.model.FieldConfig;
+import org.example.fhir.model.MeasurementPathConfig;
+import org.example.fhir.model.MetadataConfig;
+import org.hl7.fhir.r4.model.Meta;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Stream;
+
+import static org.example.JsonUtils.*;
 
 public class LineProtocolParser {
 
     private static final Logger log = LoggerFactory.getLogger(LineProtocolParser.class);
 
-    private static final FhirLineProtocolConfig CONFIG = ConfigLoader.loadConfig(Environment.FHIR_LP_MAPPING_YAML_PATH, FhirLineProtocolConfig.class);
-    private static final List<FhirLineProtocolConfig.Variant> VARIANTS = CONFIG.resolvedVariants();
-
-    public String parse(String jsonString) throws IllegalArgumentException {
-        if (jsonString == null || jsonString.isBlank()) {
-            throw new IllegalArgumentException("Input JSON string is null or blank");
-        }
-        JsonElement rootEl = JsonParser.parseString(jsonString);
-        if (!rootEl.isJsonObject()) throw new IllegalArgumentException("FHIR Observation must be a JSON object");
-        JsonObject root = rootEl.getAsJsonObject();
-
-        Map<String, JsonPrimitive> primitives = new LinkedHashMap<>();
-        collectPrimitives(root, "", primitives);
-        if (primitives.isEmpty()) throw new IllegalArgumentException("No primitive values found in observation");
-
-        FhirLineProtocolConfig.Variant variant = selectVariant(primitives);
-        if (variant == null) {
-            throw new IllegalArgumentException("No mapping variant matched observation ");
+    public String parse(String category, JsonObject json) throws IllegalArgumentException {
+        if (json == null || json.isEmpty() || !json.isJsonObject()) {
+            throw new IllegalArgumentException("Input JSON is null, empty or not a JSON object");
         }
 
-        return renderLineProtocol(primitives, variant);
+        MappingYaml mappingYaml = Environment.TEMPLATE;
+
+        LineProtocolTemplate template = new LineProtocolTemplate();
+
+        MetadataConfig metadataConfig = mappingYaml.getMetadata();
+        //find the right config that was used to create the JSON
+        MeasurementPathConfig fittingConfig = mappingYaml.getMeasurement().getPaths().stream()
+                .filter(e -> e.getPath().equals(category))
+                .findFirst()
+                .orElse(null);
+
+        if (fittingConfig == null || fittingConfig.getFields() == null || fittingConfig.getFields().isEmpty()) {
+            throw new IllegalArgumentException("no rules for mapping fields found even though FHIR was successfully mapped");
+        }
+
+        setLPMeasurement(json, fittingConfig, metadataConfig, template);
+
+        setLPTimestamp(json, fittingConfig, metadataConfig, template);
+
+        setLPMaps(json, fittingConfig, metadataConfig, template, "tag");
+
+        setLPMaps(json, fittingConfig, metadataConfig, template, "field");
+
+        return renderLineProtocol(template);
     }
 
-    private FhirLineProtocolConfig.Variant selectVariant(Map<String, JsonPrimitive> primitives) {
-        for (FhirLineProtocolConfig.Variant variant : VARIANTS) {
-            if (mappingResolvable(variant.getMeasurementMapping(), primitives)
-                    && mappingResolvable(variant.getTimestampMapping(), primitives)) {
-                return variant;
+    private static void setLPTimestamp(
+            JsonObject json,
+            MeasurementPathConfig fittingConfig,
+            MetadataConfig metadataConfig,
+            LineProtocolTemplate template
+    ) {
+        List<FieldConfig> timestamp = extractAllFromJson(fittingConfig, metadataConfig,"timestamp");
+
+        if (timestamp.size() != 1) {
+            throw new IllegalArgumentException("only one field may be tagged as the LP measurement");
+        } else {
+            String target = timestamp.get(0).getTarget();
+            JsonElement value = getByPath(json, target);
+
+            if (!(value instanceof JsonPrimitive) || !((JsonPrimitive) value).isString()) {
+                throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", target, value.toString()));
             }
+
+            String timeNanos = normalizeIsoToNanos(value.getAsString()).toString();
+
+            template.setTimestamp(timeNanos);
         }
-        return null;
     }
 
-    private boolean mappingResolvable(FhirLineProtocolConfig.Mapping mapping, Map<String, JsonPrimitive> primitives) {
-        return mapping != null && !findMatches(mapping, primitives).isEmpty();
+    private static void setLPMaps(
+            JsonObject json,
+            MeasurementPathConfig fittingConfig,
+            MetadataConfig metadataConfig,
+            LineProtocolTemplate template,
+            String type) {
+        List<FieldConfig> elements = extractAllFromJson(fittingConfig, metadataConfig, type);
+
+        Map<String, String> elementsMap = new HashMap<>();
+
+        for (FieldConfig f : elements) {
+
+            JsonElement value = getByPath(json, f.getTarget());
+            if (!(value instanceof JsonPrimitive)) {
+                throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", f.getTarget(), value.toString()));
+            }
+
+            String tagValue = value.getAsString();
+            String tagKey = f.getLineProtocol().getName();
+
+            elementsMap.put(tagKey, tagValue);
+        }
+
+        if (type.equals("field")) {
+            template.setFields(elementsMap);
+        } else {
+            template.setTags(elementsMap);
+        }
     }
 
-    private String renderLineProtocol(Map<String, JsonPrimitive> primitives, FhirLineProtocolConfig.Variant variant) {
-        if (variant.getMeasurementMapping() == null) {
-            throw new IllegalArgumentException("Variant missing measurement-mapping");
-        }
-        if (variant.getTimestampMapping() == null) {
-            throw new IllegalArgumentException("Variant missing timestamp-mapping");
-        }
+    private static void setLPMeasurement(
+            JsonObject json,
+            MeasurementPathConfig fittingConfig,
+            MetadataConfig metadataConfig,
+            LineProtocolTemplate template
+    ) {
+        List<FieldConfig> measurement = extractAllFromJson(fittingConfig, metadataConfig, "measurement");
 
-        String measurement = extractSingle(variant.getMeasurementMapping(), primitives);
-        if (measurement == null || measurement.isBlank()) {
-            throw new IllegalArgumentException("Measurement value not found for source: " + variant.getMeasurementMapping().getSource());
-        }
-        measurement = replaceSpaces(measurement);
+        if (measurement.size() != 1) {
+            throw new IllegalArgumentException("only one field may be tagged as the LP measurement");
+        } else {
+            String target = measurement.get(0).getTarget();
+            JsonElement value = getByPath(json, target);
 
-        String timestamp = extractSingle(variant.getTimestampMapping(), primitives);
-        if (timestamp == null || timestamp.isBlank()) {
-            throw new IllegalArgumentException("Timestamp value not found for source: " + variant.getTimestampMapping().getSource());
-        }
-
-        Long tsNanos = normalizeIsoToNanos(timestamp);
-
-        LinkedHashMap<String, JsonPrimitive> fields = new LinkedHashMap<>();
-        for (FhirLineProtocolConfig.Mapping fieldMapping : safeMappings(variant.getFieldMappings())) {
-            List<Map.Entry<String, JsonPrimitive>> matches = findMatches(fieldMapping, primitives);
-            if (matches.isEmpty()) continue;
-            if (!fieldMapping.isAllowArray() && matches.size() > 1) {
-                throw new IllegalArgumentException("Multiple values matched field mapping (allow-array=false): " + fieldMapping.getSource());
+            if (!(value instanceof JsonPrimitive) || !((JsonPrimitive) value).isString()) {
+                throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", target, value.toString()));
             }
-            for (int i = 0; i < matches.size(); i++) {
-                Map.Entry<String, JsonPrimitive> match = matches.get(i);
-                String key = deriveKey(fieldMapping, match.getKey(), i, matches.size());
-                fields.put(key, match.getValue());
-            }
-        }
-        if (fields.isEmpty()) throw new IllegalArgumentException("No fields produced by mapping configuration");
 
-        TreeMap<String, String> tags = new TreeMap<>();
-        for (FhirLineProtocolConfig.Mapping tagMapping : safeMappings(variant.getTagMappings())) {
-            List<Map.Entry<String, JsonPrimitive>> matches = findMatches(tagMapping, primitives);
-            if (matches.isEmpty()) continue;
-            if (!tagMapping.isAllowArray() && matches.size() > 1) {
-                throw new IllegalArgumentException("Multiple values matched tag mapping (allow-array=false): " + tagMapping.getSource());
-            }
-            for (int i = 0; i < matches.size(); i++) {
-                Map.Entry<String, JsonPrimitive> match = matches.get(i);
-                String key = deriveKey(tagMapping, match.getKey(), i, matches.size());
-                String val = primitiveToString(match.getValue());
-                if (val != null) tags.put(key, replaceSpaces(val));
-            }
+            String stringValue = value.getAsJsonPrimitive().getAsString();
+
+            template.setMeasurement(stringValue);
+        }
+    }
+
+    private static List<FieldConfig> extractAllFromJson(MeasurementPathConfig fittingConfig, MetadataConfig metadataConfig, String type) {
+        return Stream.concat(metadataConfig.getFields().stream(), fittingConfig.getFields().stream())
+                .filter(f -> f.getLineProtocol() != null)
+                .filter(f -> f.getLineProtocol().getType() != null)
+                .filter(f -> f.getLineProtocol().getType().equals(type))
+                .toList();
+    }
+
+    private String renderLineProtocol(LineProtocolTemplate template) {
+        if (template.getMeasurement() == null) {
+            throw new IllegalArgumentException("Template missing measurement-mapping");
+        }
+        if (template.getTimestamp() == null) {
+            throw new IllegalArgumentException("Template missing timestamp");
+        }
+        if (template.getFields() == null || template.getFields().isEmpty()) {
+            throw new IllegalArgumentException("Template has no fields");
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append(escapeMeasurement(measurement));
-        for (var e : tags.entrySet()) {
-            sb.append(',').append(escapeKey(e.getKey())).append('=').append(escapeTagValue(e.getValue()));
+
+        //set measurement
+        sb.append(template.getMeasurement());
+
+        if (template.getTags() == null || template.getTags().isEmpty()) {
+            //no tags with space
+            sb.append(" ");
+        }else {
+            //with tags with comma
+            sb.append(",");
+            insertMaps(template.getTags(), sb);
+            sb.append(" "); //space between tags and fields
         }
-        sb.append(' ');
-        boolean first = true;
-        for (var e : fields.entrySet()) {
-            if (!first) sb.append(',');
-            first = false;
-            sb.append(escapeKey(e.getKey())).append('=');
-            sb.append(encodeFieldValue(e.getValue()));
-        }
-        if (tsNanos != null) sb.append(' ').append(tsNanos);
-        return sb.toString();
+
+        //set fields
+        insertMaps(template.getFields(), sb);
+
+        sb.append(" "); //space between fields and timestamp
+
+        //set timestamp
+        sb.append(template.getTimestamp());
+
+        String lpString = sb.toString();
+        log.info("Created LP string: {}", lpString);
+
+        return lpString;
     }
 
-    private static List<FhirLineProtocolConfig.Mapping> safeMappings(List<FhirLineProtocolConfig.Mapping> mappings) {
-        return mappings == null ? Collections.emptyList() : mappings;
+    private static void checkAndSetMaps(Map<String, String> map, String type, StringBuilder sb) {
+
+        insertMaps(map, sb);
     }
 
-    private static List<Map.Entry<String, JsonPrimitive>> findMatches(FhirLineProtocolConfig.Mapping mapping, Map<String, JsonPrimitive> primitives) {
-        if (mapping == null || mapping.getSource() == null || mapping.getSource().isBlank()) {
-            return Collections.emptyList();
-        }
-        List<Map.Entry<String, JsonPrimitive>> matches = new ArrayList<>();
-        boolean wildcard = mapping.getSource().contains("[x]");
-        String normalized = wildcard ? mapping.getSource() : null;
-        for (var entry : primitives.entrySet()) {
-            String candidate = wildcard ? normalizePath(entry.getKey()) : entry.getKey();
-            if (Objects.equals(candidate, wildcard ? normalized : mapping.getSource())) {
-                matches.add(entry);
+    private static void insertMaps(Map<String, String> map, StringBuilder sb) {
+        Iterator<Map.Entry<String, String>> it = map.entrySet().iterator();
+
+        while (it.hasNext()) {
+            Map.Entry<String, String> e = it.next();
+            sb.append(e.getKey()).append("=").append(e.getValue());
+
+            if (it.hasNext()) {
+                sb.append(",");
             }
         }
-        return matches;
-    }
-
-    private static String extractSingle(FhirLineProtocolConfig.Mapping mapping, Map<String, JsonPrimitive> primitives) {
-        List<Map.Entry<String, JsonPrimitive>> matches = findMatches(mapping, primitives);
-        if (matches.isEmpty()) return null;
-        if (!mapping.isAllowArray() && matches.size() > 1) {
-            throw new IllegalArgumentException("Multiple values matched single-value mapping: " + mapping.getSource());
-        }
-        return primitiveToString(matches.get(0).getValue());
-    }
-
-    private static String normalizePath(String path) {
-        return path.replaceAll("\\[(\\d+)\\]", "[x]");
-    }
-
-    //Iterate through the FHIR json and extract all primitive values (leafs) of it
-    private static void collectPrimitives(JsonElement el, String path, Map<String, JsonPrimitive> out) {
-        if (el == null || el.isJsonNull()) return;
-        if (el.isJsonPrimitive()) {
-            out.put(path, el.getAsJsonPrimitive());
-            return;
-        }
-        if (el.isJsonArray()) {
-            JsonArray arr = el.getAsJsonArray();
-            for (int i = 0; i < arr.size(); i++) {
-                String next = path.isEmpty() ? ("[" + i + "]") : (path + "[" + i + "]");
-                collectPrimitives(arr.get(i), next, out);
-            }
-            return;
-        }
-        if (el.isJsonObject()) {
-            for (var e : el.getAsJsonObject().entrySet()) {
-                String next = path.isEmpty() ? e.getKey() : path + "." + e.getKey();
-                collectPrimitives(e.getValue(), next, out);
-            }
-        }
-    }
-
-    private static String deriveKey(FhirLineProtocolConfig.Mapping mapping, String matchedPath, int index, int total) {
-        String alias = mapping.getAlias();
-        if (alias != null && !alias.isBlank()) {
-            if (mapping.getSource().contains("[x]") && total > 1) {
-                String idx = extractLastIndex(matchedPath);
-                return idx == null ? alias + "_" + index : alias + "_" + idx;
-            }
-            return alias;
-        }
-        String base = mapping.getSource().replace("[x]", "");
-        if (base.contains(".")) base = base.substring(base.lastIndexOf('.') + 1);
-        base = base.replace('[', '_').replace(']', '_');
-        while (base.endsWith("_")) base = base.substring(0, base.length() - 1);
-        if (mapping.getSource().contains("[x]") && total > 1) {
-            String idx = extractLastIndex(matchedPath);
-            if (idx != null) base = base + "_" + idx;
-            else base = base + "_" + index;
-        } else if (total > 1) {
-            base = base + "_" + index;
-        }
-        return base;
-    }
-
-    private static String extractLastIndex(String path) {
-        int end = path.lastIndexOf(']');
-        if (end == -1) return null;
-        int start = path.lastIndexOf('[', end);
-        if (start == -1 || start >= end) return null;
-        String candidate = path.substring(start + 1, end);
-        for (int i = 0; i < candidate.length(); i++) {
-            if (!Character.isDigit(candidate.charAt(i))) return null;
-        }
-        return candidate;
-    }
-
-    private static String primitiveToString(JsonPrimitive p) {
-        if (p == null) return null;
-        if (p.isString()) return p.getAsString();
-        if (p.isNumber()) return p.getAsString();
-        if (p.isBoolean()) return String.valueOf(p.getAsBoolean());
-        return null;
     }
 
     private static Long normalizeIsoToNanos(String str) {
@@ -226,38 +205,5 @@ public class LineProtocolParser {
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid ISO 8601 datetime: " + str, e);
         }
-    }
-
-    private static String replaceSpaces(String in) {
-        return in == null ? null : in.replace(' ', '_');
-    }
-
-    private static String escapeMeasurement(String in) {
-        return replaceSpaces(in).replace("\\", "\\\\").replace(",", "\\,");
-    }
-
-    private static String escapeKey(String in) {
-        return replaceSpaces(in).replace("\\", "\\\\").replace(",", "\\,").replace("=", "\\=");
-    }
-
-    private static String escapeTagValue(String in) {
-        return replaceSpaces(in).replace("\\", "\\\\").replace(",", "\\,").replace("=", "\\=");
-    }
-
-    private static String encodeFieldValue(JsonPrimitive p) {
-        if (p.isBoolean()) return String.valueOf(p.getAsBoolean());
-        if (p.isNumber()) {
-            String raw = p.getAsString();
-            if (!raw.matches(".*[\\.eE].*")) {
-                try {
-                    Long.parseLong(raw);
-                    return raw;
-                } catch (NumberFormatException ex) { /* fallback */ }
-            }
-            return raw;
-        }
-        String s = replaceSpaces(p.getAsString());
-        String esc = s.replace("\\", "\\\\").replace("\"", "\\\"");
-        return '"' + esc + '"';
     }
 }
