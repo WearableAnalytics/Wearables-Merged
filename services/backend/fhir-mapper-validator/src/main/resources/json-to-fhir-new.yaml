@@ -30,6 +30,8 @@ measurement:
               params: ["_", "-"]
           optional: false
           type: string
+          lineProtocol:
+            type: measurement
         - name: value
           source: measurements.instantaneous.value
           target: valueQuantity.value
@@ -58,6 +60,8 @@ measurement:
               params: ["Z"]
           optional: false
           type: string
+          lineProtocol:
+            type: timestamp
         - name: status
           value: "final"
           target: status

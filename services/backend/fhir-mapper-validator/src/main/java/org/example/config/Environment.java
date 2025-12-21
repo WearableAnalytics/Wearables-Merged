@@ -12,8 +12,8 @@ public class Environment {
 
     public static final String INPUT_TOPIC = setEnvWithDefault("INPUT_TOPIC", "wearables-raw");
 
-    public static final String OUTPUT_TOPIC = setEnvWithDefault("LP_OUTPUT_TOPIC", "wearables-lp");
-    public static final String DLQ_TOPIC = setEnvWithDefault("FHIR_DLQ_TOPIC", "fhir-dlq");
+    public static final String OUTPUT_TOPIC = setEnvWithDefault("OUTPUT_TOPIC", "wearables-lp");
+    public static final String DLQ_TOPIC = setEnvWithDefault("DLQ_TOPIC", "dlq");
 
     public static final String KAFKA_BROKER_ENV_VAR = setEnvWithDefault("KAFKA_BROKER_ENV_VAR", "kafka-kafka-bootstrap:9092");
     public static final String APP_ID = setEnvWithDefault("APP_ID", "mapper-validator");

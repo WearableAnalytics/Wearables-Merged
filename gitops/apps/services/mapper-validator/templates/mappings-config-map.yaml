@@ -11,6 +11,9 @@ data:
           target: device.display
           optional: false
           type: string
+          lineProtocol:
+            name: device-id
+            type: tag
     measurement:
       paths:
         - path: measurements.instantaneous
@@ -21,6 +24,9 @@ data:
               target: resourceType
               optional: false
               type: string
+              lineProtocol:
+                name: resourceType
+                type: tag
             - name: type
               source: measurements.instantaneous.type
               target: id
@@ -30,11 +36,16 @@ data:
                   params: ["_", "-"]
               optional: false
               type: string
+              lineProtocol:
+                type: measurement
             - name: value
               source: measurements.instantaneous.value
               target: valueQuantity.value
               optional: false
               type: real
+              lineProtocol:
+                name: value
+                type: field
             - name: unit
               source: measurements.instantaneous.unit
               target: valueQuantity.unit
@@ -44,6 +55,9 @@ data:
                   params: ["_", "-"]
               optional: false
               type: string
+              lineProtocol:
+                name: unit
+                type: tag
             - name: start
               source: measurements.instantaneous.timestamp
               target: effectiveDateTime
@@ -52,23 +66,34 @@ data:
                   params: ["Z"]
               optional: false
               type: string
+              lineProtocol:
+                type: timestamp
             - name: status
               value: "final"
               target: status
               optional: false
               type: string
+              lineProtocol:
+                name: status
+                type: field
             - name: codingSystem
               target: code.coding[0].system
               transform:
                 - type: mapBasedOn
               optional: false
               type: string
+              lineProtocol:
+                name: category
+                type: tag
             - name: codingCode
               target: code.coding[0].code
               transform:
                 - type: mapBasedOn
               optional: false
               type: string
+              lineProtocol:
+                name: code
+                type: tag
             - name: codingDisplay
               source: measurements.instantaneous.unit
               target: code.coding[0].display
@@ -78,6 +103,9 @@ data:
                   params: [ "_", "-" ]
               optional: false
               type: string
+              lineProtocol:
+                name: display
+                type: tag
           mappings:
             - path: code.coding[0].code
               basedOn: measurements.instantaneous.unit
@@ -127,6 +155,9 @@ data:
               target: resourceType
               optional: false
               type: string
+              lineProtocol:
+                name: resourceType
+                type: tag
             - name: type
               source: measurements.cumulative.type
               target: id
@@ -136,11 +167,16 @@ data:
                   params: ["_", "-"]
               optional: false
               type: string
+              lineProtocol:
+                type: measurement
             - name: value
               source: measurements.cumulative.value
               target: valueQuantity.value
               optional: false
               type: real
+              lineProtocol:
+                name: value
+                type: field
             - name: unit
               source: measurements.cumulative.unit
               target: valueQuantity.unit
@@ -150,6 +186,9 @@ data:
                   params: [ "_", "-" ]
               optional: false
               type: string
+              lineProtocol:
+                name: unit
+                type: tag
             - name: start
               source: measurements.cumulative.periodStart
               target: effectivePeriod.start
@@ -158,6 +197,8 @@ data:
                   params: ["Z"]
               optional: false
               type: string
+              lineProtocol:
+                type: timestamp
             - name: end
               source: measurements.cumulative.periodEnd
               target: effectivePeriod.end
@@ -171,6 +212,9 @@ data:
               target: status
               optional: false
               type: string
+              lineProtocol:
+                name: status
+                type: value
             - name: codingSystem
               target: code.coding[0].system
               transform:
@@ -183,6 +227,9 @@ data:
                 - type: mapBasedOn
               optional: false
               type: string
+              lineProtocol:
+                name: code
+                type: tag
             - name: codingDisplay
               source: measurements.cumulative.unit
               target: code.coding[0].display
@@ -192,6 +239,9 @@ data:
                   params: [ "_", "-" ]
               optional: false
               type: string
+              lineProtocol:
+                name: display
+                type: tag
           mappings:
             - path: code.coding[0].code
               basedOn: measurements.cumulative.unit
@@ -233,68 +283,3 @@ data:
                   value: "https://loinc.org/"
                 - key: "RESPIRATIONS_PER_MINUTE"
                   value: "metric"
-
-  fhir-to-lineprotocol.yaml: |
-    variants:
-      - measurement-mapping:
-          source: id
-          allow-array: false
-        timestamp-mapping:
-          source: effectivePeriod.start
-          allow-array: false
-        field-mappings:
-          - source: status
-            allow-array: false
-            alias: status
-          - source: valueQuantity.value
-            allow-array: false
-            alias: value
-        tag-mappings:
-          - source: resourceType
-            allow-array: false
-            alias: resource-type
-          - source: category.coding[x].code
-            allow-array: true
-            alias: category
-          - source: code.coding[x].code
-            allow-array: true
-            alias: code
-          - source: code.coding[x].display
-            allow-array: true
-            alias: display
-          - source: valueQuantity.unit
-            allow-array: false
-            alias: unit
-          - source: device.display
-            allow-array: false
-            alias: device-id
-
-      - measurement-mapping:
-          source: id
-          allow-array: false
-        timestamp-mapping:
-          source: effectiveDateTime
-          allow-array: false
-        field-mappings:
-          - source: status
-            allow-array: false
-            alias: status
-          - source: valueQuantity.value
-            allow-array: false
-            alias: value
-        tag-mappings:
-          - source: resourceType
-            allow-array: false
-            alias: resource_type
-          - source: category.coding[x].code
-            allow-array: true
-            alias: category
-          - source: code.coding[x].code
-            allow-array: true
-            alias: code
-          - source: code.coding[x].display
-            allow-array: true
-            alias: display
-          - source: valueQuantity.unit
-            allow-array: false
-            alias: unit
