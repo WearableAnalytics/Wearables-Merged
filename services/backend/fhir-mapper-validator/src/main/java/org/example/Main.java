@@ -106,7 +106,7 @@ public class Main {
         });
 
         Map<String, KStream<String, String>> branches = output.split(Named.as("res-"))
-                .branch(((k, v) -> !v.substring(0, 5).contains("{")), Branched.as("dlq")) //TODO improve this
+                .branch(((k, v) -> v.substring(0, 5).contains("{")), Branched.as("dlq")) //TODO improve this
                 .defaultBranch(Branched.as("valid"));
 
         KStream<String, String> fhirDLQ = branches.get("res-dlq");
