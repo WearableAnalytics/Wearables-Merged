@@ -32,7 +32,7 @@ readinessProbe:
   periodSeconds: 10
 
 ingress:
-  host: "wearable-analytics.de"
+  host: "wearables.charite.de"
   prefix: "/import"
   regex: "^/import/?(.*)"
   replacement: /$1

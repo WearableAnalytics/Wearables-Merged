@@ -1,5 +1,5 @@
 ingress:
-  host: "wearable-analytics.de"
+  host: "wearables.charite.de"
 
 serversTransport:
   forwardingTimeouts:
