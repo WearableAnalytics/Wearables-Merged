@@ -160,12 +160,12 @@ public class LineProtocolParser {
         }else {
             //with tags with comma
             sb.append(",");
-            insertMaps(template.getTags(), sb);
+            insertMaps("tag", template.getTags(), sb);
             sb.append(" "); //space between tags and fields
         }
 
         //set fields
-        insertMaps(template.getFields(), sb);
+        insertMaps("field", template.getFields(), sb);
 
         sb.append(" "); //space between fields and timestamp
 
@@ -178,17 +178,22 @@ public class LineProtocolParser {
         return lpString;
     }
 
-    private static void checkAndSetMaps(Map<String, String> map, String type, StringBuilder sb) {
-
-        insertMaps(map, sb);
-    }
-
-    private static void insertMaps(Map<String, String> map, StringBuilder sb) {
+    private static void insertMaps(String type, Map<String, String> map, StringBuilder sb) {
         Iterator<Map.Entry<String, String>> it = map.entrySet().iterator();
 
         while (it.hasNext()) {
             Map.Entry<String, String> e = it.next();
-            sb.append(e.getKey()).append("=").append(e.getValue());
+
+            boolean b = checkNumber(e.getValue());
+
+            String quotedIfString = e.getValue();
+
+            //if it's a field AND not a number, it needs to be quoted, in all other cases it doesn't
+            if (type.equals("field") && !b) {
+                quotedIfString = "\"" + e.getValue() + "\"";
+            }
+
+            sb.append(e.getKey()).append("=").append(quotedIfString);
 
             if (it.hasNext()) {
                 sb.append(",");
@@ -205,5 +210,17 @@ public class LineProtocolParser {
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid ISO 8601 datetime: " + str, e);
         }
+    }
+
+    private static boolean checkNumber(String s) {
+
+        try{
+            Float.parseFloat(s);
+            return true;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+
+
     }
 }
