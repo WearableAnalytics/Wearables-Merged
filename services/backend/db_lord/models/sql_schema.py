@@ -54,6 +54,7 @@ class CaseWearableLink(BaseModel):
     assigned_from: datetime
     assigned_to: Optional[datetime]
 
+
 class CaseBase(BaseModel):
     patient_id: str
     # Optional lists to link directly while creating a case

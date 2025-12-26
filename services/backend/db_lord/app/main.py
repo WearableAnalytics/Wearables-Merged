@@ -1,12 +1,12 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends
+from db_handler import AsyncDbHandler, get_async_db_handler
+from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.exc import IntegrityError
 from starlette import status
 from starlette.responses import JSONResponse
 
 from app.db import async_engine
-from db_handler import AsyncDbHandler, get_async_db_handler
-from models.sql_schema import PatientBase, Patient, Wearable, DeviceBase, Device, Context, ContextBase
+from models.sql_schema import Context, ContextBase, Device, DeviceBase, Patient, PatientBase, Wearable
 
 app = FastAPI()
 
@@ -21,9 +21,7 @@ async def health():
     response_model=Patient,
     status_code=status.HTTP_201_CREATED,
 )
-async def post_patients(
-        payload: PatientBase,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def post_patients(payload: PatientBase, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.begin() as conn:
         try:
             patient = await handler.create_patient(conn=conn, patient_data=payload)
@@ -40,9 +38,7 @@ async def post_patients(
     response_model=Patient,
     status_code=status.HTTP_200_OK,
 )
-async def get_patient_endpoint(
-        patient_id: str,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def get_patient_endpoint(patient_id: str, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.connect() as conn:
         patient = await handler.get_patient(conn=conn, patient_id=patient_id)
 
@@ -58,9 +54,8 @@ async def get_patient_endpoint(
     status_code=status.HTTP_200_OK,
 )
 async def put_patient_endpoint(
-        patient_id: str,
-        payload: PatientBase,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+    patient_id: str, payload: PatientBase, handler: AsyncDbHandler = Depends(get_async_db_handler)
+):
     async with async_engine.begin() as conn:
         patient = await handler.update_patient(conn=conn, patient_id=patient_id, patient_data=payload)
 
@@ -81,9 +76,7 @@ async def put_patient_endpoint(
     "/patients/{patient_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_patient_endpoint(
-        patient_id: str,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def delete_patient_endpoint(patient_id: str, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.begin() as conn:
         try:
             deleted = await handler.delete_patient(conn=conn, patient_id=patient_id)
@@ -99,9 +92,7 @@ async def delete_patient_endpoint(
     response_model=Wearable,
     status_code=status.HTTP_200_OK,
 )
-async def get_wearable_endpoint(
-        wearable_id: str,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def get_wearable_endpoint(wearable_id: str, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.connect() as conn:
         wearable = await handler.get_wearable(conn=conn, wearable_id=wearable_id)
 
@@ -116,9 +107,7 @@ async def get_wearable_endpoint(
     response_model=Wearable,
     status_code=status.HTTP_201_CREATED,
 )
-async def post_wearable_endpoint(
-        payload: DeviceBase,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def post_wearable_endpoint(payload: DeviceBase, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.begin() as conn:
         try:
             wearable = await handler.create_wearable(conn=conn, wearable_base=payload)
@@ -136,9 +125,8 @@ async def post_wearable_endpoint(
     status_code=status.HTTP_200_OK,
 )
 async def put_wearable_endpoint(
-        wearable_id: str,
-        payload: DeviceBase,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+    wearable_id: str, payload: DeviceBase, handler: AsyncDbHandler = Depends(get_async_db_handler)
+):
     async with async_engine.begin() as conn:
         wearable = await handler.update_wearable(conn=conn, wearable_id=wearable_id, wearable_base=payload)
 
@@ -154,13 +142,12 @@ async def put_wearable_endpoint(
 
         return JSONResponse(status_code=status.HTTP_201_CREATED, content=wearable)
 
+
 @app.delete(
     "/wearables/{wearable_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_wearable_endpoint(
-        wearable_id: str,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def delete_wearable_endpoint(wearable_id: str, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.begin() as conn:
         try:
             deleted = await handler.delete_wearable(conn=conn, wearable_id=wearable_id)
@@ -176,9 +163,7 @@ async def delete_wearable_endpoint(
     response_model=Device,
     status_code=status.HTTP_200_OK,
 )
-async def get_devices_endpoint(
-        device_id: str,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def get_devices_endpoint(device_id: str, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.connect() as conn:
         device = await handler.get_device(conn=conn, device_id=device_id)
 
@@ -187,14 +172,9 @@ async def get_devices_endpoint(
 
         return device
 
-@app.post(
-    "/devices",
-    response_model=Device,
-    status_code=status.HTTP_201_CREATED
-)
-async def post_devices_endpoint(
-        payload: DeviceBase,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+
+@app.post("/devices", response_model=Device, status_code=status.HTTP_201_CREATED)
+async def post_devices_endpoint(payload: DeviceBase, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.begin() as conn:
         try:
             device = await handler.create_device(conn=conn, device_base=payload)
@@ -205,15 +185,15 @@ async def post_devices_endpoint(
 
         return device
 
+
 @app.put(
     "/devices/{device_id}",
     response_model=Device,
     status_code=status.HTTP_200_OK,
 )
 async def put_devices_endpoint(
-        device_id: str,
-        payload: DeviceBase,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+    device_id: str, payload: DeviceBase, handler: AsyncDbHandler = Depends(get_async_db_handler)
+):
     async with async_engine.begin() as conn:
         device = await handler.update_device(conn=conn, device_id=device_id, device_base=payload)
 
@@ -234,9 +214,7 @@ async def put_devices_endpoint(
     "/devices/{device_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_devices_endpoint(
-        device_id: str,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def delete_devices_endpoint(device_id: str, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.begin() as conn:
         try:
             deleted = await handler.delete_device(conn=conn, device_id=device_id)
@@ -247,15 +225,12 @@ async def delete_devices_endpoint(
             raise HTTPException(status_code=404, detail="Device not found")
 
 
-
 @app.get(
     "/contexts/{context_id}",
     response_model=Context,
     status_code=status.HTTP_200_OK,
 )
-async def get_context_endpoint(
-        context_id: str,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def get_context_endpoint(context_id: str, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.connect() as conn:
         context = await handler.get_context(conn=conn, context_id=context_id)
 
@@ -264,14 +239,13 @@ async def get_context_endpoint(
 
     return context
 
+
 @app.post(
     "/contexts",
     response_model=Context,
     status_code=status.HTTP_201_CREATED,
 )
-async def post_context_endpoint(
-        payload: ContextBase,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def post_context_endpoint(payload: ContextBase, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.begin() as conn:
         try:
             context = await handler.create_context(conn=conn, context_base=payload)
@@ -282,15 +256,15 @@ async def post_context_endpoint(
 
         return context
 
+
 @app.put(
     "/contexts/{context_id}",
     response_model=Context,
     status_code=status.HTTP_200_OK,
 )
 async def put_context_endpoint(
-        context_id: str,
-        payload: ContextBase,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+    context_id: str, payload: ContextBase, handler: AsyncDbHandler = Depends(get_async_db_handler)
+):
     async with async_engine.begin() as conn:
         context = await handler.update_context(conn=conn, context_id=context_id, context_base=payload)
 
@@ -306,13 +280,12 @@ async def put_context_endpoint(
 
         return JSONResponse(status_code=status.HTTP_201_CREATED, content=context)
 
+
 @app.delete(
     "/contexts/{context_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_context_endpoint(
-        context_id: str,
-        handler: AsyncDbHandler = Depends(get_async_db_handler)):
+async def delete_context_endpoint(context_id: str, handler: AsyncDbHandler = Depends(get_async_db_handler)):
     async with async_engine.begin() as conn:
         try:
             deleted = await handler.delete_context(conn=conn, context_id=context_id)
@@ -321,6 +294,7 @@ async def delete_context_endpoint(
 
         if not deleted:
             raise HTTPException(status_code=404, detail="Context not found")
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
