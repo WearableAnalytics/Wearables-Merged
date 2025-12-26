@@ -1,3 +1,5 @@
+from sqlalchemy import and_, insert, select
+
 from models.sql import (
     case_contexts,
     case_devices,
@@ -8,7 +10,6 @@ from models.sql import (
     patients,
     wearables,
 )
-from sqlalchemy import and_, insert, select
 
 TABLE_MAP = {
     "patients": patients,
