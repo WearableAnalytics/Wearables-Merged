@@ -2,12 +2,15 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
+
 @dataclass
 class Settings:
     postgres_user: str = os.getenv("POSTGRES_USER", "user")
     postgres_password: str = os.getenv("POSTGRES_PASSWORD", "password")
     postgres_db: str = os.getenv("POSTGRES_DB", "db")
-    database_url: str = os.getenv("DATABASE_URL", "postgresql+psycopg2://admin:admin-password@postgres.postgres.svc.cluster.local:5432/db")
+    database_url: str = os.getenv(
+        "DATABASE_URL", "postgresql+asyncpg://admin:admin-password@postgres.postgres.svc.cluster.local:5432/db"
+    )
 
     influx_url: str = os.getenv("INFLUX_URL", "http://influxdb-service.influx.svc.cluster.local:8086")
     influx_token: str = os.getenv("INFLUX_TOKEN", "token")
