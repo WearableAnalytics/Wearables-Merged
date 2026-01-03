@@ -43,7 +43,31 @@ export interface ChariteCase {
      * @memberof ChariteCase
      */
     birthDate: Date;
+    /**
+     * Patient sex
+     * @type {string}
+     * @memberof ChariteCase
+     */
+    sex?: ChariteCaseSexEnum;
+    /**
+     * Patient weight in kg
+     * @type {number}
+     * @memberof ChariteCase
+     */
+    weight?: number;
 }
+
+
+/**
+ * @export
+ */
+export const ChariteCaseSexEnum = {
+    female: 'female',
+    male: 'male',
+    other: 'other'
+} as const;
+export type ChariteCaseSexEnum = typeof ChariteCaseSexEnum[keyof typeof ChariteCaseSexEnum];
+
 
 /**
  * Check if a given object implements the ChariteCase interface.
@@ -70,6 +94,8 @@ export function ChariteCaseFromJSONTyped(json: any, ignoreDiscriminator: boolean
         'firstName': json['firstName'],
         'lastName': json['lastName'],
         'birthDate': (new Date(json['birthDate'])),
+        'sex': json['sex'] == null ? undefined : json['sex'],
+        'weight': json['weight'] == null ? undefined : json['weight'],
     };
 }
 
@@ -88,6 +114,8 @@ export function ChariteCaseToJSONTyped(value?: ChariteCase | null, ignoreDiscrim
         'firstName': value['firstName'],
         'lastName': value['lastName'],
         'birthDate': ((value['birthDate']).toISOString().substring(0,10)),
+        'sex': value['sex'],
+        'weight': value['weight'],
     };
 }
 

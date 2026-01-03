@@ -5,8 +5,8 @@ export type CaseStatus = Case['status'];
 export type CaseRecord = Case;
 
 const chariteCases: ChariteCase[] = [
-  { cCaseId: 'C-123456', firstName: 'Max', lastName: 'Mustermann', birthDate: new Date('1980-01-01') },
-  { cCaseId: 'C-654321', firstName: 'Jane', lastName: 'Doe', birthDate: new Date('1975-05-20') },
+  { cCaseId: 'C-123456', firstName: 'Max', lastName: 'Mustermann', birthDate: new Date('1980-01-01'), sex: 'male', weight: 82.5 },
+  { cCaseId: 'C-654321', firstName: 'Jane', lastName: 'Doe', birthDate: new Date('1975-05-20'), sex: 'female', weight: 68.0 },
 ];
 
 const patients: Patient[] = [

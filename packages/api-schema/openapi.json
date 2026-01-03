@@ -53,6 +53,18 @@
             "format": "date",
             "description": "Patient date of birth",
             "example": "1980-01-01"
+          },
+          "sex": {
+            "type": "string",
+            "enum": ["female", "male", "other"],
+            "description": "Patient sex",
+            "example": "male"
+          },
+          "weight": {
+            "type": "number",
+            "description": "Patient weight in kg",
+            "example": 75.5,
+            "minimum": 0
           }
         },
         "required": [

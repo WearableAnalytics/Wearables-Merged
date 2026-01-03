@@ -14,7 +14,7 @@ const router = express.Router();
 const requestCookies = (req: Request) =>
   (req as Request & { cookies?: Record<string, string> }).cookies ?? parseCookies(req.headers.cookie);
 
-// In-memory store for temporary tokens
+// In-memory store for temporary EMAILAUTH tokens
 const tokenStore = new Map<string, { email: string; expiresAt: Date }>();
 // In-memory user store (replace with real DB later)
 const users = new Map<string, UserRecord>();

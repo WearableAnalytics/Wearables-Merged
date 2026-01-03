@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import config from './config.js';
 
 export interface JwtPayload {
   userId: string;
@@ -39,7 +40,7 @@ export const getUserFromRequest = (req: Request): JwtPayload | undefined => {
       parseCookies(req.headers.cookie);
     const token = cookies.jwt;
     if (!token) return undefined;
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret') as JwtPayload;
+    const decoded = jwt.verify(token, config.jwtSecret) as JwtPayload;
     if (!decoded.userId || !decoded.email) {
       throw new Error('Invalid token payload');
     }
