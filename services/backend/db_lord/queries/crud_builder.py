@@ -74,9 +74,9 @@ def build_list_patients(filters: Dict[str, Any]) -> Select:
     # TODO: add way more filters and convenient mapping between API and DB fields
     # also probably find a way to make this not just a big mess of if statements
     if filters.get("lastname"):
-        conditions.append(patients.c.name.ilike(f"%{filters['lastname']}%"))
+        conditions.append(patients.c.name.icontains(filters["lastname"]))
     if filters.get("firstname"):
-        conditions.append(patients.c.name.ilike(f"%{filters['firstname']}%"))
+        conditions.append(patients.c.name.icontains(filters["firstname"]))
     if filters.get("sex"):
         conditions.append(patients.c.sex == filters["sex"])
     if filters.get("birthRangeStart"):
@@ -95,7 +95,7 @@ def build_list_patients(filters: Dict[str, Any]) -> Select:
 
 def build_link_insert(link_type: str, data: Union[Dict[str, Any], List[Dict[str, Any]]]) -> Insert:
     t = _get_link_table(link_type)
-    return insert(t).values(data).returning(t)
+    return insert(t).values(data)
 
 
 def build_link_update(link_type: str, link_keys: Dict[str, Any], data: Dict[str, Any]) -> Update:
