@@ -2,7 +2,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import UUID7, BaseModel, ConfigDict
+from pydantic import UUID7, BaseModel, ConfigDict, Field
 
 
 class CaseStatus(str, Enum):
@@ -164,9 +164,9 @@ class CaseBase(TunedModel):
 class CaseCreate(CaseBase):
     patient_id: UUID7
 
-    linked_device_ids: List[UUID7] = []
-    linked_wearable_ids: List[UUID7] = []
-    linked_context_ids: List[UUID7] = []
+    linked_device_ids: List[UUID7] = Field(default_factory=list)
+    linked_wearable_ids: List[UUID7] = Field(default_factory=list)
+    linked_context_ids: List[UUID7] = Field(default_factory=list)
 
 
 class CaseUpdate(TunedModel):

@@ -55,14 +55,14 @@ contexts = Table(
 case_contexts = Table(
     "case_contexts",
     metadata,
-    Column("case_id", Uuid(as_uuid=True), ForeignKey("cases.id"), primary_key=True),
+    Column("case_id", Uuid(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), primary_key=True),
     Column("context_id", Uuid(as_uuid=True), ForeignKey("contexts.id"), primary_key=True),
 )
 
 case_devices = Table(
     "case_devices",
     metadata,
-    Column("case_id", Uuid(as_uuid=True), ForeignKey("cases.id"), primary_key=True),
+    Column("case_id", Uuid(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), primary_key=True),
     Column("device_id", Uuid(as_uuid=True), ForeignKey("devices.id"), primary_key=True),
     Column("assigned_from", TIMESTAMP, primary_key=True),
     Column("assigned_to", TIMESTAMP),
@@ -71,7 +71,7 @@ case_devices = Table(
 case_wearables = Table(
     "case_wearables",
     metadata,
-    Column("case_id", Uuid(as_uuid=True), ForeignKey("cases.id"), primary_key=True),
+    Column("case_id", Uuid(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), primary_key=True),
     Column("wearable_id", Uuid(as_uuid=True), ForeignKey("wearables.id"), primary_key=True),
     Column("assigned_from", TIMESTAMP, primary_key=True),
     Column("assigned_to", TIMESTAMP),
