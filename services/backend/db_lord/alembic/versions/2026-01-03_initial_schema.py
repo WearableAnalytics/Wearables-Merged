@@ -1,8 +1,8 @@
-"""Initial tables
+"""initial_schema
 
-Revision ID: 852426411777
+Revision ID: 14f5dcf69328
 Revises:
-Create Date: 2026-01-03 19:12:41.791983+00:00
+Create Date: 2026-01-03 19:56:37.675020+00:00
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "852426411777"
+revision: str = "14f5dcf69328"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -36,6 +36,12 @@ def upgrade() -> None:
         sa.Column("model", sa.String(), nullable=False),
         sa.Column("manufacturer", sa.String(), nullable=True),
         sa.Column("os_version", sa.String(), nullable=False),
+        sa.Column(
+            "status",
+            sa.Enum("AVAILABLE", "ASSIGNED", "IN_REPAIR", "DECOMMISSIONED", "LOST", "OTHER", name="hardware_status"),
+            server_default="available",
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_devices")),
         sa.UniqueConstraint("serial_nr", name=op.f("uq_devices_serial_nr")),
     )
@@ -57,13 +63,24 @@ def upgrade() -> None:
         sa.Column("model", sa.String(), nullable=False),
         sa.Column("manufacturer", sa.String(), nullable=True),
         sa.Column("os_version", sa.String(), nullable=False),
+        sa.Column(
+            "status",
+            sa.Enum("AVAILABLE", "ASSIGNED", "IN_REPAIR", "DECOMMISSIONED", "LOST", "OTHER", name="hardware_status"),
+            server_default="available",
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_wearables")),
         sa.UniqueConstraint("serial_nr", name=op.f("uq_wearables_serial_nr")),
     )
     op.create_table(
         "cases",
         sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
-        sa.Column("status", sa.String(), nullable=False),
+        sa.Column(
+            "status",
+            sa.Enum("PLANNED", "ONGOING", "COMPLETED", "ARCHIVED", "OTHER", name="case_status"),
+            server_default="planned",
+            nullable=False,
+        ),
         sa.Column("patient_id", sa.Uuid(), nullable=False),
         sa.ForeignKeyConstraint(
             ["patient_id"], ["patients.id"], name=op.f("fk_cases_patient_id_patients"), ondelete="CASCADE"

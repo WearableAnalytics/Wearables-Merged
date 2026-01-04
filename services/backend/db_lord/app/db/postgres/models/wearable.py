@@ -1,4 +1,6 @@
-from sqlalchemy import Column, String, Table, Uuid, func
+from sqlalchemy import Column, Enum, String, Table, Uuid, func
+
+from app.schemas.common import HardwareStatus
 
 from .metadata import metadata
 
@@ -10,4 +12,10 @@ wearables = Table(
     Column("model", String, nullable=False),
     Column("manufacturer", String),
     Column("os_version", String, nullable=False),
+    Column(
+        "status",
+        Enum(HardwareStatus, name="hardware_status", native_enum=True),
+        nullable=False,
+        server_default=HardwareStatus.AVAILABLE.value,
+    ),
 )
