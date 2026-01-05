@@ -1,4 +1,4 @@
-replicas: 1
+replicas: 3
 
 mapperEnvConfigMap: mapper-app-env-config
 mappingConfig: mapping-config
@@ -11,8 +11,9 @@ envs:
   inputTopic: "wearables-raw"
   outputTopic: "wearables-lp"
   dlqTopic: "dlq"
+  partitionThreads: "1"
 
 image:
   repository: lndocker3s/mapper-validator
-  tag: 0.1.1
+  tag: 0.1.2
   imagePullPolicy: Always
