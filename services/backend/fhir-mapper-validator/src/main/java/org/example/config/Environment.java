@@ -16,6 +16,7 @@ public class Environment {
     public static final String DLQ_TOPIC = setEnvWithDefault("DLQ_TOPIC", "dlq");
 
     public static final String KAFKA_BROKER_ENV_VAR = setEnvWithDefault("KAFKA_BROKER_ENV_VAR", "kafka-kafka-bootstrap:9092");
+    public static final String PARTITION_THREADS = setEnvWithDefault("PARTITION_THREADS", "1");
     public static final String APP_ID = setEnvWithDefault("APP_ID", "mapper-validator");
     public static final String MAPPING_YAML_PATH = setEnvWithDefault("MAPPING_YAML_PATH", "config/json-to-fhir-new.yaml");
 
