@@ -3,6 +3,7 @@ import type { CookieOptions, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { auth, parseCookies } from '../../middleware.js';
+import { sendMagicLinkEmail } from '../../services/mailer.js';
 
 type UserRecord = {
   id: string;
@@ -20,10 +21,10 @@ const tokenStore = new Map<string, { email: string; expiresAt: Date }>();
 const users = new Map<string, UserRecord>();
 
 const sameSite: CookieOptions['sameSite'] =
-  process.env.NODE_ENV === 'production' ? 'strict' : 'lax';
+  process.env.NODE_ENV !== 'development' ? 'strict' : 'lax';
 const baseCookieOptions: CookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  secure: process.env.NODE_ENV !== 'development',
   sameSite,
   path: '/',
 };
@@ -85,13 +86,7 @@ const createUser = (email: string): UserRecord => {
   return user;
 };
 
-const sendMagicLinkEmail = async (email: string, token: string) => {
-  // TODO: wire up real mailer; for now log token for dev use
-  // eslint-disable-next-line no-console
-  console.log(`[magic-link] send to ${email}: ${token}`);
-};
-
-const isDevBypass = () => process.env.NODE_ENV !== 'production';
+const isDevBypass = () => process.env.NODE_ENV === 'development';
 
 // POST /login
 router.post('/login', async (req: Request, res: Response) => {
@@ -123,7 +118,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const token = createMagicLinkToken(email);
-    await sendMagicLinkEmail(email, token);
+    await sendMagicLinkEmail(email, token, { isRegistration: false });
     res.json({ message: 'Magic link sent' });
   } catch (err) {
     console.error('Magic link error:', err);
@@ -160,7 +155,7 @@ router.post('/register', async (req: Request, res: Response) => {
       });
     } else {
       const token = createMagicLinkToken(email);
-      await sendMagicLinkEmail(email, token);
+      await sendMagicLinkEmail(email, token, { isRegistration: true });
       res.status(201).json({ _id: user.id, message: 'Magic link sent' });
     }
   } catch (err) {
@@ -192,12 +187,9 @@ router.get('/verify-magiclink', async (req: Request, res: Response) => {
     const jwtToken = createJwtToken(user);
     setAuthCookie(res, jwtToken);
 
-    if (process.env.NODE_ENV === 'production') {
-      const redirectPath =
-        redirect && typeof redirect === 'string'
-          ? decodeURIComponent(redirect)
-          : '/';
+    if (process.env.NODE_ENV !== 'development') {
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const redirectPath = '/overview';
       res.redirect(frontendUrl + redirectPath);
     } else {
       res.json({
@@ -211,9 +203,8 @@ router.get('/verify-magiclink', async (req: Request, res: Response) => {
     }
   } catch (err) {
     // Always redirect to login page with error parameter
-    const errorMessage = encodeURIComponent((err as Error).message || 'Invalid or expired token');
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    res.redirect(`${frontendUrl}/login?error=${errorMessage}`);
+    res.redirect(`${frontendUrl}/error-magic_link`);
   }
 });
 

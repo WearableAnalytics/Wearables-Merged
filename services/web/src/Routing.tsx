@@ -8,6 +8,7 @@ import { LoginPage } from './pages/Login';
 import { RegisterPage } from './pages/Register';
 import { PrivateRoute } from './components/PrivateRoute';
 import { LandingPage } from './pages/Landing';
+import { ErrorMagicLinkPage } from './pages/ErrorMagicLink';
 
 export function Routing() {
   return (
@@ -47,6 +48,7 @@ export function Routing() {
       />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/error-magic_link" element={<ErrorMagicLinkPage />} />
       <Route
         path="*"
         element={<NotFoundPage />}

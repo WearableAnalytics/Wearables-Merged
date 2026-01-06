@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import wLogo from '@/assets/W.png';
 
 export function LandingPage() {
   return (
@@ -16,7 +17,7 @@ export function LandingPage() {
       <div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-white/70 bg-white/70 shadow-[0_25px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl">
         <div className="relative px-8 py-12 text-center md:px-12 md:py-16">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-white/90 shadow-sm">
-            <img src="/wearables.png" alt="Wearables logo" className="h-10 w-10 object-contain" />
+            <img src={wLogo} alt="W Logo" className="h-10 w-10 object-contain" />
           </div>
 
           <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-sky-500">

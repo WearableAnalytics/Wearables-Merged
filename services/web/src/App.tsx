@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { GuestNavbar } from './components/custom/navbar/guestNavbar';
 import { Routing } from './Routing';
 
-const GUEST_ROUTES = ['/', '/register', '/login'];
+const GUEST_ROUTES = ['/', '/register', '/login', '/error-magic_link'];
 
 function App() {
   const navigate = useNavigate();

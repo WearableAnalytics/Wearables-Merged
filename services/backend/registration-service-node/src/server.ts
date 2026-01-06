@@ -2,6 +2,7 @@ import cors from 'cors';
 import express, { Request, Response } from 'express';
 import config from './config.js';
 import authRouter from './api/routes/auth.js';
+import { auth } from './middleware.js';
 import { patientService, caseService, chariteCaseService } from './services/index.js';
 import type {
   CasesFromChariteCasePostRequest,
@@ -28,6 +29,8 @@ type CasesVerifyTokenBody =
 app.get(route('/health'), (_req, res) => {
   res.json({ status: 'ok' });
 });
+
+app.use(config.apiPrefix, auth.required);
 
 app.get(route('/charite/cases/:cCaseId'), async (req, res) => {
   try {
