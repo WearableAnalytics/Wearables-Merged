@@ -1,5 +1,7 @@
 package org.example.config;
 
+import org.example.fhir.MappingYaml;
+import org.example.ConfigLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,15 +11,16 @@ public class Environment {
 
 
     public static final String INPUT_TOPIC = setEnvWithDefault("INPUT_TOPIC", "wearables-raw");
-    public static final String FHIR_OUTPUT_TOPIC = setEnvWithDefault("FHIR_OUTPUT_TOPIC", "wearables-fhir");
-    public static final String LP_OUTPUT_TOPIC = setEnvWithDefault("LP_OUTPUT_TOPIC", "wearables-lp");
-    public static final String FHIR_DLQ_TOPIC = setEnvWithDefault("FHIR_DLQ_TOPIC", "fhir-dlq");
-    public static final String LP_DLQ_TOPIC = setEnvWithDefault("LP_DLQ_TOPIC", "lp-dlq");
+
+    public static final String OUTPUT_TOPIC = setEnvWithDefault("OUTPUT_TOPIC", "wearables-lp");
+    public static final String DLQ_TOPIC = setEnvWithDefault("DLQ_TOPIC", "dlq");
 
     public static final String KAFKA_BROKER_ENV_VAR = setEnvWithDefault("KAFKA_BROKER_ENV_VAR", "kafka-kafka-bootstrap:9092");
+    public static final String PARTITION_THREADS = setEnvWithDefault("PARTITION_THREADS", "1");
     public static final String APP_ID = setEnvWithDefault("APP_ID", "mapper-validator");
     public static final String MAPPING_YAML_PATH = setEnvWithDefault("MAPPING_YAML_PATH", "config/json-to-fhir-new.yaml");
-    public static final String FHIR_LP_MAPPING_YAML_PATH = setEnvWithDefault("FHIR_LP_MAPPING_YAML_PATH", "config/fhir-to-lineprotocol.yaml");
+
+    public static final MappingYaml TEMPLATE = ConfigLoader.loadConfig(MAPPING_YAML_PATH, MappingYaml.class);
 
     private static String setEnvWithDefault(String value, String defaultValue){
         String env = System.getenv(value);

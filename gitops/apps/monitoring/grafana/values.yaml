@@ -12,7 +12,7 @@ persistence:
   storageClassName: cinder-csi
   accessModes: ["ReadWriteOnce"]
 ingress: 
-  host: "wearable-analytics.de"
+  host: "wearables.charite.de"
   prefix: "/grafana"
 certificate:
   name: wearables-cert

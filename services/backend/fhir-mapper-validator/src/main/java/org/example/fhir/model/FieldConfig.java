@@ -13,4 +13,5 @@ public class FieldConfig {
     private List<ValueTransformation> transform;
     private boolean optional;
     private String type;
+    private LineProtocol lineProtocol;
 }

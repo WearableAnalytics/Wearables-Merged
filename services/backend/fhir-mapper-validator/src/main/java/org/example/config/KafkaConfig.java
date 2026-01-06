@@ -14,6 +14,7 @@ public class KafkaConfig {
 
         // Read broker info from environment variable KAFKA_BROKER
         String envValue = Environment.KAFKA_BROKER_ENV_VAR;
+        String partitionThreads = Environment.PARTITION_THREADS;
 
         String bootstrapServers;
         if (envValue == null || envValue.trim().isEmpty()) {
@@ -32,16 +33,21 @@ public class KafkaConfig {
             log.info("Using bootstrap servers from env '{}': {}", Environment.KAFKA_BROKER_ENV_VAR, bootstrapServers);
         }
 
+
+        return setProperties(bootstrapServers);
+    }
+
+    private static Properties setProperties(String bootstrapServers) {
         Properties configurations = new Properties();
 
         configurations.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configurations.put(StreamsConfig.APPLICATION_ID_CONFIG, Environment.APP_ID);
+        configurations.put(StreamsConfig.NUM_STREAM_THREADS_CONFIG, Environment.PARTITION_THREADS);
         configurations.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, org.apache.kafka.common.serialization.Serdes.String().getClass().getName());
         configurations.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, org.apache.kafka.common.serialization.Serdes.String().getClass().getName());
 
         configurations.put(StreamsConfig.REQUEST_TIMEOUT_MS_CONFIG, "20000");
         configurations.put(StreamsConfig.RETRY_BACKOFF_MS_CONFIG, "500");
-
         return configurations;
     }
 

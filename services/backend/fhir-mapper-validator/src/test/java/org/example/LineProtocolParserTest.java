@@ -1,5 +1,6 @@
 package org.example;
 
+import com.google.gson.JsonParser;
 import org.example.lineprotocol.LineProtocolParser;
 import org.junit.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -54,7 +55,7 @@ public class LineProtocolParserTest {
     @Test
     @DisplayName("YAML-driven mapping: measurement, all tags, fields, timestamp")
     public void fullYamlMapping() {
-        String lp = parser.parse(SAMPLE_OBS);
+        String lp = parser.parse("test", JsonParser.parseString(SAMPLE_OBS).getAsJsonObject());
         assertNotNull(lp);
         // Measurement
         assertTrue(lp.startsWith("heart-rate,"));

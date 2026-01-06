@@ -41,12 +41,9 @@ build/
 ### Mac OS ###
 .DS_Store
 
-#Config
-config
-
 #testing-resources
-daniil2.json
+config/
 logs
-output.json
-output-lp.txt
-src/main/resources/daniil.json
+outputs
+src/main/resources/sample.json
+src/main/resources/sample-error.json
