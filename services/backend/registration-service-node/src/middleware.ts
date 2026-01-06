@@ -83,6 +83,6 @@ export function errorHandler(err: Error, _: Request, res: Response, __: NextFunc
   res.status(statusCode);
   res.json({
     message: err.message,
-    stack: process.env.NODE_ENV === 'production' ? '<redacted>' : err.stack,
+    stack: process.env.NODE_ENV !== 'development' ? '<redacted>' : err.stack,
   });
 }

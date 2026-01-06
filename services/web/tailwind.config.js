@@ -8,10 +8,7 @@ export default {
   theme: {
   	extend: {
   		fontFamily: {
-  			sora: [
-  				'Inter',
-  				'sans-serif'
-  			]
+			sans: ['Satoshi', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
   		},
   		borderRadius: {
   			lg: 'var(--radius)',
