@@ -10,11 +10,14 @@ RUN npm ci --no-audit --no-fund
 COPY services/web ./
 ARG VITE_BACKEND_URL
 ARG VITE_API_BASE_URL
+ARG VITE_GRAFANA_IFRAME_URL
 RUN BUILD_VITE_BACKEND_URL="$VITE_BACKEND_URL" \
   BUILD_VITE_API_BASE_URL="$VITE_API_BASE_URL" \
+  BUILD_VITE_GRAFANA_IFRAME_URL="$VITE_GRAFANA_IFRAME_URL" \
   && if [ -f .env ]; then set -a; . .env; set +a; fi \
   && if [ -n "$BUILD_VITE_BACKEND_URL" ]; then VITE_BACKEND_URL="$BUILD_VITE_BACKEND_URL"; fi \
   && if [ -n "$BUILD_VITE_API_BASE_URL" ]; then VITE_API_BASE_URL="$BUILD_VITE_API_BASE_URL"; fi \
+  && if [ -n "$BUILD_VITE_GRAFANA_IFRAME_URL" ]; then VITE_GRAFANA_IFRAME_URL="$BUILD_VITE_GRAFANA_IFRAME_URL"; fi \
   && apiPath="${VITE_API_BASE_URL:-/api}" \
   && case "$apiPath" in */) apiPath="${apiPath%/}";; esac \
   && case "$apiPath" in \
