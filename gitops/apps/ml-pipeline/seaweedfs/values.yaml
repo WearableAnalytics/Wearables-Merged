@@ -3,7 +3,7 @@ image:
 
 volume:
   enabled: true
-  replicas: 1 # scale this up for production
+  replicas: 1
   maxVolumes: "1"
   data:
     type: "persistentVolumeClaim"
@@ -16,33 +16,12 @@ filer:
   s3:
     enabled: true 
 
-# S3 Gateway for API Spark
 s3:
   enabled: true
   replicas: 1
   port: 8333
-  
-  # auth:
-  #   enabled: true
-  #   existingSecret: "seaweedfs-s3-secret" 
 
 master:
   enabled: true
   replicas: 1
-
-# global:
-#   storageClass: "standard" # ensure Filer and Master have persistent storage
-
-# Admin panel configuration
-# admin:
-#   enabled: true
-#   port: 23646
-#   grpcPort: 33646  # For worker connections
-#   adminUser: "admin"
-#   adminPassword: ""  # Leave empty to disable auth
   
-#   # Optional: enable ingress
-#   ingress:
-#     enabled: true
-#     host: "admin.seaweedfs.local"
-#     className: "nginx"
