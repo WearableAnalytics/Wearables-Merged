@@ -1,0 +1,39 @@
+lakefs:
+  #FIXME Ephemeral Postgres Configuration
+  postgresql:
+    enabled: true
+    primary:
+      persistence:
+        enabled: false
+    auth:
+      username: lakefs
+      password: "unsecure-password"
+      database: lakefs
+
+
+  secrets:
+      authEncryptionSecret: 
+        valueFrom:
+          secretKeyRef:
+            name: lakefs-secrets
+            key: lakefs_auth_encrypt
+  #USETHIS after postgres is setup externally
+  #     databaseConnectionString:
+  #       valueFrom:
+  #         secretKeyRef:
+  #           name: lakefs-secrets
+  #           key: postgres_conn
+  
+  lakefsConfig: |
+    blockstore:
+      type: s3
+      s3:
+        region: us-east-1
+    root_group:
+      storage_namespace: "s3://lake-test/lakefs-root"
+
+
+mySecrets:
+  name: "lakefs-secrets"
+  # dbConnectionString: ""
+  authEncryptSecret: ""

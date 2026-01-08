@@ -1,0 +1,12 @@
+apiVersion: v2
+name: my-lakefs # Umbrella Chart pattern
+description: A LakeFS Helm chart for Kubernetes
+type: application
+appVersion: "1.74.4" # you can check artifacthub.io for application versions
+
+version: 0.1.0
+
+dependencies:
+  - name: lakefs
+    version: 1.7.15 # you can check artifacthub.io for chart versions
+    repository: https://charts.lakefs.io
