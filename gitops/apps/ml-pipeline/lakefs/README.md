@@ -1,12 +1,13 @@
 # LakeFS Helm Chart Deployment
 
-export MY_DB_CONN="postgres://lakefs_user:password@host:5432/lakefs_db"
-export MY_ENCRYPT="SuperSecretEncryptKey123"
+This repository uses secret values from a separate file `my-secrets.yaml` which is gitignored for security reasons.
 
-helm upgrade --install . \
+You need to create it yourself based on the `placeholder-secrets.yaml` file provided.
+
+Then just deploy with:
+
+helm upgrade --install my-lakefs . \
   --namespace lakefs \
   --create-namespace \
-  --set mySecrets.dbConnectionString=$MY_DB_CONN \
-  --set mySecrets.authEncryptSecret=$MY_ENCRYPT
-
+  -f my-secrets.yaml
 

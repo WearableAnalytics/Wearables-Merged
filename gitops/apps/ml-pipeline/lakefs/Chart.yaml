@@ -4,7 +4,7 @@ description: A LakeFS Helm chart for Kubernetes
 type: application
 appVersion: "1.74.4" # you can check artifacthub.io for application versions
 
-version: 0.1.0
+version: 0.5.0
 
 dependencies:
   - name: lakefs
