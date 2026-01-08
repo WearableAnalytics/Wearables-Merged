@@ -10,4 +10,3 @@ helm upgrade --install my-lakefs . \
   --namespace lakefs \
   --create-namespace \
   -f my-secrets.yaml
-
