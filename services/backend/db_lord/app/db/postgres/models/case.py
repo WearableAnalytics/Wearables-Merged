@@ -12,7 +12,7 @@ cases = Table(
         "status",
         Enum(CaseStatus, name="case_status", native_enum=True),
         nullable=False,
-        server_default=CaseStatus.PLANNED.value,
+        server_default=CaseStatus.PLANNED.name,
     ),
     # CASCADE so that when a patient is deleted, their cases are also deleted
     # Indexed for faster lookups when querying cases by patient_id

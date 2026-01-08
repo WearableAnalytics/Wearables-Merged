@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "db_lord"
     POSTGRES_USER: str = "postgres"
-    
+
     POSTGRES_PASSWORD: str
 
     # Influx

@@ -16,6 +16,6 @@ wearables = Table(
         "status",
         Enum(HardwareStatus, name="hardware_status", native_enum=True),
         nullable=False,
-        server_default=HardwareStatus.AVAILABLE.value,
+        server_default=HardwareStatus.AVAILABLE.name,
     ),
 )

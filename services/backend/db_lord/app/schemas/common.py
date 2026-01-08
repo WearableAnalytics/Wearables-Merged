@@ -4,17 +4,17 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class HardwareStatus(str, Enum):
-    AVAILABLE = "available"
-    ASSIGNED = "assigned"
-    IN_REPAIR = "in_repair"
-    DECOMMISSIONED = "decommissioned"
-    LOST = "lost"
-    OTHER = "other"
+    AVAILABLE = "AVAILABLE"
+    ASSIGNED = "ASSIGNED"
+    IN_REPAIR = "IN_REPAIR"
+    DECOMMISSIONED = "DECOMMISSIONED"
+    LOST = "LOST"
+    OTHER = "OTHER"
 
 
 class TunedBase(BaseModel):
     model_config = ConfigDict(
-        from_attributes=True,
+        from_attributes=True, # Is that even needed since we arent using ORM mode? prob not
         use_enum_values=True,
         str_strip_whitespace=True,
         # validate_assignment=True, # Re-validates if values are changed after init can be expensive

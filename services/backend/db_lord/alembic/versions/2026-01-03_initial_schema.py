@@ -39,7 +39,7 @@ def upgrade() -> None:
         sa.Column(
             "status",
             sa.Enum("AVAILABLE", "ASSIGNED", "IN_REPAIR", "DECOMMISSIONED", "LOST", "OTHER", name="hardware_status"),
-            server_default="available",
+            server_default="AVAILABLE",  # And here
             nullable=False,
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_devices")),
@@ -65,8 +65,9 @@ def upgrade() -> None:
         sa.Column("os_version", sa.String(), nullable=False),
         sa.Column(
             "status",
+            # Use UPPERCASE strings here:
             sa.Enum("AVAILABLE", "ASSIGNED", "IN_REPAIR", "DECOMMISSIONED", "LOST", "OTHER", name="hardware_status"),
-            server_default="available",
+            server_default="AVAILABLE",  # And here
             nullable=False,
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_wearables")),
@@ -77,8 +78,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column(
             "status",
+            # Use UPPERCASE strings here:
             sa.Enum("PLANNED", "ONGOING", "COMPLETED", "ARCHIVED", "OTHER", name="case_status"),
-            server_default="planned",
+            server_default="PLANNED",  # And here
             nullable=False,
         ),
         sa.Column("patient_id", sa.Uuid(), nullable=False),
