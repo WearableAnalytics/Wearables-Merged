@@ -10,7 +10,7 @@ from app.db.postgres.engine import engine as pg_engine
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
-    await influx_client.close()
+    # await influx_client.close()
     await pg_engine.dispose()
 
 

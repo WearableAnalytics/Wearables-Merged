@@ -1,21 +1,23 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     # Postgres
-    POSTGRES_SERVER: str = "postgres.postgres.svc.cluster.local"
-    POSTGRES_PORT: int = 5432
-    POSTGRES_DB: str = "db_lord"
-    POSTGRES_USER: str = "postgres"
+    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "postgres.postgres.svc.cluster.local")
+    POSTGRES_PORT: int = os.getenv("POSTGRES_PORT", "5432")
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "db_lord")
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
 
-    POSTGRES_PASSWORD: str
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "")
 
     # Influx
-    INFLUX_URL: str = "http://localhost:8086"
-    INFLUX_ORG: str = "my-org"
-    INFLUX_BUCKET: str = "medical_data"
+    INFLUX_URL: str = os.getenv("INFLUX_URL", "http://influxdb-service.influx.svc.cluster.local:8086")
+    INFLUX_ORG: str = os.getenv("INFLUX_ORG", "my-org")
+    INFLUX_BUCKET: str = os.getenv("INFLUX_BUCKET", "medical_data")
 
-    INFLUX_TOKEN: str
+    INFLUX_TOKEN: str = os.getenv("INFLUX_TOKEN", "")
 
     @property
     def POSTGRES_URL(self) -> str:
