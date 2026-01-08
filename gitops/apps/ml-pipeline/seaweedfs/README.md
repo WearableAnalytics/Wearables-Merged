@@ -1,81 +1,50 @@
-# SeaweedFS deployment via official Helm chart
+# SeaweedFS deployment 
+We use Umbrella Chart pattern to deploy SeaweedFS with the official Helm chart as dependency.
+
 We use the official helm chart from here:
 https://github.com/seaweedfs/seaweedfs/tree/master/k8s/charts/seaweedfs
 
-## 1. Add the official helm chart to helm repo
-```bash
-	helm repo add seaweedfs https://seaweedfs.github.io/seaweedfs/helm
-	helm repo update
-	helm repo list
-```
-## 2. Create the kubectl namespace and secrets
+THIS COMMANDS ASSUME YOU ARE IN THE ROOT OF THIS FOLDER (gitops/apps/ml-pipeline/seaweedfs)
+Otherwise adjust the paths accordingly.
 
-Create namespace
-```bash
-	kubectl create namespace seaweedfs
-```
-Create secrets
-```bash
-	kubectl create secret generic seaweedfs-secret \
-  --from-literal=admin_access_key_id=admin \
-  --from-literal=admin_secret_access_key=admin123 \
-  --from-literal=read_access_key_id=readonly \
-  --from-literal=read_secret_access_key=readonly123 \
-  -n seaweedfs
-```
-
-Check with
+## 1. Build Dependencies
+First, download the upstream SeaweedFS chart into your charts folder (you only do this once or when updating versions).
 
 ```bash
-	kubectl get secrets --namespace seaweedfs
+    helm dependency build .
 ```
 
-Should display something like
+You should see something like this: "Successfully got an update from the "https://seaweedfs.github.io/seaweedfs/helm" chart repository" and new folder `charts/` created with the seaweedfs chart inside (`.tgz` file).
 
-NAME               TYPE     DATA   AGE
-seaweedfs-secret   Opaque   4      11s
-
-## 3. Claim the appropriate Persistent Volume in OpenStack
-Find the real ID of openstack volume from output 
-
-https://denbi-cloud.bihealth.org/dashboard/project/volumes/9f343329-2b97-453a-964c-bb641cb3b70a/
-
-NAME pvc-d53d6734-90b2-4ba0-9b37-a0b19e0e93c5
-ID 9f343329-2b97-453a-964c-bb641cb3b70a
-Description Created by OpenStack Cinder CSI driver
-Project ID c0c03998d10140a98cb2597f4d6511ae
+## 2. Deploy 
+We set the password secrets values via --set, the ids are hardcoded in the values.yaml file for simplicity.
 
 ```bash
-    kubectl apply -f templates/bind-openstack-volume.yaml
+    helm upgrade --install seaweedfs . \
+    --namespace seaweedfs \
+    --create-namespace \
+    --set mySecrets.adminSecretAccessKey="SuperSecurePassword123" \
+    --set mySecrets.readSecretAccessKey="ReadonlyPassword123" 
 ```
-
-Claim the openstack volume with appropriate name for helm chart
-
-```bash
-    kubectl apply -f templates/adopt-volume.yaml
-```
-
-
-## 4. Install the helm chart from the root of this folder
-You need to have values.yaml file in here
 
 If you want to first run dry run you can append the ` --dry-run --debug `
 
+Next upgrades / revisions can be done with simple `helm upgrade --install seaweedfs . -n seaweedfs`
+
+If you want to destroy the deployment later you can use:
+
 ```bash
-helm upgrade --install seaweedfs seaweedfs/seaweedfs \
-  -n seaweedfs \
-  -f values.yaml \
-  --version 3.59
+   helm uninstall seaweedfs -n seaweedfs
 ```
 
-## 5. See all pvcs - one should be claimed by seaweedfs
+## 4. See all pvcs - one should be claimed by seaweedfs
 
 It should be called `data-seaweedfs-volume-0`
 ```bash
 	kubectl get pv
 ```
 
-## 6. Debugging
+## 5. Debugging
 
 #### If some issues persist you can check the following:
 
@@ -84,10 +53,27 @@ It should be called `data-seaweedfs-volume-0`
     kubectl logs seaweedfs-volume-0 -n seaweedfs
 ```
 
+
+#### Check secrets with
+
+```bash
+	kubectl get secrets --namespace seaweedfs
+```
+
+
+Should display something like
+
+NAME                              TYPE                 DATA   AGE
+seaweedfs-s3-secret               Opaque               5      5m21s
+seaweedfs-secret                  Opaque               4      5m21s
+secret-seaweedfs-db               Opaque               2      5m21s
+sh.helm.release.v1.seaweedfs.v1   helm.sh/release.v1   1      5m21s
+
 #### Delete pvc if not binded to appropriate volume in OpenStack
 
 ```bash
     kubectl delete pvc data-seaweedfs-volume-0 -n seaweedfs --force --grace-period=0
+    kubectl delete pv pvc-d53d6734-90b2-4ba0-9b37-a0b19e0e93c5 --force --grace-period=0
 ```
 
 #### Run temporary curl pod
@@ -100,7 +86,7 @@ From inside the pod you can test the seaweedfs filer service
 
 ```bash
     # Write
-    curl -X PUT http://seaweedfs-filer:8888/test.txt -d "Success"
+    curl -X PUT http://seaweedfs-filer:8888/test.txt -d "Success\n"
 
     # Read
     curl http://seaweedfs-filer:8888/test.txt
@@ -122,9 +108,9 @@ check the disk space
 ```
 
 # Might do later
- - [ ] Clean the repo
- - [ ] better readme
- - [ ] Add admin panel
- - [ ] Use secrets corrently
- - [ ] Use encryption
- - [ ] Schedule workers
+- [x] Clean the repo
+- [x] Better readme
+- [x] Use secrets correctly
+- [ ] Use encryption
+- [ ] Schedule workers
+- [ ] Add admin panel
