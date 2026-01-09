@@ -1,0 +1,39 @@
+# Configuration for the Upstream SeaweedFS Chart
+# Everything under 'seaweedfs:' is passed to the dependency.
+seaweedfs:
+  image:
+    tag: "3.59"
+
+  volume:
+    enabled: true
+    replicas: 1
+    data:
+      type: "persistentVolumeClaim" # automatic PVC creation
+      storageClass: cinder-csi
+      size: 65Gi
+
+  filer:
+    enabled: true
+    replicas: 1
+    s3:
+      enabled: true
+
+  s3:
+    enabled: true
+    replicas: 1
+    port: 8333
+    auth:
+      enabled: true
+      existingSecret: "seaweedfs-secret" # Must match metadata.name in secret.yaml
+
+  master:
+    enabled: true
+    replicas: 1
+
+
+mySecrets:
+  name: "seaweedfs-secret"
+  adminAccessKeyId: "admin"
+  adminSecretAccessKey: ""
+  readAccessKeyId: "readonly"
+  readSecretAccessKey: ""
