@@ -1,0 +1,583 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Patient & Case API",
+    "version": "1.0.0",
+    "description": "Endpoints for fetching read-only Charité cases and managing internal patients/cases.\n\n## Frontend Flow\n1. Enter a Charité case ID (cCaseId)\n2. Fetch and display the external Charité case\n3. User clicks \"Create Case\" to create an internal case\n4. Show that patient/case was created and store the caseId\n5. Display the case token as QR code for scanning in the Charité app\n\n## Existing Patient Access\n1. Fetch all internal patients/cases\n2. User selects a patient/case to view details\n3. Display case details and show case token as QR code\n\n## App Flow\n1. Receive a caseToken scanned from Charité app\n2. Fetch the internal case using POST /cases/verify-token\n3. Display case details\n4. Allow user to proceed with further actions",
+    "contact": {
+      "name": "API Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.example.com/v1",
+      "description": "Production server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Charité Cases",
+      "description": "Read-only external Charité cases"
+    },
+    {
+      "name": "Patients",
+      "description": "Internal patient management"
+    },
+    {
+      "name": "Cases",
+      "description": "Internal case management"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ChariteCase": {
+        "type": "object",
+        "properties": {
+          "cCaseId": {
+            "type": "string",
+            "description": "Charité case identifier",
+            "example": "C-123456"
+          },
+          "firstName": {
+            "type": "string",
+            "description": "Patient first name",
+            "example": "Max"
+          },
+          "lastName": {
+            "type": "string",
+            "description": "Patient last name",
+            "example": "Mustermann"
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Patient date of birth",
+            "example": "1980-01-01"
+          },
+          "sex": {
+            "type": "string",
+            "enum": ["female", "male", "other"],
+            "description": "Patient sex",
+            "example": "male"
+          },
+          "weight": {
+            "type": "number",
+            "description": "Patient weight in kg",
+            "example": 75.5,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "cCaseId",
+          "firstName",
+          "lastName",
+          "birthDate"
+        ],
+        "additionalProperties": false
+      },
+      "Patient": {
+        "type": "object",
+        "properties": {
+          "patientId": {
+            "type": "string",
+            "description": "Internal patient identifier",
+            "example": "P-98765"
+          },
+          "firstName": {
+            "type": "string",
+            "description": "Patient first name",
+            "example": "Max"
+          },
+          "lastName": {
+            "type": "string",
+            "description": "Patient last name",
+            "example": "Mustermann"
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Patient date of birth",
+            "example": "1980-01-01"
+          }
+        },
+        "required": [
+          "patientId",
+          "firstName",
+          "lastName",
+          "birthDate"
+        ],
+        "additionalProperties": false
+      },
+      "Case": {
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "description": "Internal case identifier",
+            "example": "IC-54321"
+          },
+          "patientId": {
+            "type": "string",
+            "description": "Associated patient identifier",
+            "example": "P-98765"
+          },
+          "cCaseId": {
+            "type": "string",
+            "description": "Original Charité case identifier",
+            "example": "C-123456"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "description": "Case status",
+            "example": "active"
+          },
+          "caseToken": {
+            "type": "string",
+            "nullable": true,
+            "description": "JWT token for case access",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          }
+        },
+        "required": [
+          "caseId",
+          "patientId",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "CaseCreated": {
+        "type": "object",
+        "properties": {
+          "patientId": {
+            "type": "string",
+            "description": "Internal patient identifier",
+            "example": "P-98765"
+          },
+          "caseId": {
+            "type": "string",
+            "description": "Internal case identifier",
+            "example": "IC-54321"
+          },
+          "caseToken": {
+            "type": "string",
+            "description": "JWT token for case access",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          }
+        },
+        "required": [
+          "patientId",
+          "caseId",
+          "caseToken"
+        ],
+        "additionalProperties": false
+      },
+      "CaseVerified": {
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "description": "Internal case identifier",
+            "example": "IC-54321"
+          },
+          "patientVerifier": {
+            "type": "string",
+            "description": "Patient verification string built from first letter of first name, birthdate (DDMM), and first letter of last name.",
+            "example": "M0212B"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "description": "Case status",
+            "example": "active"
+          }
+        },
+        "required": [
+          "caseId",
+          "patientVerifier",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Error message",
+            "example": "Resource not found"
+          },
+          "code": {
+            "type": "string",
+            "description": "Error code",
+            "example": "NOT_FOUND"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/charite/cases/{cCaseId}": {
+      "get": {
+        "tags": [
+          "Charité Cases"
+        ],
+        "summary": "Get a Charité case",
+        "description": "Returns a read-only Charité case by ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Charité case identifier",
+              "example": "C-123456"
+            },
+            "required": true,
+            "description": "Charité case identifier",
+            "name": "cCaseId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Charité case retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChariteCase"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Charité case not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients": {
+      "get": {
+        "tags": [
+          "Patients"
+        ],
+        "summary": "List internal patients",
+        "description": "Returns a list of all internal patients",
+        "responses": {
+          "200": {
+            "description": "List of patients retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Patient"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{patientId}": {
+      "get": {
+        "tags": [
+          "Patients"
+        ],
+        "summary": "Get a single patient",
+        "description": "Returns a single internal patient by ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Internal patient identifier",
+              "example": "P-98765"
+            },
+            "required": true,
+            "description": "Internal patient identifier",
+            "name": "patientId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Patient retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Patient"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Patient not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patients/{patientId}/cases": {
+      "get": {
+        "tags": [
+          "Patients"
+        ],
+        "summary": "List cases for a patient",
+        "description": "Returns all cases linked to a specific patient",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Internal patient identifier",
+              "example": "P-98765"
+            },
+            "required": true,
+            "description": "Internal patient identifier",
+            "name": "patientId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of cases retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Case"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Patient not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases": {
+      "get": {
+        "tags": [
+          "Cases"
+        ],
+        "summary": "List all internal cases",
+        "description": "Returns a list of all internal cases",
+        "responses": {
+          "200": {
+            "description": "List of cases retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Case"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{caseId}": {
+      "get": {
+        "tags": [
+          "Cases"
+        ],
+        "summary": "Get a single case",
+        "description": "Returns a single internal case by ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Internal case identifier",
+              "example": "IC-54321"
+            },
+            "required": true,
+            "description": "Internal case identifier",
+            "name": "caseId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Case retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Case"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Case not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/from-charite-case": {
+      "post": {
+        "tags": [
+          "Cases"
+        ],
+        "summary": "Create internal case from Charité case",
+        "description": "Creates an internal case from an external Charité case with the specified conflict-resolution rules.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cCaseId": {
+                    "type": "string",
+                    "description": "Charité case identifier",
+                    "example": "C-123456"
+                  }
+                },
+                "required": [
+                  "cCaseId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Case already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseCreated"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Case created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Charité case not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/verify-token": {
+      "post": {
+        "tags": [
+          "Cases"
+        ],
+        "summary": "Verify a case token",
+        "description": "Verifies a case token and returns the linked case information",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "caseToken": {
+                    "type": "string",
+                    "description": "JWT case token",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpX..."
+                  }
+                },
+                "required": [
+                  "caseToken"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token verified successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseVerified"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

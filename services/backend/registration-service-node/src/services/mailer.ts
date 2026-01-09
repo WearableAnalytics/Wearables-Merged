@@ -1,0 +1,147 @@
+import config from '../config.js';
+
+type Sender = { name: string; email: string };
+
+const defaultSender: Sender = {
+  name: process.env.MAILER_FROM_NAME || 'Wearables Platform',
+  email: process.env.MAILER_FROM_EMAIL || 'jmm123@posteo.de',
+};
+
+const shouldLogOnly =
+  process.env.MAILER_ENABLED === 'false' ||
+  !process.env.BREVO_API_KEY ||
+  process.env.NODE_ENV === 'development';
+
+function getBackendUrl(): string {
+  return process.env.BACKEND_URL || `http://localhost:${config.port}`;
+}
+
+function buildMagicLink(token: string, redirect?: string): string {
+  const baseUrl = getBackendUrl();
+  const params = new URLSearchParams({ token });
+  if (redirect) {
+    params.set('redirect', redirect);
+  }
+  return `${baseUrl}${config.apiPrefix}/verify-magiclink?${params.toString()}`;
+}
+
+async function sendEmail(
+  to: string,
+  subject: string,
+  htmlContent: string,
+  sender: Sender = defaultSender,
+) {
+  if (shouldLogOnly || to.includes('@example.com')) {
+    return;
+  }
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      accept: 'application/json',
+      'api-key': process.env.BREVO_API_KEY || '',
+    },
+    body: JSON.stringify({
+      to: [{ email: to }],
+      sender,
+      subject,
+      htmlContent,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Brevo send failed: ${response.status} ${body}`);
+  }
+}
+
+export async function sendMagicLinkEmail(
+  email: string,
+  token: string,
+  options: { isRegistration?: boolean; redirect?: string } = {},
+) {
+  const magicLink = buildMagicLink(token, options.redirect);
+  const isNewUser = Boolean(options.isRegistration);
+  const subject = isNewUser
+    ? 'Complete your Wearables registration'
+    : 'Your Wearables login link';
+
+  if (shouldLogOnly) {
+    // eslint-disable-next-line no-console
+    console.log(`[magic-link] send to ${email}: ${magicLink}`);
+    return;
+  }
+
+  const innerHtml = `
+    <div style="background:#E8F3F8;padding:28px;border-radius:12px;margin-bottom:20px;">
+      <h2 style="color:#0A1C3E;margin:0 0 16px 0;font-size:20px;font-weight:600;">
+        ${isNewUser ? 'Welcome to Wearables' : 'Secure login'}
+      </h2>
+      <p style="color:#105067;margin:0 0 18px 0;font-size:15px;line-height:1.6;">
+        ${isNewUser
+          ? 'Click the button below to complete your registration.'
+          : 'Click the button below to securely access your account.'}
+      </p>
+      <div style="text-align:center;margin:24px 0;">
+        <a href="${magicLink}"
+           style="display:inline-block;background:#1A3F6E;color:#FFFFFF;padding:12px 20px;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">
+          ${isNewUser ? 'Complete registration' : 'Log in'}
+        </a>
+      </div>
+      <p style="color:#578494;margin:0;font-size:13px;text-align:center;">
+        This link is valid for 15 minutes and can only be used once.
+      </p>
+    </div>
+    <div style="background:#FFFFFF;padding:16px;border-radius:8px;border:1px solid #D1E4F0;">
+      <p style="color:#105067;margin:0;font-size:13px;line-height:1.5;">
+        If you did not request this ${isNewUser ? 'registration' : 'login'}, you can ignore this email.
+      </p>
+    </div>
+  `;
+
+  await sendEmail(email, subject, getMagicLinkEmailTemplate(innerHtml));
+}
+
+function getEmailTemplate(title: string, contentHtml: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${title}</title>
+    </head>
+    <body style="Margin:0;padding:0;background-color:#F7FBFF;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7FBFF;">
+        <tr>
+          <td align="center" style="padding:20px 0;">
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background-color:#FFFFFF;border:1px solid #D1E4F0;border-radius:12px;padding:40px;">
+              <tr>
+                <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:28px;font-weight:600;color:#1A3F6E;padding-bottom:20px;">Wearables</td>
+              </tr>
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:600;color:#0A1C3E;padding-bottom:20px;text-align:center;">${title}</td>
+              </tr>
+              <tr>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:16px;color:#0A1C3E;line-height:1.5;">
+                  ${contentHtml}
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#578494;padding-top:30px;">
+                  © 2026 Wearables. All rights reserved.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+}
+
+function getMagicLinkEmailTemplate(contentHtml: string): string {
+  return getEmailTemplate('Secure Access to Wearables', contentHtml);
+}
