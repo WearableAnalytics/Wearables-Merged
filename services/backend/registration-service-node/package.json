@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "generate:api": "npm --prefix ../../../packages/api-schema run --silent generate:api-schema >/dev/null && rm -rf ./src/api/openapi-client ./src/api/types.gen.ts && NODE_NO_WARNINGS=1 npx openapi-generator-cli generate -i ../../../packages/api-schema/openapi.json -g typescript-fetch -o ./src/api/openapi-client --additional-properties=typescriptThreePlus=true,withInterfaces=true,useSingleRequestParameter=true,enumPropertyNaming=original,modelPropertyNaming=original >/dev/null"
+    "generate:api": "npm --prefix ../../packages/api-schema run --silent generate:api-schema >/dev/null && rm -rf ./src/api/openapi-client ./src/api/types.gen.ts && NODE_NO_WARNINGS=1 npx openapi-generator-cli generate -i ../../packages/api-schema/openapi.json -g typescript-fetch -o ./src/api/openapi-client --additional-properties=typescriptThreePlus=true,withInterfaces=true,useSingleRequestParameter=true,enumPropertyNaming=original,modelPropertyNaming=original >/dev/null"
   },
   "dependencies": {
     "cors": "^2.8.5",

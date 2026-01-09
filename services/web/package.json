@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "generate:api": "npm --prefix ../../packages/api-schema run --silent generate:api-schema >/dev/null && rm -rf ./src/api/openapi-client ./src/api/types.gen.ts && NODE_NO_WARNINGS=1 npx openapi-generator-cli generate -i ../../packages/api-schema/openapi.json -g typescript-fetch -o ./src/api/openapi-client --additional-properties=typescriptThreePlus=true,withInterfaces=true,useSingleRequestParameter=true,enumPropertyNaming=original,modelPropertyNaming=original >/dev/null && node ./scripts/add-ts-nocheck.js"
+    "generate:api": "npm --prefix ../packages/api-schema run --silent generate:api-schema >/dev/null && rm -rf ./src/api/openapi-client ./src/api/types.gen.ts && NODE_NO_WARNINGS=1 npx openapi-generator-cli generate -i ../packages/api-schema/openapi.json -g typescript-fetch -o ./src/api/openapi-client --additional-properties=typescriptThreePlus=true,withInterfaces=true,useSingleRequestParameter=true,enumPropertyNaming=original,modelPropertyNaming=original >/dev/null && node ./scripts/add-ts-nocheck.js"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
