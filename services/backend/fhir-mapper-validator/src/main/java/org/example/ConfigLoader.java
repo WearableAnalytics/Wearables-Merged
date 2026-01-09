@@ -1,4 +1,4 @@
-package org.example.util;
+package org.example;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -14,6 +14,7 @@ public class ConfigLoader {
     public static <T> T loadConfig(String path, Class<T> clazz) {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         mapper.findAndRegisterModules();
+        log.debug("Current directory is {}", System.getProperty("user.dir"));
         try {
             log.info("Loading YAML config from path: {}", path);
             return mapper.readValue(new File(path), clazz);

@@ -1,0 +1,43 @@
+lakefs:
+  postgresql:
+    enabled: false
+
+  existingSecret: "lakefs-secrets" # must match metadata.name in templates/secret.yaml
+  
+  secretKeys:
+    databaseConnectionString: databaseConnectionString
+    authEncryptSecretKey: authEncryptSecretKey
+  
+  extraEnvVars:
+    - name: LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: lakefs-secrets
+          key: s3AccessKey
+
+    - name: LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: lakefs-secrets
+          key: s3SecretKey
+
+    - name: LAKEFS_BLOCKSTORE_S3_ENDPOINT
+      value: "http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333"
+    
+    # Required to satisfy the SDK, but we disable discovery below
+    - name: LAKEFS_BLOCKSTORE_S3_REGION
+      value: "us-east-1"
+    
+    # CRITICAL: Forces http://host/bucket instead of http://bucket.host
+    - name: LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE
+      value: "true"
+      
+    # CRITICAL: Stops the SDK from asking SeaweedFS "which region is this bucket in?"
+    - name: LAKEFS_BLOCKSTORE_S3_DISCOVER_BUCKET_REGION
+      value: "false"
+
+  lakefsConfig: |
+    database:
+      type: postgres
+    blockstore:
+      type: s3

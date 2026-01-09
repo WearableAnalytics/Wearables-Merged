@@ -59,6 +59,11 @@ build/
 *~
 .DS_Store
 
+# Node/npm
+node_modules/
+**/node_modules/
+npm-debug.log*
+
 # Secrets
 *.pem
 *.key
@@ -70,9 +75,17 @@ secrets/
 .env.local
 influxtoken
 
+# Docs
+docs/.$architecture.drawio.bkp
+
 # Kubernetes
 kubeconfig
 *.kubeconfig
 
 # CI/CD
 .github/actions-runner/
+
+
+
+*.log
+*.tmp

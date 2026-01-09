@@ -11,7 +11,9 @@ data:
           target: device.display
           optional: false
           type: string
-
+          lineProtocol:
+            name: device-id
+            type: tag
     measurement:
       paths:
         - path: measurements.instantaneous
@@ -22,50 +24,91 @@ data:
               target: resourceType
               optional: false
               type: string
+              lineProtocol:
+                name: resourceType
+                type: tag
             - name: type
-              mapping: true
+              source: measurements.instantaneous.type
               target: id
+              transform:
+                - type: toLowerCase
+                - type: replace
+                  params: ["_", "-"]
               optional: false
               type: string
+              lineProtocol:
+                type: measurement
             - name: value
-              source: measurement.instantaneous.value
+              source: measurements.instantaneous.value
               target: valueQuantity.value
               optional: false
               type: real
+              lineProtocol:
+                name: value
+                type: field
             - name: unit
-              source: measurement.instantaneous.unit
+              source: measurements.instantaneous.unit
               target: valueQuantity.unit
+              transform:
+                - type: toLowerCase
+                - type: replace
+                  params: ["_", "-"]
               optional: false
               type: string
+              lineProtocol:
+                name: unit
+                type: tag
             - name: start
-              source: measurement.instantaneous.timestamp
+              source: measurements.instantaneous.timestamp
               target: effectiveDateTime
-              append: "Z"
+              transform:
+                - type: append
+                  params: ["Z"]
               optional: false
               type: string
+              lineProtocol:
+                type: timestamp
             - name: status
               value: "final"
               target: status
               optional: false
               type: string
+              lineProtocol:
+                name: status
+                type: field
             - name: codingSystem
-              mapping: true
               target: code.coding[0].system
+              transform:
+                - type: mapBasedOn
               optional: false
               type: string
+              lineProtocol:
+                name: category
+                type: tag
             - name: codingCode
-              mapping: true
               target: code.coding[0].code
+              transform:
+                - type: mapBasedOn
               optional: false
               type: string
+              lineProtocol:
+                name: code
+                type: tag
             - name: codingDisplay
-              source: measurement.instantaneous.unit
+              source: measurements.instantaneous.unit
               target: code.coding[0].display
+              transform:
+                - type: toLowerCase
+                - type: replace
+                  params: [ "_", "-" ]
               optional: false
               type: string
+              lineProtocol:
+                name: display
+                type: tag
           mappings:
             - path: code.coding[0].code
-              basedOn: measurement.instantaneous.unit
+              basedOn: measurements.instantaneous.unit
               valueType: string
               map:
                 - key: "COUNT"
@@ -84,9 +127,8 @@ data:
                   value: "min"
                 - key: "RESPIRATIONS_PER_MINUTE"
                   value: "count"
-
             - path: code.coding[0].system
-              basedOn: measurement.instantaneous.unit
+              basedOn: measurements.instantaneous.unit
               valueType: string
               map:
                 - key: "METER"
@@ -105,38 +147,6 @@ data:
                   value: "https://loinc.org/"
                 - key: "RESPIRATIONS_PER_MINUTE"
                   value: "metric"
-
-            - path: id
-              basedOn: measurements.instantaneous.type
-              valueType: string
-              map:
-                - key: "BLOOD_OXYGEN"
-                  value: "blood-oxygen"
-                - key: "HEART_RATE"
-                  value: "heartrate"
-                - key: "HEART_RATE_VARIABILITY_SDNN"
-                  value: "heart-rate-variability"
-                - key: "SLEEP_IN_BED"
-                  value: "sleep-in-bed"
-                - key: "RESTING_HEART_RATE"
-                  value: "resting-heart-rate"
-                - key: "WALKING_HEART_RATE"
-                  value: "walking-heart-rate"
-                - key: "SLEEP_ASLEEP_CORE"
-                  value: "sleep-asleep-core"
-                - key: "SLEEP_ASLEEP_DEEP"
-                  value: "sleep-asleep-deep"
-                - key: "RESPIRATORY_RATE"
-                  value: "respiratory-rate"
-                - key: "STEPS"
-                  value: "steps"
-                - key: "FLIGHTS_CLIMBED"
-                  value: "flights-climbed"
-                - key: "SLEEP_ASLEEP_REM"
-                  value: "sleep-asleep-rem"
-                - key: "EXERCISE_TIME"
-                  value: "exercise-time"
-
         - path: measurements.cumulative
           arrayMapAll: true
           fields:
@@ -145,31 +155,56 @@ data:
               target: resourceType
               optional: false
               type: string
+              lineProtocol:
+                name: resourceType
+                type: tag
             - name: type
-              mapping: true
+              source: measurements.cumulative.type
               target: id
+              transform:
+                - type: toLowerCase
+                - type: replace
+                  params: ["_", "-"]
               optional: false
               type: string
+              lineProtocol:
+                type: measurement
             - name: value
-              source: measurement.cumulative.value
+              source: measurements.cumulative.value
               target: valueQuantity.value
               optional: false
               type: real
+              lineProtocol:
+                name: value
+                type: field
             - name: unit
-              source: measurement.cumulative.unit
+              source: measurements.cumulative.unit
               target: valueQuantity.unit
+              transform:
+                - type: toLowerCase
+                - type: replace
+                  params: [ "_", "-" ]
               optional: false
               type: string
+              lineProtocol:
+                name: unit
+                type: tag
             - name: start
-              source: measurement.cumulative.periodStart
+              source: measurements.cumulative.periodStart
               target: effectivePeriod.start
-              append: "Z"
+              transform:
+                - type: append
+                  params: ["Z"]
               optional: false
               type: string
+              lineProtocol:
+                type: timestamp
             - name: end
-              source: measurement.cumulative.periodEnd
+              source: measurements.cumulative.periodEnd
               target: effectivePeriod.end
-              append: "Z"
+              transform:
+                - type: append
+                  params: ["Z"]
               optional: false
               type: string
             - name: status
@@ -177,24 +212,39 @@ data:
               target: status
               optional: false
               type: string
+              lineProtocol:
+                name: status
+                type: value
             - name: codingSystem
-              mapping: true
               target: code.coding[0].system
+              transform:
+                - type: mapBasedOn
               optional: false
               type: string
             - name: codingCode
-              mapping: true
               target: code.coding[0].code
+              transform:
+                - type: mapBasedOn
               optional: false
               type: string
+              lineProtocol:
+                name: code
+                type: tag
             - name: codingDisplay
-              source: measurement.cumulative.unit
+              source: measurements.cumulative.unit
               target: code.coding[0].display
+              transform:
+                - type: toLowerCase
+                - type: replace
+                  params: [ "_", "-" ]
               optional: false
               type: string
+              lineProtocol:
+                name: display
+                type: tag
           mappings:
             - path: code.coding[0].code
-              basedOn: measurement.cumulative.unit
+              basedOn: measurements.cumulative.unit
               valueType: string
               map:
                 - key: "COUNT"
@@ -213,9 +263,8 @@ data:
                   value: "min"
                 - key: "RESPIRATIONS_PER_MINUTE"
                   value: "count"
-
             - path: code.coding[0].system
-              basedOn: measurement.cumulative.unit
+              basedOn: measurements.cumulative.unit
               valueType: string
               map:
                 - key: "METER"
@@ -234,99 +283,3 @@ data:
                   value: "https://loinc.org/"
                 - key: "RESPIRATIONS_PER_MINUTE"
                   value: "metric"
-
-            - path: id
-              basedOn: measurements.cumulative.type
-              valueType: string
-              map:
-                - key: "ACTIVE_ENERGY_BURNED"
-                  value: "active-energy-burned"
-                - key: "BASAL_ENERGY_BURNED"
-                  value: "basal-energy-burned"
-                - key: "DISTANCE_WALKING_RUNNING"
-                  value: "distance-walking-running"
-                - key: "SLEEP_IN_BED"
-                  value: "sleep-in-bed"
-                - key: "RESTING_HEART_RATE"
-                  value: "resting-heart-rate"
-                - key: "WALKING_HEART_RATE"
-                  value: "walking-heart-rate"
-                - key: "SLEEP_ASLEEP_CORE"
-                  value: "sleep-asleep-core"
-                - key: "SLEEP_ASLEEP_DEEP"
-                  value: "sleep-asleep-deep"
-                - key: "RESPIRATORY_RATE"
-                  value: "respiratory-rate"
-                - key: "STEPS"
-                  value: "steps"
-                - key: "FLIGHTS_CLIMBED"
-                  value: "flights-climbed"
-                - key: "SLEEP_ASLEEP_REM"
-                  value: "sleep-asleep-rem"
-                - key: "EXERCISE_TIME"
-                  value: "exercise-time"
-
-  fhir-to-lineprotocol.yaml: |
-    variants:
-      - measurement-mapping:
-          source: id
-          allow-array: false
-        timestamp-mapping:
-          source: effectivePeriod.start
-          allow-array: false
-        field-mappings:
-          - source: status
-            allow-array: false
-            alias: status
-          - source: valueQuantity.value
-            allow-array: false
-            alias: value
-        tag-mappings:
-          - source: resourceType
-            allow-array: false
-            alias: resource-type
-          - source: category.coding[x].code
-            allow-array: true
-            alias: category
-          - source: code.coding[x].code
-            allow-array: true
-            alias: code
-          - source: code.coding[x].display
-            allow-array: true
-            alias: display
-          - source: valueQuantity.unit
-            allow-array: false
-            alias: unit
-          - source: device.display
-            allow-array: false
-            alias: device-id
-
-      - measurement-mapping:
-          source: id
-          allow-array: false
-        timestamp-mapping:
-          source: effectiveDateTime
-          allow-array: false
-        field-mappings:
-          - source: status
-            allow-array: false
-            alias: status
-          - source: valueQuantity.value
-            allow-array: false
-            alias: value
-        tag-mappings:
-          - source: resourceType
-            allow-array: false
-            alias: resource_type
-          - source: category.coding[x].code
-            allow-array: true
-            alias: category
-          - source: code.coding[x].code
-            allow-array: true
-            alias: code
-          - source: code.coding[x].display
-            allow-array: true
-            alias: display
-          - source: valueQuantity.unit
-            allow-array: false
-            alias: unit

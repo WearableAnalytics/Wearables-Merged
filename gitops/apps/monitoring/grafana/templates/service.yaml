@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.container.port }}
+      protocol: TCP
+      targetPort: http-{{ .Release.Name }}
+  selector:
+    app: {{ .Release.Name }}

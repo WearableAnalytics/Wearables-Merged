@@ -1,0 +1,9 @@
+image:
+  repository: prom/prometheus
+  tag: latest
+
+container:
+  port: 9090
+
+configMap:
+  name: prometheus-server-conf

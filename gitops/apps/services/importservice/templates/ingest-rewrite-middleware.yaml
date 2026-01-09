@@ -1,0 +1,10 @@
+# maps htp://xxx.com/import/a/b to http://xxx.com/a/b
+# probably not necessary when we have charite domains
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: ingest-rewrite-path
+spec:
+  replacePathRegex:
+    regex: {{ .Values.ingress.regex}}
+    replacement: {{ .Values.ingress.replacement }}

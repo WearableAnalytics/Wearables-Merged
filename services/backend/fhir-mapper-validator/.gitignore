@@ -40,3 +40,10 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+#testing-resources
+config/
+logs
+outputs
+src/main/resources/sample.json
+src/main/resources/sample-error.json
