@@ -1,28 +1,28 @@
 import config from '../config.js';
 
 export interface Patient {
-  patientId: string;
-  chariteId?: string;
-  firstName: string;
-  lastName: string;
-  sex?: 'female' | 'male' | 'other';
-  birthDate: Date;
+  id: string;
+  charite_id: string;
+  name: string;
+  sex?: string;
+  dob?: string; // ISO date string from db_lord
   weight?: number;
+  height?: number;
 }
 
 export interface PatientBase {
-  chariteId: string;
-  firstName: string;
-  lastName: string;
-  sex: 'female' | 'male' | 'other';
-  birthDate: Date;
-  weight: number;
+  charite_id: string;
+  name: string;
+  sex?: string;
+  dob?: string; // ISO date string
+  weight?: number;
+  height?: number;
 }
 
 export interface Case {
-  caseId: string;
+  id: string;
   status: string;
-  patientId: string;
+  patient_id: string;
   devices?: CaseDevice[];
   wearables?: CaseWearable[];
   contexts?: string[];
@@ -102,14 +102,11 @@ class DatabaseApiClient {
   async createPatient(patient: PatientBase): Promise<Patient> {
     return this.request<Patient>('/patients', {
       method: 'POST',
-      body: JSON.stringify({
-        ...patient,
-        birthDate: patient.birthDate.toISOString().split('T')[0],
-      }),
+      body: JSON.stringify(patient),
     });
   }
 
-  async getPatients(params?: PatientQueryParams): Promise<{ patients: Patient[] }> {
+  async getPatients(params?: PatientQueryParams): Promise<Patient[]> {
     const queryParams = new URLSearchParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -122,7 +119,7 @@ class DatabaseApiClient {
     const query = queryParams.toString();
     const endpoint = query ? `/patients?${query}` : '/patients';
     
-    return this.request<{ patients: Patient[] }>(endpoint);
+    return this.request<Patient[]>(endpoint);
   }
 
   async getPatient(patientId: string): Promise<Patient> {
@@ -132,10 +129,7 @@ class DatabaseApiClient {
   async updatePatient(patientId: string, patient: PatientBase): Promise<void> {
     await this.request<void>(`/patients/${patientId}`, {
       method: 'PUT',
-      body: JSON.stringify({
-        ...patient,
-        birthDate: patient.birthDate.toISOString().split('T')[0],
-      }),
+      body: JSON.stringify(patient),
     });
   }
 
@@ -145,15 +139,15 @@ class DatabaseApiClient {
     });
   }
 
-  async getPatientCases(patientId: string, status?: string): Promise<{ Cases: Case[] }> {
+  async getPatientCases(patientId: string, status?: string): Promise<Case[]> {
     const query = status ? `?status=${status}` : '';
-    return this.request<{ Cases: Case[] }>(`/patients/${patientId}/cases${query}`);
+    return this.request<Case[]>(`/patients/${patientId}/cases${query}`);
   }
 
   // Case Operations
   async createCase(caseData: {
     status: string;
-    patientId: string;
+    patient_id: string;
     devices: CaseDevice[];
     wearables: CaseWearable[];
     contexts: string[];
@@ -185,6 +179,10 @@ class DatabaseApiClient {
     await this.request<void>(`/cases/${caseId}`, {
       method: 'DELETE',
     });
+  }
+
+  async getCases(): Promise<Case[]> {
+    return this.request<Case[]>('/cases');
   }
 }
 
