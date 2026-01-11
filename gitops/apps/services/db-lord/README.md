@@ -26,31 +26,33 @@ kubectl create namespace <namespace-name>
 > This chart does not create database secrets automatically.
 > You must create the Secret **before** installing the chart.
 
-Template for the Kubernetes-Secret parameters:
+Example-Values for the Kubernetes-Secret parameters:
 
 ```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: "db-lord-secrets" 
-type: Opaque
-stringData:
-  POSTGRES_SERVER: "postgres.postgres.svc.cluster.local"
-  POSTGRES_PORT: "5432"
-  POSTGRES_DB: "db"
-  POSTGRES_USER: "admin"
-  POSTGRES_PASSWORD: "password"
+POSTGRES_SERVER: "postgres.postgres.svc.cluster.local"
+POSTGRES_PORT: "5432"
+POSTGRES_DB: "db"
+POSTGRES_USER: "admin"
+POSTGRES_PASSWORD: "password"
 
-  INFLUX_URL: "http://influxdb.influx.svc.cluster.local:8080"
-  INFLUX_ORG: "org"
-  INFLUX_BUCKET: "test"
-  INFLUX_TOKEN: "token"
+INFLUX_URL: "http://influxdb.influx.svc.cluster.local:8080"
+INFLUX_ORG: "org"
+INFLUX_BUCKET: "test"
+INFLUX_TOKEN: "token"
 ```
-> [!NOTE]  
-> If you change the secret name (`metadata.name`), you must also update the corresponding Helm value:
-> ```yaml
-> secretRef: <new-name>
-> ```
+
+Please be aware that you must be careful how you deploy the secrets (use `kubectl`)!
+
+But for testing, you can also do following or just set the values in the `values.yaml` file.
+
+You can also leave the `POSTGRES_PASSWORD` and `INFLUX_TOKEN` out and set them via CLI like following:
+```shell
+helm install <name> ./<path> \
+  --set env.POSTGRES_PASSWORD="password"
+  --set env.INFLUX_TOKEN="token"
+```
+> [!WARNING]
+> Secrets passed via `--set` can appear in shell history or logs. Avoid in production!
 
 
 Apply it:
