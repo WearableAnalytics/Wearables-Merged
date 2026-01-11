@@ -9,7 +9,6 @@ Unified repository for the Wearables clinical analytics platform.
 - **gitops/**: Kubernetes manifests and Helm charts (GitOps-ready)
 - **infra/**: Infrastructure as Code (Terraform, Ansible)
 - **observability/**: Dashboards, alerts, monitoring configs
-- **packages/**: Shared libraries, such as registration api definition
 - **services/**: Application services (backend & mobile)
 
 ## Migration Notice
