@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import type { JwtPayload } from './config.js';
 import { config } from './config.js';
+import { createServiceAccountProxy } from './serviceAccountProxy.js';
+import { serviceAccountConfig } from './serviceAccountConfig.js';
 
 type AuthedRequest = Request & {
   user?: JwtPayload;
@@ -121,6 +123,15 @@ const proxy = createProxyMiddleware({
 
 const proxyMountPath = config.proxyPrefix || '/';
 app.use(proxyMountPath, authRequired, proxy);
+
+// Service Account Proxy (simpler auth using Grafana service account token)
+if (serviceAccountConfig.serviceAccountToken) {
+  const saProxy = createServiceAccountProxy(serviceAccountConfig);
+  const saMountPath = serviceAccountConfig.saProxyPrefix || '/grafana-sa';
+  app.use(saMountPath, saProxy);
+  // eslint-disable-next-line no-console
+  console.log(`Service Account proxy will be available at: ${saMountPath}`);
+}
 
 app.listen(config.port, () => {
   // eslint-disable-next-line no-console

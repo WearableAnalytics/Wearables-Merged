@@ -10,6 +10,7 @@ import { PrivateRoute } from './components/PrivateRoute';
 import { LandingPage } from './pages/Landing';
 import { ErrorMagicLinkPage } from './pages/ErrorMagicLink';
 import { GrafanaPage } from './pages/Grafana';
+import { PatientMonitoringPage } from './pages/PatientMonitoring';
 
 export function Routing() {
   return (
@@ -52,6 +53,14 @@ export function Routing() {
         element={
           <PrivateRoute>
             <GrafanaPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/monitoring/:caseId"
+        element={
+          <PrivateRoute>
+            <PatientMonitoringPage />
           </PrivateRoute>
         }
       />

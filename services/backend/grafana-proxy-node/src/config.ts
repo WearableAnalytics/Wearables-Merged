@@ -15,19 +15,20 @@ const normalizePrefix = (value: string): string => {
   return withSlash.endsWith('/') ? withSlash.slice(0, -1) : withSlash;
 };
 
-const readPrivateKey = (): string => {
+const readPrivateKey = (): string | null => {
   if (process.env.GRAFANA_JWT_PRIVATE_KEY) {
     return process.env.GRAFANA_JWT_PRIVATE_KEY.replace(/\\n/g, '\n');
   }
   if (process.env.GRAFANA_JWT_PRIVATE_KEY_PATH) {
     return readFileSync(process.env.GRAFANA_JWT_PRIVATE_KEY_PATH, 'utf8');
   }
-  throw new Error('Missing GRAFANA_JWT_PRIVATE_KEY or GRAFANA_JWT_PRIVATE_KEY_PATH');
+  // Return null if JWT mode is not configured (Service Account mode)
+  return null;
 };
 
 const grafanaPrivateKey = readPrivateKey();
-const grafanaPublicKey = createPublicKey(grafanaPrivateKey);
-const grafanaPublicJwk = grafanaPublicKey.export({ format: 'jwk' });
+const grafanaPublicKey = grafanaPrivateKey ? createPublicKey(grafanaPrivateKey) : null;
+const grafanaPublicJwk = grafanaPublicKey ? grafanaPublicKey.export({ format: 'jwk' }) : null;
 
 export const config = {
   port: Number(process.env.PORT) || 3002,
@@ -45,12 +46,12 @@ export const config = {
   grafanaDefaultRole: process.env.GRAFANA_DEFAULT_ROLE ?? 'Viewer',
   grafanaOrgId: process.env.GRAFANA_ORG_ID ?? '',
   grafanaJwtPrivateKey: grafanaPrivateKey,
-  grafanaPublicJwk: {
+  grafanaPublicJwk: grafanaPublicJwk ? {
     ...grafanaPublicJwk,
     kid: process.env.GRAFANA_JWT_KEY_ID ?? 'grafana-proxy',
     use: 'sig',
     alg: 'RS256',
-  },
-} as const;
+  } : null,
+};
 
 export type { JwtPayload };
