@@ -167,7 +167,7 @@ class CaseService {
       // 4. Check if case already exists with this cCaseId
       const patientCases = await databaseApiClient.getPatientCases(patient.patientId);
       const existingCase = patientCases.find((c) => {
-        return c.status === 'active';
+        return c.status === 'ONGOING';
       });
 
       if (existingCase) {
