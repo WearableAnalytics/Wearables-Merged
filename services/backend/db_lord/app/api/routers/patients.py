@@ -7,8 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_db_read
 from app.db.postgres.repos.patient_repo import PatientRepo
+from app.db.postgres.repos.case_repo import CaseRepo
 from app.schemas.patient import Patient, PatientCreate, PatientUpdate
+from app.schemas.case import Case
 from app.services.patient_service import PatientService
+from app.services.case_service import CaseService
 
 router = APIRouter()
 
@@ -19,6 +22,10 @@ def get_patient_service(db: Annotated[AsyncSession, Depends(get_db)]) -> Patient
 
 def get_patient_service_read(db: Annotated[AsyncSession, Depends(get_db_read)]) -> PatientService:
     return PatientService(PatientRepo(db))
+
+
+def get_case_service_read(db: Annotated[AsyncSession, Depends(get_db_read)]) -> CaseService:
+    return CaseService(CaseRepo(db))
 
 
 @router.post("/", response_model=Patient, status_code=status.HTTP_201_CREATED)
@@ -65,3 +72,12 @@ async def update_patient(
         raise HTTPException(status_code=404, detail="Patient not found") from exc
     except IntegrityError:
         raise HTTPException(status_code=409, detail="Conflict during update")
+
+
+@router.get("/{id}/cases", response_model=list[Case])
+async def get_patient_cases(
+    id: UUID,
+    service: Annotated[CaseService, Depends(get_case_service_read)],
+):
+    """Get all cases for a specific patient"""
+    return await service.get_by_patient_id(id)
