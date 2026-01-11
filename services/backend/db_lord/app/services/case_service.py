@@ -54,3 +54,7 @@ class CaseService:
         if not res:
             raise ValueError("Case not found")
         return res
+
+    async def get_by_patient_id(self, patient_id: UUID) -> list[RowMapping]:
+        """Get all cases for a specific patient"""
+        return await self.repo.get_by_patient_id(patient_id)

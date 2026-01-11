@@ -76,3 +76,9 @@ class CaseRepo(BaseRepo[cases, CaseCreate, CaseUpdate]):
         row = result.mappings().first()
 
         return dict(row) if row else None
+
+    async def get_by_patient_id(self, patient_id: UUID) -> list:
+        """Get all cases for a specific patient"""
+        stmt = select(cases).where(cases.c.patient_id == patient_id)
+        result = await self.db.execute(stmt)
+        return list(result.mappings().all())
