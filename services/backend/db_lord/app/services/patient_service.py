@@ -1,4 +1,7 @@
+from collections.abc import Sequence
 from uuid import UUID
+
+from sqlalchemy import RowMapping
 
 from app.db.postgres.repos.patient_repo import PatientRepo
 from app.schemas.patient import PatientCreate, PatientUpdate
@@ -32,5 +35,5 @@ class PatientService:
     async def upsert(self, id: UUID, obj_in: PatientCreate):
         return await self.repo.upsert(id, obj_in)
 
-    async def get_all(self) -> list:
+    async def get_all(self) -> Sequence[RowMapping]:
         return await self.repo.get_all()
