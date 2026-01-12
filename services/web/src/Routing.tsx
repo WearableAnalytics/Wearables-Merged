@@ -9,7 +9,6 @@ import { RegisterPage } from './pages/Register';
 import { PrivateRoute } from './components/PrivateRoute';
 import { LandingPage } from './pages/Landing';
 import { ErrorMagicLinkPage } from './pages/ErrorMagicLink';
-import { GrafanaPage } from './pages/Grafana';
 import { PatientMonitoringPage } from './pages/PatientMonitoring';
 
 export function Routing() {
@@ -45,14 +44,6 @@ export function Routing() {
         element={
           <PrivateRoute>
             <LogoutPage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/grafana"
-        element={
-          <PrivateRoute>
-            <GrafanaPage />
           </PrivateRoute>
         }
       />

@@ -9,10 +9,11 @@ import type { Case, Patient } from '@/api/openapi-client';
 
 // Grafana configuration
 // Use the grafana-proxy backend to handle authentication with service account token
-const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL ?? 'http://localhost:3002/grafana-sa';
+const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL ?? 'http://localhost:3002/grafana';
 const GRAFANA_DASHBOARD_ID = 'wearables-health-real';
 const GRAFANA_ORG_ID = '1';
 const GRAFANA_DATASOURCE = 'ff75xjfihtpmod'; // DS_INFLUXDB
+
 
 // TODO: Implement Case -> DeviceId mapping when backend supports it
 // Currently deviceId needs to be entered manually

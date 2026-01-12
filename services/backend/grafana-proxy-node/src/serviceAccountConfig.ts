@@ -8,7 +8,7 @@ const normalizePrefix = (value: string): string => {
 };
 
 export const serviceAccountConfig = {
-  saProxyPrefix: normalizePrefix(process.env.SA_PROXY_PREFIX ?? '/grafana-sa'),
+  saProxyPrefix: normalizePrefix(process.env.SA_PROXY_PREFIX ?? '/grafana'),
   grafanaBaseUrl: process.env.GRAFANA_BASE_URL ?? 'http://localhost:3000',
   grafanaPathPrefix: normalizePrefix(process.env.GRAFANA_PATH_PREFIX ?? ''),
   grafanaTlsSkipVerify: process.env.GRAFANA_TLS_SKIP_VERIFY === 'true',
