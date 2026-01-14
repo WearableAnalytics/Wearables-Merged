@@ -13,3 +13,15 @@ service:
   port: 8080
 
 secretRef: "db-lord-secrets"
+
+env:
+  POSTGRES_SERVER: "postgres.postgres.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "db"
+  POSTGRES_USER: "admin"
+  POSTGRES_PASSWORD: ""
+
+  INFLUX_URL: "http://influxdb.influx.svc.cluster.local:8080"
+  INFLUX_ORG: "org"
+  INFLUX_BUCKET: "bucket"
+  INFLUX_TOKEN: ""
