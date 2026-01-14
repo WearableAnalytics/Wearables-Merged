@@ -23,6 +23,7 @@ import org.example.fhir.Validator;
 import org.example.fhir.model.MapReturn;
 import org.example.lineprotocol.LineProtocolParser;
 import org.hl7.fhir.r5.elementmodel.JsonParser;
+import org.hl7.fhir.r5.openehr.TEMPLATE_ID;
 import org.rocksdb.Env;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,13 @@ public class Main {
         log.debug("Using slf4j for logging");
 
         Validator.initiliazeFhirValidator();
+
+        try{
+            Environment.TEMPLATE.validate();
+        } catch (IllegalArgumentException iae) {
+            log.error("There was an error verifying the mapping schema: {}", iae.getMessage());
+            return;
+        }
 
         StreamsBuilder builder = new StreamsBuilder();
 

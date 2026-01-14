@@ -5,10 +5,9 @@ import lombok.Data;
 
 @Data
 public class MappingRuleConfig {
-    private String path;
-    private String basedOn;
+    private String fieldName;
     private String valueType;
-    private String append;
+    private String basedOnFhir;
     private List<RuleConfig> map;
 }
 

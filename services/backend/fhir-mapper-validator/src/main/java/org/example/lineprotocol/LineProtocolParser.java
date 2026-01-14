@@ -1,13 +1,11 @@
 package org.example.lineprotocol;
 
 import com.google.gson.*;
-import org.apache.kafka.common.protocol.types.Field;
 import org.example.config.Environment;
-import org.example.fhir.MappingYaml;
+import org.example.fhir.model.MappingYaml;
 import org.example.fhir.model.FieldConfig;
 import org.example.fhir.model.MeasurementPathConfig;
 import org.example.fhir.model.MetadataConfig;
-import org.hl7.fhir.r4.model.Meta;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
