@@ -10,7 +10,10 @@ from app.db.postgres.engine import engine as pg_engine
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
-    # await influx_client.close()
+    try:
+        await influx_client.close()
+    except Exception as e:
+        print(f"Error closing InfluxDB: {e}")
     await pg_engine.dispose()
 
 

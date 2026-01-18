@@ -1,7 +1,8 @@
+from collections.abc import Collection
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import bindparam, func, literal_column, select
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy import func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import lateral, true
 
@@ -23,12 +24,11 @@ class CaseRepo(BaseRepo[cases, CaseCreate, CaseUpdate]):
     def __init__(self, db: AsyncSession):
         super().__init__(cases, db)
 
-    async def get_with_relations(self, id: UUID, expand: list[str] | None = None) -> dict[str, Any] | None:
-        allowed = {"devices", "wearables", "contexts", "patient"}
-        expand_set = {e.strip().lower() for e in (expand or []) if e and e.strip().lower() in allowed}
+    async def get_with_relations(self, id: UUID, expand: Collection[str] | None = None) -> dict[str, Any] | None:
+        # Probably dumb to do this again here, but whatever
+        expand_set = {e.strip().lower() for e in (expand or []) if e and e.strip()}
 
         c_alias = cases.alias("c")
-        id_param = bindparam("id", type_=PG_UUID(as_uuid=True))
 
         cols = [
             c_alias.c.id.label("id"),
@@ -70,21 +70,15 @@ class CaseRepo(BaseRepo[cases, CaseCreate, CaseUpdate]):
                 func.to_jsonb(literal_column("patients")).label("patient")
             )
 
-        stmt = stmt.where(c_alias.c.id == id_param)
+        stmt = stmt.where(c_alias.c.id == id)
 
-        result = await self.db.execute(stmt, {"id": id})
+        result = await self.db.execute(stmt)
         row = result.mappings().first()
 
-        if not row:
-            return None
+        return dict(row) if row else None
 
-        data = dict(row)
-
-        if "devices" in expand_set and data.get("devices") is None:
-            data["devices"] = []
-        if "wearables" in expand_set and data.get("wearables") is None:
-            data["wearables"] = []
-        if "contexts" in expand_set and data.get("contexts") is None:
-            data["contexts"] = []
-
-        return data
+    async def get_by_patient_id(self, patient_id: UUID) -> list:
+        """Get all cases for a specific patient"""
+        stmt = select(cases).where(cases.c.patient_id == patient_id)
+        result = await self.db.execute(stmt)
+        return list(result.mappings().all())
