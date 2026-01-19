@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class DependencyGraph {
 
@@ -21,8 +22,7 @@ public class DependencyGraph {
 
     MappingYaml yaml;
     Map<String, Set<FieldConfig>> fieldSets;
-    @Getter
-    Map<String, Set<Node>> graphs;
+    private Map<String, Set<Node>> graphs;
 
     public DependencyGraph(MappingYaml yaml) {
         this.yaml = yaml;
@@ -75,13 +75,66 @@ public class DependencyGraph {
         }
         Map<String, Set<Node>> baseGraph = this.graphs;
 
-        //TODO make this prettier
         //This looks at the FHIR target of all existing nodes and then adds fields (as nodes) as successors whose FHIR source is equal to the aforesaid target
         baseGraph.forEach((key, value) -> value
                 .forEach(node -> {
                     log.info("Looking at base node {} for category {}", node.getField().getName(), key);
                     findSuccessorsForNode(node, fieldSets.get(key));
                 }));
+
+    }
+
+    /**
+     * `build()` adds all mandatory nodes to the baseNodes as specified in the schema and should be the only point where the graphs are exposed, so that the actions this method performs are mandatory
+     * @return graphs for all categories
+     */
+    public Map<String, Set<Node>> build(){
+
+        for (MeasurementPathConfig m : this.yaml.getMeasurement().getPaths()) {
+
+            Set<Node> matchingGraph = graphs.get(m.getPath());
+
+            Set<FieldConfig> currentBaseFields = matchingGraph.stream()
+                    .map(Node::getField)
+                    .collect(Collectors.toSet());
+
+            Set<FieldConfig> mandatoryFields = m.getFields().stream()
+                    .filter(x -> x.getLineProtocol().isMandatory())
+                    .collect(Collectors.toSet());
+
+            //these mandatory fields must contain the measurement and the timestamp
+            boolean hasMeasurement = mandatoryFields.stream().anyMatch(x -> x.getLineProtocol().getType().equals("measurement"));
+            boolean hasTimestamp = mandatoryFields.stream().anyMatch(x -> x.getLineProtocol().getType().equals("timestamp"));
+
+            if (!hasMeasurement && !hasTimestamp) {
+                throw new IllegalArgumentException("the minimal base of fields must contain exactly one field marked as 'timestamp' and 'measurement' respectively");
+            }
+
+            for (FieldConfig f : mandatoryFields) {
+
+                FieldConfig anyMatch = currentBaseFields.stream()
+                        .filter(x -> x.getName().equals(f.getName()))
+                        .findAny()
+                        .orElse(null);
+
+                if (anyMatch == null) {
+                    //When a mandatory node is not contained in the base set, we add it
+                    this.graphs.get(m.getPath()).add(new Node(f));
+                }
+
+            }
+
+            //all base fields must have a LineProtocol specification, and one of them must be a field
+            boolean hasValue = this.graphs.get(m.getPath()).stream()
+                    .filter(x -> x.getField().getLineProtocol() != null)
+                    .anyMatch(x -> x.getField().getLineProtocol().getType().equals("value"));
+
+            if (!hasValue) {
+                throw new IllegalArgumentException("the minimal base of fields must contain at least one field marked as 'field'");
+            }
+        }
+
+        return graphs;
 
     }
 
@@ -134,15 +187,36 @@ public class DependencyGraph {
                 .map(Node::new)
                 .forEach(succ -> {
                     log.info("       added {} as successor for {}", succ.getField().getName(), node.getField().getName());
-                    node.addSuccessor(succ.getField().getName(), succ);
+                    if (checkRecursiveDep(succ, node)) {
+                        throw new IllegalArgumentException(String.format("there is an illegal circular dependency in the fields with nodes (%s, %s) please check your configuration", succ.getField().getName(), node.getField().getName()));
+                    }
+                    boolean success = connectNodes(node, succ);
+                    if (!success) {
+                        log.warn("  could not connect nodes ({}, {}) as they are already connected", node.getField().getName(), succ.getField().getName());
+                    }
                     findSuccessorsForNode(succ, fields); //recursion
                 });
 
     }
 
-    //TODO implement fhir dependencies with the special case of the combine function (once that is implemented)
+    private boolean checkRecursiveDep(Node succ, Node current){
 
-    //TODO implement functionality so that explicit lpMappings are mapped regardless
+        if (current.getField().getFhirSource().equals( succ.getField().getTarget())) {
+            //We have a circular dependency with the current node
+            return true;
+        }
+
+        //We don't have a circular dependency with the current node, so we check with the next one until there are no more nodes left in the graph
+
+        for (String s : current.getPredecessorKeys()) {
+            Node n = current.getPredecessor(s);
+            checkRecursiveDep(succ, n);
+        }
+
+        return false;
+
+    }
+    //TODO implement fhir dependencies with the special case of the combine function (once that is implemented)
 
     private Set<Node> generateBaseSets(Set<FieldConfig> fields, String category) {
 
@@ -294,11 +368,12 @@ public class DependencyGraph {
 
             e.getValue().forEach(
                     x -> {
-                        boolean res = baseNode.addSuccessor(x.getName(), new Node(x));
-                        if (!res) {
-                            log.warn("could not add successor {} as it already exists", x.getName());
+                        Node newNode = new Node(x);
+                        boolean success = connectNodes(baseNode, newNode);
+                        if (!success) {
+                            log.warn("  could not connect nodes in base set({}, {}) as they are already connected", baseNode.getField().getName(), newNode.getField().getName());
                         }
-                        log.info("Added successor node {} with key {}", x, x.getName());
+                        log.info("  Added successor node {} with key {}", x, x.getName());
                     }
 
             );
@@ -310,6 +385,22 @@ public class DependencyGraph {
         return nodes;
 
     }
+
+    private boolean connectNodes(Node base, Node succ){
+
+        boolean successSuccessor = base.addSuccessor(succ.getField().getName(), succ);
+        boolean successPredecessor = succ.addPredecessor(base.getField().getName(), base);
+
+        if (successPredecessor && successSuccessor) {
+            return true;
+        } else if (!(successPredecessor || successSuccessor)) {
+            return false;
+        } else {
+            throw new RuntimeException(String.format("nodes (%s, %s) were not connected correctly", base.getField().getName(), succ.getField().getName()));
+        }
+
+    }
+
 }
 
 @Data

@@ -2,10 +2,7 @@ package org.example;
 
 import com.google.gson.JsonObject;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 
@@ -18,6 +15,8 @@ import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Named;
 import org.example.config.Environment;
 import org.example.config.KafkaConfig;
+import org.example.dependencies.DependencyGraph;
+import org.example.dependencies.Node;
 import org.example.fhir.Mapper;
 import org.example.fhir.Validator;
 import org.example.fhir.model.MapReturn;
@@ -41,6 +40,14 @@ public class Main {
         log.debug("Using slf4j for logging");
 
         Validator.initiliazeFhirValidator();
+        DependencyGraph dependencyGraph = new DependencyGraph(Environment.TEMPLATE);
+
+        //This will build the dependency graph derived from the Mapping YAML
+        dependencyGraph.createGraphBase();
+        dependencyGraph.enrichGraphWithFhir();
+
+        //the map maps from the category name (e.g., instantaneous, duration, etc.) to the minimal set of nodes needed to derive the rest of the fhir
+        Map<String, Set<Node>> categoryGraphs = dependencyGraph.build();
 
         try{
             Environment.TEMPLATE.validate();
@@ -85,7 +92,8 @@ public class Main {
                 for (Map.Entry<String, List<JsonObject>> e : validFhir.entrySet()) {
                     e.getValue().forEach(v -> {
                         try {
-                            String lpString = lpParser.parse(e.getKey(), v);
+                            Set<Node> fittingBase = categoryGraphs.get(e.getKey());
+                            String lpString = lpParser.parse(e.getKey(), v, fittingBase);
                             log.info(lpString);
                             validLineProtocol.add(lpString);
 

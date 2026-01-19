@@ -29,10 +29,10 @@ public class DependencyGraphTest {
         g.createGraphBase();
         g.enrichGraphWithFhir();
 
-
+        Map<String, Set<Node>> allGraphs = g.build();
         //Visualize the graphs
 
-        g.getGraphs().entrySet().forEach(
+        allGraphs.entrySet().forEach(
                 x -> {
                     Graph<String, DefaultEdge> graph = new DefaultDirectedGraph<>(DefaultEdge.class);
 
