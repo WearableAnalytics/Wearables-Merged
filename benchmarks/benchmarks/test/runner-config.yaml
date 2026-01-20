@@ -1,0 +1,13 @@
+ssh:
+  user: "user"
+  host: "denbi-jumphost-01.bihealth.org"
+  keyPath: "~/.ssh/..."
+job:
+  name: "runner-test-job"
+  namespace: "default"
+paths:
+  localConfig: "../benchmarks/test/job-config.yaml"
+  remoteConfig: "/tmp/runner-test-job.yaml"
+  localOutput: "../benchmarks/test/test.csv"
+  localLogs: "stderr"
+timeout: "5m"
