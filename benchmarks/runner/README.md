@@ -48,7 +48,7 @@ ssh:
 
 job:
   name: "runner-test-job"
-  namespace: "default" 
+  namespace: "default"  # namespace must exist
 
 paths:
   localConfig: "./job.yaml"
@@ -60,6 +60,7 @@ timeout: "5m"
 ```
 
 ##### 3. Run
+Working-Directory should be `runner/`:
 ```shell
 go run cmd/main.go -c runner-config.yaml
 ```

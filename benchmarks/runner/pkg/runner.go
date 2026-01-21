@@ -49,7 +49,7 @@ func NewRunner(cfg *Config) (*Runner, error) {
 
 func (r *Runner) Run() error {
 	if err := r.applyJob(); err != nil {
-		return err
+		return fmt.Errorf("error applying job: %v", err)
 	}
 
 	done := make(chan error, 1)
@@ -58,7 +58,7 @@ func (r *Runner) Run() error {
 	}()
 
 	if err := r.waitForCompletion(); err != nil {
-		return err
+		return fmt.Errorf("error waiting for completion: %v", err)
 	}
 
 	if err := <-done; err != nil {
@@ -98,7 +98,7 @@ func (r *Runner) Close() error {
 
 func (r *Runner) applyJob() error {
 	if err := r.uploadJobYAML(); err != nil {
-		return err
+		return fmt.Errorf("error uploading job-yaml: %v", err)
 	}
 
 	cmd := fmt.Sprintf(
@@ -109,7 +109,7 @@ func (r *Runner) applyJob() error {
 
 	resp, err := r.client.Run(cmd)
 	if err != nil {
-		return err
+		return fmt.Errorf("running command failed with err: %v: %s", err, resp)
 	}
 
 	log.Printf("job applied: %s", string(resp))
