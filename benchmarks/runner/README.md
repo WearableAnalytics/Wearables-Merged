@@ -48,7 +48,7 @@ ssh:
 
 job:
   name: "runner-test-job"
-  namespace: "default" 
+  namespace: "default"  # namespace must exist
 
 paths:
   localConfig: "./job.yaml"
@@ -60,6 +60,7 @@ timeout: "5m"
 ```
 
 ##### 3. Run
+Working-Directory should be `runner/`:
 ```shell
 go run cmd/main.go -c runner-config.yaml
 ```
@@ -68,3 +69,6 @@ go run cmd/main.go -c runner-config.yaml
 - `~` is expanded only for the SSH key path
 - Job name must match `metadata.name` field in the k8s-job-config
 - Cleanup errors are logged but do not fail the run (Must do it yourself!!)
+- Add automatic namespace creation!
+- Support split logs for multi-container set-ups
+- Trigger Cleanup if timeout expires

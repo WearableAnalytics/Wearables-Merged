@@ -1,0 +1,13 @@
+ssh:
+  user: "user"
+  host: "denbi-jumphost-01.bihealth.org"
+  keyPath: "~/.ssh/github"
+job:
+  name: "ingestion-service-lg"
+  namespace: "default"
+paths:
+  localConfig: "../benchmarks/ingestion-service/job-config.yaml"
+  remoteConfig: "/tmp/ingestion-serivce-lg.yaml"
+  localOutput: "../benchmarks/ingestion-service/mapper_benchmark_10kb.csv"
+  localLogs: "stderr"
+timeout: "5m"

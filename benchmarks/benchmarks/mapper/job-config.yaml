@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-test
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: kafka-test
+          image: stahlco/kafka-test:latest
+          env:
+            - name: KAFKA_URL
+              value: "kafka-dual-role-0.kafka-kafka-brokers.kafka.svc.cluster.local:9092"
+            - name: TOPIC
+              value: "wearables-raw"
+            - name: MESSAGE_SIZE
+              value: "102400"         # 100KB
+            - name: RPS
+              value: "1"             # Smoke-Test
+            - name: RAMP_UP_DURATION
+              value: "10"             # seconds
+            - name: DURATION
+              value: "30"
+            - name: RAMP_DOWN_DURATION
+              value: "5"
