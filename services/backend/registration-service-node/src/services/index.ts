@@ -29,10 +29,12 @@ class PatientService {
     }
 
     try {
-      const result = await databaseApiClient.getPatients();
-      return result.patients.map(p => ({
-        ...p,
-        birthDate: new Date(p.birthDate),
+      const patients = await databaseApiClient.getPatients();
+      return patients.map(p => ({
+        patientId: p.id,
+        firstName: p.name.split(' ')[0] || '',
+        lastName: p.name.split(' ').slice(1).join(' ') || '',
+        birthDate: p.dob ? new Date(p.dob) : new Date(),
       }));
     } catch (error) {
       console.error('Error fetching patients from API:', error);
@@ -48,8 +50,10 @@ class PatientService {
     try {
       const patient = await databaseApiClient.getPatient(patientId);
       return {
-        ...patient,
-        birthDate: new Date(patient.birthDate),
+        patientId: patient.id,
+        firstName: patient.name.split(' ')[0] || '',
+        lastName: patient.name.split(' ').slice(1).join(' ') || '',
+        birthDate: patient.dob ? new Date(patient.dob) : new Date(),
       };
     } catch (error) {
       console.error(`Error fetching patient ${patientId}:`, error);
@@ -63,8 +67,13 @@ class PatientService {
     }
 
     try {
-      const result = await databaseApiClient.getPatientCases(patientId);
-      return result.Cases;
+      const cases = await databaseApiClient.getPatientCases(patientId);
+      return cases.map(c => ({
+        caseId: c.id,
+        patientId: c.patient_id,
+        status: c.status,
+        caseToken: null,
+      }));
     } catch (error) {
       console.error(`Error fetching cases for patient ${patientId}:`, error);
       throw new Error('Failed to fetch patient cases');
@@ -78,7 +87,18 @@ class CaseService {
       return mockData.listCases();
     }
 
-    throw new Error('List all cases not implemented for real API');
+    try {
+      const cases = await databaseApiClient.getCases();
+      return cases.map(c => ({
+        caseId: c.id,
+        patientId: c.patient_id,
+        status: c.status,
+        caseToken: null, // Cases list doesn't include tokens
+      }));
+    } catch (error) {
+      console.error('Error fetching cases from API:', error);
+      throw new Error('Failed to fetch cases');
+    }
   }
 
   async getCase(caseId: string) {
@@ -87,7 +107,13 @@ class CaseService {
     }
 
     try {
-      return await databaseApiClient.getCase(caseId);
+      const caseData = await databaseApiClient.getCase(caseId);
+      return {
+        caseId: caseData.id,
+        patientId: caseData.patient_id,
+        status: caseData.status,
+        caseToken: null, // Individual case fetch doesn't include token
+      };
     } catch (error) {
       console.error(`Error fetching case ${caseId}:`, error);
       return undefined;
@@ -112,46 +138,50 @@ class CaseService {
 
       let patient: Patient;
       
-      if (searchResult.patients.length > 0) {
+      if (searchResult.length > 0) {
         // Patient found - use the first match
+        const dbPatient = searchResult[0];
         patient = {
-          ...searchResult.patients[0],
-          birthDate: new Date(searchResult.patients[0].birthDate),
+          patientId: dbPatient.id,
+          firstName: dbPatient.name.split(' ')[0] || '',
+          lastName: dbPatient.name.split(' ').slice(1).join(' ') || '',
+          birthDate: dbPatient.dob ? new Date(dbPatient.dob) : new Date(),
         };
       } else {
         // 3. Create patient if not found
         const newPatient = await databaseApiClient.createPatient({
-          chariteId: cCaseId, // Using cCaseId as chariteId
-          firstName: chariteCase.firstName,
-          lastName: chariteCase.lastName,
-          sex: chariteCase.sex ?? 'other', // Use sex from ChariteCase or default to 'other'
-          birthDate: chariteCase.birthDate,
-          weight: chariteCase.weight ?? 0, // Use weight from ChariteCase or default to 0
+          charite_id: chariteCase.uuid, // Using UUID as charite_id
+          name: `${chariteCase.firstName} ${chariteCase.lastName}`,
+          sex: chariteCase.sex ?? 'other',
+          dob: chariteCase.birthDate.toISOString().split('T')[0], // Convert to ISO date string
+          weight: chariteCase.weight,
         });
         patient = {
-          ...newPatient,
-          birthDate: new Date(newPatient.birthDate),
+          patientId: newPatient.id,
+          firstName: newPatient.name.split(' ')[0] || '',
+          lastName: newPatient.name.split(' ').slice(1).join(' ') || '',
+          birthDate: newPatient.dob ? new Date(newPatient.dob) : new Date(),
         };
       }
 
       // 4. Check if case already exists with this cCaseId
       const patientCases = await databaseApiClient.getPatientCases(patient.patientId);
-      const existingCase = patientCases.Cases.find((c) => {
-        return c.status === 'active';
+      const existingCase = patientCases.find((c) => {
+        return c.status === 'ONGOING';
       });
 
       if (existingCase) {
         // Generate a new token for the existing case
         const caseToken = tokenService.generateCaseToken(
-          existingCase.caseId,
-          existingCase.patientId
+          existingCase.id,
+          existingCase.patient_id
         );
         
         return {
           created: false,
           caseRecord: {
-            caseId: existingCase.caseId,
-            patientId: existingCase.patientId,
+            caseId: existingCase.id,
+            patientId: existingCase.patient_id,
             cCaseId,
             status: existingCase.status,
             caseToken,
@@ -163,8 +193,8 @@ class CaseService {
 
       // 5. Create new case
       const newCase = await databaseApiClient.createCase({
-        status: 'active',
-        patientId: patient.patientId,
+        status: 'PLANNED',
+        patient_id: patient.patientId,
         devices: [],
         wearables: [],
         contexts: [],
@@ -172,15 +202,15 @@ class CaseService {
 
       // Generate secure case token
       const caseToken = tokenService.generateCaseToken(
-        newCase.caseId,
-        newCase.patientId
+        newCase.id,
+        newCase.patient_id
       );
 
       return {
         created: true,
         caseRecord: {
-          caseId: newCase.caseId,
-          patientId: newCase.patientId,
+          caseId: newCase.id,
+          patientId: newCase.patient_id,
           cCaseId,
           status: newCase.status,
           caseToken,
@@ -213,21 +243,23 @@ class CaseService {
       }
 
       // Fetch the patient
-      const patient = await databaseApiClient.getPatient(caseRecord.patientId);
-      if (!patient) {
+      const dbPatient = await databaseApiClient.getPatient(caseRecord.patient_id);
+      if (!dbPatient) {
         return undefined;
       }
 
       // Build patient verifier using same logic as mock
       const patientVerifier = mockData.buildPatientVerifier({
-        ...patient,
-        birthDate: new Date(patient.birthDate),
+        patientId: dbPatient.id,
+        firstName: dbPatient.name.split(' ')[0] || '',
+        lastName: dbPatient.name.split(' ').slice(1).join(' ') || '',
+        birthDate: dbPatient.dob ? new Date(dbPatient.dob) : new Date(),
       });
 
       return {
         caseRecord: {
-          caseId: caseRecord.caseId,
-          patientId: caseRecord.patientId,
+          caseId: caseRecord.id,
+          patientId: caseRecord.patient_id,
           status: caseRecord.status,
           caseToken,
         },
