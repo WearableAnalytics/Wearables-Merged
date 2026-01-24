@@ -11,10 +11,10 @@ spec:
   routes:
     - match: "Host(`{{ .Values.ingress.host }}`)"
       kind: Rule
+      middlewares:
+        - name: redirect-to-https
+          namespace: ingress
       services:
         - name: {{ .Release.Name }}
           port: {{ .Values.service.port }}
-      middlewares:
-        - name: redirect-https
-          namespace: default
 {{- end }}

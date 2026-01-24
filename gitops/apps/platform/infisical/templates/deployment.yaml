@@ -6,6 +6,7 @@ metadata:
     app: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  progressDeadlineSeconds: 120
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -14,12 +15,13 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
-      {{- if .Values.mongodb.enabled }}
       initContainers:
-        - name: wait-for-mongodb
+        - name: wait-for-postgres
           image: busybox:latest
-          command: ['sh', '-c', 'until nc -z {{ .Release.Name }}-mongodb 27017; do echo waiting for mongodb; sleep 2; done;']
-      {{- end }}
+          command: ['sh', '-c', 'until nc -z {{ .Values.externalPostgres.host }} {{ .Values.externalPostgres.port }}; do echo waiting for postgres; sleep 2; done;']
+        - name: wait-for-valkey
+          image: busybox:latest
+          command: ['sh', '-c', 'until nc -z {{ .Release.Name }}-valkey 6379; do echo waiting for valkey; sleep 2; done;']
       containers:
         - name: {{ .Release.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -31,7 +33,7 @@ spec:
             - name: SITE_URL
               value: {{ .Values.infisical.siteUrl | quote }}
             - name: REDIS_URL
-              value: "redis://{{ .Release.Name }}-redis:6379"
+              value: "redis://{{ .Release.Name }}-valkey:6379"
           envFrom:
             - secretRef:
                 name: {{ .Release.Name }}-secret

@@ -1,0 +1,7 @@
+apiVersion: v2
+name: prod-postgres
+description: Production PostgreSQL for all services (Infisical, etc.)
+
+type: application
+version: 0.1.0
+appVersion: "16"

@@ -9,11 +9,13 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: "Host(`{{ .Values.ingress.host }}`)"
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`{{ .Values.ingress.prefix }}`)"
       kind: Rule
+      middlewares:
+        - name: {{ .Release.Name }}-stripprefix
       services:
         - name: {{ .Release.Name }}
           port: {{ .Values.service.port }}
   tls:
-    secretName: {{ .Release.Name }}-tls
+    secretName: {{ .Values.certificate.secretName }}
 {{- end }}

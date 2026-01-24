@@ -2,38 +2,33 @@ replicaCount: 1
 
 image:
   repository: infisical/infisical
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
   tag: "latest"
 
-mongodb:
-  enabled: true
-  image:
-    repository: mongo
-    tag: "6.0"
-  storageSize: 10Gi
-  storageClassName: local-path
-  auth:
-    # MongoDB connection string will be used by Infisical
-    database: infisical
-    username: infisical
-    password: infisical-password
+# External PostgreSQL (prod-postgres)
+externalPostgres:
+  host: prod-postgres.prod-postgres.svc.cluster.local
+  port: 5432
+  database: infisical
+  username: infisical
+  password: jORRK2BWkVIOZtvP1aioBUnzKfF4PLWR
 
-redis:
+valkey:
   enabled: true
   image:
-    repository: redis
-    tag: "7-alpine"
-  # Redis läuft im Memory-Only Modus ohne PVC (als Cache)
+    repository: valkey/valkey
+    tag: "8-alpine"
+  # Valkey läuft im Memory-Only Modus ohne PVC (als Cache)
   persistence:
     enabled: false
 
 infisical:
   # Infisical configuration
-  siteUrl: "https://infisical.wearable-analytics.de"
-  encryptionKey: "change-this-to-a-secure-random-32-char-key"
-  jwtAuthSecret: "change-this-to-a-secure-random-key"
-  jwtRefreshSecret: "change-this-to-a-secure-refresh-key"
-  jwtServiceSecret: "change-this-to-a-secure-service-key"
+  siteUrl: "https://wearables.charite.de/infisical"
+  encryptionKey: "7d58f02b08d229a102081a2936dbed82"
+  jwtAuthSecret: "pKi7vsPfaupBetCLvVbim+ymP8y0qrUsgaS9H9FLorc="
+  jwtRefreshSecret: "0Ywau83zNDgmXgUdQLVFk4dPRVmoOJIPAcCSuRNpAPE="
+  jwtServiceSecret: "QtxlCok7+cBiiIFxOZ1WVrAFmYJVtouLRi15kaYs88A="
 
 service:
   type: ClusterIP
@@ -41,6 +36,9 @@ service:
   nodePort: 30080
 
 ingress:
-  enabled: false
-  host: infisical.wearable-analytics.de
-  certIssuer: letsencrypt-prod
+  enabled: true
+  host: wearables.charite.de
+  prefix: /infisical
+
+certificate:
+  secretName: wearables-tls

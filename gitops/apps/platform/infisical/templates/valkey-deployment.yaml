@@ -1,30 +1,30 @@
-{{- if .Values.redis.enabled }}
+{{- if .Values.valkey.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-redis
+  name: {{ .Release.Name }}-valkey
   labels:
-    app: {{ .Release.Name }}-redis
+    app: {{ .Release.Name }}-valkey
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-redis
+      app: {{ .Release.Name }}-valkey
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-redis
+        app: {{ .Release.Name }}-valkey
     spec:
       containers:
-        - name: redis
-          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+        - name: valkey
+          image: "{{ .Values.valkey.image.repository }}:{{ .Values.valkey.image.tag }}"
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6379
-              name: redis
-          {{- if .Values.redis.persistence.enabled }}
+              name: valkey
+          {{- if .Values.valkey.persistence.enabled }}
           volumeMounts:
-            - name: redis-data
+            - name: valkey-data
               mountPath: /data
           {{- end }}
           resources:
@@ -34,10 +34,10 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "250m"
-      {{- if .Values.redis.persistence.enabled }}
+      {{- if .Values.valkey.persistence.enabled }}
       volumes:
-        - name: redis-data
+        - name: valkey-data
           persistentVolumeClaim:
-            claimName: {{ .Release.Name }}-redis-pvc
+            claimName: {{ .Release.Name }}-valkey-pvc
       {{- end }}
 {{- end }}
