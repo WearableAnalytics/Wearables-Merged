@@ -7,8 +7,9 @@ List<HealthDataAccess> permissionsFor(List<HealthDataType> types) {
   return List.filled(types.length, HealthDataAccess.READ);
 }
 
-final List<HealthDataType> allRequestedHealthDataTypes = [
-  //IOS DATA TYPES
+
+/// Data types supported by Apple Health (iOS)
+final List<HealthDataType> iosHealthDataTypes = [
   HealthDataType.ACTIVE_ENERGY_BURNED,
   HealthDataType.AUDIOGRAM,
   HealthDataType.BASAL_ENERGY_BURNED,
@@ -60,27 +61,40 @@ final List<HealthDataType> allRequestedHealthDataTypes = [
   HealthDataType.HEADACHE_UNSPECIFIED,
   HealthDataType.ELECTROCARDIOGRAM,
   HealthDataType.NUTRITION,
+];
 
-  // // Cumulative - total count over time
-  // HealthDataType.STEPS,
-  // HealthDataType.ACTIVE_ENERGY_BURNED,
-
-  // // Instantaneous - point-in-time measurements
-  // HealthDataType.HEART_RATE,
-  // HealthDataType.RESTING_HEART_RATE,
-  // // HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
-  // // HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
-  // HealthDataType.BLOOD_OXYGEN,
-  // HealthDataType.RESPIRATORY_RATE,
-  // HealthDataType.BODY_TEMPERATURE,
-  // HealthDataType.WEIGHT,
-  // // HealthDataType.BLOOD_GLUCOSE,
-  // HealthDataType.BODY_FAT_PERCENTAGE,
-  // HealthDataType.BODY_MASS_INDEX,
-
-  // // Duration - time-based measurements
-  // HealthDataType.SLEEP_ASLEEP,
-  // HealthDataType.SLEEP_DEEP,
-  // HealthDataType.SLEEP_REM,
-  // HealthDataType.WORKOUT,
+/// Data types supported by Google Health Connect (Android)
+final List<HealthDataType> androidHealthDataTypes = [
+  HealthDataType.ACTIVE_ENERGY_BURNED,
+  HealthDataType.BASAL_ENERGY_BURNED,
+  HealthDataType.BLOOD_GLUCOSE,
+  HealthDataType.BLOOD_OXYGEN,
+  HealthDataType.BLOOD_PRESSURE_DIASTOLIC,
+  HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
+  HealthDataType.BODY_FAT_PERCENTAGE,
+  HealthDataType.BODY_MASS_INDEX,
+  HealthDataType.BODY_TEMPERATURE,
+  HealthDataType.BODY_WATER_MASS,
+  HealthDataType.HEART_RATE,
+  HealthDataType.HEIGHT,
+  HealthDataType.RESTING_HEART_RATE,
+  HealthDataType.RESPIRATORY_RATE,
+  HealthDataType.STEPS,
+  HealthDataType.WEIGHT,
+  HealthDataType.FLIGHTS_CLIMBED,
+  HealthDataType.DISTANCE_DELTA,
+  HealthDataType.SLEEP_ASLEEP,
+  HealthDataType.SLEEP_AWAKE,
+  HealthDataType.SLEEP_AWAKE_IN_BED,
+  HealthDataType.SLEEP_DEEP,
+  HealthDataType.SLEEP_LIGHT,
+  HealthDataType.SLEEP_OUT_OF_BED,
+  HealthDataType.SLEEP_REM,
+  HealthDataType.SLEEP_UNKNOWN,
+  HealthDataType.SLEEP_SESSION,
+  HealthDataType.WATER,
+  HealthDataType.WORKOUT,
+  HealthDataType.NUTRITION,
+  HealthDataType.LEAN_BODY_MASS,
+  HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
 ];
