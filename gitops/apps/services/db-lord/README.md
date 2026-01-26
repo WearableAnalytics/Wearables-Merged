@@ -89,13 +89,13 @@ At that point, `latest` will represent a stable release. Versioned tags will als
 ## Setup
 
 ### Render and apply the secret:
-helm template db-lord ./gitops/apps/services/db-lord --namespace postgres-tmp -s templates/db-lord-secrets.yaml > db-lord-secrets.yaml
-kubectl apply -f db-lord-secrets.yaml -n postgres-tmp
+helm template db-lord ./gitops/apps/services/db-lord --namespace db-lord -s templates/db-lord-secrets.yaml > db-lord-secrets.yaml
+kubectl apply -f db-lord-secrets.yaml -n db-lord
 
 ### Render and apply the migration Job:
-helm template db-lord ./gitops/apps/services/db-lord --namespace postgres-tmp -s templates/job-migrate.yaml > job-migrate.yaml
-kubectl delete job db-lord-migrate -n postgres-tmp --ignore-not-found
-kubectl apply -f job-migrate.yaml -n postgres-tmp
+helm template db-lord ./gitops/apps/services/db-lord --namespace db-lord -s templates/job-migrate.yaml > job-migrate.yaml
+kubectl delete job db-lord-migrate -n db-lord --ignore-not-found
+kubectl apply -f job-migrate.yaml -n db-lord
 
 ### Deploy or upgrade db-lord:
-helm upgrade db-lord ./db-lord --namespace postgres-tmp --install
+helm upgrade db-lord ./gitops/apps/services/db-lord --namespace db-lord --install

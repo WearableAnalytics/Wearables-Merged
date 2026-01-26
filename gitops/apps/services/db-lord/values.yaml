@@ -12,7 +12,7 @@ service:
 secretRef: "db-lord-secrets"
 
 env:
-  POSTGRES_SERVER: "postgres-tmp-postgresql.postgres-tmp.svc.cluster.local"
+  POSTGRES_SERVER: "prod-postgres.prod-postgres.svc.cluster.local"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "lakefs"
   POSTGRES_USER: "lakefs"
