@@ -6,7 +6,7 @@ data:
   KAFKA_BROKER_ENV_VAR: {{ .Values.envs.brokerEnv }}
   APP_ID: {{ .Values.envs.appId }}
   MAPPING_YAML_PATH: {{ .Values.envs.fhirMappingYamlPath }}
-  FHIR_LP_MAPPING_YAML_PATH: {{ .Values.envs.lpMappingYamlPath }}
   INPUT_TOPIC: {{ .Values.envs.inputTopic }}
-  FHIR_OUTPUT_TOPIC: {{ .Values.envs.fhirOutput }}
-  LP_OUTPUT_TOPIC: {{ .Values.envs.lpOutput }}
+  OUTPUT_TOPIC: {{ .Values.envs.outputTopic }}
+  DLQ_TOPIC: {{ .Values.envs.dlqTopic }}
+  PARTITION_THREADS: {{ .Values.envs.partitionThreads | quote }}

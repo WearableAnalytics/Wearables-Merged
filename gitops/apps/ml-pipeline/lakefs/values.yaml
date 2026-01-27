@@ -1,0 +1,66 @@
+lakefs:
+
+  postgresql:
+    enabled: false
+
+  existingSecret: "lakefs-secrets" # must match metadata.name in templates/secret.yaml
+  
+  secretKeys:
+    databaseConnectionString: database_connection_string
+    authEncryptSecretKey: auth_encrypt_secret_key
+  
+  extraEnvVars:
+
+    # --- LakeFS S3 Configuration ---
+    # to match the SeaweedFS S3 Gateway settings
+    - name: LAKEFS_BLOCKSTORE_S3_REGION
+      value: "us-east-1"
+    
+    # Forces http://host/bucket instead of http://bucket.host
+    - name: LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE
+      value: "true"
+      
+    - name: LAKEFS_BLOCKSTORE_S3_DISCOVER_BUCKET_REGION
+      value: "false"
+
+    # --- Access to S3 Storage ---
+    - name: LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: lakefs-secrets
+          key: s3_access_key
+
+    - name: LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: lakefs-secrets
+          key: s3_secret_key
+
+    - name: LAKEFS_BLOCKSTORE_S3_ENDPOINT
+      value: "http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333"
+    
+
+    # --- LakeFS access setup ---
+    - name: LAKEFS_SETUP_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: lakefs-secrets
+          key: lakefs_s3_access_key
+    
+    - name: LAKEFS_SETUP_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: lakefs-secrets
+          key: lakefs_s3_secret_key
+
+    - name: LAKEFS_SETUP_FIRST_USER_DISPLAY_NAME
+      valueFrom:
+        secretKeyRef:
+          name: lakefs-secrets
+          key: lakefs_first_user_display_name
+
+  lakefsConfig: |
+    database:
+      type: postgres
+    blockstore:
+      type: s3

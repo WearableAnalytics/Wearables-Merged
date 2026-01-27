@@ -1,0 +1,20 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: "{{ .Release.Name }}-https"
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`{{ .Values.ingress.prefix }}`)"
+      kind: Rule
+      middlewares:
+        - name: ingest-rewrite-path
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+          # needs to be set for all middelware etc. thats not deployed in the same namespace
+          #format: namespace-name@providername
+          serversTransport: ingress-long-timeout@kubernetescrd
+  tls:
+    secretName: {{ .Values.certificate.secretName }}

@@ -40,6 +40,26 @@ dualRole:
 controllerName: k-controller
 brokerName: k-broker
 
+topics:
+  - name: dlq
+    partitions: 1 #!! We are only running kafka on one node so more than one partition wont work
+    replicas: 1
+    retentionMs: 7200000 #2 hours, should be tweaked as needed
+    segmentBytes: 1073741824 # GiB
+  - name: wearables-lp
+    partitions: 1
+    replicas: 1
+    retentionMs: 7200000
+    segmentBytes: 1073741824
+  - name: wearables-raw
+    partitions: 3
+    replicas: 1
+    retentionMs: 7200000
+    segmentBytes: 1073741824
+
+
+
+
 kafkaConnect:
   replicas: 1
   image: lndocker3s/kafka-connect

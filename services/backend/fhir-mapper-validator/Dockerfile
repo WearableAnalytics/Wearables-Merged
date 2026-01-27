@@ -20,7 +20,6 @@ RUN mkdir -p /app/logs
 
 # Optional: provide a default external YAML; can be overridden by a mounted file at runtime
 COPY src/main/resources/json-to-fhir-new.yaml /config/mapping.yaml
-COPY src/main/resources/fhir-to-lineprotocol.yaml /config/fhir-to-lineprotocol.yaml
 
 # Environment variables are set through k8s
 

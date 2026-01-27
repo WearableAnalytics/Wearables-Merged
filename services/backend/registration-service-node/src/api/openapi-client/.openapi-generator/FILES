@@ -1,0 +1,16 @@
+.openapi-generator-ignore
+apis/CasesApi.ts
+apis/CharitCasesApi.ts
+apis/PatientsApi.ts
+apis/index.ts
+index.ts
+models/Case.ts
+models/CaseCreated.ts
+models/CaseVerified.ts
+models/CasesFromChariteCasePostRequest.ts
+models/CasesVerifyTokenPostRequest.ts
+models/ChariteCase.ts
+models/ModelError.ts
+models/Patient.ts
+models/index.ts
+runtime.ts

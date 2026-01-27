@@ -30,3 +30,15 @@ readinessProbe:
   path: /health
   initialDelaySeconds: 5
   periodSeconds: 10
+
+ingress:
+  host: "wearables.charite.de"
+  prefix: "/import"
+  regex: "^/import/?(.*)"
+  replacement: /$1
+  certificateSecret: wearables-tls
+
+certificate:
+  name: wearables-cert
+  secretName: wearables-tls
+

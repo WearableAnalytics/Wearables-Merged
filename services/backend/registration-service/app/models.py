@@ -1,7 +1,6 @@
-from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, ForeignKey
-
 from app.db import Base
+from pydantic import BaseModel
+from sqlalchemy import Column, String
 
 
 class PatientRequest(BaseModel):
@@ -53,4 +52,4 @@ class RegistrationToken(Base):
     event_id = Column(String, index=True)
     status = Column(String, index=True)  # Pending/Done
     start_time = Column(String, index=True)
-    duration= Column(String, index=True)
+    duration = Column(String, index=True)

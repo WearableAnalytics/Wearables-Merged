@@ -1,13 +1,13 @@
 package org.example;
 
-import com.google.gson.JsonObject;
+import com.google.gson.*;
+import org.apache.kafka.common.protocol.types.Field;
 import org.example.fhir.Mapper;
 import org.example.fhir.Validator;
+import org.example.fhir.model.MapReturn;
 import org.example.lineprotocol.LineProtocolParser;
 import org.junit.Test;
 import org.junit.jupiter.api.DisplayName;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -15,8 +15,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class FhirMapperTest {
 
@@ -27,39 +26,72 @@ public class FhirMapperTest {
         Validator.initiliazeFhirValidator();
 
         Path path = Paths.get(
-                getClass().getClassLoader().getResource("input.json").toURI()
+                getClass().getClassLoader().getResource("sample.json").toURI()
         );
         String input = Files.readString(path);
 
-        List<JsonObject> results = Mapper.mapFhir(input);
+        Map<String, MapReturn> results = Mapper.mapFhir(input);
 
-        if (results.size() <= 1){
-            throw new RuntimeException("there should be more than one element here");
+        for (Map.Entry<String, MapReturn> entry : results.entrySet()) {
+
+            System.out.printf("Entries found for %s \n", entry.getKey());
+
+            JsonArray mappedFhir = new JsonArray();
+            JsonArray mappedFhirError = new JsonArray();
+            int good = 0;
+            int bad = 0;
+
+            for (JsonObject r : entry.getValue().getValid()){
+                boolean res = Validator.validateFhir(r.toString());
+                if (res) {
+                    mappedFhir.add(r);
+                    good++;
+                } else {
+                    mappedFhirError.add(r);
+                    bad++;
+                }
+            }
+
+            System.out.printf("Good: %s \n Bad: %s \n", good, bad);
+
+            for (JsonElement e : entry.getValue().getInvalid()) {
+                mappedFhirError.add(e);
+            }
+
+            Gson gson = new Gson();
+
+
+            Files.write(
+                    Paths.get(String.format("outputs/fhir/%s.valid.json", entry.getKey())),
+                    gson.toJson(mappedFhir).getBytes()
+            );
+
+            Files.write(
+                    Paths.get(String.format("outputs/fhir/%s.invalid.json", entry.getKey())),
+                    gson.toJson(mappedFhirError).getBytes()
+            );
+
+            List<String> lpRes = new ArrayList<>();
+
+            LineProtocolParser lpParser = new LineProtocolParser();
+            for (Iterator<JsonElement> it = mappedFhir.iterator(); it.hasNext();) {
+                JsonObject r = it.next().getAsJsonObject();
+                try {
+                    String res = lpParser.parse(entry.getKey(), r);
+                    lpRes.add(res);
+                } catch (IllegalArgumentException iae){
+                    System.out.println(iae.getMessage());
+                }
+
+            }
+
+            Files.write(
+                    Paths.get(String.format("outputs/lp/%s.valid.txt", entry.getKey())),
+                    lpRes
+            );
+
+
         }
-
-        System.out.println(results.size());
-
-        for (JsonObject r : results){
-            System.out.println(r.toString());
-            boolean res = Validator.validateFhir(r.toString());
-            if (!res) throw new RuntimeException("cant parse");
-        }
-
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
-
-        try (FileWriter writer = new FileWriter("output.json")) {
-            gson.toJson(results, writer);  // writes the whole list as formatted JSON
-        }
-
-        List<String> lpRes = new ArrayList<>();
-
-        LineProtocolParser lpParser = new LineProtocolParser();
-        for (JsonObject r : results){
-            String res = lpParser.parse(r.toString());
-            lpRes.add(res);
-        }
-
-        Files.write(Paths.get("output-lp.txt"), lpRes);
 
     }
 }

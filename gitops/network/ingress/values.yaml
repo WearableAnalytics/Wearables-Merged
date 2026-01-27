@@ -1,0 +1,12 @@
+ingress:
+  host: "wearables.charite.de"
+
+serversTransport:
+  forwardingTimeouts:
+    dialTimeout: 60s
+    responseHeaderTimeout: 60s
+    idleConnTimeout: 60s
+
+certificate:
+  name: wearables-cert
+  secretName: wearables-tls

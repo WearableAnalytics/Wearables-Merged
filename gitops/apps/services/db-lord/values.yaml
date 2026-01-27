@@ -1,0 +1,24 @@
+replicaCount: 1
+
+image:
+  repository: gmsdaniil/wearables-db-lord
+  pullPolicy: Always
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+secretRef: "db-lord-secrets"
+
+env:
+  POSTGRES_SERVER: "prod-postgres.prod-postgres.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "lakefs"
+  POSTGRES_USER: "lakefs"
+  POSTGRES_PASSWORD: "lakefs_password"
+
+  INFLUX_URL: "http://influxdb-service.influx.svc.cluster.local:8080"
+  INFLUX_ORG: "org"
+  INFLUX_BUCKET: "bucket"
+  INFLUX_TOKEN: "some-token"
