@@ -3,6 +3,7 @@ package org.example.dependencies;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.example.config.Environment;
 import org.example.fhir.model.*;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
@@ -102,13 +103,8 @@ public class DependencyGraph {
                     .filter(x -> x.getLineProtocol().isMandatory())
                     .collect(Collectors.toSet());
 
-            //these mandatory fields must contain the measurement and the timestamp
-            boolean hasMeasurement = mandatoryFields.stream().anyMatch(x -> x.getLineProtocol().getType().equals("measurement"));
-            boolean hasTimestamp = mandatoryFields.stream().anyMatch(x -> x.getLineProtocol().getType().equals("timestamp"));
-
-            if (!hasMeasurement && !hasTimestamp) {
-                throw new IllegalArgumentException("the minimal base of fields must contain exactly one field marked as 'timestamp' and 'measurement' respectively");
-            }
+            log.info("Found node set");
+            matchingGraph.forEach(x -> log.info("   {}", x.getField().getName()));
 
             for (FieldConfig f : mandatoryFields) {
 
@@ -124,18 +120,36 @@ public class DependencyGraph {
 
             }
 
-            //all base fields must have a LineProtocol specification, and one of them must be a field
-            boolean hasValue = this.graphs.get(m.getPath()).stream()
-                    .filter(x -> x.getField().getLineProtocol() != null)
-                    .anyMatch(x -> x.getField().getLineProtocol().getType().equals("value"));
-
-            if (!hasValue) {
-                throw new IllegalArgumentException("the minimal base of fields must contain at least one field marked as 'field'");
+            try{
+                checkLineProtocolIntegrity(m.getPath());
+            } catch (IllegalArgumentException iae) {
+                throw new IllegalArgumentException(String.format("the nodes in the baseSet form cannot form valid LineProtocol: %s", iae.getMessage()));
             }
         }
 
         return graphs;
 
+    }
+
+    private void checkLineProtocolIntegrity(String measurementPath) {
+        //these mandatory fields must contain the measurement and the timestamp
+        Set<Node> graph = this.graphs.get(measurementPath);
+
+        boolean hasMeasurement = graph.stream().anyMatch(x -> x.getField().getLineProtocol().getType().equals("measurement"));
+        boolean hasTimestamp = graph.stream().anyMatch(x -> x.getField().getLineProtocol().getType().equals("timestamp"));
+
+        if (!hasMeasurement || !hasTimestamp) {
+            throw new IllegalArgumentException("the minimal base of fields must contain exactly one field marked as 'timestamp' and 'measurement' respectively");
+        }
+
+        //all base fields must have a LineProtocol specification, and one of them must be a field
+        boolean hasValue = this.graphs.get(measurementPath).stream()
+                .filter(x -> x.getField().getLineProtocol() != null)
+                .anyMatch(x -> x.getField().getLineProtocol().getType().equals("field"));
+
+        if (!hasValue) {
+            throw new IllegalArgumentException("the minimal base of fields must contain at least one field marked as 'field'");
+        }
     }
 
     public void visualizeGraph(Collection<Node> nodes, Graph<String, DefaultEdge> graph) {
@@ -201,7 +215,11 @@ public class DependencyGraph {
 
     private boolean checkRecursiveDep(Node succ, Node current){
 
-        if (current.getField().getFhirSource().equals( succ.getField().getTarget())) {
+        if (current.getField().getFhirSource() == null) {
+            //I think this means we have found a field at the base of the dependency tree
+            log.info("found one bottom of dependencies: {}", current.getField().getName());
+            return false;
+        }else if (current.getField().getFhirSource().equals(succ.getField().getTarget())) {
             //We have a circular dependency with the current node
             return true;
         }
@@ -275,8 +293,8 @@ public class DependencyGraph {
         //TODO: I dont know if this is the best way to determine that we use the same tags when possible
         found.forEach((key, value) -> {
             FieldConfig optimalBase = value.stream()
-                    .filter(y -> y.getTransformFromRaw() != null)
-                    .filter(y -> y.getTransformFromRaw().stream()
+                    .filter(y -> y.getTransform() != null)
+                    .filter(y -> y.getTransform().stream()
                             .allMatch(transform -> isInjective(key, y, transform)))
                     .min(Comparator.comparingInt(x -> x.getName().length()))
                     .orElse(null);
@@ -321,11 +339,13 @@ public class DependencyGraph {
                         }
                         if (checkMappingInjective(field, m)) return false;
                     }
+                    return true;
                 default:
                     throw new IllegalArgumentException(String.format("the mapping type '%s' does not exist", vt.getType()));
             }
 
         }
+
 
     }
 

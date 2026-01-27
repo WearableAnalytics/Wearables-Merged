@@ -20,9 +20,12 @@ public class FhirTransformer extends Transformer{
             JsonElement value
     ) {
 
+        log.info("mapping FHIR field {} with initial value {} and number of transformations: {}",
+                field.getName(), value, field.getTransform().size());
+
         try {
 
-            for (ValueTransformation vt : field.getTransformFromFhir()) {
+            for (ValueTransformation vt : field.getTransform()) {
 
                 //shouldn't happen but additional check
                 if (value == null) {
@@ -59,6 +62,7 @@ public class FhirTransformer extends Transformer{
                         }catch (IllegalArgumentException iae) {
                             throw new IllegalArgumentException(String.format("Exception occurred when trying to map FHIR field '%s' with value '%s': %s", field.getName(), value, iae.getMessage()));
                         }
+                        break;
 
                     case "flatMap": //Don't know if this is useful, skipping it for now
                         log.warn("transformation 'flatMap' for field {} is not implemented", field.getName());
@@ -133,7 +137,7 @@ public class FhirTransformer extends Transformer{
                 .toList();
 
         if (rules.size() != 1){
-            throw new IllegalArgumentException(String.format("A mapping map must be a function, duplicate domain values for '%s'", fitting.get(0).getFieldName()));
+            throw new IllegalArgumentException(String.format("A mapping map must be a surjective function over the defined / possible domain, duplicate or no domain values for '%s'", fitting.get(0).getFieldName()));
         }
 
         String newValue = rules.get(0).getValue();

@@ -140,17 +140,13 @@ public class JsonUtils {
             MeasurementPathConfig measurementCfg,
             int measurementIndex
     ) {
-        if (rawPath == null || measurementCfg == null) return rawPath;
-        String measurementPath = measurementCfg.getPath();
-        if (measurementPath == null || measurementPath.isBlank()) return rawPath;
-        if (!rawPath.startsWith(measurementPath)) {
+        if (measurementCfg == null || measurementCfg.getPath() == null) {
             return rawPath;
         }
-        int prefixLen = measurementPath.length();
-        if (rawPath.length() > prefixLen && rawPath.charAt(prefixLen) == '[') {
-            return rawPath;
-        }
-        return measurementPath + "[" + measurementIndex + "]" + rawPath.substring(prefixLen);
+        String prefix = measurementCfg.getPath();
+        int prefixLen = prefix.length();
+
+        return prefix + "[" + measurementIndex + "]" + rawPath.substring(prefixLen);
     }
 
     public static String deriveRelativePath(String rawPath, String measurementPath) {

@@ -20,26 +20,12 @@ public class LineProtocolParser {
 
     private static final Logger log = LoggerFactory.getLogger(LineProtocolParser.class);
 
-    private final MappingYaml mappingYaml = Environment.TEMPLATE;
-
     public String parse(String category, JsonObject json, Set<Node> minimalBase) throws IllegalArgumentException {
         if (json == null || json.isEmpty() || !json.isJsonObject()) {
             throw new IllegalArgumentException("Input JSON is null, empty or not a JSON object");
         }
 
         LineProtocolTemplate template = new LineProtocolTemplate();
-
-        MetadataConfig metadataConfig = mappingYaml.getMetadata();
-
-        //find the right config that was used to create the JSON
-        MeasurementPathConfig fittingConfig = mappingYaml.getMeasurement().getPaths().stream()
-                .filter(e -> e.getPath().equals(category))
-                .findFirst()
-                .orElse(null);
-
-        if (fittingConfig == null || fittingConfig.getFields() == null || fittingConfig.getFields().isEmpty()) {
-            throw new IllegalArgumentException("no rules for mapping fields found even though FHIR was successfully mapped");
-        }
 
         setLPMeasurement(json, template, minimalBase);
 

@@ -40,6 +40,8 @@ public class Main {
         log.debug("Using slf4j for logging");
 
         Validator.initiliazeFhirValidator();
+        Mapper mapper = new Mapper(Environment.TEMPLATE);
+
         DependencyGraph dependencyGraph = new DependencyGraph(Environment.TEMPLATE);
 
         //This will build the dependency graph derived from the Mapping YAML
@@ -78,7 +80,7 @@ public class Main {
                     return invalidFhir;
                 }
 
-                Map<String, MapReturn> mr = Mapper.mapFhir(value);
+                Map<String, MapReturn> mr = mapper.mapFhir(value);
 
                 for (Map.Entry<String, MapReturn> e : mr.entrySet()) {
 

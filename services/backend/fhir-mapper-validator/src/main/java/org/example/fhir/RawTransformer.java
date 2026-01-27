@@ -1,6 +1,9 @@
 package org.example.fhir;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonPrimitive;
+import jakarta.json.Json;
+import net.sourceforge.plantuml.Run;
 import org.example.fhir.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,13 +22,15 @@ public class RawTransformer extends Transformer{
             MeasurementPathConfig measurementCfg,
             JsonElement value
     ) {
-        log.debug(
-                "retrieved source for field {}: {}; it has {} number of mappings",
-                field.getName(), field.getRawSource(), field.getTransformFromRaw().size()
-        );
+        log.info("mapping RAW field {} with initial value {} and number of transformations: {}",
+                field.getName(), value, field.getTransform().size());
+
+        if (field.getType().equals("string")){
+            value = unquote(value);
+        }
 
         // apply transformations in the order they were listed
-        for (ValueTransformation vt : field.getTransformFromRaw()) {
+        for (ValueTransformation vt : field.getTransform()) {
 
             String type = vt.getType();
             //log.debug("mapping field {} with rule {}", field.getName(), type);
@@ -33,11 +38,13 @@ public class RawTransformer extends Transformer{
             switch (type) {
 
                 case "toLowerCase": {
+                    log.info("resolving lowerCase for {}", value);
                     value = RawTransformer.resolveToLowerCase(vt, value);
                     break;
                 }
 
                 case "replace": {
+                    log.info("resolving replace for {}", value);
                     value = RawTransformer.resolveReplace(vt, value);
                     if (value == null) return null;
                     break;
@@ -84,6 +91,8 @@ public class RawTransformer extends Transformer{
             }
 
         }
+
+        log.info("finished transformation, new value '{}'", value);
 
         return value;
     }
@@ -145,5 +154,21 @@ public class RawTransformer extends Transformer{
             throw new RuntimeException("toLowerCase can only be called on fields that can be cast to string, but was a JsonObject, JsonArray or null");
         }
         return valueAsString;
+    }
+
+    private static JsonElement unquote(JsonElement e){
+
+        try{
+            String s = elementToString(e);
+            if(s.charAt(0) != '"' || s.charAt(s.length()-1) != '"') {
+                log.warn("could not unquote string '{}' since first and last characters are not quotes", s);
+                return new JsonPrimitive(s);
+            }
+            s = s.substring(1, s.length()-1);
+            return new JsonPrimitive(s);
+        }catch (RuntimeException ise) {
+            throw new RuntimeException(String.format("Exception unquoting string: %s", ise.getMessage()));
+        }
+
     }
 }

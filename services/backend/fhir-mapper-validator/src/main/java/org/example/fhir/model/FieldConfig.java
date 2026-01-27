@@ -11,8 +11,7 @@ public class FieldConfig {
     private String fhirSource;
     private Object value;
     private String target;
-    private List<ValueTransformation> transformFromRaw;
-    private List<ValueTransformation> transformFromFhir;
+    private List<ValueTransformation> transform;
     private boolean optional;
     private String type;
     private LineProtocol lineProtocol;

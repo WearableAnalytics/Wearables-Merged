@@ -32,6 +32,21 @@ public class Transformer {
         return value;
     }
 
+    static JsonElement resolvePrepend(ValueTransformation vt, JsonElement value) {
+        StringBuilder s = new StringBuilder(JsonUtils.elementToString(value));
+        if (s == null)
+            throw new RuntimeException(
+                    String.format("value for replace [%s] could not be converted to string", value)
+            );
+
+        for (String p : vt.getParams()) {
+            s.insert(0, p);
+        }
+
+        value = toJsonElement(s.toString());
+        return value;
+    }
+
     static JsonElement resolveReplace(ValueTransformation vt, JsonElement value) {
         if (vt.getParams() == null || vt.getParams().size() != 2) {
             throw new IllegalArgumentException("replace needs exactly two arguments representing the old and new string");
@@ -44,14 +59,14 @@ public class Transformer {
             );
 
         String target = vt.getParams().get(0);
-        String replacement = vt.getParams().get(0);
+        String replacement = vt.getParams().get(1);
 
         Pattern pattern = hasPattern(target);
         if (pattern == null) {
             return toJsonElement(s.replace(target, replacement));
         }
-
-        return toJsonElement(s.replaceAll(pattern.pattern(), replacement));
+        s = s.replaceAll(pattern.pattern(), replacement);
+        return toJsonElement(s);
 
     }
 

@@ -11,16 +11,20 @@ import java.util.*;
 import java.util.concurrent.SynchronousQueue;
 
 import static org.example.JsonUtils.*;
-import static org.example.config.Environment.TEMPLATE;
 import static org.example.fhir.FhirTransformer.resolveFhirTransformation;
 
 @Data
 public class Mapper {
 
     private static final Logger log = LoggerFactory.getLogger(Mapper.class);
+    private final MappingYaml yaml;
 
-    public static Map<String, MapReturn> mapFhir(String str) {
-        if (TEMPLATE == null) {
+    public Mapper(MappingYaml yaml) {
+        this.yaml = yaml;
+    }
+
+    public Map<String, MapReturn> mapFhir(String str) {
+        if (this.yaml == null) {
             throw new IllegalStateException("No mapping template loaded");
         }
         JsonElement parsed = JsonParser.parseString(str);
@@ -29,7 +33,7 @@ public class Mapper {
         }
         JsonObject incoming = parsed.getAsJsonObject();
         JsonObject metadataTemplate = buildMetadataBlock(incoming);
-        MeasurementConfig measurementCfg = TEMPLATE.getMeasurement();
+        MeasurementConfig measurementCfg = this.yaml.getMeasurement();
         if (measurementCfg == null || measurementCfg.getPaths() == null || measurementCfg.getPaths().isEmpty()) {
             log.warn("No measurement paths configured – returning metadata-only document");
             return new HashMap<>();
@@ -51,7 +55,7 @@ public class Mapper {
                 for (int idx = 0; idx < measurementArray.size(); idx++) {
                     JsonElement measurementElement = measurementArray.get(idx);
                     JsonObject outgoingMeasurementTemplate = metadataTemplate.deepCopy().getAsJsonObject();
-                    boolean res1 = applyFields(outgoingMeasurementTemplate, TEMPLATE.getMetadata(), pathConfig, incoming, measurementElement, idx);
+                    boolean res1 = applyFields(outgoingMeasurementTemplate, this.yaml.getMetadata(), null, incoming, measurementElement, idx);
                     boolean res2 = applyFields(outgoingMeasurementTemplate, pathConfig, incoming, measurementElement, idx);
                     if (!outgoingMeasurementTemplate.isEmpty() && res1 && res2) valid.add(outgoingMeasurementTemplate);
                     else invalid.add(outgoingMeasurementTemplate);
@@ -66,14 +70,14 @@ public class Mapper {
         return observations;
     }
 
-    private static JsonObject buildMetadataBlock(JsonObject root) {
+    private JsonObject buildMetadataBlock(JsonObject root) {
         JsonObject metadata = new JsonObject();
-        MetadataConfig metadataConfig = TEMPLATE.getMetadata();
+        MetadataConfig metadataConfig = this.yaml.getMetadata();
         applyFields(metadata, metadataConfig, null, root, null, -1);
         return metadata;
     }
 
-    private static JsonArray resolveMeasurementArray(JsonObject root, String path) {
+    private JsonArray resolveMeasurementArray(JsonObject root, String path) {
         if (path == null || path.isBlank()) return null;
         JsonElement el = getByPath(root, path);
         if (el == null || !el.isJsonArray()) return null;
@@ -81,12 +85,12 @@ public class Mapper {
     }
 
     //TODO refactor this to be one method with the one below (?)
-    private static boolean applyFields(JsonObject target,
-                                       MetadataConfig metadataCfg,
-                                       MeasurementPathConfig measurementCfg,
-                                       JsonObject root,
-                                       JsonElement measurementElement,
-                                       int idx) {
+    private boolean applyFields(JsonObject target,
+                                MetadataConfig metadataCfg,
+                                MeasurementPathConfig measurementCfg,
+                                JsonObject root,
+                                JsonElement measurementElement,
+                                int idx) {
         if (metadataCfg == null || metadataCfg.getFields() == null || metadataCfg.getFields().isEmpty()) return false;
         for (FieldConfig field : metadataCfg.getFields()) {
             try {
@@ -99,7 +103,7 @@ public class Mapper {
         return true;
     }
 
-    private static boolean applyFields(
+    private boolean applyFields(
             JsonObject outgoingMeasurementTemplate,
             MeasurementPathConfig pathConfig,
             JsonObject root,
@@ -108,12 +112,12 @@ public class Mapper {
     ) {
         if (pathConfig == null || pathConfig.getFields() == null || pathConfig.getFields().isEmpty()) return false;
 
-        Queue<FieldConfig> fhirDependentQueue = new SynchronousQueue<>();
+        Queue<FieldConfig> fhirDependentQueue = new ArrayDeque<>();
         List<FieldConfig> nonFhirDependent = new ArrayList<>();
 
-
         for (FieldConfig field : pathConfig.getFields()) {
-            if (field.getTransformFromFhir() != null && !field.getTransformFromFhir().isEmpty()) {
+            if (field.getFhirSource() != null) {
+                log.info("queue size is {}", fhirDependentQueue.size());
                 fhirDependentQueue.add(field);
             } else {
                 nonFhirDependent.add(field);
@@ -122,14 +126,6 @@ public class Mapper {
 
         for (FieldConfig field : nonFhirDependent) {
 
-            if (!checkOneTypeOfTransform(field)) {
-                throw new IllegalArgumentException(String.format("There may only be one type of transformation (RAW or FHIR) for field %s", field.getName()));
-            }
-
-            if (field.getTransformFromRaw() == null || field.getTransformFromRaw().isEmpty()) {
-                continue;
-            }
-
             try {
                 applySingleFieldRaw(outgoingMeasurementTemplate, field, pathConfig, root, idx);
             } catch (IllegalStateException ise) {
@@ -137,12 +133,6 @@ public class Mapper {
                 return false;
             }
         }
-
-        pathConfig.getFields().forEach(x -> {
-            List<FieldConfig> dependencyPath = new ArrayList<>();
-            checkRecursiveDependency(pathConfig, x, dependencyPath);
-        });
-
 
         while (fhirDependentQueue.peek() != null) {
 
@@ -159,7 +149,12 @@ public class Mapper {
 
             //TODO maybe we can aggregate 'combine' fields in the value since its a json element, would make code cleaner i think with better separation
 
-            JsonElement newValue = resolveFhirTransformation(field, pathConfig, baseValue);
+            JsonElement newValue;
+            if (field.getTransform() != null && !field.getTransform().isEmpty()) {
+                newValue = resolveFhirTransformation(field, pathConfig, baseValue);
+            } else {
+                newValue = baseValue;
+            }
 
             setAtTarget(outgoingMeasurementTemplate, fhirTarget, newValue);
 
@@ -168,7 +163,7 @@ public class Mapper {
         return true;
     }
 
-    private static void applySingleFieldRaw(
+    private void applySingleFieldRaw(
             JsonObject outgoingElementTemplate,
             FieldConfig field,
             MeasurementPathConfig measurementCfg,
@@ -194,21 +189,18 @@ public class Mapper {
                 }
                 return;
             }
-            //resolve = one field inside one measurement object in json //measurementElement = said measurement object
-            //--> i think if measurementElement is null, resolved must also be null since its parent element does not exist
-//            if ((resolved == null || resolved.isJsonNull()) && measurementElement != null && measurementCfg != null) {
-//                String relative = deriveRelativePath(sourcePath, measurementCfg.getPath());
-//                if (relative != null) {
-//                    resolved = relative.isEmpty() ? measurementElement : getByPath(measurementElement, relative);
-//                }
-//            }
+
             JsonElement baseValue = getByPath(rootOfIncoming, sourcePath);
 
             if (baseValue == null || baseValue.isJsonNull()) {
                 throw new IllegalArgumentException(String.format("Value for path '%s' is empty or null", sourcePath));
             }
 
-            value = RawTransformer.resolveRawTransformation(field, measurementCfg, baseValue);
+            if (field.getTransform() != null && !field.getTransform().isEmpty()) {
+                value = RawTransformer.resolveRawTransformation(field, measurementCfg, baseValue);
+            } else {
+                value = baseValue;
+            }
         }
 
         if (value == null || value.isJsonNull()) {
@@ -218,41 +210,6 @@ public class Mapper {
             return;
         }
         JsonUtils.setAtTarget(outgoingElementTemplate, field.getTarget(), deepCopyElement(value));
-    }
-
-    private static boolean checkRecursiveDependency(MeasurementPathConfig config, FieldConfig field, List<FieldConfig> dependencyPath) {
-
-        dependencyPath.add(field);
-
-        if (field.getFhirSource() == null || field.getFhirSource().isBlank()) {
-            return false;
-        } else if (field.getFhirSource().equals(dependencyPath.get(0).getTarget())) {
-            throw new IllegalArgumentException(String.format("Illegal circular dependency detected with path: %s", dependencyPath));
-        }
-
-        List<FieldConfig> targetEqualsSource = config.getFields().stream()
-                .filter(x -> Objects.equals(x.getTarget(), field.getFhirSource()))
-                .toList();
-
-        if (targetEqualsSource.size() > 1) {
-            throw new IllegalArgumentException(String.format("Each target may only be specified once, this should have been checked during verification. Duplicate target: %s", targetEqualsSource.get(0).getTarget()));
-        } else if (targetEqualsSource.isEmpty()) {
-            throw new IllegalArgumentException(String.format("Specified source is not target of any field: %s", field.getFhirSource()));
-        }
-
-        FieldConfig dependentField = targetEqualsSource.get(0);
-
-        return checkRecursiveDependency(config, dependentField, dependencyPath);
-    }
-
-    private static boolean checkOneTypeOfTransform(FieldConfig f) {
-
-        boolean ensureOneNull = f.getTransformFromFhir() == null || f.getTransformFromRaw() == null;
-        if (!ensureOneNull) {
-            return f.getTransformFromFhir().isEmpty() || f.getTransformFromRaw().isEmpty();
-        }
-
-        return true;
     }
 
 }

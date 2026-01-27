@@ -22,7 +22,7 @@ public class DependencyGraphTest {
     public void testCalculateBasis() {
 
         //TODO potentially load a few different ones here to test behaviour
-        MappingYaml yaml = ConfigLoader.loadConfig("./config/json-to-fhir-dependenciesExample.yaml", MappingYaml.class);
+        MappingYaml yaml = ConfigLoader.loadConfig("./config/test.yaml", MappingYaml.class);
 
         DependencyGraph g = new DependencyGraph(yaml);
 
