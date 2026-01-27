@@ -10,14 +10,14 @@ RUN npm ci --no-audit --no-fund
 COPY services/web ./
 ARG VITE_BACKEND_URL
 ARG VITE_API_BASE_URL
-ARG VITE_GRAFANA_IFRAME_URL
+ARG VITE_GRAFANA_PROXY_URL
 RUN BUILD_VITE_BACKEND_URL="$VITE_BACKEND_URL" \
   BUILD_VITE_API_BASE_URL="$VITE_API_BASE_URL" \
-  BUILD_VITE_GRAFANA_IFRAME_URL="$VITE_GRAFANA_IFRAME_URL" \
+  BUILD_VITE_GRAFANA_PROXY_URL="$VITE_GRAFANA_PROXY_URL" \
   && if [ -f .env ]; then set -a; . .env; set +a; fi \
   && if [ -n "$BUILD_VITE_BACKEND_URL" ]; then VITE_BACKEND_URL="$BUILD_VITE_BACKEND_URL"; fi \
   && if [ -n "$BUILD_VITE_API_BASE_URL" ]; then VITE_API_BASE_URL="$BUILD_VITE_API_BASE_URL"; fi \
-  && if [ -n "$BUILD_VITE_GRAFANA_IFRAME_URL" ]; then VITE_GRAFANA_IFRAME_URL="$BUILD_VITE_GRAFANA_IFRAME_URL"; fi \
+  && if [ -n "$BUILD_VITE_GRAFANA_PROXY_URL" ]; then VITE_GRAFANA_PROXY_URL="$BUILD_VITE_GRAFANA_PROXY_URL"; fi \
   && apiPath="${VITE_API_BASE_URL:-/api}" \
   && case "$apiPath" in */) apiPath="${apiPath%/}";; esac \
   && case "$apiPath" in \
@@ -27,6 +27,7 @@ RUN BUILD_VITE_BACKEND_URL="$VITE_BACKEND_URL" \
       if [ -n "$VITE_BACKEND_URL" ]; then finalApi="${VITE_BACKEND_URL%/}${path}"; else finalApi="$path"; fi ;; \
     esac \
   && echo "VITE_API_BASE_URL resolved to $finalApi" \
+  && if [ -n "$VITE_GRAFANA_PROXY_URL" ]; then echo "VITE_GRAFANA_PROXY_URL set to $VITE_GRAFANA_PROXY_URL"; else echo "Missing VITE_GRAFANA_PROXY_URL (required)"; exit 1; fi \
   && VITE_API_BASE_URL="$finalApi" npm run build
 
 # Serve the compiled assets with Nginx

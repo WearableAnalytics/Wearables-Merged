@@ -1,23 +1,38 @@
 import express from 'express';
-import { createServiceAccountProxy } from './serviceAccountProxy.js';
-import { serviceAccountConfig } from './serviceAccountConfig.js';
+import { createJwtProxy } from './jwtProxy.js';
+import { config } from './config.js';
 
 const app = express();
-const port = Number(process.env.PORT) || 3002;
+const port = config.port;
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-if (serviceAccountConfig.serviceAccountToken) {
-  const saProxy = createServiceAccountProxy(serviceAccountConfig);
-  const saMountPath = serviceAccountConfig.saProxyPrefix || '/grafana';
-  app.use(saMountPath, saProxy);
+if (config.grafanaJwtPrivateKey && config.grafanaJwtSubject) {
+  const jwtProxy = createJwtProxy(config);
+  const mountPath = config.proxyPrefix || '/grafana';
+  app.use(mountPath, (req, _res, next) => {
+    // eslint-disable-next-line no-console
+    console.log(`[Grafana proxy] incoming ${req.method} ${req.originalUrl}`);
+    next();
+  });
+  app.use(mountPath, jwtProxy);
   // eslint-disable-next-line no-console
-  console.log(`Service Account proxy will be available at: ${saMountPath}`);
+  console.log(`JWT proxy will be available at: ${mountPath}`);
+  // eslint-disable-next-line no-console
+  console.log(
+    `Grafana target: ${config.grafanaBaseUrl}${config.grafanaPathPrefix || ''}`,
+  );
+  // eslint-disable-next-line no-console
+  console.log(`Grafana TLS verify: ${config.grafanaTlsSkipVerify ? 'disabled' : 'enabled'}`);
+  // eslint-disable-next-line no-console
+  console.log(`Grafana JWT header: ${config.grafanaJwtHeader}`);
+  // eslint-disable-next-line no-console
+  console.log(`Grafana JWT subject: ${config.grafanaJwtSubject}`);
 } else {
   // eslint-disable-next-line no-console
-  console.warn('Missing GRAFANA_SERVICE_ACCOUNT_TOKEN; proxy is not mounted.');
+  console.warn('Missing GRAFANA_JWT_PRIVATE_KEY or GRAFANA_JWT_SUBJECT; proxy is not mounted.');
 }
 
 app.listen(port, () => {

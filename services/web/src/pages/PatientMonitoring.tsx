@@ -8,7 +8,7 @@ import { defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
 
 // Grafana configuration
-// Use the grafana-proxy backend to handle authentication with service account token
+// Use the grafana-proxy backend to handle authentication with Grafana JWT
 const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL ?? 'http://localhost:3002/grafana';
 const GRAFANA_DASHBOARD_ID = 'wearables-health-real';
 const GRAFANA_ORG_ID = '1';
