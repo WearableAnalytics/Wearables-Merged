@@ -2,9 +2,12 @@ package org.example;
 
 import com.google.gson.*;
 import org.apache.kafka.common.protocol.types.Field;
+import org.example.dependencies.DependencyGraph;
+import org.example.dependencies.Node;
 import org.example.fhir.Mapper;
 import org.example.fhir.Validator;
 import org.example.fhir.model.MapReturn;
+import org.example.fhir.model.MappingYaml;
 import org.example.lineprotocol.LineProtocolParser;
 import org.junit.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -23,14 +26,23 @@ public class FhirMapperTest {
     @DisplayName("Map incoming iOS json to fhir")
     public void mappingTest() throws IOException, URISyntaxException {
 
+        MappingYaml yaml = ConfigLoader.loadConfig("./config/test.yaml", MappingYaml.class);
+
         Validator.initiliazeFhirValidator();
+        Mapper mapper = new Mapper(yaml);
+
+        DependencyGraph g = new DependencyGraph(yaml);
+
+        g.createGraphBase();
+        g.enrichGraphWithFhir();
+        Map<String, Set<Node>> graphs = g.build();
 
         Path path = Paths.get(
                 getClass().getClassLoader().getResource("sample.json").toURI()
         );
         String input = Files.readString(path);
 
-        Map<String, MapReturn> results = Mapper.mapFhir(input);
+        Map<String, MapReturn> results = mapper.mapFhir(input);
 
         for (Map.Entry<String, MapReturn> entry : results.entrySet()) {
 
@@ -60,7 +72,6 @@ public class FhirMapperTest {
 
             Gson gson = new Gson();
 
-
             Files.write(
                     Paths.get(String.format("outputs/fhir/%s.valid.json", entry.getKey())),
                     gson.toJson(mappedFhir).getBytes()
@@ -77,7 +88,7 @@ public class FhirMapperTest {
             for (Iterator<JsonElement> it = mappedFhir.iterator(); it.hasNext();) {
                 JsonObject r = it.next().getAsJsonObject();
                 try {
-                    String res = lpParser.parse(entry.getKey(), r);
+                    String res = lpParser.parse(entry.getKey(), r, graphs.get(entry.getKey()));
                     lpRes.add(res);
                 } catch (IllegalArgumentException iae){
                     System.out.println(iae.getMessage());
