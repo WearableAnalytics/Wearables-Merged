@@ -81,8 +81,10 @@ public class JsonUtils {
     }
 
     public static void setAtTarget(JsonObject outgoingElementTemplate, String targetPath, JsonElement value) {
+
         List<PathToken> tokens = tokenize(targetPath);
-        if (tokens.isEmpty()) return;
+        if (tokens.isEmpty())
+            throw new RuntimeException(String.format("No tokens were generated for path %s", targetPath));
         JsonElement current = outgoingElementTemplate;
 
         for (int i = 0; i < tokens.size(); i++) {
@@ -133,20 +135,18 @@ public class JsonUtils {
      * @param measurementIndex is used to identify which measurement we are looking at
      * @return the path enriched with an index
      */
-    public static String expandPathForMeasurement(String rawPath,
-                                                  MeasurementPathConfig measurementCfg,
-                                                  int measurementIndex) {
-        if (rawPath == null || measurementCfg == null) return rawPath;
-        String measurementPath = measurementCfg.getPath();
-        if (measurementPath == null || measurementPath.isBlank()) return rawPath;
-        if (!rawPath.startsWith(measurementPath)) {
+    public static String expandPathForMeasurement(
+            String rawPath,
+            MeasurementPathConfig measurementCfg,
+            int measurementIndex
+    ) {
+        if (measurementCfg == null || measurementCfg.getPath() == null) {
             return rawPath;
         }
-        int prefixLen = measurementPath.length();
-        if (rawPath.length() > prefixLen && rawPath.charAt(prefixLen) == '[') {
-            return rawPath;
-        }
-        return measurementPath + "[" + measurementIndex + "]" + rawPath.substring(prefixLen);
+        String prefix = measurementCfg.getPath();
+        int prefixLen = prefix.length();
+
+        return prefix + "[" + measurementIndex + "]" + rawPath.substring(prefixLen);
     }
 
     public static String deriveRelativePath(String rawPath, String measurementPath) {
@@ -186,7 +186,17 @@ public class JsonUtils {
     public static String primitiveAsString(JsonElement element) {
         if (element == null || element.isJsonNull()) return null;
         if (element.isJsonPrimitive()) return element.getAsJsonPrimitive().getAsString();
-        return element.toString();
+        return null;
+    }
+
+    public static String elementToString(JsonElement je) {
+        String valueAsString = null;
+        try {
+            valueAsString = je.getAsString();
+        } catch (IllegalStateException ise) {
+            throw new RuntimeException("toLowerCase can only be called on fields that can be cast to string, but was a JsonObject, JsonArray or null");
+        }
+        return valueAsString;
     }
 
     static abstract class PathToken {

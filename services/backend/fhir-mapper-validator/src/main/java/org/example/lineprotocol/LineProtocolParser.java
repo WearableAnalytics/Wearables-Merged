@@ -1,13 +1,12 @@
 package org.example.lineprotocol;
 
 import com.google.gson.*;
-import org.apache.kafka.common.protocol.types.Field;
 import org.example.config.Environment;
-import org.example.fhir.MappingYaml;
+import org.example.dependencies.Node;
+import org.example.fhir.model.MappingYaml;
 import org.example.fhir.model.FieldConfig;
 import org.example.fhir.model.MeasurementPathConfig;
 import org.example.fhir.model.MetadataConfig;
-import org.hl7.fhir.r4.model.Meta;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,83 +20,77 @@ public class LineProtocolParser {
 
     private static final Logger log = LoggerFactory.getLogger(LineProtocolParser.class);
 
-    public String parse(String category, JsonObject json) throws IllegalArgumentException {
+    public String parse(String category, JsonObject json, Set<Node> minimalBase) throws IllegalArgumentException {
         if (json == null || json.isEmpty() || !json.isJsonObject()) {
             throw new IllegalArgumentException("Input JSON is null, empty or not a JSON object");
         }
 
-        MappingYaml mappingYaml = Environment.TEMPLATE;
-
         LineProtocolTemplate template = new LineProtocolTemplate();
 
-        MetadataConfig metadataConfig = mappingYaml.getMetadata();
-        //find the right config that was used to create the JSON
-        MeasurementPathConfig fittingConfig = mappingYaml.getMeasurement().getPaths().stream()
-                .filter(e -> e.getPath().equals(category))
-                .findFirst()
-                .orElse(null);
+        setLPMeasurement(json, template, minimalBase);
 
-        if (fittingConfig == null || fittingConfig.getFields() == null || fittingConfig.getFields().isEmpty()) {
-            throw new IllegalArgumentException("no rules for mapping fields found even though FHIR was successfully mapped");
-        }
+        setLPTimestamp(json, template, minimalBase);
 
-        setLPMeasurement(json, fittingConfig, metadataConfig, template);
+        setLPMaps(json, template, "tag", minimalBase);
 
-        setLPTimestamp(json, fittingConfig, metadataConfig, template);
-
-        setLPMaps(json, fittingConfig, metadataConfig, template, "tag");
-
-        setLPMaps(json, fittingConfig, metadataConfig, template, "field");
+        setLPMaps(json, template, "field", minimalBase);
 
         return renderLineProtocol(template);
     }
 
     private static void setLPTimestamp(
             JsonObject json,
-            MeasurementPathConfig fittingConfig,
-            MetadataConfig metadataConfig,
-            LineProtocolTemplate template
+            LineProtocolTemplate template,
+            Set<Node> minimalBase
     ) {
-        List<FieldConfig> timestamp = extractAllFromJson(fittingConfig, metadataConfig,"timestamp");
 
-        if (timestamp.size() != 1) {
-            throw new IllegalArgumentException("only one field may be tagged as the LP measurement");
-        } else {
-            String target = timestamp.get(0).getTarget();
-            JsonElement value = getByPath(json, target);
+        Node timestampNode = minimalBase.stream()
+                .filter(x -> x.getField().getLineProtocol().getType().equals("timestamp"))
+                .findFirst()
+                .orElse(null);
 
-            if (!(value instanceof JsonPrimitive) || !((JsonPrimitive) value).isString()) {
-                throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", target, value.toString()));
-            }
-
-            String timeNanos = normalizeIsoToNanos(value.getAsString()).toString();
-
-            template.setTimestamp(timeNanos);
+        if (timestampNode == null) {
+            throw new RuntimeException("there was no node marked as a timestamp node, this should not happen here");
         }
+
+        String target = timestampNode.getField().getTarget();
+        JsonElement value = getByPath(json, target);
+
+        if (!(value instanceof JsonPrimitive) || !((JsonPrimitive) value).isString()) {
+            throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", target, value.toString()));
+        }
+
+        String timeNanos = normalizeIsoToNanos(value.getAsString()).toString();
+
+        template.setTimestamp(timeNanos);
+
     }
 
     private static void setLPMaps(
             JsonObject json,
-            MeasurementPathConfig fittingConfig,
-            MetadataConfig metadataConfig,
             LineProtocolTemplate template,
-            String type) {
-        List<FieldConfig> elements = extractAllFromJson(fittingConfig, metadataConfig, type);
+            String type,
+            Set<Node> minimalBase
+    ) {
 
         Map<String, String> elementsMap = new HashMap<>();
 
-        for (FieldConfig f : elements) {
+        minimalBase.stream()
+                .map(Node::getField)
+                .filter(field -> field.getLineProtocol().getType().equals(type))
+                .forEach(
+                        x -> {
+                            JsonElement value = getByPath(json, x.getTarget());
+                            if (!(value instanceof JsonPrimitive)) {
+                                throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", x.getTarget(), value.toString()));
+                            }
 
-            JsonElement value = getByPath(json, f.getTarget());
-            if (!(value instanceof JsonPrimitive)) {
-                throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", f.getTarget(), value.toString()));
-            }
+                            String tagValue = value.getAsString();
+                            String tagKey = x.getLineProtocol().getName();
 
-            String tagValue = value.getAsString();
-            String tagKey = f.getLineProtocol().getName();
-
-            elementsMap.put(tagKey, tagValue);
-        }
+                            elementsMap.put(tagKey, tagValue);
+                        }
+                );
 
         if (type.equals("field")) {
             template.setFields(elementsMap);
@@ -108,34 +101,30 @@ public class LineProtocolParser {
 
     private static void setLPMeasurement(
             JsonObject json,
-            MeasurementPathConfig fittingConfig,
-            MetadataConfig metadataConfig,
-            LineProtocolTemplate template
+            LineProtocolTemplate template,
+            Set<Node> baseNodes
     ) {
-        List<FieldConfig> measurement = extractAllFromJson(fittingConfig, metadataConfig, "measurement");
 
-        if (measurement.size() != 1) {
-            throw new IllegalArgumentException("only one field may be tagged as the LP measurement");
-        } else {
-            String target = measurement.get(0).getTarget();
-            JsonElement value = getByPath(json, target);
+        Node measurementNode = baseNodes.stream()
+                .filter(x -> x.getField().getLineProtocol().getType().equals("measurement"))
+                .findFirst()
+                .orElse(null);
 
-            if (!(value instanceof JsonPrimitive) || !((JsonPrimitive) value).isString()) {
-                throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", target, value.toString()));
-            }
-
-            String stringValue = value.getAsJsonPrimitive().getAsString();
-
-            template.setMeasurement(stringValue);
+        if (measurementNode == null) {
+            throw new RuntimeException("there was no node marked as measurement node, this should not happen here");
         }
-    }
 
-    private static List<FieldConfig> extractAllFromJson(MeasurementPathConfig fittingConfig, MetadataConfig metadataConfig, String type) {
-        return Stream.concat(metadataConfig.getFields().stream(), fittingConfig.getFields().stream())
-                .filter(f -> f.getLineProtocol() != null)
-                .filter(f -> f.getLineProtocol().getType() != null)
-                .filter(f -> f.getLineProtocol().getType().equals(type))
-                .toList();
+        String target = measurementNode.getField().getTarget();
+        JsonElement value = getByPath(json, target);
+
+        if (!(value instanceof JsonPrimitive) || !((JsonPrimitive) value).isString()) {
+            throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", target, value.toString()));
+        }
+
+        String stringValue = value.getAsJsonPrimitive().getAsString();
+
+        template.setMeasurement(stringValue);
+
     }
 
     private String renderLineProtocol(LineProtocolTemplate template) {
@@ -157,7 +146,7 @@ public class LineProtocolParser {
         if (template.getTags() == null || template.getTags().isEmpty()) {
             //no tags with space
             sb.append(" ");
-        }else {
+        } else {
             //with tags with comma
             sb.append(",");
             insertMaps("tag", template.getTags(), sb);
@@ -214,13 +203,12 @@ public class LineProtocolParser {
 
     private static boolean checkNumber(String s) {
 
-        try{
+        try {
             Float.parseFloat(s);
             return true;
         } catch (NumberFormatException ignored) {
             return false;
         }
-
 
     }
 }
