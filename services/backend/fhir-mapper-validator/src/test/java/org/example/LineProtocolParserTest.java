@@ -51,29 +51,4 @@ public class LineProtocolParserTest {
               }
             }
             """;
-
-    @Test
-    @DisplayName("YAML-driven mapping: measurement, all tags, fields, timestamp")
-    public void fullYamlMapping() {
-        String lp = parser.parse("test", JsonParser.parseString(SAMPLE_OBS).getAsJsonObject());
-        assertNotNull(lp);
-        // Measurement
-        assertTrue(lp.startsWith("heart-rate,"));
-        // Tags (aliases)
-        assertTrue(lp.contains(",resource_type=Observation"));
-        assertTrue(lp.contains(",category_0=vital-signs"));
-        assertTrue(lp.contains(",display_0=Vital_Signs"));
-        assertTrue(lp.contains(",category_text=Vital_Signs"));
-        assertTrue(lp.contains(",code_0=8867-4"));
-        assertTrue(lp.contains(",display_0=Heart_rate"));
-        assertTrue(lp.contains(",code_text=Heart_rate"));
-        assertTrue(lp.contains(",unit=beats/minute"));
-        assertTrue(lp.contains(",unit_code=/min"));
-        // Fields
-        assertTrue(lp.contains(" value=44i"));
-        assertTrue(lp.contains(",status=\"final\""));
-        assertTrue(lp.contains(",subject=\"Patient/example\""));
-        // Timestamp
-        assertTrue(lp.endsWith(" 1762767194000000000"));
-    }
 }

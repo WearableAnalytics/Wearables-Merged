@@ -1,6 +1,6 @@
 package org.example.config;
 
-import org.example.fhir.MappingYaml;
+import org.example.fhir.model.MappingYaml;
 import org.example.ConfigLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

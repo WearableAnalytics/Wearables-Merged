@@ -1,4 +1,4 @@
-package org.example.fhir;
+package org.example.fhir.model;
 
 import lombok.Data;
 

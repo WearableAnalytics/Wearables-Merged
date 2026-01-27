@@ -1,0 +1,904 @@
+metadata:
+  fields:
+    - name: device
+      rawSource: deviceInfo.deviceId
+      target: device.display
+      optional: false
+      type: string
+      lineProtocol:
+        type: tag
+        name: device-id
+    - name: deviceReference
+      rawSource: deviceInfo.deviceId
+      target: subject.reference
+      transform:
+        - type: prepend
+          params: ["Patient/"]
+      optional: false
+      type: string
+      lineProtocol:
+        type: tag
+        name: device-id-reference
+measurement:
+  paths:
+    - path: measurements.instantaneous
+      arrayMapAll: true
+      fields:
+        - name: fhirType
+          value: Observation
+          target: resourceType
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: resourceType
+        - name: value
+          rawSource: measurements.instantaneous.value
+          target: valueQuantity.value
+          optional: false
+          type: real
+          lineProtocol:
+            type: field
+            name: value
+        - name: type
+          rawSource: measurements.instantaneous.type
+          target: id
+          transform:
+            - type: toLowerCase
+            - type: replace
+              params:
+                - '_'
+                - '-'
+          optional: false
+          type: string
+          lineProtocol:
+            type: measurement
+        - name: valueUnit
+          fhirSource: code.coding[0].code
+          target: valueQuantity.unit
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: valueUnit
+        - name: valueSystem
+          fhirSource: valueQuantity.unit
+          target: valueQuantity.system
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: valueSystem
+            mandatory: false
+        - name: valueCode
+          fhirSource: valueQuantity.unit
+          target: valueQuantity.code
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: valueCode
+            mandatory: false
+        - name: codeCodingCodeZero
+          fhirSource: id
+          target: code.coding[0].code
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingCodeZero
+            mandatory: false
+        - name: codeCodingSystemZero
+          fhirSource: code.coding[0].code
+          target: code.coding[0].system
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingSystemZero
+            mandatory: false
+        - name: codeCodingDisplayZero
+          fhirSource: code.coding[0].code
+          target: code.coding[0].display
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingDisplayZero
+            mandatory: false
+        - name: codeCodingCodeOne
+          fhirSource: code.coding[0].code
+          target: code.coding[1].code
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingCodeOne
+            mandatory: false
+        - name: codeCodingSystemOne
+          fhirSource: code.coding[1].code
+          target: code.coding[1].system
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingSystemOne
+            mandatory: false
+        - name: codeCodingDisplayOne
+          fhirSource: code.coding[1].code
+          target: code.coding[1].display
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingDisplayOne
+            mandatory: false
+        - name: categoryZeroCodingZeroCode
+          value: vital-signs
+          target: category[0].coding[0].code
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroCodingZeroCode
+            mandatory: false
+        - name: categoryZeroCodingZeroSystem
+          value: http://terminology.hl7.org/CodeSystem/observation-category
+          target: category[0].coding[0].system
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroCodingZeroSystem
+            mandatory: false
+        - name: categoryZeroCodingZeroDisplay
+          value: Vital Signs
+          target: category[0].coding[0].display
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroCodingZeroDisplay
+            mandatory: false
+        - name: categoryZeroText
+          fhirSource: category[0].coding[0].display
+          target: category[0].text
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroText
+            mandatory: false
+        - name: metaProfileZero
+          value: http://hl7.org/fhir/StructureDefinition/vitalsigns
+          target: meta.profile[0]
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: metaProfileZero
+            mandatory: false
+        - name: start
+          rawSource: measurements.instantaneous.timestamp
+          target: effectiveDateTime
+          transform:
+            - type: append
+              params:
+                - Z
+          optional: false
+          type: string
+          lineProtocol:
+            type: timestamp
+            mandatory: false
+        - name: status
+          value: final
+          target: status
+          optional: false
+          type: string
+          lineProtocol:
+            type: field
+            name: status
+            mandatory: false
+      mappings:
+        - fieldName: valueUnit
+          valueType: string
+          map:
+            - key: 80404-7
+              value: ms
+            - key: 8867-4
+              value: bpm
+            - key: 40443-4
+              value: bpm
+            - key: 76528-9
+              value: breaths/min
+            - key: 69001-6
+              value: bpm
+        - fieldName: valueSystem
+          valueType: string
+          map:
+            - key: ms
+              value: http://www.nist.gov/pml/owm/metric-si/si-units
+            - key: bpm
+              value: http://www.nist.gov/pml/owm/metric-si/si-units
+            - key: breaths/min
+              value: http://www.nist.gov/pml/owm/metric-si/si-units
+        - fieldName: codeCodingCodeZero
+          valueType: string
+          map:
+            - key: heart-rate-variability-sdnn
+              value: 80404-7
+            - key: heart-rate
+              value: 8867-4
+            - key: resting-heart-rate
+              value: 40443-4
+            - key: walking-heart-rate
+              value: 69001-6
+            - key: respiratory-rate
+              value: 76528-9
+        - fieldName: codeCodingSystemZero
+          valueType: string
+          map:
+            - key: 80404-7
+              value: http://loinc.org/
+            - key: 8867-4
+              value: http://loinc.org/
+            - key: 40443-4
+              value: http://loinc.org/
+            - key: 76528-9
+              value: http://loinc.org/
+            - key: 69001-6
+              value: http://loinc.org/
+        - fieldName: codeCodingDisplayZero
+          valueType: string
+          map:
+            - key: 80404-7
+              value: Heart Rate Variability Standard Deviation
+            - key: 8867-4
+              value: Heart Rate (bpm)
+            - key: 40443-4
+              value: Resting heart rate (bpm)
+            - key: 69001-6
+              value: Walking / Standing heart rate
+            - key: 76528-9
+              value: Breath rate spontaneous
+        - fieldName: codeCodingCodeOne
+          valueType: string
+          map:
+            - key: 8867-4
+              value: 55425-3
+            - key: 80404-7
+              value: 76644-4
+            - key: 40443-4
+              value: 55425-3
+            - key: 69001-6
+              value: 55425-3
+            - key: 76528-9
+              value: 9279-1
+        - fieldName: codeCodingSystemOne
+          valueType: string
+          map:
+            - key: 55425-3
+              value: http://loinc.org/
+            - key: 76644-4
+              value: http://loinc.org/
+            - key: 9279-1
+              value: http://loinc.org/
+        - fieldName: codeCodingDisplayOne
+          valueType: string
+          map:
+            - key: 55425-3
+              value: Heart rate mean unspecified time pedometer
+            - key: 76644-4
+              value: Heart Rate Variability Standard Deviation by EKG
+            - key: 9279-1
+              value: Respiratory Rate
+    - path: measurements.cumulative
+      arrayMapAll: true
+      fields:
+        - name: fhirType
+          value: Observation
+          target: resourceType
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: resourceType
+            mandatory: false
+        - name: value
+          rawSource: measurements.cumulative.value
+          target: valueQuantity.value
+          optional: false
+          type: real
+          lineProtocol:
+            type: field
+            name: value
+            mandatory: false
+        - name: type
+          rawSource: measurements.cumulative.type
+          target: id
+          transform:
+            - type: toLowerCase
+            - type: replace
+              params:
+                - _
+                - '-'
+          optional: false
+          type: string
+          lineProtocol:
+            type: measurement
+            mandatory: false
+        - name: valueUnit
+          fhirSource: code.coding[0].code
+          target: valueQuantity.unit
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: valueUnit
+            mandatory: false
+        - name: valueSystem
+          fhirSource: valueQuantity.unit
+          target: valueQuantity.system
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: valueSystem
+            mandatory: false
+        - name: valueCode
+          fhirSource: valueQuantity.unit
+          target: valueQuantity.code
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: valueCode
+            mandatory: false
+        - name: codeCodingCodeZero
+          fhirSource: id
+          target: code.coding[0].code
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingCodeZero
+            mandatory: false
+        - name: codeCodingSystemZero
+          fhirSource: code.coding[0].code
+          target: code.coding[0].system
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingSystemZero
+            mandatory: false
+        - name: codeCodingDisplayZero
+          fhirSource: code.coding[0].code
+          target: code.coding[0].display
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingDisplayZero
+            mandatory: false
+        - name: codeCodingCodeOne
+          fhirSource: code.coding[0].code
+          target: code.coding[1].code
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingCodeOne
+            mandatory: false
+        - name: codeCodingSystemOne
+          fhirSource: code.coding[1].code
+          target: code.coding[1].system
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingSystemOne
+            mandatory: false
+        - name: codeCodingDisplayOne
+          fhirSource: code.coding[1].code
+          target: code.coding[1].display
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingDisplayOne
+            mandatory: false
+        - name: categoryZeroCodingZeroCode
+          value: vital-signs
+          target: category[0].coding[0].code
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroCodingZeroCode
+            mandatory: false
+        - name: categoryZeroCodingZeroSystem
+          value: http://terminology.hl7.org/CodeSystem/observation-category
+          target: category[0].coding[0].system
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroCodingZeroSystem
+            mandatory: false
+        - name: categoryZeroCodingZeroDisplay
+          value: Vital Signs
+          target: category[0].coding[0].display
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroCodingZeroDisplay
+            mandatory: false
+        - name: categoryZeroText
+          fhirSource: category[0].coding[0].display
+          target: category[0].text
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroText
+            mandatory: false
+        - name: metaProfileZero
+          value: http://hl7.org/fhir/StructureDefinition/vitalsigns
+          target: meta.profile[0]
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: metaProfileZero
+            mandatory: false
+        - name: start
+          rawSource: measurements.cumulative.periodStart
+          target: effectiveDateTime
+          transform:
+            - type: append
+              params:
+                - 'Z'
+          optional: false
+          type: string
+          lineProtocol:
+            type: timestamp
+            mandatory: false
+        - name: status
+          value: final
+          target: status
+          optional: false
+          type: string
+          lineProtocol:
+            type: field
+            name: status
+            mandatory: false
+      mappings:
+        - fieldName: valueSystem
+          valueType: string
+          map:
+            - key: kcal
+              value: http://www.nist.gov/pml/owm/metric-si/si-units
+            - key: one
+              value: http://www.nist.gov/pml/owm/metric-si/si-units
+            - key: m
+              value: http://www.nist.gov/pml/owm/metric-si/si-units
+        - fieldName: codeCodingCodeZero
+          valueType: string
+          map:
+            - key: steps
+              value: 55423-8
+            - key: flights-climbed
+              value: 100304-5
+            - key: active-energy-burned
+              value: 93819-1
+            - key: basal-energy-burned
+              value: 55424-6
+            - key: distance-walking-running
+              value: 93817-5
+        - fieldName: codeCodingSystemZero
+          valueType: string
+          map:
+            - key: 55423-8
+              value: http://loinc.org/
+            - key: 100304-5
+              value: http://loinc.org/
+            - key: 93819-1
+              value: http://loinc.org/
+            - key: 55424-6
+              value: http://loinc.org/
+            - key: 93817-5
+              value: http://loinc.org/
+        - fieldName: codeCodingDisplayZero
+          valueType: string
+          map:
+            - key: 55423-8
+              value: Number of steps taken pedometer
+            - key: 100304-5
+              value: Flights climbed
+            - key: 93819-1
+              value: Calories burned during activity
+            - key: 55424-6
+              value: Calories burned pedometer
+            - key: 93817-5
+              value: Running distance
+        - fieldName: codeCodingCodeOne
+          valueType: string
+          map:
+            - key: 55423-8
+              value: 66334-4
+            - key: 100304-5
+              value: 100304-5
+            - key: 93819-1
+              value: 55421-2
+            - key: 55424-6
+              value: 55421-2
+            - key: 93817-5
+              value: 55412-1
+        - fieldName: codeCodingSystemOne
+          valueType: string
+          map:
+            - key: 66334-4
+              value: http://loinc.org/
+            - key: 100304-5
+              value: http://loinc.org/
+            - key: 55421-2
+              value: http://loinc.org/
+            - key: 55412-1
+              value: http://loinc.org/
+        - fieldName: codeCodingDisplayOne
+          valueType: string
+          map:
+            - key: 66334-4
+              value: Steps taken PhenX
+            - key: 100304-5
+              value: Flights climbed
+            - key: 55421-2
+              value: Calories burned machine estimate
+            - key: 55412-1
+              value: Exercise distance
+        - fieldName: valueUnit
+          valueType: string
+          map:
+            - key: 55423-8
+              value: one
+            - key: 100304-5
+              value: one
+            - key: 93819-1
+              value: kcal
+            - key: 55424-6
+              value: kcal
+            - key: 93817-5
+              value: m
+    - path: measurements.duration
+      arrayMapAll: true
+      fields:
+        - name: fhirType
+          value: Observation
+          target: resourceType
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: resourceType
+            mandatory: false
+        - name: value
+          rawSource: measurements.duration.value
+          target: valueQuantity.value
+          optional: false
+          type: real
+          lineProtocol:
+            type: field
+            name: value
+            mandatory: false
+        - name: type
+          rawSource: measurements.duration.type
+          target: id
+          transform:
+            - type: toLowerCase
+            - type: replace
+              params:
+                - _
+                - '-'
+          optional: false
+          type: string
+          lineProtocol:
+            type: measurement
+            mandatory: false
+        - name: valueUnit
+          fhirSource: code.coding[0].code
+          target: valueQuantity.unit
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: valueUnit
+            mandatory: false
+        - name: valueSystem
+          fhirSource: valueQuantity.unit
+          target: valueQuantity.system
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: valueSystem
+            mandatory: false
+        - name: valueCode
+          fhirSource: valueQuantity.unit
+          target: valueQuantity.code
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: valueCode
+            mandatory: false
+        - name: codeCodingCodeZero
+          fhirSource: id
+          target: code.coding[0].code
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingCodeZero
+            mandatory: false
+        - name: codeCodingSystemZero
+          fhirSource: code.coding[0].code
+          target: code.coding[0].system
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingSystemZero
+            mandatory: false
+        - name: codeCodingDisplayZero
+          fhirSource: code.coding[0].code
+          target: code.coding[0].display
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingDisplayZero
+            mandatory: false
+        - name: codeCodingCodeOne
+          fhirSource: code.coding[0].code
+          target: code.coding[1].code
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingCodeOne
+            mandatory: false
+        - name: codeCodingSystemOne
+          fhirSource: code.coding[1].code
+          target: code.coding[1].system
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingSystemOne
+            mandatory: false
+        - name: codeCodingDisplayOne
+          fhirSource: code.coding[1].code
+          target: code.coding[1].display
+          transform:
+            - type: map
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: codeCodingDisplayOne
+            mandatory: false
+        - name: categoryZeroCodingZeroCode
+          value: vital-signs
+          target: category[0].coding[0].code
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroCodingZeroCode
+            mandatory: false
+        - name: categoryZeroCodingZeroSystem
+          value: http://terminology.hl7.org/CodeSystem/observation-category
+          target: category[0].coding[0].system
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroCodingZeroSystem
+            mandatory: false
+        - name: categoryZeroCodingZeroDisplay
+          value: Vital Signs
+          target: category[0].coding[0].display
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroCodingZeroDisplay
+            mandatory: false
+        - name: categoryZeroText
+          fhirSource: category[0].coding[0].display
+          target: category[0].text
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: categoryZeroText
+            mandatory: false
+        - name: metaProfileZero
+          value: http://hl7.org/fhir/StructureDefinition/vitalsigns
+          target: meta.profile[0]
+          optional: false
+          type: string
+          lineProtocol:
+            type: tag
+            name: metaProfileZero
+            mandatory: false
+        - name: start
+          rawSource: measurements.duration.startTime
+          target: effectiveDateTime
+          transform:
+            - type: append
+              params:
+                - Z
+          optional: false
+          type: string
+          lineProtocol:
+            type: timestamp
+            mandatory: false
+        - name: status
+          value: final
+          target: status
+          optional: false
+          type: string
+          lineProtocol:
+            type: field
+            name: status
+            mandatory: false
+      mappings:
+        - fieldName: valueSystem
+          valueType: string
+          map:
+            - key: min
+              value: http://www.nist.gov/pml/owm/metric-si/si-units
+        - fieldName: codeCodingCodeZero
+          valueType: string
+          map:
+            - key: exercise-time
+              value: 74009-2
+            - key: sleep-in-bed
+              value: 103213-5
+            - key: sleep-awake
+              value: 93828-2
+            - key: sleep-asleep
+              value: 93832-4
+            - key: sleep-deep
+              value: 93831-6
+            - key: sleep-rem
+              value: 93829-0
+            - key: sleep-asleep-core
+              value: 93831-6
+            - key: sleep-asleep-deep
+              value: 93831-6
+            - key: sleep-asleep-rem
+              value: 93829-0
+        - fieldName: codeCodingSystemZero
+          valueType: string
+          map:
+            - key: 74009-2
+              value: http://loinc.org/
+            - key: 103213-5
+              value: http://loinc.org/
+            - key: 93828-2
+              value: http://loinc.org/
+            - key: 93832-4
+              value: http://loinc.org/
+            - key: 93831-6
+              value: http://loinc.org/
+            - key: 93829-0
+              value: http://loinc.org/
+        - fieldName: codeCodingDisplayZero
+          valueType: string
+          map:
+            - key: 74009-2
+              value: Exercise Duration / Exercise Frequency
+            - key: 103213-5
+              value: Duration in bed
+            - key: 93828-2
+              value: Nighttime awakening duration
+            - key: 93832-4
+              value: Sleep duration
+            - key: 93831-6
+              value: Deep sleep duration
+            - key: 93829-0
+              value: REM sleep duration
+        - fieldName: codeCodingCodeOne
+          valueType: string
+          map:
+            - key: 74009-2
+              value: 55411-3
+            - key: 103213-5
+              value: 107145-5
+            - key: 93828-2
+              value: 107145-5
+            - key: 93832-4
+              value: 107145-5
+            - key: 93831-6
+              value: 107145-5
+            - key: 93829-0
+              value: 107145-5
+        - fieldName: codeCodingSystemOne
+          valueType: string
+          map:
+            - key: 55411-3
+              value: http://loinc.org/
+            - key: 107145-5
+              value: http://loinc.org/
+        - fieldName: codeCodingDisplayOne
+          valueType: string
+          map:
+            - key: 55411-3
+              value: Exercise Duration
+            - key: 107145-5
+              value: Sleep status
+        - fieldName: valueUnit
+          valueType: string
+          map:
+            - key: 74009-2
+              value: min
+            - key: 103213-5
+              value: min
+            - key: 93828-2
+              value: min
+            - key: 93832-4
+              value: min
+            - key: 93831-6
+              value: min
+            - key: 93829-0
+              value: min
