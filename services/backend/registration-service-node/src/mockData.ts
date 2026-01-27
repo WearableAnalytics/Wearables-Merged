@@ -4,9 +4,29 @@ import type { Case, ChariteCase, Patient } from './api/openapi-client/models';
 export type CaseStatus = Case['status'];
 export type CaseRecord = Case;
 
-const chariteCases: ChariteCase[] = [
-  { cCaseId: 'C-123456', firstName: 'Max', lastName: 'Mustermann', birthDate: new Date('1980-01-01'), sex: 'male', weight: 82.5 },
-  { cCaseId: 'C-654321', firstName: 'Jane', lastName: 'Doe', birthDate: new Date('1975-05-20'), sex: 'female', weight: 68.0 },
+interface ChariteCaseWithUUID extends ChariteCase {
+  uuid: string;
+}
+
+const chariteCases: ChariteCaseWithUUID[] = [
+  { 
+    cCaseId: 'C-123456', 
+    uuid: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    firstName: 'Max', 
+    lastName: 'Mustermann', 
+    birthDate: new Date('1980-01-01'), 
+    sex: 'male', 
+    weight: 82.5 
+  },
+  { 
+    cCaseId: 'C-654321', 
+    uuid: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+    firstName: 'Jane', 
+    lastName: 'Doe', 
+    birthDate: new Date('1975-05-20'), 
+    sex: 'female', 
+    weight: 68.0 
+  },
 ];
 
 const patients: Patient[] = [
@@ -25,7 +45,7 @@ const cases: CaseRecord[] = [
   { caseId: 'IC-13579', patientId: 'P-24680', status: 'inactive', caseToken: 'token-24680' },
 ];
 
-export function findChariteCase(cCaseId: string) {
+export function findChariteCase(cCaseId: string): ChariteCaseWithUUID | undefined {
   return chariteCases.find((item) => item.cCaseId === cCaseId);
 }
 
@@ -53,7 +73,7 @@ export function casesForPatient(patientId: string) {
   return cases.filter((item) => item.patientId === patientId);
 }
 
-function ensurePatientForChariteCase(chariteCase: ChariteCase): Patient {
+function ensurePatientForChariteCase(chariteCase: ChariteCaseWithUUID): Patient {
   const existing = patients.find(
     (patient) =>
       patient.firstName === chariteCase.firstName &&

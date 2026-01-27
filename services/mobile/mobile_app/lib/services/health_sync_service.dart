@@ -47,7 +47,7 @@ class HealthSyncService {
 
   final Health _health;
   static const _chunkSize = 500;
-  static const _endpoint = 'https://wearables.cherep.co/import/ingest';
+  static const _endpoint = 'https://wearables.charite.de/import/ingest';
 
   Future<HealthSyncResult> sendSinceLastSync({
     Duration fallbackWindow = const Duration(days: 7),
@@ -76,7 +76,8 @@ class HealthSyncService {
         );
       }
 
-      final types = allRequestedHealthDataTypes;
+      // Use platform-specific health data types
+      final types = Platform.isIOS ? iosHealthDataTypes : androidHealthDataTypes;
       final permissions = permissionsFor(types);
       final alreadyGranted =
           await _health.hasPermissions(types, permissions: permissions) ??
