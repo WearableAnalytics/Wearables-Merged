@@ -49,7 +49,8 @@ func NewRunner(cfg *Config) (*Runner, error) {
 
 func (r *Runner) Run() error {
 	if err := r.applyJob(); err != nil {
-		return fmt.Errorf("error applying job: %v", err)
+		log.Printf("error applying job: %v", err)
+		return r.cleanup()
 	}
 
 	done := make(chan error, 1)
@@ -58,7 +59,8 @@ func (r *Runner) Run() error {
 	}()
 
 	if err := r.waitForCompletion(); err != nil {
-		return fmt.Errorf("error waiting for completion: %v", err)
+		log.Printf("error waiting for completion: %v", err)
+		return r.cleanup()
 	}
 
 	if err := <-done; err != nil {

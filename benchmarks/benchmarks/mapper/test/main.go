@@ -55,7 +55,8 @@ func main() {
 	consumerTopic := "wearables-lp"
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": kafkaURL,
-		"group.id":          "bench-consumer",
+		"group.id":          fmt.Sprintf("bench-consumer-%d", time.Now().UnixNano()),
+		"auto.offset.reset": "latest",
 	})
 
 	if err != nil {
@@ -64,12 +65,11 @@ func main() {
 	defer consumer.Close()
 
 	if err := consumer.Subscribe(consumerTopic, nil); err != nil {
-		log.Fatalf("subscribe: %v", err)
+		log.Printf("subscribing failed with err: %v", err)
 	}
 
 	go func() {
-		time.Sleep(1 * time.Second)
-		log.Printf("message-id,t_produced,t_published,t_observed")
+		log.Printf("message-id,t_produced,t_observed")
 		for {
 			msg, err := consumer.ReadMessage(-1)
 			if err != nil {
@@ -81,8 +81,6 @@ func main() {
 				continue
 			}
 
-			tPublished := fmt.Sprintf("%d", msg.Timestamp.UnixNano())
-
 			messageId, ok := getHeader(msg.Headers, "message-id")
 			if !ok {
 				continue
@@ -90,7 +88,7 @@ func main() {
 
 			tObserved := fmt.Sprintf("%d", time.Now().UnixNano())
 
-			log.Printf("%s,%s,%s,%s", messageId, tProducedStr, tPublished, tObserved)
+			log.Printf("%s,%s,%s", messageId, tProducedStr, tObserved)
 		}
 	}()
 
@@ -99,11 +97,11 @@ func main() {
 	ticker := time.NewTicker(time.Second / time.Duration(rps))
 	defer ticker.Stop()
 
-	end := time.Now().Add(time.Duration(duration) * time.Second)
+	end := time.Now().Add(time.Duration(duration+rampUpDuration+rampDownDuration) * time.Second)
 
 	var msgID int64
 
-	log.Printf("now staring producer")
+	time.Sleep(1 * time.Second)
 	for time.Now().Before(end) {
 		<-ticker.C
 		msgID++
@@ -129,7 +127,6 @@ func main() {
 			log.Printf("produce error: %v", err)
 		}
 	}
-
 	producer.Flush(10_000)
 }
 

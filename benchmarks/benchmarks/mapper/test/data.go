@@ -111,7 +111,7 @@ func CreateBenchmarkMessage(now time.Time, size int) Payload {
 	instantaneous := InstantMeasurement{
 		Type:      "heart-rate",
 		Value:     72,
-		Unit:      "bpm",
+		Unit:      "BEATS_PER_MINUTE",
 		Timestamp: now.Format(layout),
 	}
 
@@ -123,27 +123,25 @@ func CreateBenchmarkMessage(now time.Time, size int) Payload {
 		PeriodEnd:   now.Format(layout),
 		Duration:    60,
 	}
-
-	duration := DurationMeasurement{
-		Type:            "sleep",
-		Value:           1,
-		Unit:            "session",
-		StartTime:       now.Add(-8 * time.Hour).Format(layout),
-		EndTime:         now.Format(layout),
-		DurationMinutes: 60 * 8,
-	}
+	/*
+		duration := DurationMeasurement{
+			Type:            "sleep",
+			Value:           1,
+			Unit:            "session",
+			StartTime:       now.Add(-8 * time.Hour).Format(layout),
+			EndTime:         now.Format(layout),
+			DurationMinutes: 60 * 8,
+		}*/
 
 	data, _ := json.Marshal(payload)
 
 	for len(data) < size {
 		payload.Measurements.Instantaneous = append(payload.Measurements.Instantaneous, instantaneous)
 		payload.Measurements.Cumulative = append(payload.Measurements.Cumulative, cumulative)
-		payload.Measurements.Duration = append(payload.Measurements.Duration, duration)
+		//payload.Measurements.Duration = append(payload.Measurements.Duration, duration)
 
 		data, _ = json.Marshal(payload)
 	}
-
-	log.Printf("%v", payload)
 
 	return payload
 }
