@@ -1,0 +1,13 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  forwardAuth:
+    address: http://{{ .Release.Name }}.{{ .Release.Namespace }}.svc.cluster.local/auth
+    # Headers from auth response that should be forwarded to the backend
+    authResponseHeaders:
+      - {{ .Values.grafana.jwtHeader }}
+    # Forward cookies to auth service
+    authRequestHeaders:
+      - Cookie

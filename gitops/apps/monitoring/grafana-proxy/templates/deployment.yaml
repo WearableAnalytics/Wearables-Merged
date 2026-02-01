@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      initContainers:
+        - name: install-deps
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          command: ["npm", "install", "--omit=dev"]
+          workingDir: /app
+          volumeMounts:
+            - name: node-modules
+              mountPath: /app/node_modules
+            - name: code
+              mountPath: /app/package.json
+              subPath: package.json
+      containers:
+        - name: {{ .Release.Name }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          command: ["node", "server.mjs"]
+          workingDir: /app
+          ports:
+            - containerPort: {{ .Values.proxy.port }}
+              name: http
+          env:
+            - name: PORT
+              value: {{ .Values.proxy.port | quote }}
+            - name: PROXY_PREFIX
+              value: {{ .Values.proxy.prefix | quote }}
+            - name: SESSION_COOKIE_NAME
+              value: {{ .Values.session.cookieName | quote }}
+            - name: GRAFANA_BASE_URL
+              value: {{ .Values.grafana.baseUrl | quote }}
+            - name: GRAFANA_PATH_PREFIX
+              value: {{ .Values.grafana.pathPrefix | quote }}
+            - name: GRAFANA_JWT_HEADER
+              value: {{ .Values.grafana.jwtHeader | quote }}
+            - name: GRAFANA_JWT_KEY_ID
+              value: {{ .Values.grafana.jwtKeyId | quote }}
+            - name: GRAFANA_JWT_ISSUER
+              value: {{ .Values.grafana.jwtIssuer | quote }}
+            - name: GRAFANA_JWT_AUDIENCE
+              value: {{ .Values.grafana.jwtAudience | quote }}
+            - name: GRAFANA_JWT_TTL_SECONDS
+              value: {{ .Values.grafana.jwtTtlSeconds | quote }}
+            - name: GRAFANA_DEFAULT_ROLE
+              value: {{ .Values.grafana.defaultRole | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ .Release.Name }}-secrets
+          volumeMounts:
+            - name: code
+              mountPath: /app/server.mjs
+              subPath: server.mjs
+            - name: node-modules
+              mountPath: /app/node_modules
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+      volumes:
+        - name: code
+          configMap:
+            name: {{ .Release.Name }}-code
+        - name: node-modules
+          emptyDir: {}
