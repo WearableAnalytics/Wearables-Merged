@@ -114,9 +114,6 @@ String categorizeHealthDataType(HealthDataType type) {
     case HealthDataType.SLEEP_DEEP:
     case HealthDataType.SLEEP_LIGHT:
     case HealthDataType.SLEEP_REM:
-    case HealthDataType.SLEEP_ASLEEP_CORE:
-    case HealthDataType.SLEEP_ASLEEP_DEEP:
-    case HealthDataType.SLEEP_ASLEEP_REM:
     case HealthDataType.WORKOUT:
     case HealthDataType.EXERCISE_TIME:
     case HealthDataType.MINDFULNESS:

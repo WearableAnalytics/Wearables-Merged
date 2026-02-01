@@ -26,6 +26,8 @@ spec:
             value: https://{{ .Values.ingress.host }}{{ .Values.ingress.prefix }}
           - name: GF_SERVER_SERVE_FROM_SUB_PATH
             value: "true"
+          - name: GF_SECURITY_ALLOW_EMBEDDING
+            value: "true"
           ports:
             - containerPort: {{ .Values.container.port }}
               name: "http-{{ .Release.Name }}"
