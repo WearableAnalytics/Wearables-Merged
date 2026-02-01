@@ -27,7 +27,6 @@ export const config = {
   grafanaPathPrefix: normalizePrefix(process.env.GRAFANA_PATH_PREFIX ?? ''),
   grafanaTlsSkipVerify: process.env.GRAFANA_TLS_SKIP_VERIFY === 'true',
   grafanaJwtHeader: process.env.GRAFANA_JWT_HEADER ?? 'X-JWT-Assertion',
-  grafanaJwtKeyId: process.env.GRAFANA_JWT_KEY_ID ?? 'grafana-proxy',
   grafanaJwtIssuer: process.env.GRAFANA_JWT_ISSUER ?? 'wearables-grafana-proxy',
   grafanaJwtAudience: process.env.GRAFANA_JWT_AUDIENCE ?? 'grafana',
   grafanaJwtTtlSeconds: Number(process.env.GRAFANA_JWT_TTL_SECONDS) || 300,

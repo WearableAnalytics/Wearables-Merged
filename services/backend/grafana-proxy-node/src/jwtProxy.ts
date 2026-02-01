@@ -7,7 +7,6 @@ type JwtProxyConfig = {
   grafanaPathPrefix: string;
   grafanaTlsSkipVerify: boolean;
   grafanaJwtHeader: string;
-  grafanaJwtKeyId: string;
   grafanaJwtIssuer: string;
   grafanaJwtAudience: string;
   grafanaJwtTtlSeconds: number;
@@ -75,7 +74,6 @@ const signJwt = (config: JwtProxyConfig): string => {
   const payload = buildJwtPayload(config);
   return jwt.sign(payload, config.grafanaJwtPrivateKey, {
     algorithm: 'RS256',
-    keyid: config.grafanaJwtKeyId,
     issuer: config.grafanaJwtIssuer,
     audience: config.grafanaJwtAudience,
     expiresIn: config.grafanaJwtTtlSeconds,
@@ -89,35 +87,37 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
     ws: true,
     secure: !config.grafanaTlsSkipVerify,
     pathRewrite: (path) => buildProxyPath(path, config),
-    onProxyReq: (proxyReq, req) => {
-      const token = signJwt(config);
-      proxyReq.setHeader(config.grafanaJwtHeader, token);
-      proxyReq.removeHeader('authorization');
-      if (config.grafanaOrgId) {
-        proxyReq.setHeader('X-Grafana-Org-Id', config.grafanaOrgId);
-      }
-      const targetPath = (proxyReq as { path?: string }).path ?? '';
-      // eslint-disable-next-line no-console
-      console.log(`[Grafana proxy] ${req.method} ${req.originalUrl} -> ${config.grafanaBaseUrl}${targetPath}`);
-    },
-    onProxyReqWs: (proxyReq, req) => {
-      const token = signJwt(config);
-      proxyReq.setHeader(config.grafanaJwtHeader, token);
-      proxyReq.removeHeader('authorization');
-      if (config.grafanaOrgId) {
-        proxyReq.setHeader('X-Grafana-Org-Id', config.grafanaOrgId);
-      }
-      const targetPath = (proxyReq as { path?: string }).path ?? '';
-      // eslint-disable-next-line no-console
-      console.log(`[Grafana proxy] WS ${req.method} ${req.originalUrl} -> ${config.grafanaBaseUrl}${targetPath}`);
-    },
-    onProxyRes: (proxyRes, req) => {
-      stripHeader(proxyRes.headers as Record<string, string | string[] | undefined>, 'x-frame-options');
-      removeFrameAncestors(proxyRes.headers as Record<string, string | string[] | undefined>);
-      proxyRes.headers['x-grafana-proxy'] = 'true';
-      proxyRes.headers['x-grafana-proxy-target'] = config.grafanaBaseUrl;
-      // eslint-disable-next-line no-console
-      console.log(`[Grafana proxy] ${req.method} ${req.originalUrl} <- ${proxyRes.statusCode}`);
+    on: {
+      proxyReq: (proxyReq, req) => {
+        const token = signJwt(config);
+        proxyReq.setHeader(config.grafanaJwtHeader, token);
+        proxyReq.removeHeader('authorization');
+        if (config.grafanaOrgId) {
+          proxyReq.setHeader('X-Grafana-Org-Id', config.grafanaOrgId);
+        }
+        const targetPath = (proxyReq as { path?: string }).path ?? '';
+        // eslint-disable-next-line no-console
+        console.log(`[Grafana proxy] ${req.method} ${req.originalUrl} -> ${config.grafanaBaseUrl}${targetPath}`);
+      },
+      proxyReqWs: (proxyReq, req) => {
+        const token = signJwt(config);
+        proxyReq.setHeader(config.grafanaJwtHeader, token);
+        proxyReq.removeHeader('authorization');
+        if (config.grafanaOrgId) {
+          proxyReq.setHeader('X-Grafana-Org-Id', config.grafanaOrgId);
+        }
+        const targetPath = (proxyReq as { path?: string }).path ?? '';
+        // eslint-disable-next-line no-console
+        console.log(`[Grafana proxy] WS ${req.method} ${req.originalUrl} -> ${config.grafanaBaseUrl}${targetPath}`);
+      },
+      proxyRes: (proxyRes, req) => {
+        stripHeader(proxyRes.headers as Record<string, string | string[] | undefined>, 'x-frame-options');
+        removeFrameAncestors(proxyRes.headers as Record<string, string | string[] | undefined>);
+        proxyRes.headers['x-grafana-proxy'] = 'true';
+        proxyRes.headers['x-grafana-proxy-target'] = config.grafanaBaseUrl;
+        // eslint-disable-next-line no-console
+        console.log(`[Grafana proxy] ${req.method} ${req.originalUrl} <- ${proxyRes.statusCode}`);
+      },
     },
   });
 };
