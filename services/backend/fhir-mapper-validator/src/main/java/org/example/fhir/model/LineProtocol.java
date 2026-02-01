@@ -6,4 +6,5 @@ import lombok.Data;
 public class LineProtocol {
     String type;
     String name;
+    boolean mandatory;
 }

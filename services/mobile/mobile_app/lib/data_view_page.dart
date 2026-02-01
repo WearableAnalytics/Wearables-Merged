@@ -25,16 +25,34 @@ class _DataViewPageState extends State<DataViewPage> {
     try {
       await health.configure();
 
-      var types = allRequestedHealthDataTypes;
-      var permissions = permissionsFor(types);
-      bool requested = await health.requestAuthorization(
-        types,
-        permissions: permissions,
-      );
 
-      if (!requested) {
-        _showMessage('Authorization not granted');
-        return;
+      // Use platform-specific health data types
+      var types = Platform.isIOS ? iosHealthDataTypes : androidHealthDataTypes;
+      var permissions = permissionsFor(types);
+
+      // Check if permissions are already granted before requesting
+      bool alreadyGranted = await health.hasPermissions(types, permissions: permissions) ?? false;
+      if (!alreadyGranted) {
+        bool requested = await health.requestAuthorization(
+          types,
+          permissions: permissions,
+        );
+        // Debug: Check which permissions are not granted
+        List<String> notGranted = [];
+        for (int i = 0; i < types.length; i++) {
+          bool granted = await health.hasPermissions([types[i]], permissions: [permissions[i]]) ?? false;
+          if (!granted) {
+            notGranted.add(types[i].toString());
+          }
+        }
+        if (notGranted.isNotEmpty) {
+          _showMessage('Authorization not granted for:\n' + notGranted.join('\n'));
+          return;
+        }
+        if (!requested) {
+          _showMessage('Authorization not granted');
+          return;
+        }
       }
 
       // Get device ID and last send time

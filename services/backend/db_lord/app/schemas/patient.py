@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from pydantic import Field
 
-from .common import TunedBase
+from .common import TunedBase, TunedUpdateBase
 
 
 class PatientBase(TunedBase):
@@ -20,7 +20,7 @@ class PatientCreate(PatientBase):
     pass
 
 
-class PatientUpdate(TunedBase):
+class PatientUpdate(TunedUpdateBase):
     name: str | None = Field(None, min_length=1, max_length=255)
     sex: str | None = Field(None, max_length=50)
     dob: date | None = None

@@ -7,7 +7,8 @@ import java.util.List;
 @Data
 public class FieldConfig {
     private String name;
-    private String source;
+    private String rawSource; //TODO change everywhere
+    private String fhirSource;
     private Object value;
     private String target;
     private List<ValueTransformation> transform;
@@ -15,3 +16,12 @@ public class FieldConfig {
     private String type;
     private LineProtocol lineProtocol;
 }
+
+//fhirType;
+//end;
+//unit;
+//value;
+//type;
+//status;
+//start;
+//device;
