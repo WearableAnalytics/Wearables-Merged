@@ -1,0 +1,34 @@
+image:
+  repository: gmsdaniil/wearables-web-frontend
+  tag: "latest"
+  pullPolicy: Always
+
+# Environment variables for the frontend build
+env:
+  backendUrl: "https://wearables.charite.de"
+  apiBasePath: "/api"
+  grafanaIframeUrl: "https://wearables.charite.de/grafana-proxy"
+
+# Service configuration
+service:
+  port: 80
+  targetPort: 80
+
+# Ingress configuration
+ingress:
+  enabled: true
+  host: "wearables.charite.de"
+  path: "/"
+  certificateSecretName: "wearables-tls"
+
+# Resource requests and limits
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# Replica count
+replicaCount: 1
