@@ -15,6 +15,10 @@ Environment variables (or `.env` file):
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 KAFKA_TOPIC=wearables-raw
 KAFKA_CLIENT_ID=import-service
+KAFKA_LINGER_MS=50          # Batching delay (ms)
+KAFKA_BATCH_SIZE=65536      # Max batch size in bytes
+KAFKA_BUFFER_MEMORY=33554432 # Buffer memory in bytes (32MB)
+UVICORN_WORKERS=4           # Number of Uvicorn workers (Docker)
 ```
 
 ## Installation
