@@ -20,18 +20,20 @@ public class LineProtocolParser {
 
     private static final Logger log = LoggerFactory.getLogger(LineProtocolParser.class);
 
-    public String parse(String category, JsonObject json, Set<Node> minimalBase) throws IllegalArgumentException {
+    public String parse(String category, JsonObject json, Set<Node> minimalBase, MappingYaml yaml) throws IllegalArgumentException {
         if (json == null || json.isEmpty() || !json.isJsonObject()) {
             throw new IllegalArgumentException("Input JSON is null, empty or not a JSON object");
         }
 
-        LineProtocolTemplate template = new LineProtocolTemplate(json, minimalBase);
+        LineProtocolTemplate template = new LineProtocolTemplate(json, minimalBase, yaml);
 
         LineProtocolTemplate filled = template
                 .setMeasurement()
                 .setTimestamp()
                 .setMaps("tag")
-                .setMaps("field");
+                .setMaps("field")
+                .setCategory(category)
+                .setVersion();
 
         return renderLineProtocol(filled);
     }

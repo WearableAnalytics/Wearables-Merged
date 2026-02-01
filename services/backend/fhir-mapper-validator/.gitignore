@@ -45,5 +45,4 @@ build/
 config/json*
 logs
 outputs
-src/main/resources/sample.json
 src/main/resources/sample-error.json
