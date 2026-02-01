@@ -26,7 +26,8 @@ public class FhirMapperTest {
     @DisplayName("Map incoming iOS json to fhir")
     public void mappingTest() throws IOException, URISyntaxException {
 
-        MappingYaml yaml = ConfigLoader.loadConfig("./config/test.yaml", MappingYaml.class);
+        MappingYaml yaml = ConfigLoader.loadConfig("./config/mapping-2026-01-28.yaml", MappingYaml.class);
+        yaml.validate();
 
         Validator.initiliazeFhirValidator();
         Mapper mapper = new Mapper(yaml);
@@ -88,7 +89,7 @@ public class FhirMapperTest {
             for (Iterator<JsonElement> it = mappedFhir.iterator(); it.hasNext();) {
                 JsonObject r = it.next().getAsJsonObject();
                 try {
-                    String res = lpParser.parse(entry.getKey(), r, graphs.get(entry.getKey()));
+                    String res = lpParser.parse(entry.getKey(), r, graphs.get(entry.getKey()), yaml);
                     lpRes.add(res);
                 } catch (IllegalArgumentException iae){
                     System.out.println(iae.getMessage());

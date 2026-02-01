@@ -6,8 +6,11 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import lombok.Data;
 import lombok.Getter;
+import org.example.config.Environment;
 import org.example.dependencies.Node;
+import org.example.fhir.model.MappingYaml;
 
+import javax.sound.sampled.Line;
 import java.time.Instant;
 import java.util.*;
 
@@ -16,16 +19,18 @@ import static org.example.JsonUtils.getByPath;
 @Data
 public class LineProtocolTemplate {
 
-    public LineProtocolTemplate(JsonObject json, Set<Node> minimalBase){
+    public LineProtocolTemplate(JsonObject json, Set<Node> minimalBase, MappingYaml template){
         this.fields = new HashMap<>();
         this.tags = new HashMap<>();
 
         this.json = json;
         this.minimalBase = minimalBase;
+        this.template = template;
     }
 
     private JsonObject json;
     private Set<Node> minimalBase;
+    private MappingYaml template;
 
     @JsonProperty("measurement-mapping")
     private String measurement;
@@ -66,6 +71,8 @@ public class LineProtocolTemplate {
         String timeNanos = normalizeIsoToNanos(value.getAsString()).toString();
 
         this.setTimestamp(timeNanos);
+
+        return this;
 
     }
 
@@ -120,6 +127,27 @@ public class LineProtocolTemplate {
         String stringValue = value.getAsJsonPrimitive().getAsString();
 
         this.setMeasurement(stringValue);
+
+        return this;
+    }
+
+    public LineProtocolTemplate setCategory(String category){
+        String success = this.tags.put("category", category);
+        if (success != null){
+            throw new RuntimeException("Setting the category in LP failed, as there was already a tag with name 'category'");
+        }
+
+        return this;
+    }
+
+    public LineProtocolTemplate setVersion(){
+
+        String version = this.template.getVersion();
+
+        String success = this.tags.put("version", version);
+        if (success != null){
+            throw new RuntimeException("Setting the version in LP failed, as there was already a tag with name 'version'");
+        }
 
         return this;
     }

@@ -95,7 +95,7 @@ public class Main {
                     e.getValue().forEach(v -> {
                         try {
                             Set<Node> fittingBase = categoryGraphs.get(e.getKey());
-                            String lpString = lpParser.parse(e.getKey(), v, fittingBase);
+                            String lpString = lpParser.parse(e.getKey(), v, fittingBase, Environment.TEMPLATE);
                             log.info(lpString);
                             validLineProtocol.add(lpString);
 
