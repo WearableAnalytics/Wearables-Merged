@@ -25,106 +25,15 @@ public class LineProtocolParser {
             throw new IllegalArgumentException("Input JSON is null, empty or not a JSON object");
         }
 
-        LineProtocolTemplate template = new LineProtocolTemplate();
+        LineProtocolTemplate template = new LineProtocolTemplate(json, minimalBase);
 
-        setLPMeasurement(json, template, minimalBase);
+        LineProtocolTemplate filled = template
+                .setMeasurement()
+                .setTimestamp()
+                .setMaps("tag")
+                .setMaps("field");
 
-        setLPTimestamp(json, template, minimalBase);
-
-        setLPMaps(json, template, "tag", minimalBase);
-
-        setLPMaps(json, template, "field", minimalBase);
-
-        return renderLineProtocol(template);
-    }
-
-    private static void setLPTimestamp(
-            JsonObject json,
-            LineProtocolTemplate template,
-            Set<Node> minimalBase
-    ) {
-
-        Node timestampNode = minimalBase.stream()
-                .filter(x -> x.getField().getLineProtocol().getType().equals("timestamp"))
-                .findFirst()
-                .orElse(null);
-
-        if (timestampNode == null) {
-            throw new RuntimeException("there was no node marked as a timestamp node, this should not happen here");
-        }
-
-        String target = timestampNode.getField().getTarget();
-        JsonElement value = getByPath(json, target);
-
-        if (!(value instanceof JsonPrimitive) || !((JsonPrimitive) value).isString()) {
-            throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", target, value.toString()));
-        }
-
-        String timeNanos = normalizeIsoToNanos(value.getAsString()).toString();
-
-        template.setTimestamp(timeNanos);
-
-    }
-
-    private static void setLPMaps(
-            JsonObject json,
-            LineProtocolTemplate template,
-            String type,
-            Set<Node> minimalBase
-    ) {
-
-        Map<String, String> elementsMap = new HashMap<>();
-
-        minimalBase.stream()
-                .map(Node::getField)
-                .filter(field -> field.getLineProtocol().getType().equals(type))
-                .forEach(
-                        x -> {
-                            JsonElement value = getByPath(json, x.getTarget());
-                            if (!(value instanceof JsonPrimitive)) {
-                                throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", x.getTarget(), value.toString()));
-                            }
-
-                            String tagValue = value.getAsString();
-                            String tagKey = x.getLineProtocol().getName();
-
-                            elementsMap.put(tagKey, tagValue);
-                        }
-                );
-
-        if (type.equals("field")) {
-            template.setFields(elementsMap);
-        } else {
-            template.setTags(elementsMap);
-        }
-    }
-
-    private static void setLPMeasurement(
-            JsonObject json,
-            LineProtocolTemplate template,
-            Set<Node> baseNodes
-    ) {
-
-        Node measurementNode = baseNodes.stream()
-                .filter(x -> x.getField().getLineProtocol().getType().equals("measurement"))
-                .findFirst()
-                .orElse(null);
-
-        if (measurementNode == null) {
-            throw new RuntimeException("there was no node marked as measurement node, this should not happen here");
-        }
-
-        String target = measurementNode.getField().getTarget();
-        JsonElement value = getByPath(json, target);
-
-        if (!(value instanceof JsonPrimitive) || !((JsonPrimitive) value).isString()) {
-            throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", target, value.toString()));
-        }
-
-        String stringValue = value.getAsJsonPrimitive().getAsString();
-
-        template.setMeasurement(stringValue);
-
+        return renderLineProtocol(filled);
     }
 
     private String renderLineProtocol(LineProtocolTemplate template) {
@@ -190,17 +99,6 @@ public class LineProtocolParser {
         }
     }
 
-    private static Long normalizeIsoToNanos(String str) {
-        try {
-            // Parse ISO 8601 string (handles Z or offset like +02:00)
-            Instant instant = Instant.parse(str);
-            // Convert to nanos since epoch
-            return instant.getEpochSecond() * 1_000_000_000L + instant.getNano();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid ISO 8601 datetime: " + str, e);
-        }
-    }
-
     private static boolean checkNumber(String s) {
 
         try {
@@ -211,4 +109,6 @@ public class LineProtocolParser {
         }
 
     }
+
+
 }
