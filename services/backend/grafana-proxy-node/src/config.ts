@@ -36,4 +36,5 @@ export const config = {
   grafanaJwtRole: process.env.GRAFANA_JWT_ROLE ?? '',
   grafanaOrgId: process.env.GRAFANA_ORG_ID ?? '',
   grafanaJwtPrivateKey: grafanaPrivateKey,
+  grafanaJwtIatSkewSeconds: Number(process.env.GRAFANA_JWT_IAT_SKEW_SECONDS) || 0,
 };

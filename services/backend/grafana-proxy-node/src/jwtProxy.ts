@@ -16,6 +16,7 @@ type JwtProxyConfig = {
   grafanaJwtName: string;
   grafanaJwtRole: string;
   grafanaOrgId: string;
+  grafanaJwtIatSkewSeconds: number;
 };
 
 const stripHeader = (headers: Record<string, string | string[] | undefined>, headerName: string): void => {
@@ -55,8 +56,11 @@ const buildProxyPath = (path: string, config: JwtProxyConfig): string => {
 };
 
 const buildJwtPayload = (config: JwtProxyConfig): jwt.JwtPayload => {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const skewSeconds = config.grafanaJwtIatSkewSeconds || 0;
   const payload: jwt.JwtPayload = {
     sub: config.grafanaJwtSubject,
+    iat: nowSeconds - skewSeconds,
   };
   if (config.grafanaJwtEmail) {
     payload.email = config.grafanaJwtEmail;
