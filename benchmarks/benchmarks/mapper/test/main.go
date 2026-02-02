@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -85,7 +86,6 @@ func main() {
 			if !ok {
 				continue
 			}
-
 			tObserved := fmt.Sprintf("%d", time.Now().UnixNano())
 
 			log.Printf("%s,%s,%s", messageId, tProducedStr, tObserved)
@@ -99,17 +99,17 @@ func main() {
 
 	end := time.Now().Add(time.Duration(duration+rampUpDuration+rampDownDuration) * time.Second)
 
-	var msgID int64
+	var msgID atomic.Uint32
 
 	time.Sleep(1 * time.Second)
 	for time.Now().Before(end) {
 		<-ticker.C
-		msgID++
+		msgID.Add(1)
 
 		now := time.Now().UnixNano()
 
 		headers := []kafka.Header{
-			{Key: "message-id", Value: []byte(strconv.FormatInt(msgID, 10))},
+			{Key: "message-id", Value: []byte(strconv.Itoa(int(msgID.Load())))},
 			{Key: "t_produced", Value: []byte(strconv.FormatInt(now, 10))},
 		}
 
