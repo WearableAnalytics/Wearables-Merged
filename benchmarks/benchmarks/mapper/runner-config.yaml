@@ -1,6 +1,6 @@
 ssh:
-  user: "stahlco"
-  host: "denbi-jumphost-01.bihealth.org"
+  user: "user"
+  host: ""
   keyPath: "~/.ssh/github"
 job:
   name: "kafka-test"
