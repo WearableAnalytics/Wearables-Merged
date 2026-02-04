@@ -9,4 +9,5 @@ data:
   INPUT_TOPIC: {{ .Values.envs.inputTopic }}
   OUTPUT_TOPIC: {{ .Values.envs.outputTopic }}
   DLQ_TOPIC: {{ .Values.envs.dlqTopic }}
-  PARTITION_THREADS: {{ .Values.envs.partitionThreads | quote }}
+  NUM_STREAM_THREADS: {{ .Values.envs.numStreamThreads | quote }}
+  PARTITIONS: {{ .Values.envs.partitions | quote }}

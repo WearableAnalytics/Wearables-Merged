@@ -11,9 +11,11 @@ envs:
   inputTopic: "wearables-raw"
   outputTopic: "wearables-lp"
   dlqTopic: "dlq"
-  partitionThreads: "1"
+  numStreamThreads: "3" #how many partitions one instance can handle through multithreading
+  partitions: "9" #number of partitions that the wearables raw topic has
+
 
 image:
   repository: lndocker3s/mapper-validator
-  tag: 0.1.2
+  tag: 0.2.1
   imagePullPolicy: Always
