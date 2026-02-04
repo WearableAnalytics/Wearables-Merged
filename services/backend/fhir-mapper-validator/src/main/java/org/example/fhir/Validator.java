@@ -2,14 +2,17 @@ package org.example.fhir;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.context.support.DefaultProfileValidationSupport;
+import ca.uhn.fhir.parser.IParser;
 import ca.uhn.fhir.validation.FhirValidator;
 import ca.uhn.fhir.validation.IValidatorModule;
 import ca.uhn.fhir.validation.ValidationResult;
+import com.google.gson.JsonObject;
 import org.hl7.fhir.common.hapi.validation.support.CommonCodeSystemsTerminologyService;
 import org.hl7.fhir.common.hapi.validation.support.InMemoryTerminologyServerValidationSupport;
 import org.hl7.fhir.common.hapi.validation.support.SnapshotGeneratingValidationSupport;
 import org.hl7.fhir.common.hapi.validation.support.ValidationSupportChain;
 import org.hl7.fhir.common.hapi.validation.validator.FhirInstanceValidator;
+import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,12 +48,12 @@ public class Validator {
         log.info("FHIR validator initialized in {} ms", (end - start));
     }
 
-    public static boolean validateFhir(String producedStr){
+    public static boolean validateFhir(JsonObject producedStr){
 
         try {
             // Parse once to avoid internal re-parsing costs and validate the resource instance
-            var parser = CTX.newJsonParser();
-            var resource = parser.parseResource(producedStr);
+            IParser parser = CTX.newJsonParser();
+            IBaseResource resource = parser.parseResource(producedStr.toString());
             ValidationResult result = validator.validateWithResult(resource);
             log.info("Validation result: {}", result.toString());
             return result.isSuccessful();

@@ -1,18 +1,24 @@
 package org.example;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 
-import org.apache.kafka.common.protocol.types.Field;
+import com.google.gson.JsonParser;
+import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.utils.Utils;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Branched;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Named;
+import org.apache.kafka.streams.kstream.Repartitioned;
 import org.example.config.Environment;
 import org.example.config.KafkaConfig;
 import org.example.dependencies.DependencyGraph;
@@ -21,17 +27,13 @@ import org.example.fhir.Mapper;
 import org.example.fhir.Validator;
 import org.example.fhir.model.MapReturn;
 import org.example.lineprotocol.LineProtocolParser;
-import org.hl7.fhir.r5.elementmodel.JsonParser;
-import org.hl7.fhir.r5.openehr.TEMPLATE_ID;
+import org.javatuples.Pair;
 import org.rocksdb.Env;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
 public class Main {
-
-    // Testing: This is a change that should trigger the Workflow
-
 
     private static final Logger log = LoggerFactory.getLogger(Main.class);
 
@@ -51,7 +53,7 @@ public class Main {
         //the map maps from the category name (e.g., instantaneous, duration, etc.) to the minimal set of nodes needed to derive the rest of the fhir
         Map<String, Set<Node>> categoryGraphs = dependencyGraph.build();
 
-        try{
+        try {
             Environment.TEMPLATE.validate();
         } catch (IllegalArgumentException iae) {
             log.error("There was an error verifying the mapping schema: {}", iae.getMessage());
@@ -63,69 +65,22 @@ public class Main {
         //Define an input topic: Raw JSON from providers
         KStream<String, String> rawJson = builder.stream(Environment.INPUT_TOPIC);
 
+        KStream<String, String> flattened = rawJson.flatMapValues(mapper::flatMapJson);
+
+        KStream<String, String> rekeyed = flattened.selectKey((oldKey, value) -> parallelKey(value));
+
+        KStream<String, String> repartitioned = rekeyed.repartition(
+                Repartitioned.with(Serdes.String(), Serdes.String())
+                        .withNumberOfPartitions(Environment.PARTITIONS)  //taken from env and should be the same as the actual partitions of the raw Topic in the cluster partitions in the cluster
+                        .withName("flat-repartition")
+        );
+
         //Map the incoming json to FHIR and validate it, when it returns an error we wrap it and push it to a DLQ
-        KStream<String, String> output = rawJson.flatMapValues(value -> {
-
-            //We save the valid FHIR JSONs grouped by their category to be able to make it impossible to map to LP with the wrong configuration
-            Map<String, List<JsonObject>> validFhir = new HashMap<>();
-            List<String> validLineProtocol = new ArrayList<>();
-            //Grouping is not important for invalid measurement
-            List<String> invalidFhir = new ArrayList<>();
-
-            try {
-                if (value == null || value.isBlank()) {
-                    log.warn("Pushing empty payload to DLQ");
-                    invalidFhir.add(dlqEmptyPayload());
-                    //without any incoming data we dont have to continue
-                    return invalidFhir;
-                }
-
-                Map<String, MapReturn> mr = mapper.mapFhir(value);
-
-                for (Map.Entry<String, MapReturn> e : mr.entrySet()) {
-
-                    log.debug("inspecting batch {}", value);
-                    inspectMappings(e.getKey(), e.getValue(), validFhir, invalidFhir);
-
-                }
-
-                LineProtocolParser lpParser = new LineProtocolParser();
-
-                for (Map.Entry<String, List<JsonObject>> e : validFhir.entrySet()) {
-                    e.getValue().forEach(v -> {
-                        try {
-                            Set<Node> fittingBase = categoryGraphs.get(e.getKey());
-                            String lpString = lpParser.parse(e.getKey(), v, fittingBase, Environment.TEMPLATE);
-                            log.info(lpString);
-                            validLineProtocol.add(lpString);
-
-                        } catch (IllegalArgumentException iae) {
-                            log.error("Line Protocol transformation failed", iae);
-
-                            // wrap failed LP conversion into DLQ JSON
-                            invalidFhir.add(dlq("Line Protocol transformation failed: " + iae.getMessage(), v.toString()));
-                        } catch (Exception ex) {
-                            log.error("Unexpected error during Line Protocol transformation", ex);
-
-                            // catch-all DLQ wrapper
-                            invalidFhir.add(dlq("Unexpected LP transformation error: " + ex.getMessage(), v.toString()));
-                        }
-                    });
-
-                }
-
-            } catch (Exception ex) {
-                log.error("Failed to transform payload into FHIR, pushing problematic message to DLQ", ex);
-                invalidFhir.add(dlq(ex.getMessage(), value));
-            }
-
-            //return the invalid FHIR as well as valid LineProtocol
-            return Stream.concat(invalidFhir.stream(), validLineProtocol.stream()).toList();
-        });
+        KStream<String, String> output = repartitioned.mapValues(value -> mapper.mapAndValidate(value, categoryGraphs));
 
         Map<String, KStream<String, String>> branches = output.split(Named.as("res-"))
-                .branch(((k, v) -> v.substring(0, 5).contains("{")), Branched.as("dlq")) //TODO improve this
-                .defaultBranch(Branched.as("valid"));
+                .branch((k, v) -> v != null && !v.substring(0, 5).contains("{"), Branched.as("valid"))
+                .defaultBranch(Branched.as("dlq"));
 
         KStream<String, String> fhirDLQ = branches.get("res-dlq");
         KStream<String, String> lp = branches.get("res-valid");
@@ -136,56 +91,6 @@ public class Main {
         runStreamsInstance(builder);
     }
 
-    /***
-     This function takes the measurements that are grouped by category and whether they were successfully mapped and tries to validate them. If validation was successful, they are added to the measurements that should be mapped to LP, if not, hey are formatted as string to be written to the DLQ.
-     * @param category the category of the measurement in the raw JSON
-     * @param mr the object that holds the successful and unsuccessful mappings separately for each category.
-     * @param validFhir the FHIR JSONs that should be mapped to LP
-     * @param invalidFhir the invalid FHIR JSONs that should be written to the DLQ
-     */
-    private static void inspectMappings(
-            String category,
-            MapReturn mr,
-            Map<String, List<JsonObject>> validFhir,
-            List<String> invalidFhir) {
-
-        boolean onlyValid = true;
-
-        if (mr.getValid() != null) {
-            for (JsonObject obj : mr.getValid()) {
-                String json = obj.toString();
-
-                if (Validator.validateFhir(json)) {
-                    validFhir.computeIfAbsent(category, k -> new ArrayList<>());
-                    validFhir.get(category).add(obj);
-                } else {
-                    onlyValid = false;
-                    String s = dlq("Failed FHIR validation", json);
-                    log.warn("Got invalid measurement during validation: {}", s);
-                    invalidFhir.add(s);
-                }
-            }
-        } else {
-            onlyValid = false;
-            log.error("Measurement batch contained no valid measurement");
-        }
-
-        if (mr.getInvalid() != null) {
-            // INVALID FROM MAPPER
-            for (JsonObject obj : mr.getInvalid()) {
-                String s = dlq(
-                        "Problem occurred during mapping, check logs for more information",
-                        obj.toString()
-                );
-                log.warn("Got invalid measurement during mapping: {}", s);
-                invalidFhir.add(s);
-            }
-        } else {
-            log.debug("Measurement batch contained no invalid measurements");
-        }
-
-        if (onlyValid) log.debug("Measurement batch contained only valid measurements");
-    }
 
     private static void runStreamsInstance(StreamsBuilder builder) throws InterruptedException {
         Topology topology = builder.build();
@@ -201,31 +106,9 @@ public class Main {
         new CountDownLatch(1).await();
     }
 
-    private static String dlq(String error, String payload) {
-        return """
-                {
-                    "valid": false,
-                    "error": "%s",
-                    "payload": %s
-                }
-                """.formatted(
-                escape(error),
-                payload == null ? "null" : "\"" + escape(payload) + "\""
-        ).trim();
-    }
-
-    private static String dlqEmptyPayload() {
-        return """
-                {
-                    "valid": false,
-                    "error": "Empty payload",
-                    "payload": null
-                }
-                """.trim();
-    }
-
-    private static String escape(String s) {
-        return s == null ? null : s.replace("\"", "\\\"");
+    private static String parallelKey(String value) {
+        int hash = Utils.murmur2(value.getBytes(StandardCharsets.UTF_8));
+        return Integer.toUnsignedString(hash);
     }
 
 }
