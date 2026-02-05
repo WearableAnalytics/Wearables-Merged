@@ -13,4 +13,4 @@ data:
           - targets: ['localhost:9090']
       - job_name: 'kafka'
         static_configs:
-          - targets: ['172.25.1.172:9404']
+          - targets: ['172.25.1.57:9404']

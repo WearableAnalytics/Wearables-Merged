@@ -2,8 +2,13 @@ package org.example.fhir;
 
 import com.google.gson.*;
 import lombok.Data;
+import net.sourceforge.plantuml.Run;
 import org.example.JsonUtils;
+import org.example.config.Environment;
+import org.example.dependencies.Node;
 import org.example.fhir.model.*;
+import org.example.lineprotocol.LineProtocolParser;
+import org.javatuples.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,27 +28,90 @@ public class Mapper {
         this.yaml = yaml;
     }
 
-    public Map<String, MapReturn> mapFhir(String str) {
+    public String mapAndValidate(String value, Map<String, Set<Node>> categoryGraphs) {
+        try {
+            if (value == null || value.isBlank()) {
+                log.warn("Pushing empty payload to DLQ");
+
+                //without any incoming data we dont have to continue
+                return dlqEmptyPayload();
+            }
+
+            Pair<String, JsonObject> categoryFhirTuple = null;
+            try {
+                categoryFhirTuple = mapFhir(value);
+            } catch (IllegalArgumentException e) {
+                log.error(e.toString());
+                return dlq(e.toString(), value);
+            } catch (RuntimeException e) {
+                log.warn(e.toString());
+                return dlq(e.toString(), value);
+            }
+
+            if (categoryFhirTuple.getValue0() == null || categoryFhirTuple.getValue1() == null) {
+                log.error("FHIR mapping error occurred: category was not set or FHIR was not produced");
+                dlq(
+                        "FHIR mapping error occurred: category was not set or FHIR was not produced",
+                        value
+                );
+            }
+
+            JsonObject fhir = categoryFhirTuple.getValue1();
+            String category = categoryFhirTuple.getValue0();
+
+            if (fhir == null) {
+                log.error("Mapped fhir is null, aborting: {}", value);
+                return dlq("Mapped fhir was null, original input attached", value);
+            }
+
+            if (!Validator.validateFhir(fhir)) {
+                return dlq("Mapped fhir is not valid", fhir.toString());
+            }
+
+            LineProtocolParser lpParser = new LineProtocolParser(yaml);
+
+            try {
+                Set<Node> fittingBase = categoryGraphs.get(category);
+                String lpString = lpParser.parse(category, fhir, fittingBase);
+                log.info(lpString);
+                return lpString;
+
+            } catch (IllegalArgumentException iae) {
+                log.error("Line Protocol transformation failed", iae);
+
+                // wrap failed LP conversion into DLQ JSON
+                return dlq("Line Protocol transformation failed: " + iae.getMessage(), fhir.toString());
+            } catch (Exception ex) {
+                log.error("Unexpected error during Line Protocol transformation", ex);
+
+                // catch-all DLQ wrapper
+                return dlq("Unexpected LP transformation error: " + ex.getMessage(), fhir.toString());
+            }
+
+
+        } catch (Exception ex) {
+            log.error("Failed to transform payload into FHIR, pushing problematic message to DLQ", ex);
+            return dlq(ex.getMessage(), value);
+        }
+    }
+
+    public Pair<String, JsonObject> mapFhir(String str) throws IllegalArgumentException {
         if (this.yaml == null) {
             throw new IllegalStateException("No mapping template loaded");
         }
         JsonElement parsed = JsonParser.parseString(str);
         if (!parsed.isJsonObject()) {
-            throw new IllegalArgumentException("Incoming payload must be a JSON object");
+            throw new RuntimeException("Incoming payload must be a JSON object");
         }
         JsonObject incoming = parsed.getAsJsonObject();
         JsonObject metadataTemplate = buildMetadataBlock(incoming);
         MeasurementConfig measurementCfg = this.yaml.getMeasurement();
         if (measurementCfg == null || measurementCfg.getPaths() == null || measurementCfg.getPaths().isEmpty()) {
-            log.warn("No measurement paths configured – returning metadata-only document");
-            return new HashMap<>();
+            throw new IllegalArgumentException("No measurement paths configured, returning metadata-only document");
         }
 
         //We return a map that maps from the category / path of the incoming JSON to all FHIR JSONs that were created using that configuration
-        Map<String, MapReturn> observations = new HashMap<>();
         for (MeasurementPathConfig pathConfig : measurementCfg.getPaths()) {
-            List<JsonObject> valid = new ArrayList<>();
-            List<JsonObject> invalid = new ArrayList<>();
             if (pathConfig == null) continue;
             //measurement array is one array of measurements inside the incoming json (e.g., cumulative, period, instantaneous)
             JsonArray measurementArray = resolveMeasurementArray(incoming, pathConfig.getPath());
@@ -52,22 +120,76 @@ public class Mapper {
                 continue;
             }
             if (pathConfig.isArrayMapAll()) {
-                for (int idx = 0; idx < measurementArray.size(); idx++) {
-                    JsonElement measurementElement = measurementArray.get(idx);
-                    JsonObject outgoingMeasurementTemplate = metadataTemplate.deepCopy().getAsJsonObject();
-                    boolean res1 = applyFields(outgoingMeasurementTemplate, this.yaml.getMetadata(), null, incoming, measurementElement, idx);
-                    boolean res2 = applyFields(outgoingMeasurementTemplate, pathConfig, incoming, measurementElement, idx);
-                    if (!outgoingMeasurementTemplate.isEmpty() && res1 && res2) valid.add(outgoingMeasurementTemplate);
-                    else invalid.add(outgoingMeasurementTemplate);
+                if (measurementArray.isEmpty()) continue;
+                JsonElement measurementElement = measurementArray.get(0); //There is only one now
+                JsonObject outgoingMeasurementTemplate = metadataTemplate.deepCopy().getAsJsonObject();
+                boolean res1 = applyFields(outgoingMeasurementTemplate, this.yaml.getMetadata(), null, incoming, measurementElement, 0);
+                boolean res2 = applyFields(outgoingMeasurementTemplate, pathConfig, incoming, measurementElement, 0);
+                if (!outgoingMeasurementTemplate.isEmpty() && res1 && res2) {
+                    return new Pair<>(pathConfig.getPath(), outgoingMeasurementTemplate);
+                }
+                else{
+                    throw new RuntimeException(String.format("Invalid fhir created through mapping: %s", outgoingMeasurementTemplate));
                 }
             } else {
                 throw new RuntimeException("Mapping of only a subset of measurements is not yet supported");
                 //TODO implement filtering function to decide what to map instead of index based
             }
-            MapReturn mr = new MapReturn(valid, invalid);
-            observations.put(pathConfig.getPath(), mr);
         }
-        return observations;
+
+        throw new RuntimeException(String.format("No measurements were contained in one of the broken down Jsons: %s", str));
+    }
+
+    public List<String> flatMapJson(String value) {
+        JsonElement rootEl = JsonParser.parseString(value);
+        if (!rootEl.isJsonObject()) {
+            throw new IllegalArgumentException("Root JSON is not an object");
+        }
+
+        JsonObject root = rootEl.getAsJsonObject();
+
+        JsonElement measurementsEl = root.get("measurements");
+        if (measurementsEl == null || !measurementsEl.isJsonObject()) {
+            throw new IllegalArgumentException("Missing or malformed 'measurements' object");
+        }
+
+        JsonObject measurements = measurementsEl.getAsJsonObject();
+        List<String> result = new ArrayList<>();
+
+        for (Map.Entry<String, JsonElement> entry : measurements.entrySet()) {
+            String listName = entry.getKey();
+            JsonElement categoryEl = entry.getValue();
+
+            if (!categoryEl.isJsonArray()) {
+                throw new IllegalArgumentException(
+                        "Malformed input: measurements." + listName + " is not an array"
+                );
+            }
+
+            JsonArray categoryArr = categoryEl.getAsJsonArray();
+
+            // For each element in this array, create one output JSON
+            for (JsonElement element : categoryArr) {
+                // Deep copy the whole root JSON
+                JsonObject copy = root.deepCopy();
+
+                JsonObject copiedMeasurements = copy.getAsJsonObject("measurements");
+
+                // Clear ALL measurement arrays in the copy (set each to empty array)
+                for (String name : new ArrayList<>(copiedMeasurements.keySet())) {
+                    copiedMeasurements.add(name, new JsonArray());
+                }
+
+                // Put ONLY this one element into the current list
+                JsonArray single = new JsonArray();
+                single.add(element.deepCopy()); // deepCopy to be safe
+                copiedMeasurements.add(listName, single);
+
+                result.add(copy.toString()); // Gson serializes via toString()
+            }
+        }
+
+        return result;
     }
 
     private JsonObject buildMetadataBlock(JsonObject root) {
@@ -117,7 +239,7 @@ public class Mapper {
 
         for (FieldConfig field : pathConfig.getFields()) {
             if (field.getFhirSource() != null) {
-                log.info("queue size is {}", fhirDependentQueue.size());
+                log.debug("queue size is {}", fhirDependentQueue.size());
                 fhirDependentQueue.add(field);
             } else {
                 nonFhirDependent.add(field);
@@ -210,6 +332,33 @@ public class Mapper {
             return;
         }
         JsonUtils.setAtTarget(outgoingElementTemplate, field.getTarget(), deepCopyElement(value));
+    }
+
+    private static String dlq(String error, String payload) {
+        return """
+                {
+                    "valid": false,
+                    "error": "%s",
+                    "payload": %s
+                }
+                """.formatted(
+                escape(error),
+                payload == null ? "null" : "\"" + escape(payload) + "\""
+        ).trim();
+    }
+
+    private static String dlqEmptyPayload() {
+        return """
+                {
+                    "valid": false,
+                    "error": "Empty payload",
+                    "payload": null
+                }
+                """.trim();
+    }
+
+    private static String escape(String s) {
+        return s == null ? null : s.replace("\"", "\\\"");
     }
 
 }

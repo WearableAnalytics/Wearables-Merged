@@ -45,19 +45,17 @@ topics:
     partitions: 1 #!! We are only running kafka on one node so more than one partition wont work
     replicas: 1
     retentionMs: 7200000 #2 hours, should be tweaked as needed
-    segmentBytes: 1073741824 # GiB
+    segmentBytes: 1073741824 # 1 GiB
   - name: wearables-lp
     partitions: 1
     replicas: 1
     retentionMs: 7200000
     segmentBytes: 1073741824
   - name: wearables-raw
-    partitions: 3
-    replicas: 1
+    partitions: 30
+    replicas: 3
     retentionMs: 7200000
     segmentBytes: 1073741824
-
-
 
 
 kafkaConnect:
@@ -81,8 +79,10 @@ sourceConnector:
   class: io.lenses.streamreactor.connect.mqtt.source.MqttSourceConnector
   tasksMax: 1
 
+
 offsets.topic.replication.factor: 1
 transaction.state.log.replication.factor: 1
 transaction.state.log.min.isr: 1
 default.replication.factor: 1
 min.insync.replicas: 1
+message.max.bytes: 5242880

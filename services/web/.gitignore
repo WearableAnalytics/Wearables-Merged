@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Environment and secrets
+.env
+.env.local
+.grafana_token.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

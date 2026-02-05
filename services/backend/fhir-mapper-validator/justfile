@@ -1,8 +1,12 @@
 # export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 # eval $(minikube -p minikube docker-env)
 # These two commands need to be executed in the terminal before executing the just command
-build-push tag:
-    docker buildx build --platform linux/amd64 -t lndocker3s/mapper-validator:{{tag}} --push .
+build-push tag log-level:
+    docker buildx build \
+      --platform linux/amd64 \
+      --build-arg LOG_LEVEL={{log-level}} \
+      -t lndocker3s/mapper-validator:{{tag}} \
+      --push .
 
 set-testing-env:
     export MAPPING_YAML_PATH="config/json-tp-fhir-new.yaml"

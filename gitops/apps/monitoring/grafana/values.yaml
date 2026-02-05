@@ -17,3 +17,5 @@ ingress:
 certificate:
   name: wearables-cert
   secretName: wearables-tls
+security:
+  csrfTrustedOrigins: "http://localhost:3002,https://wearables.charite.de"
