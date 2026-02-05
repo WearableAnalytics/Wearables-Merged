@@ -2,14 +2,12 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-
 # Install dependencies based on the lockfile for reproducible builds
 COPY services/web/package*.json ./
 
 # Cache npm's download cache between builds
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund
-
 
 # Copy source and build. Override VITE_API_BASE_URL at build time if needed.
 COPY services/web ./

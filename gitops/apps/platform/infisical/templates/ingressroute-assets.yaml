@@ -1,0 +1,108 @@
+{{- if .Values.ingress.enabled }}
+# Catch-all routes for Infisical
+# These are needed because Infisical generates absolute paths without the /infisical prefix
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-catchall
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    # ============ Static Assets ============
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/assets`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && Path(`/runtime-ui-env.js`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/favicons`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/images`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+
+    # ============ Auth Routes ============
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/login`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/signup`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/verify-email`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/password-reset`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/requestnewinvite`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+
+    # ============ App Routes ============
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/org`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/project`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/personal-settings`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/settings`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/admin`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/secret-scanning`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/integrations`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+
+    # ============ API Routes ============
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/api`)"
+      kind: Rule
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+  tls:
+    secretName: {{ .Values.certificate.secretName }}
+{{- end }}

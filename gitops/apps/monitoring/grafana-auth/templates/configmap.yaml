@@ -1,0 +1,176 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-code
+data:
+  package.json: |
+    {
+      "name": "grafana-forward-auth",
+      "type": "module",
+      "dependencies": {
+        "jsonwebtoken": "^9.0.2"
+      }
+    }
+  server.mjs: |
+    import http from 'node:http';
+    import fs from 'node:fs';
+    import crypto from 'node:crypto';
+    import jwt from 'jsonwebtoken';
+
+    const config = {
+      port: Number(process.env.PORT) || 3000,
+      sessionCookieName: process.env.SESSION_COOKIE_NAME || 'jwt',
+      sessionJwtSecret: process.env.SESSION_JWT_SECRET || 'dev-secret',
+      grafanaJwtHeader: process.env.GRAFANA_JWT_HEADER || 'X-JWT-Assertion',
+      grafanaJwtKeyId: process.env.GRAFANA_JWT_KEY_ID || 'grafana-auth',
+      grafanaJwtIssuer: process.env.GRAFANA_JWT_ISSUER || 'wearables-grafana-auth',
+      grafanaJwtAudience: process.env.GRAFANA_JWT_AUDIENCE || 'grafana',
+      grafanaJwtTtlSeconds: Number(process.env.GRAFANA_JWT_TTL_SECONDS) || 300,
+      grafanaDefaultRole: process.env.GRAFANA_DEFAULT_ROLE || 'Viewer',
+    };
+
+    // Load or generate RSA key pair
+    const loadOrGenerateKeyPair = () => {
+      // Try loading from file first
+      if (process.env.GRAFANA_JWT_PRIVATE_KEY_PATH) {
+        const privateKey = fs.readFileSync(process.env.GRAFANA_JWT_PRIVATE_KEY_PATH, 'utf8');
+        const publicKey = crypto.createPublicKey(privateKey);
+        console.log('Loaded RSA key pair from file');
+        return { privateKey, publicKey };
+      }
+      // Try loading from environment variable
+      if (process.env.GRAFANA_JWT_PRIVATE_KEY) {
+        const privateKey = process.env.GRAFANA_JWT_PRIVATE_KEY.replace(/\\n/g, '\n');
+        const publicKey = crypto.createPublicKey(privateKey);
+        return { privateKey, publicKey };
+      }
+      // Generate ephemeral key pair (for development)
+      const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+      });
+      console.log('Generated ephemeral RSA key pair');
+      return { privateKey, publicKey };
+    };
+
+    const { privateKey, publicKey } = loadOrGenerateKeyPair();
+
+    // Create JWKS from public key
+    const publicKeyObj = crypto.createPublicKey(publicKey);
+    const jwk = publicKeyObj.export({ format: 'jwk' });
+    const jwks = {
+      keys: [{
+        ...jwk,
+        kid: config.grafanaJwtKeyId,
+        use: 'sig',
+        alg: 'RS256',
+      }]
+    };
+
+    // Parse cookies from header
+    const parseCookies = (cookieHeader) => {
+      if (!cookieHeader) return {};
+      return cookieHeader.split(';').reduce((acc, part) => {
+        const [name, ...rest] = part.split('=');
+        if (name && rest.length > 0) {
+          acc[name.trim()] = decodeURIComponent(rest.join('='));
+        }
+        return acc;
+      }, {});
+    };
+
+    // Validate session JWT and extract user info
+    const validateSession = (token) => {
+      try {
+        const decoded = jwt.verify(token, config.sessionJwtSecret, {
+          algorithms: ['HS256'],
+        });
+        if (!decoded.userId && !decoded.sub) {
+          throw new Error('Missing user identifier in token');
+        }
+        return {
+          userId: decoded.userId || decoded.sub,
+          email: decoded.email || `${decoded.userId || decoded.sub}@local`,
+          name: decoded.name || decoded.email || decoded.userId || decoded.sub,
+        };
+      } catch (err) {
+        return null;
+      }
+    };
+
+    // Issue Grafana JWT (RS256)
+    const issueGrafanaJwt = (user) => {
+      return jwt.sign(
+        {
+          sub: user.userId,
+          email: user.email,
+          name: user.name,
+          role: config.grafanaDefaultRole,
+        },
+        privateKey,
+        {
+          algorithm: 'RS256',
+          keyid: config.grafanaJwtKeyId,
+          issuer: config.grafanaJwtIssuer,
+          audience: config.grafanaJwtAudience,
+          expiresIn: config.grafanaJwtTtlSeconds,
+        }
+      );
+    };
+
+    // HTTP server
+    const server = http.createServer((req, res) => {
+      // Health check
+      if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok' }));
+        return;
+      }
+
+      // JWKS endpoint (for Grafana to fetch public key)
+      if (req.url === '/.well-known/jwks.json') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(jwks));
+        return;
+      }
+
+      // ForwardAuth endpoint
+      if (req.url === '/auth' || req.url === '/') {
+        const cookies = parseCookies(req.headers.cookie);
+        const sessionToken = cookies[config.sessionCookieName];
+
+        if (!sessionToken) {
+          console.log('No session cookie found');
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No session cookie' }));
+          return;
+        }
+
+        const user = validateSession(sessionToken);
+        if (!user) {
+          console.log('Invalid session token');
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid session' }));
+          return;
+        }
+
+        const grafanaJwt = issueGrafanaJwt(user);
+
+        // Return 200 with the JWT header that Traefik will forward
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          [config.grafanaJwtHeader]: grafanaJwt,
+        });
+        res.end(JSON.stringify({ status: 'authenticated', user: user.email }));
+        return;
+      }
+
+      res.writeHead(404);
+      res.end('Not found');
+    });
+
+    server.listen(config.port, () => {
+      console.log(`Grafana ForwardAuth listening on port ${config.port}`);
+      console.log(`JWKS available at /.well-known/jwks.json`);
+    });

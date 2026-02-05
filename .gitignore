@@ -135,4 +135,5 @@ app.*.map.json
 
 *.log
 *.tmp
->>>>>>> main
+*._.DS_Store
+*/._.DS_Store

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: grafana-auth
+description: Traefik ForwardAuth service for Grafana JWT authentication
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
