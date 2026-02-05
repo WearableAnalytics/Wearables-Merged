@@ -68,7 +68,7 @@ helm upgrade --install wearables-web ./wearables-web \
 | `service.port` | Service port (nginx) | `80` |
 | `buildArgs.VITE_API_BASE_URL` | API endpoint (build-time) | `"/api"` |
 | `buildArgs.VITE_BACKEND_URL` | Backend URL (build-time) | `""` |
-| `buildArgs.VITE_GRAFANA_IFRAME_URL` | Grafana iframe URL | `"/grafana/"` |
+| `buildArgs.VITE_GRAFANA_PROXY_URL` | Grafana proxy URL | `"/grafana/"` |
 
 ### Build-Time Environment Variables
 
@@ -78,7 +78,7 @@ The frontend uses Vite environment variables that must be set during the Docker 
   - Relative path: `/api` (routed via Ingress)
   - Absolute URL: `http://backend.example.com/api`
 - **`VITE_BACKEND_URL`**: Optional backend base URL
-- **`VITE_GRAFANA_IFRAME_URL`**: Path to Grafana iframe (default: `/grafana/`)
+- **`VITE_GRAFANA_PROXY_URL`**: Path to Grafana proxy (default: `/grafana/`)
 
 ### Rebuilding with Custom Environment Variables
 
@@ -90,7 +90,7 @@ cd services/web
 docker build -f ../../services/web/Dockerfile \
   -t gmsdaniil/wearables-web:custom \
   --build-arg VITE_API_BASE_URL="https://api.example.com" \
-  --build-arg VITE_GRAFANA_IFRAME_URL="/grafana/" \
+  --build-arg VITE_GRAFANA_PROXY_URL="/grafana/" \
   ../..
 
 docker push gmsdaniil/wearables-web:custom
@@ -245,7 +245,7 @@ Set environment variables in `.env`:
 
 ```env
 VITE_API_BASE_URL=http://localhost:3001/api
-VITE_GRAFANA_IFRAME_URL=/grafana/
+VITE_GRAFANA_PROXY_URL=/grafana/
 ```
 
 ### Building for Production

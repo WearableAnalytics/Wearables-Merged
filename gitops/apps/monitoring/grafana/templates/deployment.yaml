@@ -22,30 +22,30 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.imagePullPolicy }}
           env:
-          - name: GF_SERVER_ROOT_URL
-            value: https://{{ .Values.ingress.host }}{{ .Values.ingress.prefix }}
-          - name: GF_SERVER_SERVE_FROM_SUB_PATH
-            value: "true"
-          - name: GF_SECURITY_ALLOW_EMBEDDING
-            value: "true"
-          - name: GF_SECURITY_COOKIE_SAMESITE
-            value: "none"
-          {{- if .Values.security.csrfTrustedOrigins }}
-          - name: GF_SECURITY_CSRF_TRUSTED_ORIGINS
-            value: {{ .Values.security.csrfTrustedOrigins | quote }}
-          {{- end }}
-          - name: GF_AUTH_JWT_ENABLED
-            value: "true"
-          - name: GF_AUTH_JWT_HEADER_NAME
-            value: "X-JWT-Assertion"
-          - name: GF_AUTH_JWT_EMAIL_CLAIM
-            value: "email"
-          - name: GF_AUTH_JWT_USERNAME_CLAIM
-            value: "sub"
-          - name: GF_AUTH_JWT_AUTO_SIGN_UP
-            value: "true"
-          - name: GF_AUTH_JWT_JWK_SET_URL
-            value: "http://grafana-auth.{{ .Release.Namespace }}.svc.cluster.local/.well-known/jwks.json"
+            - name: GF_SERVER_ROOT_URL
+              value: https://{{ .Values.ingress.host }}{{ .Values.ingress.prefix }}
+            - name: GF_SERVER_SERVE_FROM_SUB_PATH
+              value: "true"
+            - name: GF_SECURITY_ALLOW_EMBEDDING
+              value: "true"
+            - name: GF_SECURITY_COOKIE_SAMESITE
+              value: "none"
+            {{- if .Values.security.csrfTrustedOrigins }}
+            - name: GF_SECURITY_CSRF_TRUSTED_ORIGINS
+              value: {{ .Values.security.csrfTrustedOrigins | quote }}
+            {{- end }}
+            - name: GF_AUTH_JWT_ENABLED
+              value: "true"
+            - name: GF_AUTH_JWT_HEADER_NAME
+              value: "X-JWT-Assertion"
+            - name: GF_AUTH_JWT_EMAIL_CLAIM
+              value: "email"
+            - name: GF_AUTH_JWT_USERNAME_CLAIM
+              value: "sub"
+            - name: GF_AUTH_JWT_AUTO_SIGN_UP
+              value: "true"
+            - name: GF_AUTH_JWT_JWK_SET_URL
+              value: "http://grafana-auth.{{ .Release.Namespace }}.svc.cluster.local/.well-known/jwks.json"
           ports:
             - containerPort: {{ .Values.container.port }}
               name: "http-{{ .Release.Name }}"
