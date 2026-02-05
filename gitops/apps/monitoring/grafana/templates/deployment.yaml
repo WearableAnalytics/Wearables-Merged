@@ -30,6 +30,10 @@ spec:
             value: "true"
           - name: GF_SECURITY_COOKIE_SAMESITE
             value: "none"
+          {{- if .Values.security.csrfTrustedOrigins }}
+          - name: GF_SECURITY_CSRF_TRUSTED_ORIGINS
+            value: {{ .Values.security.csrfTrustedOrigins | quote }}
+          {{- end }}
           - name: GF_AUTH_JWT_ENABLED
             value: "true"
           - name: GF_AUTH_JWT_HEADER_NAME

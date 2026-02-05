@@ -20,7 +20,7 @@ public class FhirTransformer extends Transformer{
             JsonElement value
     ) {
 
-        log.info("mapping FHIR field {} with initial value {} and number of transformations: {}",
+        log.debug("mapping FHIR field {} with initial value {} and number of transformations: {}",
                 field.getName(), value, field.getTransform().size());
 
         try {

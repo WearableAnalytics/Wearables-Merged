@@ -6,6 +6,7 @@ import java.util.*;
 
 @Data
 public class MappingYaml  {
+    private String version;
     private MetadataConfig metadata;
     private MeasurementConfig measurement;
 
@@ -14,6 +15,10 @@ public class MappingYaml  {
             ensureUniqueNames();
         } catch(IllegalArgumentException iae) {
             throw new IllegalArgumentException(String.format("Illegal state of YAML file: %s", iae.getMessage()));
+        }
+
+        if (version == null){
+            throw new IllegalArgumentException("The yaml must contain a version field");
         }
     }
 
