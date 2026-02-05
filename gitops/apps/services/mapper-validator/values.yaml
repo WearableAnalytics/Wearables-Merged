@@ -11,8 +11,8 @@ envs:
   inputTopic: "wearables-raw"
   outputTopic: "wearables-lp"
   dlqTopic: "dlq"
-  numStreamThreads: "3" #how many partitions one instance can handle through multithreading
-  partitions: "9" #number of partitions that the wearables raw topic has
+  numStreamThreads: "10" #how many partitions one instance can handle through multithreading
+  partitions: "30" #number of partitions that the wearables raw topic has
 
 
 image:

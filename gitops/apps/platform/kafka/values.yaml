@@ -52,8 +52,8 @@ topics:
     retentionMs: 7200000
     segmentBytes: 1073741824
   - name: wearables-raw
-    partitions: 3
-    replicas: 8
+    partitions: 30
+    replicas: 3
     retentionMs: 7200000
     segmentBytes: 1073741824
 
