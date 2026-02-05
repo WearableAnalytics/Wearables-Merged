@@ -10,6 +10,7 @@ import org.example.fhir.model.MetadataConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sound.sampled.Line;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Stream;
@@ -20,12 +21,18 @@ public class LineProtocolParser {
 
     private static final Logger log = LoggerFactory.getLogger(LineProtocolParser.class);
 
-    public String parse(String category, JsonObject json, Set<Node> minimalBase, MappingYaml yaml) throws IllegalArgumentException {
+    public LineProtocolParser(MappingYaml yaml){
+        this.yaml = yaml;
+    }
+
+    MappingYaml yaml;
+
+    public String parse(String category, JsonObject json, Set<Node> minimalBase) throws IllegalArgumentException {
         if (json == null || json.isEmpty() || !json.isJsonObject()) {
             throw new IllegalArgumentException("Input JSON is null, empty or not a JSON object");
         }
 
-        LineProtocolTemplate template = new LineProtocolTemplate(json, minimalBase, yaml);
+        LineProtocolTemplate template = new LineProtocolTemplate(json, minimalBase, this.yaml);
 
         LineProtocolTemplate filled = template
                 .setMeasurement()

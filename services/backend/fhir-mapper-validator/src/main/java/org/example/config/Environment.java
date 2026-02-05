@@ -16,7 +16,8 @@ public class Environment {
     public static final String DLQ_TOPIC = setEnvWithDefault("DLQ_TOPIC", "dlq");
 
     public static final String KAFKA_BROKER_ENV_VAR = setEnvWithDefault("KAFKA_BROKER_ENV_VAR", "kafka-kafka-bootstrap:9092");
-    public static final String PARTITION_THREADS = setEnvWithDefault("PARTITION_THREADS", "1");
+    public static final String NUM_STREAM_THREADS = setEnvWithDefault("NUM_STREAM_THREADS", "1");
+    public static final int PARTITIONS = parseInt(setEnvWithDefault("PARTITIONS", "8"));
     public static final String APP_ID = setEnvWithDefault("APP_ID", "mapper-validator");
     public static final String MAPPING_YAML_PATH = setEnvWithDefault("MAPPING_YAML_PATH", "config/json-to-fhir-new.yaml");
 
@@ -31,6 +32,12 @@ public class Environment {
             log.warn("Could not find environment variable for {}, using default {}", value, defaultValue);
             return defaultValue;
         }
+    }
+
+    private static int parseInt(String v) throws NumberFormatException{
+
+        return Integer.parseInt(v);
+
     }
 
 }
