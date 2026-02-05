@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-init
+  labels:
+    app: {{ .Release.Name }}
+data:
+  init.sh: |
+    #!/bin/bash
+    set -e
+
+    # Wait for PostgreSQL to be ready
+    until pg_isready -U postgres; do
+      echo "Waiting for PostgreSQL..."
+      sleep 2
+    done
+
+    {{- range .Values.databases }}
+    # Create user and database for {{ .name }}
+    psql -v ON_ERROR_STOP=1 --username postgres <<-EOSQL
+      DO \$\$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ .user }}') THEN
+          CREATE USER {{ .user }} WITH PASSWORD '{{ .password }}';
+        END IF;
+      END
+      \$\$;
+
+      SELECT 'CREATE DATABASE {{ .name }} OWNER {{ .user }}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ .name }}')\gexec
+
+      GRANT ALL PRIVILEGES ON DATABASE {{ .name }} TO {{ .user }};
+    EOSQL
+    echo "Database {{ .name }} ready"
+    {{- end }}

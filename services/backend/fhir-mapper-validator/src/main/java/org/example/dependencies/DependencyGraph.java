@@ -56,12 +56,12 @@ public class DependencyGraph {
                 }
         );
 
-        log.info("base creation done");
+        log.debug("base creation done");
         for (Map.Entry<String, Set<Node>> e : graphs.entrySet()) {
-            log.info("for category {}, found base nodes", e.getKey());
+            log.debug("for category {}, found base nodes", e.getKey());
             e.getValue().forEach(x -> {
-                log.info("    {}", x.getField().getName());
-                x.getSuccessorKeys().forEach(succ -> log.info("      {}", succ));
+                log.debug("    {}", x.getField().getName());
+                x.getSuccessorKeys().forEach(succ -> log.debug("      {}", succ));
             });
         }
 
@@ -79,7 +79,7 @@ public class DependencyGraph {
         //This looks at the FHIR target of all existing nodes and then adds fields (as nodes) as successors whose FHIR source is equal to the aforesaid target
         baseGraph.forEach((key, value) -> value
                 .forEach(node -> {
-                    log.info("Looking at base node {} for category {}", node.getField().getName(), key);
+                    log.debug("Looking at base node {} for category {}", node.getField().getName(), key);
                     findSuccessorsForNode(node, fieldSets.get(key));
                 }));
 
@@ -90,6 +90,8 @@ public class DependencyGraph {
      * @return graphs for all categories
      */
     public Map<String, Set<Node>> build(){
+
+        log.info("Starting graph creation");
 
         for (MeasurementPathConfig m : this.yaml.getMeasurement().getPaths()) {
 
@@ -103,8 +105,8 @@ public class DependencyGraph {
                     .filter(x -> x.getLineProtocol().isMandatory())
                     .collect(Collectors.toSet());
 
-            log.info("Found node set");
-            matchingGraph.forEach(x -> log.info("   {}", x.getField().getName()));
+            log.debug("Found node set");
+            matchingGraph.forEach(x -> log.debug("   {}", x.getField().getName()));
 
             for (FieldConfig f : mandatoryFields) {
 
@@ -126,6 +128,8 @@ public class DependencyGraph {
                 throw new IllegalArgumentException(String.format("the nodes in the baseSet form cannot form valid LineProtocol: %s", iae.getMessage()));
             }
         }
+
+        log.info("Graph creation completed");
 
         return graphs;
 
@@ -158,7 +162,7 @@ public class DependencyGraph {
                     if (!graph.containsVertex(nodeName)) {
                         graph.addVertex(nodeName);
                     }
-                    log.info("Base node {}", nodeName);
+                    log.debug("Base node {}", nodeName);
                     x.getSuccessorKeys().forEach(succ -> {
 
                                 if (!graph.containsVertex(succ)) {
@@ -195,12 +199,12 @@ public class DependencyGraph {
 
         fields.stream()
                 .filter(f -> f.getFhirSource() != null)
-                .peek(f -> log.info("   {}", f.getName()))
+                .peek(f -> log.debug("   {}", f.getName()))
                 .filter(f -> f.getFhirSource().equals(nodeTarget))
-                .peek(f -> log.info("       has same target"))
+                .peek(f -> log.debug("       has same target"))
                 .map(Node::new)
                 .forEach(succ -> {
-                    log.info("       added {} as successor for {}", succ.getField().getName(), node.getField().getName());
+                    log.debug("       added {} as successor for {}", succ.getField().getName(), node.getField().getName());
                     if (checkRecursiveDep(succ, node)) {
                         throw new IllegalArgumentException(String.format("there is an illegal circular dependency in the fields with nodes (%s, %s) please check your configuration", succ.getField().getName(), node.getField().getName()));
                     }
@@ -217,7 +221,7 @@ public class DependencyGraph {
 
         if (current.getField().getFhirSource() == null) {
             //I think this means we have found a field at the base of the dependency tree
-            log.info("found one bottom of dependencies: {}", current.getField().getName());
+            log.debug("found one bottom of dependencies: {}", current.getField().getName());
             return false;
         }else if (current.getField().getFhirSource().equals(succ.getField().getTarget())) {
             //We have a circular dependency with the current node
@@ -264,8 +268,8 @@ public class DependencyGraph {
 
         found.entrySet().forEach(
                 x -> {
-                    log.info("Group with key {}", x.getKey());
-                    x.getValue().forEach(y -> log.info("  {}", y.getName()));
+                    log.debug("Group with key {}", x.getKey());
+                    x.getValue().forEach(y -> log.debug("  {}", y.getName()));
                 }
         );
 
@@ -300,9 +304,9 @@ public class DependencyGraph {
                     .orElse(null);
 
             if (optimalBase != null) {
-                log.info(String.valueOf(value.remove(optimalBase)));
-                log.info("found an optimal base for source {}: {}", key, optimalBase.getName());
-                value.forEach(x -> log.info("  {}", x.getName()));
+                log.debug(String.valueOf(value.remove(optimalBase)));
+                log.debug("found an optimal base for source {}: {}", key, optimalBase.getName());
+                value.forEach(x -> log.debug("  {}", x.getName()));
                 allInjectives.put(optimalBase, value);
             } else {
                 value.forEach(
@@ -384,7 +388,7 @@ public class DependencyGraph {
         for (Map.Entry<FieldConfig, Set<FieldConfig>> e : allInjectives.baseDerivativesMap.entrySet()) {
 
             Node baseNode = new Node(e.getKey());
-            log.info("Added base node {}", baseNode.field.getName());
+            log.debug("Added base node {}", baseNode.field.getName());
 
             e.getValue().forEach(
                     x -> {
@@ -393,7 +397,7 @@ public class DependencyGraph {
                         if (!success) {
                             log.warn("  could not connect nodes in base set({}, {}) as they are already connected", baseNode.getField().getName(), newNode.getField().getName());
                         }
-                        log.info("  Added successor node {} with key {}", x, x.getName());
+                        log.debug("  Added successor node {} with key {}", x, x.getName());
                     }
 
             );

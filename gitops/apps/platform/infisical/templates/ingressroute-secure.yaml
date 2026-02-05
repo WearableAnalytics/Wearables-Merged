@@ -1,0 +1,21 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ .Release.Name }}-https
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`{{ .Values.ingress.prefix }}`)"
+      kind: Rule
+      middlewares:
+        - name: {{ .Release.Name }}-stripprefix
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+  tls:
+    secretName: {{ .Values.certificate.secretName }}
+{{- end }}

@@ -53,6 +53,13 @@ Then create necessary topics by opening an interactive shell in Kafka controller
 
 Currently, the image for this application is hosted on a public dockerhub repo on my personal account -> we need to find a more permanent solution for this too
 
+Currently the mapper is running multithreaded as validation can take a long time. For that Kafka uses partitions. Each mapper instance is currently running 3 threads (See `.Values.envs.numStreamThreads`). To achieve that the following must be true:
+
+`topic_partitions >= mapper_instances * num_stream_threads`
+
+Where `topic_partitions` is the number of partitions of the raw data topic. 
+This is necessary as each mapper instance handles parallelism by reading from multiple partitions. Partitioning logic (rekeying and rebalancing) is handled inside the mapper.
+
 `helm upgrade --install mapper-validator  ./mapper-validator --values ./mapper-validator/values.yaml --namespace kafka --create-namespace`
 
 **Install Influx**

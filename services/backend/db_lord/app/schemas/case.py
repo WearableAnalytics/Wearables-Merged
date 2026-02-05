@@ -3,7 +3,7 @@ from enum import Enum
 
 from pydantic import Field
 
-from .common import TunedBase
+from .common import TunedBase, TunedUpdateBase
 from .context import Context
 from .device import Device
 from .patient import Patient
@@ -17,6 +17,7 @@ class CaseStatus(str, Enum):
     ARCHIVED = "ARCHIVED"
     OTHER = "OTHER"
 
+
 class CaseBase(TunedBase):
     status: CaseStatus = Field(default=CaseStatus.PLANNED)
     patient_id: uuid.UUID
@@ -26,7 +27,7 @@ class CaseCreate(CaseBase):
     pass
 
 
-class CaseUpdate(TunedBase):
+class CaseUpdate(TunedUpdateBase):
     status: CaseStatus | None = None
     patient_id: uuid.UUID | None = None
 

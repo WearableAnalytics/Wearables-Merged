@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from .common import TunedBase
+from .common import TunedBase, TunedUpdateBase
 
 
 def utc_now() -> datetime:
@@ -21,7 +21,7 @@ class DeviceAssignmentCreate(DeviceAssignmentBase):
     pass
 
 
-class DeviceAssignmentUpdate(TunedBase):
+class DeviceAssignmentUpdate(TunedUpdateBase):
     assigned_from: datetime | None = None  # Should we allow changing assigned_from?
     assigned_to: datetime | None = None
 
@@ -41,7 +41,7 @@ class WearableAssignmentCreate(WearableAssignmentBase):
     pass
 
 
-class WearableAssignmentUpdate(TunedBase):
+class WearableAssignmentUpdate(TunedUpdateBase):
     assigned_from: datetime | None = None  # Should we allow changing assigned_from?
     assigned_to: datetime | None = None
 
@@ -59,5 +59,6 @@ class ContextAssignmentCreate(ContextAssignmentBase):
     pass
 
 
-class ContextAssignmentUpdate(ContextAssignmentBase):
-    pass
+class ContextAssignmentUpdate(TunedUpdateBase):
+    case_id: UUID | None = None
+    context_id: UUID | None = None
