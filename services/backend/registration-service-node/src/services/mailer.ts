@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { logger } from '../logger.js';
 
 type Sender = { name: string; email: string };
 
@@ -68,8 +69,10 @@ export async function sendMagicLinkEmail(
     : 'Your Wearables login link';
 
   if (shouldLogOnly) {
-    // eslint-disable-next-line no-console
-    console.log(`[magic-link] send to ${email}: ${magicLink}`);
+    logger.info('Magic link email suppressed (log-only mode)', {
+      email,
+      magicLink,
+    });
     return;
   }
 

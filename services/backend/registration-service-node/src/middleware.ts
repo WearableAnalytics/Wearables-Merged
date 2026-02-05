@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import config from './config.js';
+import { logger } from './logger.js';
 
 export interface JwtPayload {
   userId: string;
@@ -71,6 +72,28 @@ export const auth = {
   required: authenticate,
 };
 
+export function requestLogger(req: Request, res: Response, next: NextFunction) {
+  const start = process.hrtime.bigint();
+
+  res.on('finish', () => {
+    const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+    const level: 'error' | 'warn' | 'info' =
+      res.statusCode >= 500 ? 'error' :
+      res.statusCode >= 400 ? 'warn' :
+      'info';
+
+    logger[level]('HTTP request', {
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      durationMs: Number(durationMs.toFixed(2)),
+      ip: req.ip,
+    });
+  });
+
+  next();
+}
+
 // Error Handler
 export function notFound(req: Request, res: Response, next: NextFunction) {
   res.status(404);
@@ -81,6 +104,7 @@ export function notFound(req: Request, res: Response, next: NextFunction) {
 export function errorHandler(err: Error, _: Request, res: Response, __: NextFunction) {
   const statusCode = res.statusCode !== 200 ? res.statusCode : 500;
   res.status(statusCode);
+  logger.error('Unhandled error', err);
   res.json({
     message: err.message,
     stack: process.env.NODE_ENV !== 'development' ? '<redacted>' : err.stack,

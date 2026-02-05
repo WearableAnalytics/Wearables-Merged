@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { auth, parseCookies } from '../../middleware.js';
 import { sendMagicLinkEmail } from '../../services/mailer.js';
+import { logger } from '../../logger.js';
 
 type UserRecord = {
   id: string;
@@ -121,7 +122,7 @@ router.post('/login', async (req: Request, res: Response) => {
     await sendMagicLinkEmail(email, token, { isRegistration: false });
     res.json({ message: 'Magic link sent' });
   } catch (err) {
-    console.error('Magic link error:', err);
+    logger.error('Magic link error', err as Error);
     res.status(500).json({ error: 'Failed to process authentication request' });
   }
 });
@@ -159,7 +160,7 @@ router.post('/register', async (req: Request, res: Response) => {
       res.status(201).json({ _id: user.id, message: 'Magic link sent' });
     }
   } catch (err) {
-    console.error('Signup error:', err);
+    logger.error('Signup error', err as Error);
     res.status(500).json({ error: 'Failed to process registration request' });
   }
 });
