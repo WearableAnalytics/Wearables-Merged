@@ -239,7 +239,7 @@ public class Mapper {
 
         for (FieldConfig field : pathConfig.getFields()) {
             if (field.getFhirSource() != null) {
-                log.info("queue size is {}", fhirDependentQueue.size());
+                log.debug("queue size is {}", fhirDependentQueue.size());
                 fhirDependentQueue.add(field);
             } else {
                 nonFhirDependent.add(field);

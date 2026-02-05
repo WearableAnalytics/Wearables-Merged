@@ -22,7 +22,7 @@ public class RawTransformer extends Transformer{
             MeasurementPathConfig measurementCfg,
             JsonElement value
     ) {
-        log.info("mapping RAW field {} with initial value {} and number of transformations: {}",
+        log.debug("mapping RAW field {} with initial value {} and number of transformations: {}",
                 field.getName(), value, field.getTransform().size());
 
         if (field.getType().equals("string")){
@@ -38,13 +38,13 @@ public class RawTransformer extends Transformer{
             switch (type) {
 
                 case "toLowerCase": {
-                    log.info("resolving lowerCase for {}", value);
+                    log.debug("resolving lowerCase for {}", value);
                     value = RawTransformer.resolveToLowerCase(vt, value);
                     break;
                 }
 
                 case "replace": {
-                    log.info("resolving replace for {}", value);
+                    log.debug("resolving replace for {}", value);
                     value = RawTransformer.resolveReplace(vt, value);
                     if (value == null) return null;
                     break;
@@ -92,7 +92,7 @@ public class RawTransformer extends Transformer{
 
         }
 
-        log.info("finished transformation, new value '{}'", value);
+        log.debug("finished transformation, new value '{}'", value);
 
         return value;
     }
