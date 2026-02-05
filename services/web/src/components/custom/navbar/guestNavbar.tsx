@@ -27,6 +27,7 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
   const isCasePage = location.pathname.startsWith('/cases/');
   const activePatientName = patient ? `${patient.firstName} ${patient.lastName}` : null;
   const isAuthenticated = !!user;
+  const isAdmin = user?.role === 'admin';
 
   const activePatientNavLabel =
     patient && patient.lastName
@@ -70,6 +71,7 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
           {isAuthenticated ? (
             <div className="hidden md:flex items-center space-x-6">
               <NavButton path="/overview">Overview</NavButton>
+              {isAdmin ? <NavButton path="/admin/approvals">Admin</NavButton> : null}
               {isCasePage && activeCase && activePatientNavLabel ? (
                 <NavButton path={`/cases/${activeCase.caseId}`}>
                   <span className="max-w-[180px] truncate" title={activePatientName ?? undefined}>
@@ -128,6 +130,15 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
                   >
                     Overview
                   </NavButtonMobile>
+                  {isAdmin ? (
+                    <NavButtonMobile
+                      path="/admin/approvals"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      Admin
+                    </NavButtonMobile>
+                  ) : null}
                   {isCasePage && activeCase && activePatientMobileLabel ? (
                     <NavButtonMobile
                       path={`/cases/${activeCase.caseId}`}

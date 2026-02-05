@@ -58,7 +58,7 @@ export function LoginPage() {
       <PageHeader
         label="Login"
         title="Sign in with your email"
-        description="Enter the email you used to register to receive a login link."
+        description="Enter the email you used to register. Approved accounts will receive a login link."
       />
 
       <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">

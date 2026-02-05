@@ -2,11 +2,15 @@ import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import config from './config.js';
 import { logger } from './logger.js';
+import { getUserByEmail } from './services/userStore.js';
+import type { UserRole, UserStatus } from './services/userStore.js';
 
 export interface JwtPayload {
   userId: string;
   email: string;
   name?: string;
+  role?: UserRole;
+  status?: UserStatus;
 }
 
 declare global {
@@ -45,7 +49,17 @@ export const getUserFromRequest = (req: Request): JwtPayload | undefined => {
     if (!decoded.userId || !decoded.email) {
       throw new Error('Invalid token payload');
     }
-    return decoded;
+    const userRecord = getUserByEmail(decoded.email);
+    if (!userRecord || userRecord.id !== decoded.userId) {
+      return undefined;
+    }
+    return {
+      userId: userRecord.id,
+      email: userRecord.email,
+      name: userRecord.name,
+      role: userRecord.role,
+      status: userRecord.status,
+    };
   } catch (err) {
     return undefined;
   }
@@ -61,6 +75,24 @@ const authenticate = (req: Request, res: Response, next: NextFunction): void => 
       return;
     }
 
+    if (user.status === 'pending') {
+      res.status(403).json({
+        error: 'Account pending approval',
+        message: 'Your account is awaiting admin approval.',
+        code: 'PENDING_APPROVAL',
+      });
+      return;
+    }
+
+    if (user.status === 'denied') {
+      res.status(403).json({
+        error: 'Account denied',
+        message: 'Your access request was denied. Please contact an administrator.',
+        code: 'ACCOUNT_DENIED',
+      });
+      return;
+    }
+
     req.user = user;
     next();
   } catch (err) {
@@ -68,8 +100,27 @@ const authenticate = (req: Request, res: Response, next: NextFunction): void => 
   }
 };
 
+const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  if (req.user.role !== 'admin') {
+    res.status(403).json({
+      error: 'Admin access required',
+      message: 'You do not have permission to access this resource.',
+      code: 'ADMIN_REQUIRED',
+    });
+    return;
+  }
+
+  next();
+};
+
 export const auth = {
   required: authenticate,
+  adminOnly: [authenticate, requireAdmin],
 };
 
 export function requestLogger(req: Request, res: Response, next: NextFunction) {

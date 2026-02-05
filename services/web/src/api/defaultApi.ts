@@ -98,6 +98,57 @@ export class DefaultApi {
     return response.json().catch(() => ({} as Record<string, unknown>));
   };
 
+  listPendingUsers = async () => {
+    const response = await fetch(`${API_BASE_PATH}/admin/pending-users`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to load pending users.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  approveUser = async (userId: string) => {
+    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}/approve`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to approve user.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  denyUser = async (userId: string) => {
+    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}/deny`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to deny user.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
   // Cases
   casesCaseIdGet = this.casesApi.casesCaseIdGet.bind(this.casesApi);
   casesFromChariteCasePost = this.casesApi.casesFromChariteCasePost.bind(this.casesApi);

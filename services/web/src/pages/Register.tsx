@@ -33,7 +33,8 @@ export function RegisterPage() {
 
     try {
       const data = await defaultApi.register(trimmedEmail);
-      const successMessage = (data as { message?: string }).message ?? 'Check your email to complete sign up.';
+      const successMessage =
+        (data as { message?: string }).message ?? 'Your account is awaiting admin approval.';
       setMessage(successMessage);
       window.dispatchEvent(new Event('auth-change'));
     } catch (err) {
@@ -47,8 +48,8 @@ export function RegisterPage() {
     <>
       <PageHeader
         label="Register"
-        title="Create an account"
-        description="Enter your email to receive a registration link."
+        title="Request access"
+        description="Enter your email to request access. You will be notified after approval."
       />
 
       <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">
@@ -66,7 +67,7 @@ export function RegisterPage() {
             autoComplete="email"
             placeholder="Enter your email address"
             submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
-            submitLabel="Send registration link"
+            submitLabel="Request access"
           />
 
           <div className="mt-6 space-y-3 min-h-[120px]">
@@ -76,7 +77,7 @@ export function RegisterPage() {
               <AddCaseNotice
                 tone="loading"
                 icon={<Loader2 aria-hidden className="h-5 w-5 animate-spin text-slate-600" />}
-                message="Sending registration link…"
+                message="Submitting access request…"
               />
             ) : null}
 

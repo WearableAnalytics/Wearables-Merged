@@ -11,6 +11,10 @@ const defaultLogLevel = nodeEnv === 'production' ? 'info' : 'debug';
 const logLevelRaw = (process.env.LOG_LEVEL || defaultLogLevel).toLowerCase();
 const allowedLogLevels = new Set(['trace', 'debug', 'info', 'warn', 'error']);
 const logLevel = allowedLogLevels.has(logLevelRaw) ? logLevelRaw : defaultLogLevel;
+const adminEmails = (process.env.ADMIN_EMAILS ?? '')
+  .split(',')
+  .map((email) => email.trim())
+  .filter(Boolean);
 
 export const config = {
   port: Number(process.env.PORT) || 3001,
@@ -24,6 +28,7 @@ export const config = {
     .filter(Boolean),
   
   jwtSecret,
+  adminEmails,
   
   databaseApi: {
     baseUrl: process.env.DATABASE_API_URL || 'http://localhost:8000',

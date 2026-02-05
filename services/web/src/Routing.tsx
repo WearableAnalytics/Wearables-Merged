@@ -10,6 +10,7 @@ import { PrivateRoute } from './components/PrivateRoute';
 import { LandingPage } from './pages/Landing';
 import { ErrorMagicLinkPage } from './pages/ErrorMagicLink';
 import { PatientMonitoringPage } from './pages/PatientMonitoring';
+import { AdminApprovalsPage } from './pages/AdminApprovals';
 
 export function Routing() {
   return (
@@ -52,6 +53,14 @@ export function Routing() {
         element={
           <PrivateRoute>
             <PatientMonitoringPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/approvals"
+        element={
+          <PrivateRoute>
+            <AdminApprovalsPage />
           </PrivateRoute>
         }
       />

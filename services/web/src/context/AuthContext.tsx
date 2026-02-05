@@ -6,6 +6,8 @@ export interface User {
   id: string;
   email: string;
   name?: string;
+  role?: 'admin' | 'user';
+  status?: 'pending' | 'approved' | 'denied';
 }
 
 interface AuthContextType {

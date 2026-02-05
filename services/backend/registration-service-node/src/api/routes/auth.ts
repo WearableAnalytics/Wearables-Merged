@@ -3,14 +3,19 @@ import type { CookieOptions, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { auth, parseCookies } from '../../middleware.js';
-import { sendMagicLinkEmail } from '../../services/mailer.js';
+import { sendApprovalEmail, sendMagicLinkEmail } from '../../services/mailer.js';
 import { logger } from '../../logger.js';
-
-type UserRecord = {
-  id: string;
-  email: string;
-  name?: string;
-};
+import {
+  createUser,
+  ensureAdminUser,
+  getUserByEmail,
+  isAdminEmail,
+  listUsersByStatus,
+  normalizeUserEmail,
+  setUserStatus,
+  type UserRecord,
+  type UserStatus,
+} from '../../services/userStore.js';
 
 const router = express.Router();
 const requestCookies = (req: Request) =>
@@ -18,9 +23,6 @@ const requestCookies = (req: Request) =>
 
 // In-memory store for temporary EMAILAUTH tokens
 const tokenStore = new Map<string, { email: string; expiresAt: Date }>();
-// In-memory user store (replace with real DB later)
-const users = new Map<string, UserRecord>();
-
 const sameSite: CookieOptions['sameSite'] =
   process.env.NODE_ENV !== 'development' ? 'strict' : 'lax';
 const baseCookieOptions: CookieOptions = {
@@ -45,6 +47,8 @@ const createJwtToken = (user: UserRecord) => {
       userId: user.id,
       email: user.email,
       name: user.name,
+      role: user.role,
+      status: user.status,
     },
     process.env.JWT_SECRET || 'dev-secret',
     { expiresIn: '7d' },
@@ -74,19 +78,6 @@ const createMagicLinkToken = (email: string) => {
   return token;
 };
 
-const findUser = (email: string) => users.get(email.toLowerCase());
-const createUser = (email: string): UserRecord => {
-  const normalizedEmail = email.toLowerCase();
-  const existing = findUser(normalizedEmail);
-  if (existing) {
-    return existing;
-  }
-  const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
-  const user: UserRecord = { id, email: normalizedEmail };
-  users.set(normalizedEmail, user);
-  return user;
-};
-
 const isDevBypass = () => process.env.NODE_ENV === 'development';
 
 // POST /login
@@ -97,13 +88,35 @@ router.post('/login', async (req: Request, res: Response) => {
     return;
   }
   try {
-    const existingUser = findUser(email);
+    const normalizedEmail = normalizeUserEmail(email);
+    let existingUser = getUserByEmail(normalizedEmail);
+    if (isAdminEmail(normalizedEmail)) {
+      existingUser = ensureAdminUser(normalizedEmail);
+    }
     clearAllCookies(req, res);
     if (!existingUser) {
       res.status(404).json({
         error: 'User not found',
         redirectToSignup: true,
         message: 'This email is not registered. Please sign up first.',
+      });
+      return;
+    }
+
+    if (existingUser.status === 'pending') {
+      res.status(403).json({
+        error: 'Account pending approval',
+        message: 'Your account is awaiting admin approval.',
+        code: 'PENDING_APPROVAL',
+      });
+      return;
+    }
+
+    if (existingUser.status === 'denied') {
+      res.status(403).json({
+        error: 'Account denied',
+        message: 'Your access request was denied. Please contact an administrator.',
+        code: 'ACCOUNT_DENIED',
       });
       return;
     }
@@ -118,8 +131,8 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
 
-    const token = createMagicLinkToken(email);
-    await sendMagicLinkEmail(email, token, { isRegistration: false });
+    const token = createMagicLinkToken(existingUser.email);
+    await sendMagicLinkEmail(existingUser.email, token, { isRegistration: false });
     res.json({ message: 'Magic link sent' });
   } catch (err) {
     logger.error('Magic link error', err as Error);
@@ -135,7 +148,46 @@ router.post('/register', async (req: Request, res: Response) => {
     return;
   }
   try {
-    if (findUser(email)) {
+    const normalizedEmail = normalizeUserEmail(email);
+    const adminEmail = isAdminEmail(normalizedEmail);
+    const existingUser = getUserByEmail(normalizedEmail);
+    clearAllCookies(req, res);
+
+    if (adminEmail) {
+      const adminUser = ensureAdminUser(normalizedEmail);
+      if (isDevBypass()) {
+        const jwtToken = createJwtToken(adminUser);
+        setAuthCookie(res, jwtToken);
+        res.status(201).json({
+          message: 'Development mode: Direct authentication successful',
+          id: adminUser.id,
+        });
+      } else {
+        const token = createMagicLinkToken(adminUser.email);
+        await sendMagicLinkEmail(adminUser.email, token, { isRegistration: false });
+        res.status(201).json({ _id: adminUser.id, message: 'Magic link sent' });
+      }
+      return;
+    }
+
+    if (existingUser) {
+      if (existingUser.status === 'denied') {
+        res.status(403).json({
+          error: 'Account denied',
+          message: 'Your access request was denied. Please contact an administrator.',
+          code: 'ACCOUNT_DENIED',
+        });
+        return;
+      }
+
+      if (existingUser.status === 'pending') {
+        res.status(200).json({
+          message: 'Your account is awaiting admin approval.',
+          status: existingUser.status,
+        });
+        return;
+      }
+
       res.status(409).json({
         error: 'User already exists',
         message: 'This email is already registered. Please login instead.',
@@ -143,22 +195,12 @@ router.post('/register', async (req: Request, res: Response) => {
       return;
     }
 
-    clearAllCookies(req, res);
-
-    const user = createUser(email);
-
-    if (isDevBypass()) {
-      const jwtToken = createJwtToken(user);
-      setAuthCookie(res, jwtToken);
-      res.status(201).json({
-        message: 'Development mode: Direct authentication successful',
-        id: user.id,
-      });
-    } else {
-      const token = createMagicLinkToken(email);
-      await sendMagicLinkEmail(email, token, { isRegistration: true });
-      res.status(201).json({ _id: user.id, message: 'Magic link sent' });
-    }
+    const user = createUser(normalizedEmail, { status: 'pending', role: 'user' });
+    res.status(201).json({
+      _id: user.id,
+      status: user.status,
+      message: 'Your account is awaiting admin approval.',
+    });
   } catch (err) {
     logger.error('Signup error', err as Error);
     res.status(500).json({ error: 'Failed to process registration request' });
@@ -184,7 +226,18 @@ router.get('/verify-magiclink', async (req: Request, res: Response) => {
     }
     const email = data.email;
     tokenStore.delete(token as string);
-    const user = createUser(email);
+    let user = getUserByEmail(email);
+    if (isAdminEmail(email)) {
+      user = ensureAdminUser(email);
+    }
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (user.status !== 'approved') {
+      throw new Error('User not approved');
+    }
+
     const jwtToken = createJwtToken(user);
     setAuthCookie(res, jwtToken);
 
@@ -199,6 +252,8 @@ router.get('/verify-magiclink', async (req: Request, res: Response) => {
           id: user.id,
           email: user.email,
           name: user.name,
+          role: user.role,
+          status: user.status,
         },
       });
     }
@@ -220,8 +275,68 @@ router.get('/me', auth.required, (req: Request, res: Response) => {
       id: req.user.userId,
       email: req.user.email,
       name: req.user.name,
+      role: req.user.role,
+      status: req.user.status,
     },
   });
+});
+
+router.get('/admin/pending-users', ...auth.adminOnly, (_req: Request, res: Response) => {
+  const pendingUsers = listUsersByStatus('pending').map((user) => ({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    status: user.status,
+    createdAt: user.createdAt.toISOString(),
+  }));
+
+  res.json({ users: pendingUsers });
+});
+
+const updateUserStatus = async (
+  req: Request,
+  res: Response,
+  status: UserStatus,
+) => {
+  const { userId } = req.params;
+  if (!userId) {
+    res.status(400).json({ error: 'User ID required' });
+    return;
+  }
+
+  const updated = setUserStatus(userId, status);
+  if (!updated) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  if (status === 'approved') {
+    try {
+      await sendApprovalEmail(updated.email);
+    } catch (error) {
+      logger.error('Failed to send approval email', error as Error);
+    }
+  }
+
+  res.json({
+    success: true,
+    user: {
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      role: updated.role,
+      status: updated.status,
+    },
+  });
+};
+
+router.post('/admin/users/:userId/approve', ...auth.adminOnly, async (req: Request, res: Response) => {
+  await updateUserStatus(req, res, 'approved');
+});
+
+router.post('/admin/users/:userId/deny', ...auth.adminOnly, async (req: Request, res: Response) => {
+  await updateUserStatus(req, res, 'denied');
 });
 
 router.post('/logout', (req: Request, res: Response) => {
