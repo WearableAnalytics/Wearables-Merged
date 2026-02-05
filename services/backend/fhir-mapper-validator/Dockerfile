@@ -21,6 +21,10 @@ RUN mkdir -p /app/logs
 # Optional: provide a default external YAML; can be overridden by a mounted file at runtime
 COPY src/main/resources/mapping-2026-01-28.yaml /config/mapping.yaml
 
+# Allow configurable log level at build time; defaults to INFO
+ARG LOG_LEVEL=INFO
+ENV LOG_LEVEL=${LOG_LEVEL}
+
 # Environment variables are set through k8s
 
 ENTRYPOINT ["java", "-Xmx3500m", "-jar", "/app/app.jar"]
