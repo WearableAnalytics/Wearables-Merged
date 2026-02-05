@@ -10,8 +10,11 @@ import {
   ensureAdminUser,
   getUserByEmail,
   isAdminEmail,
+  listAdminRequests,
   listUsersByStatus,
   normalizeUserEmail,
+  requestAdminAccess,
+  reviewAdminRequest,
   setUserStatus,
   type UserRecord,
   type UserStatus,
@@ -49,6 +52,7 @@ const createJwtToken = (user: UserRecord) => {
       name: user.name,
       role: user.role,
       status: user.status,
+      adminRequestStatus: user.adminRequestStatus,
     },
     process.env.JWT_SECRET || 'dev-secret',
     { expiresIn: '7d' },
@@ -254,6 +258,7 @@ router.get('/verify-magiclink', async (req: Request, res: Response) => {
           name: user.name,
           role: user.role,
           status: user.status,
+          adminRequestStatus: user.adminRequestStatus,
         },
       });
     }
@@ -277,6 +282,50 @@ router.get('/me', auth.required, (req: Request, res: Response) => {
       name: req.user.name,
       role: req.user.role,
       status: req.user.status,
+      adminRequestStatus: req.user.adminRequestStatus,
+    },
+  });
+});
+
+router.post('/request-admin', auth.required, (req: Request, res: Response) => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  const updated = requestAdminAccess(req.user.userId);
+  if (!updated) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  if (updated.role === 'admin') {
+    res.json({
+      success: true,
+      message: 'You are already an admin.',
+      user: {
+        id: updated.id,
+        email: updated.email,
+        role: updated.role,
+        status: updated.status,
+        adminRequestStatus: updated.adminRequestStatus,
+      },
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    message:
+      updated.adminRequestStatus === 'pending'
+        ? 'Your admin request is pending.'
+        : 'Your admin request has been submitted.',
+    user: {
+      id: updated.id,
+      email: updated.email,
+      role: updated.role,
+      status: updated.status,
+      adminRequestStatus: updated.adminRequestStatus,
     },
   });
 });
@@ -288,10 +337,54 @@ router.get('/admin/pending-users', ...auth.adminOnly, (_req: Request, res: Respo
     name: user.name,
     role: user.role,
     status: user.status,
+    adminRequestStatus: user.adminRequestStatus,
     createdAt: user.createdAt.toISOString(),
   }));
 
   res.json({ users: pendingUsers });
+});
+
+router.get('/admin/approved-users', ...auth.adminOnly, (_req: Request, res: Response) => {
+  const approvedUsers = listUsersByStatus('approved').map((user) => ({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    status: user.status,
+    adminRequestStatus: user.adminRequestStatus,
+    createdAt: user.createdAt.toISOString(),
+  }));
+
+  res.json({ users: approvedUsers });
+});
+
+router.get('/admin/denied-users', ...auth.adminOnly, (_req: Request, res: Response) => {
+  const deniedUsers = listUsersByStatus('denied').map((user) => ({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    status: user.status,
+    adminRequestStatus: user.adminRequestStatus,
+    createdAt: user.createdAt.toISOString(),
+    deniedAt: user.deniedAt ? user.deniedAt.toISOString() : undefined,
+  }));
+
+  res.json({ users: deniedUsers });
+});
+
+router.get('/admin/pending-admin-requests', ...auth.adminOnly, (_req: Request, res: Response) => {
+  const pendingRequests = listAdminRequests('pending').map((user) => ({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    status: user.status,
+    adminRequestStatus: user.adminRequestStatus,
+    adminRequestedAt: user.adminRequestedAt ? user.adminRequestedAt.toISOString() : undefined,
+  }));
+
+  res.json({ users: pendingRequests });
 });
 
 const updateUserStatus = async (
@@ -327,6 +420,7 @@ const updateUserStatus = async (
       name: updated.name,
       role: updated.role,
       status: updated.status,
+      adminRequestStatus: updated.adminRequestStatus,
     },
   });
 };
@@ -337,6 +431,52 @@ router.post('/admin/users/:userId/approve', ...auth.adminOnly, async (req: Reque
 
 router.post('/admin/users/:userId/deny', ...auth.adminOnly, async (req: Request, res: Response) => {
   await updateUserStatus(req, res, 'denied');
+});
+
+router.post('/admin/users/:userId/unblock', ...auth.adminOnly, async (req: Request, res: Response) => {
+  await updateUserStatus(req, res, 'pending');
+});
+
+router.post('/admin/users/:userId/approve-admin', ...auth.adminOnly, (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const updated = reviewAdminRequest(userId, 'approved');
+  if (!updated) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  res.json({
+    success: true,
+    user: {
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      role: updated.role,
+      status: updated.status,
+      adminRequestStatus: updated.adminRequestStatus,
+    },
+  });
+});
+
+router.post('/admin/users/:userId/deny-admin', ...auth.adminOnly, (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const updated = reviewAdminRequest(userId, 'denied');
+  if (!updated) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  res.json({
+    success: true,
+    user: {
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      role: updated.role,
+      status: updated.status,
+      adminRequestStatus: updated.adminRequestStatus,
+    },
+  });
 });
 
 router.post('/logout', (req: Request, res: Response) => {

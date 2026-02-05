@@ -11,6 +11,8 @@ import { LandingPage } from './pages/Landing';
 import { ErrorMagicLinkPage } from './pages/ErrorMagicLink';
 import { PatientMonitoringPage } from './pages/PatientMonitoring';
 import { AdminApprovalsPage } from './pages/AdminApprovals';
+import { AccountPage } from './pages/Account';
+import { AuthRequestSentPage } from './pages/AuthRequestSent';
 
 export function Routing() {
   return (
@@ -57,6 +59,14 @@ export function Routing() {
         }
       />
       <Route
+        path="/account"
+        element={
+          <PrivateRoute>
+            <AccountPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/approvals"
         element={
           <PrivateRoute>
@@ -64,6 +74,7 @@ export function Routing() {
           </PrivateRoute>
         }
       />
+      <Route path="/request-sent" element={<AuthRequestSentPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/error-magic_link" element={<ErrorMagicLinkPage />} />

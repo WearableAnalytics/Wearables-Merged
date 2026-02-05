@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import config from './config.js';
 import { logger } from './logger.js';
 import { getUserByEmail } from './services/userStore.js';
-import type { UserRole, UserStatus } from './services/userStore.js';
+import type { AdminRequestStatus, UserRole, UserStatus } from './services/userStore.js';
 
 export interface JwtPayload {
   userId: string;
@@ -11,6 +11,7 @@ export interface JwtPayload {
   name?: string;
   role?: UserRole;
   status?: UserStatus;
+  adminRequestStatus?: AdminRequestStatus;
 }
 
 declare global {
@@ -59,6 +60,7 @@ export const getUserFromRequest = (req: Request): JwtPayload | undefined => {
       name: userRecord.name,
       role: userRecord.role,
       status: userRecord.status,
+      adminRequestStatus: userRecord.adminRequestStatus,
     };
   } catch (err) {
     return undefined;

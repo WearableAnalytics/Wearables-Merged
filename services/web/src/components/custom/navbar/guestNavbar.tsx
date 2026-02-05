@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Menu } from 'lucide-react';
+import { Menu, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveCase } from '@/lib/activeCase';
 import { useAuth } from '@/context/AuthContext';
@@ -91,9 +91,19 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center space-x-3">
             {isAuthenticated ? (
-              <NavButton invertedColors={true} onClick={handleLogout} isDisabled={isLoggingOut}>
-                Logout
-              </NavButton>
+              <>
+                <NavButton
+                  path="/account"
+                  invertedColors={true}
+                  className="h-11 w-11 p-0 flex items-center justify-center"
+                >
+                  <User className="h-5 w-5" aria-hidden />
+                  <span className="sr-only">Account</span>
+                </NavButton>
+                <NavButton invertedColors={true} onClick={handleLogout} isDisabled={isLoggingOut}>
+                  Logout
+                </NavButton>
+              </>
             ) : (
               <>
                 <NavButton path="/login" invertedColors={true}>
@@ -129,6 +139,13 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
                     onClick={handleMobileLinkClick}
                   >
                     Overview
+                  </NavButtonMobile>
+                  <NavButtonMobile
+                    path="/account"
+                    className="w-full justify-start text-left"
+                    onClick={handleMobileLinkClick}
+                  >
+                    Account
                   </NavButtonMobile>
                   {isAdmin ? (
                     <NavButtonMobile

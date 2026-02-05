@@ -22,7 +22,7 @@ export const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ child
     const message =
       user.status === 'pending'
         ? 'Your account is awaiting admin approval.'
-        : 'Your access request was denied. Please contact an administrator.';
+        : 'Unable to access the application. Please contact support.';
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-red-600">
         {message}

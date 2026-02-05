@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
 import { defaultApi } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
@@ -7,14 +8,13 @@ import { SearchForm } from '@/components/custom/SearchForm';
 import { ArrowRight, Loader2 } from 'lucide-react';
 
 export function RegisterPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   const resetFeedback = () => {
     setError(null);
-    setMessage(null);
   };
 
   const handleRegister = async (event: FormEvent) => {
@@ -23,20 +23,24 @@ export function RegisterPage() {
 
     if (!trimmedEmail) {
       setError('Please enter your email address.');
-      setMessage(null);
       return;
     }
 
     setLoading(true);
     setError(null);
-    setMessage(null);
 
     try {
       const data = await defaultApi.register(trimmedEmail);
       const successMessage =
         (data as { message?: string }).message ?? 'Your account is awaiting admin approval.';
-      setMessage(successMessage);
-      window.dispatchEvent(new Event('auth-change'));
+      navigate('/request-sent', {
+        replace: true,
+        state: {
+          title: 'Request submitted',
+          description: 'We will review your request and email you with next steps.',
+          message: successMessage,
+        },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to register.');
     } finally {
@@ -81,7 +85,6 @@ export function RegisterPage() {
               />
             ) : null}
 
-            {!loading && message ? <AddCaseNotice tone="info" message={message} /> : null}
           </div>
         </div>
       </div>

@@ -8,6 +8,7 @@ export interface User {
   name?: string;
   role?: 'admin' | 'user';
   status?: 'pending' | 'approved' | 'denied';
+  adminRequestStatus?: 'none' | 'pending' | 'approved' | 'denied';
 }
 
 interface AuthContextType {

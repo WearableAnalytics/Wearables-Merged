@@ -24,11 +24,14 @@ export class DefaultApi {
     const data = await response.json().catch(() => ({} as Record<string, unknown>));
 
     if (!response.ok) {
+      const errorCode = (data && (data.code ?? data.errorCode)) as string | undefined;
       const message =
-        (data && (data.message ?? data.error)) ??
-        (response.status === 404
-          ? 'This email is not registered. Please sign up first.'
-          : 'Unable to log in.');
+        errorCode === 'ACCOUNT_DENIED'
+          ? 'Unable to log in. Please contact support.'
+          : (data && (data.message ?? data.error)) ??
+            (response.status === 404
+              ? 'This email is not registered. Please sign up first.'
+              : 'Unable to log in.');
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
@@ -47,11 +50,14 @@ export class DefaultApi {
     const data = await response.json().catch(() => ({} as Record<string, unknown>));
 
     if (!response.ok) {
+      const errorCode = (data && (data.code ?? data.errorCode)) as string | undefined;
       const message =
-        (data && (data.message ?? data.error)) ??
-        (response.status === 409
-          ? 'This email is already registered. Please log in instead.'
-          : 'Unable to register.');
+        errorCode === 'ACCOUNT_DENIED'
+          ? 'Unable to submit request. Please contact support.'
+          : (data && (data.message ?? data.error)) ??
+            (response.status === 409
+              ? 'This email is already registered. Please log in instead.'
+              : 'Unable to register.');
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
@@ -98,6 +104,23 @@ export class DefaultApi {
     return response.json().catch(() => ({} as Record<string, unknown>));
   };
 
+  requestAdminAccess = async () => {
+    const response = await fetch(`${API_BASE_PATH}/request-admin`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to request admin access.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
   listPendingUsers = async () => {
     const response = await fetch(`${API_BASE_PATH}/admin/pending-users`, {
       method: 'GET',
@@ -107,6 +130,57 @@ export class DefaultApi {
 
     if (!response.ok) {
       const message = (data && (data.message ?? data.error)) ?? 'Unable to load pending users.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  listApprovedUsers = async () => {
+    const response = await fetch(`${API_BASE_PATH}/admin/approved-users`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to load users.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  listDeniedUsers = async () => {
+    const response = await fetch(`${API_BASE_PATH}/admin/denied-users`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to load denied users.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  listPendingAdminRequests = async () => {
+    const response = await fetch(`${API_BASE_PATH}/admin/pending-admin-requests`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to load admin requests.';
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
@@ -141,6 +215,57 @@ export class DefaultApi {
 
     if (!response.ok) {
       const message = (data && (data.message ?? data.error)) ?? 'Unable to deny user.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  unblockUser = async (userId: string) => {
+    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}/unblock`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to unblock user.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  approveAdminRequest = async (userId: string) => {
+    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}/approve-admin`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to approve admin request.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  denyAdminRequest = async (userId: string) => {
+    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}/deny-admin`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to deny admin request.';
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;

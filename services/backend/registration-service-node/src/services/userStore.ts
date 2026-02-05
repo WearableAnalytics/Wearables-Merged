@@ -3,6 +3,7 @@ import config from '../config.js';
 
 export type UserRole = 'admin' | 'user';
 export type UserStatus = 'pending' | 'approved' | 'denied';
+export type AdminRequestStatus = 'none' | 'pending' | 'approved' | 'denied';
 
 export interface UserRecord {
   id: string;
@@ -10,6 +11,9 @@ export interface UserRecord {
   name?: string;
   role: UserRole;
   status: UserStatus;
+  adminRequestStatus: AdminRequestStatus;
+  adminRequestedAt?: Date;
+  adminReviewedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   approvedAt?: Date;
@@ -51,12 +55,14 @@ export const createUser = (
   const status: UserStatus = options.status ?? (role === 'admin' ? 'approved' : 'pending');
   const now = new Date();
   const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
+  const adminRequestStatus: AdminRequestStatus = role === 'admin' ? 'approved' : 'none';
   const user: UserRecord = {
     id,
     email: normalizedEmail,
     name: options.name,
     role,
     status,
+    adminRequestStatus,
     createdAt: now,
     updatedAt: now,
     approvedAt: status === 'approved' ? now : undefined,
@@ -76,6 +82,9 @@ export const ensureAdminUser = (email: string): UserRecord => {
     user.email = normalizedEmail;
     user.role = 'admin';
     user.status = 'approved';
+    user.adminRequestStatus = 'approved';
+    user.adminReviewedAt = now;
+    user.adminRequestedAt = user.adminRequestedAt ?? now;
     user.updatedAt = now;
     user.approvedAt = now;
     user.deniedAt = undefined;
@@ -109,6 +118,56 @@ export const setUserRole = (userId: string, role: UserRole): UserRecord | undefi
   if (user.role === role) return user;
   user.role = role;
   user.updatedAt = new Date();
+  return user;
+};
+
+const userDateValue = (value?: Date) => (value ? value.getTime() : 0);
+
+export const listAdminRequests = (status: AdminRequestStatus): UserRecord[] =>
+  Array.from(usersByEmail.values())
+    .filter((user) => user.adminRequestStatus === status)
+    .sort((a, b) => {
+      const aTime = userDateValue(a.adminRequestedAt);
+      const bTime = userDateValue(b.adminRequestedAt);
+      return aTime - bTime;
+    });
+
+export const requestAdminAccess = (userId: string): UserRecord | undefined => {
+  const user = usersById.get(userId);
+  if (!user) return undefined;
+  if (user.role === 'admin') {
+    user.adminRequestStatus = 'approved';
+    user.adminReviewedAt = new Date();
+    return user;
+  }
+
+  if (user.adminRequestStatus === 'pending') {
+    return user;
+  }
+
+  user.adminRequestStatus = 'pending';
+  user.adminRequestedAt = new Date();
+  user.adminReviewedAt = undefined;
+  user.updatedAt = new Date();
+  return user;
+};
+
+export const reviewAdminRequest = (
+  userId: string,
+  decision: 'approved' | 'denied',
+): UserRecord | undefined => {
+  const user = usersById.get(userId);
+  if (!user) return undefined;
+
+  const now = new Date();
+  user.adminRequestStatus = decision;
+  user.adminReviewedAt = now;
+  user.updatedAt = now;
+
+  if (decision === 'approved') {
+    user.role = 'admin';
+  }
+
   return user;
 };
 

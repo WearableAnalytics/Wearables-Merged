@@ -1,44 +1,93 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
 import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
 
-type PendingUser = {
+type AdminUser = {
   id: string;
   email: string;
   name?: string;
   role?: string;
   status?: string;
+  adminRequestStatus?: string;
   createdAt?: string;
+  deniedAt?: string;
+  adminRequestedAt?: string;
 };
+
+type ViewMode = 'users' | 'requests' | 'denied';
 
 export function AdminApprovalsPage() {
   const { user } = useAuth();
-  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [approvedUsers, setApprovedUsers] = useState<AdminUser[]>([]);
+  const [pendingUsers, setPendingUsers] = useState<AdminUser[]>([]);
+  const [deniedUsers, setDeniedUsers] = useState<AdminUser[]>([]);
+  const [pendingAdminRequests, setPendingAdminRequests] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
+  const [view, setView] = useState<ViewMode>('requests');
+  const [search, setSearch] = useState('');
 
-  const loadPendingUsers = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await defaultApi.listPendingUsers();
-      const users = (data as { users?: PendingUser[] }).users ?? [];
-      setPendingUsers(users);
+      const [approved, pending, denied, adminRequests] = await Promise.all([
+        defaultApi.listApprovedUsers(),
+        defaultApi.listPendingUsers(),
+        defaultApi.listDeniedUsers(),
+        defaultApi.listPendingAdminRequests(),
+      ]);
+      setApprovedUsers((approved as { users?: AdminUser[] }).users ?? []);
+      setPendingUsers((pending as { users?: AdminUser[] }).users ?? []);
+      setDeniedUsers((denied as { users?: AdminUser[] }).users ?? []);
+      setPendingAdminRequests((adminRequests as { users?: AdminUser[] }).users ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load pending users.');
+      setError(err instanceof Error ? err.message : 'Unable to load admin data.');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadPendingUsers();
-  }, [loadPendingUsers]);
+    void loadData();
+  }, [loadData]);
+
+  const filterUsers = useCallback(
+    (users: AdminUser[]) =>
+      users.filter((entry) => {
+        if (!search.trim()) return true;
+        const query = search.trim().toLowerCase();
+        const email = entry.email ?? '';
+        const name = entry.name ?? '';
+        return (
+          email.toLowerCase().includes(query) ||
+          name.toLowerCase().includes(query)
+        );
+      }),
+    [search],
+  );
+
+  const filteredApprovedUsers = useMemo(
+    () => filterUsers(approvedUsers),
+    [approvedUsers, filterUsers],
+  );
+  const filteredPendingUsers = useMemo(
+    () => filterUsers(pendingUsers),
+    [pendingUsers, filterUsers],
+  );
+  const filteredDeniedUsers = useMemo(
+    () => filterUsers(deniedUsers),
+    [deniedUsers, filterUsers],
+  );
+  const filteredAdminRequests = useMemo(
+    () => filterUsers(pendingAdminRequests),
+    [pendingAdminRequests, filterUsers],
+  );
 
   const handleDecision = async (userId: string, decision: 'approve' | 'deny') => {
     setActionUserId(userId);
@@ -48,13 +97,79 @@ export function AdminApprovalsPage() {
       if (decision === 'approve') {
         await defaultApi.approveUser(userId);
         setMessage('User approved. An approval email has been sent.');
+        const approvedUser = pendingUsers.find((entry) => entry.id === userId);
+        setPendingUsers((current) => current.filter((entry) => entry.id !== userId));
+        if (approvedUser) {
+          setApprovedUsers((current) => [{ ...approvedUser, status: 'approved' }, ...current]);
+        }
       } else {
         await defaultApi.denyUser(userId);
         setMessage('User denied.');
+        const deniedUser = pendingUsers.find((entry) => entry.id === userId);
+        setPendingUsers((current) => current.filter((entry) => entry.id !== userId));
+        if (deniedUser) {
+          setDeniedUsers((current) => [{ ...deniedUser, status: 'denied' }, ...current]);
+        }
       }
-      setPendingUsers((current) => current.filter((entry) => entry.id !== userId));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update user status.');
+    } finally {
+      setActionUserId(null);
+    }
+  };
+
+  const handleUnblock = async (userId: string) => {
+    setActionUserId(userId);
+    setError(null);
+    setMessage(null);
+    try {
+      await defaultApi.unblockUser(userId);
+      setMessage('User unblocked and returned to pending approvals.');
+      const unblockedUser = deniedUsers.find((entry) => entry.id === userId);
+      setDeniedUsers((current) => current.filter((entry) => entry.id !== userId));
+      if (unblockedUser) {
+        setPendingUsers((current) => [{ ...unblockedUser, status: 'pending' }, ...current]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to unblock user.');
+    } finally {
+      setActionUserId(null);
+    }
+  };
+
+  const handleAdminRequest = async (userId: string, decision: 'approve' | 'deny') => {
+    setActionUserId(userId);
+    setError(null);
+    setMessage(null);
+    try {
+      if (decision === 'approve') {
+        await defaultApi.approveAdminRequest(userId);
+        setMessage('Admin request approved.');
+        const updatedUser = pendingAdminRequests.find((entry) => entry.id === userId);
+        setPendingAdminRequests((current) => current.filter((entry) => entry.id !== userId));
+        if (updatedUser) {
+          setApprovedUsers((current) => {
+            const exists = current.some((entry) => entry.id === userId);
+            if (!exists) {
+              return [{ ...updatedUser, role: 'admin', adminRequestStatus: 'approved' }, ...current];
+            }
+            return current.map((entry) =>
+              entry.id === userId ? { ...entry, role: 'admin', adminRequestStatus: 'approved' } : entry,
+            );
+          });
+        }
+      } else {
+        await defaultApi.denyAdminRequest(userId);
+        setMessage('Admin request denied.');
+        setPendingAdminRequests((current) => current.filter((entry) => entry.id !== userId));
+        setApprovedUsers((current) =>
+          current.map((entry) =>
+            entry.id === userId ? { ...entry, adminRequestStatus: 'denied' } : entry,
+          ),
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update admin request.');
     } finally {
       setActionUserId(null);
     }
@@ -65,7 +180,7 @@ export function AdminApprovalsPage() {
       <>
         <PageHeader
           label="Admin"
-          title="Approvals"
+          title="User access"
           description="Admin access is required to manage access requests."
         />
         <div className="mt-6">
@@ -79,77 +194,227 @@ export function AdminApprovalsPage() {
     <>
       <PageHeader
         label="Admin"
-        title="Pending approvals"
-        description="Review new registration requests and approve or deny access."
+        title="User access"
+        description="Manage users, access requests, and denied accounts."
       />
 
       <section className="mt-6 bg-white border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.06)] rounded-2xl p-4 md:p-5">
-        <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between mb-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
           <div>
-            <h2 className="m-0 text-[22px] font-semibold">Requests</h2>
+            <h2 className="m-0 text-[22px] font-semibold">Admin console</h2>
             <p className="m-0 text-slate-500">
-              {loading ? 'Loading pending users…' : `${pendingUsers.length} pending`}
+              {loading ? 'Loading data…' : `${approvedUsers.length} users`}
             </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant={view === 'users' ? 'default' : 'outline'} onClick={() => setView('users')}>
+              Current users
+            </Button>
+            <Button size="sm" variant={view === 'requests' ? 'default' : 'outline'} onClick={() => setView('requests')}>
+              Requests
+            </Button>
+            <Button size="sm" variant={view === 'denied' ? 'default' : 'outline'} onClick={() => setView('denied')}>
+              Denied users
+            </Button>
           </div>
         </div>
 
-        {error ? (
-          <AddCaseNotice tone="error" message={error} />
-        ) : message ? (
-          <AddCaseNotice tone="info" message={message} />
-        ) : null}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <input
+            type="search"
+            placeholder="Search by email or name"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-full md:max-w-xs rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+          />
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {error ? <AddCaseNotice tone="error" message={error} /> : null}
+          {message ? <AddCaseNotice tone="info" message={message} /> : null}
+        </div>
 
         {loading ? (
           <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
-            Loading pending users…
+            Loading data…
           </div>
-        ) : pendingUsers.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
-            No pending requests.
+        ) : view === 'users' ? (
+          <div className="mt-4 overflow-auto">
+            {filteredApprovedUsers.length === 0 ? (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
+                No users found.
+              </div>
+            ) : (
+              <table className="w-full border-collapse text-[15px]">
+                <thead className="bg-slate-50 text-left text-slate-600 font-bold">
+                  <tr className="border-b border-slate-200">
+                    <th className="px-3 py-3">Email</th>
+                    <th className="px-3 py-3">Role</th>
+                    <th className="px-3 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredApprovedUsers.map((entry) => (
+                    <tr key={entry.id} className="border-b last:border-b-0 border-slate-200">
+                      <td className="px-3 py-3 font-medium text-slate-900">{entry.email}</td>
+                      <td className="px-3 py-3 capitalize text-slate-600">{entry.role ?? 'user'}</td>
+                      <td className="px-3 py-3 capitalize text-slate-600">{entry.status ?? 'approved'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : view === 'requests' ? (
+          <div className="mt-4 space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Pending access approvals</h3>
+              {filteredPendingUsers.length === 0 ? (
+                <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
+                  No pending access requests.
+                </div>
+              ) : (
+                <div className="mt-3 overflow-auto">
+                  <table className="w-full border-collapse text-[15px]">
+                    <thead className="bg-slate-50 text-left text-slate-600 font-bold">
+                      <tr className="border-b border-slate-200">
+                        <th className="px-3 py-3">Email</th>
+                        <th className="px-3 py-3">Requested</th>
+                        <th className="px-3 py-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPendingUsers.map((pendingUser) => {
+                        const createdAt = pendingUser.createdAt
+                          ? new Date(pendingUser.createdAt).toLocaleDateString()
+                          : '—';
+                        const isBusy = actionUserId === pendingUser.id;
+
+                        return (
+                          <tr key={pendingUser.id} className="border-b last:border-b-0 border-slate-200">
+                            <td className="px-3 py-3 font-medium text-slate-900">{pendingUser.email}</td>
+                            <td className="px-3 py-3 text-slate-600">{createdAt}</td>
+                            <td className="px-3 py-3 text-right space-x-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleDecision(pendingUser.id, 'approve')}
+                                disabled={isBusy}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDecision(pendingUser.id, 'deny')}
+                                disabled={isBusy}
+                              >
+                                Deny
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Pending admin requests</h3>
+              {filteredAdminRequests.length === 0 ? (
+                <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
+                  No pending admin requests.
+                </div>
+              ) : (
+                <div className="mt-3 overflow-auto">
+                  <table className="w-full border-collapse text-[15px]">
+                    <thead className="bg-slate-50 text-left text-slate-600 font-bold">
+                      <tr className="border-b border-slate-200">
+                        <th className="px-3 py-3">Email</th>
+                        <th className="px-3 py-3">Requested</th>
+                        <th className="px-3 py-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAdminRequests.map((pendingUser) => {
+                        const requestedAt = pendingUser.adminRequestedAt
+                          ? new Date(pendingUser.adminRequestedAt).toLocaleDateString()
+                          : '—';
+                        const isBusy = actionUserId === pendingUser.id;
+
+                        return (
+                          <tr key={pendingUser.id} className="border-b last:border-b-0 border-slate-200">
+                            <td className="px-3 py-3 font-medium text-slate-900">{pendingUser.email}</td>
+                            <td className="px-3 py-3 text-slate-600">{requestedAt}</td>
+                            <td className="px-3 py-3 text-right space-x-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleAdminRequest(pendingUser.id, 'approve')}
+                                disabled={isBusy}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleAdminRequest(pendingUser.id, 'deny')}
+                                disabled={isBusy}
+                              >
+                                Deny
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="mt-4 overflow-auto">
-            <table className="w-full border-collapse text-[15px]">
-              <thead className="bg-slate-50 text-left text-slate-600 font-bold">
-                <tr className="border-b border-slate-200">
-                  <th className="px-3 py-3">Email</th>
-                  <th className="px-3 py-3">Requested</th>
-                  <th className="px-3 py-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingUsers.map((pendingUser) => {
-                  const createdAt = pendingUser.createdAt
-                    ? new Date(pendingUser.createdAt).toLocaleDateString()
-                    : '—';
-                  const isBusy = actionUserId === pendingUser.id;
+            {filteredDeniedUsers.length === 0 ? (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
+                No denied users.
+              </div>
+            ) : (
+              <table className="w-full border-collapse text-[15px]">
+                <thead className="bg-slate-50 text-left text-slate-600 font-bold">
+                  <tr className="border-b border-slate-200">
+                    <th className="px-3 py-3">Email</th>
+                    <th className="px-3 py-3">Denied</th>
+                    <th className="px-3 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDeniedUsers.map((entry) => {
+                    const deniedAt = entry.deniedAt
+                      ? new Date(entry.deniedAt).toLocaleDateString()
+                      : '—';
+                    const isBusy = actionUserId === entry.id;
 
-                  return (
-                    <tr key={pendingUser.id} className="border-b last:border-b-0 border-slate-200">
-                      <td className="px-3 py-3 font-medium text-slate-900">{pendingUser.email}</td>
-                      <td className="px-3 py-3 text-slate-600">{createdAt}</td>
-                      <td className="px-3 py-3 text-right space-x-2">
-                        <Button
-                          size="sm"
-                          onClick={() => handleDecision(pendingUser.id, 'approve')}
-                          disabled={isBusy}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDecision(pendingUser.id, 'deny')}
-                          disabled={isBusy}
-                        >
-                          Deny
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    return (
+                      <tr key={entry.id} className="border-b last:border-b-0 border-slate-200">
+                        <td className="px-3 py-3 font-medium text-slate-900">{entry.email}</td>
+                        <td className="px-3 py-3 text-slate-600">{deniedAt}</td>
+                        <td className="px-3 py-3 text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleUnblock(entry.id)}
+                            disabled={isBusy}
+                          >
+                            Unblock
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </section>

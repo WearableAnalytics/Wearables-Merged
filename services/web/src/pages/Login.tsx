@@ -14,11 +14,9 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   const resetFeedback = () => {
     setError(null);
-    setMessage(null);
   };
 
   useEffect(() => {
@@ -33,19 +31,23 @@ export function LoginPage() {
 
     if (!trimmedEmail) {
       setError('Please enter your email address.');
-      setMessage(null);
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
-    setMessage(null);
 
     try {
       const data = await defaultApi.login(trimmedEmail);
       const successMessage = (data as { message?: string }).message ?? 'Check your email for the login link.';
-      setMessage(successMessage);
-      window.dispatchEvent(new Event('auth-change'));
+      navigate('/request-sent', {
+        replace: true,
+        state: {
+          title: 'Check your email',
+          description: 'If your account is approved, we will send a secure login link.',
+          message: successMessage,
+        },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to log in.');
     } finally {
@@ -90,7 +92,6 @@ export function LoginPage() {
               />
             ) : null}
 
-            {!isSubmitting && message ? <AddCaseNotice tone="info" message={message} /> : null}
           </div>
         </div>
       </div>
