@@ -150,4 +150,8 @@ Transforms are processed in order. Supported types (see `RawTransformer` / `Fhir
 - `config/` and `src/main/resources/json-to-fhir-new.yaml`: example mapping templates.
 - `outputs/`: sample valid/invalid outputs for reference.
 
+# Further documentation
+
+All documentation concerning deployment considerations can be found in `gitops/README.md`.
+
 This file was compiled with the help of AI (ChatGPT 5.1. Codex Max)
