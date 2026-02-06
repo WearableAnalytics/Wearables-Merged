@@ -1,17 +1,33 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
+import { toast } from 'sonner';
 import { defaultApi } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { SearchForm } from '@/components/custom/SearchForm';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 export function RegisterPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error, { id: 'register-error' });
+    } else {
+      toast.dismiss('register-error');
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (loading) {
+      toast.loading('Submitting access request…', { id: 'register-loading' });
+    } else {
+      toast.dismiss('register-loading');
+    }
+  }, [loading]);
 
   const resetFeedback = () => {
     setError(null);
@@ -73,19 +89,6 @@ export function RegisterPage() {
             submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
             submitLabel="Request access"
           />
-
-          <div className="mt-6 space-y-3 min-h-[120px]">
-            {error ? <AddCaseNotice tone="error" message={error} /> : null}
-
-            {loading ? (
-              <AddCaseNotice
-                tone="loading"
-                icon={<Loader2 aria-hidden className="h-5 w-5 animate-spin text-slate-600" />}
-                message="Submitting access request…"
-              />
-            ) : null}
-
-          </div>
         </div>
       </div>
     </>

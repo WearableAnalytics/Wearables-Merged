@@ -1,11 +1,11 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
+import { toast } from 'sonner';
 import { defaultApi } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { SearchForm } from '@/components/custom/SearchForm';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export function LoginPage() {
@@ -24,6 +24,22 @@ export function LoginPage() {
       navigate('/overview', { replace: true });
     }
   }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error, { id: 'login-error' });
+    } else {
+      toast.dismiss('login-error');
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (isSubmitting) {
+      toast.loading('Sending login link…', { id: 'login-loading' });
+    } else {
+      toast.dismiss('login-loading');
+    }
+  }, [isSubmitting]);
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();
@@ -80,19 +96,6 @@ export function LoginPage() {
             submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
             submitLabel="Send login link"
           />
-
-          <div className="mt-6 space-y-3 min-h-[120px]">
-            {error ? <AddCaseNotice tone="error" message={error} /> : null}
-
-            {isSubmitting ? (
-              <AddCaseNotice
-                tone="loading"
-                icon={<Loader2 aria-hidden className="h-5 w-5 animate-spin text-slate-600" />}
-                message="Sending login link…"
-              />
-            ) : null}
-
-          </div>
         </div>
       </div>
     </>

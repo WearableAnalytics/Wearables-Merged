@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
@@ -10,10 +11,24 @@ export function AccountPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const adminRequestStatus = user?.adminRequestStatus ?? 'none';
+  const userRole = user?.role ?? 'user';
 
-  if (!user) {
-    return null;
-  }
+  useEffect(() => {
+    if (error) {
+      toast.error(error, { id: 'account-error' });
+    } else {
+      toast.dismiss('account-error');
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (message) {
+      toast.info(message, { id: 'account-message' });
+    } else {
+      toast.dismiss('account-message');
+    }
+  }, [message]);
 
   const handleRequestAdmin = async () => {
     setIsSubmitting(true);
@@ -32,8 +47,24 @@ export function AccountPage() {
     }
   };
 
-  const adminRequestStatus = user.adminRequestStatus ?? 'none';
-  const canRequestAdmin = user.role !== 'admin' && adminRequestStatus !== 'pending';
+  useEffect(() => {
+    if (!user) {
+      toast.dismiss('account-pending');
+      return;
+    }
+
+    if (adminRequestStatus === 'pending') {
+      toast.info('Your admin request is pending review.', { id: 'account-pending' });
+    } else {
+      toast.dismiss('account-pending');
+    }
+  }, [adminRequestStatus, user]);
+
+  if (!user) {
+    return null;
+  }
+
+  const canRequestAdmin = userRole !== 'admin' && adminRequestStatus !== 'pending';
 
   return (
     <>
@@ -54,14 +85,9 @@ export function AccountPage() {
         </div>
 
         <div className="mt-6 space-y-3">
-          {error ? <AddCaseNotice tone="error" message={error} /> : null}
-          {message ? <AddCaseNotice tone="info" message={message} /> : null}
-
-          {user.role === 'admin' ? (
+          {userRole === 'admin' ? (
             <AddCaseNotice tone="info" message="You already have admin access." />
-          ) : adminRequestStatus === 'pending' ? (
-            <AddCaseNotice tone="loading" message="Your admin request is pending review." />
-          ) : (
+          ) : adminRequestStatus === 'pending' ? null : (
             <Button onClick={handleRequestAdmin} disabled={!canRequestAdmin || isSubmitting}>
               {isSubmitting ? 'Submitting…' : 'Request admin access'}
             </Button>

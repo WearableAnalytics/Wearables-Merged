@@ -32,8 +32,16 @@ export class DefaultApi {
             (response.status === 404
               ? 'This email is not registered. Please sign up first.'
               : 'Unable to log in.');
-      const error = new Error(message) as Error & { status?: number };
+      const error = new Error(message) as Error & {
+        status?: number;
+        redirectToSignup?: boolean;
+        code?: string;
+      };
       error.status = response.status;
+      error.code = (data && (data.code ?? data.errorCode)) as string | undefined;
+      if ((data as { redirectToSignup?: boolean }).redirectToSignup) {
+        error.redirectToSignup = true;
+      }
       throw error;
     }
 

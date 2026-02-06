@@ -1,14 +1,13 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
+import { toast } from 'sonner';
 import { AddCaseResultCard } from '@/pages/add-case/components/AddCaseResultCard';
 import { SearchForm } from '@/components/custom/SearchForm';
 import { defaultApi } from '@/api/defaultApi';
 import type { CaseCreated, ChariteCase } from '@/api/openapi-client';
 import { ResponseError } from '@/api/openapi-client/runtime';
 import { PageHeader } from '@/components/custom/PageHeader';
-import { Loader2 } from 'lucide-react';
 import { useActiveCase } from '@/lib/activeCase';
 import { SignedInAs } from '@/components/custom/SignedInAs';
 
@@ -23,6 +22,49 @@ export function AddCasePage() {
   const [hasSearched, setHasSearched] = useState(false);
   const navigate = useNavigate();
   const { setActiveCase } = useActiveCase();
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error, { id: 'add-case-error' });
+    } else {
+      toast.dismiss('add-case-error');
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (loading) {
+      toast.loading('Searching for case…', { id: 'add-case-loading' });
+    } else {
+      toast.dismiss('add-case-loading');
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    if (!loading && !error && !result && hasSearched) {
+      toast.info('Search for a Charité case by entering its ID above.', { id: 'add-case-empty' });
+    } else {
+      toast.dismiss('add-case-empty');
+    }
+  }, [loading, error, result, hasSearched]);
+
+  useEffect(() => {
+    if (createError) {
+      toast.error(createError, { id: 'add-case-create-error' });
+    } else {
+      toast.dismiss('add-case-create-error');
+    }
+  }, [createError]);
+
+  useEffect(() => {
+    if (created) {
+      toast.success('Case created.', {
+        id: 'add-case-created',
+        description: `Case ID: ${created.caseId} · Patient ID: ${created.patientId}`,
+      });
+    } else {
+      toast.dismiss('add-case-created');
+    }
+  }, [created]);
 
   const formatDate = (value: ChariteCase['birthDate']) =>
     new Date(value).toLocaleDateString('en-GB', {
@@ -144,31 +186,13 @@ export function AddCasePage() {
           />
 
           <div className="mt-6 space-y-3 min-h-[240px]">
-            {error ? (
-              <AddCaseNotice tone="error" message={error} />
-            ) : null}
-
-            {loading ? (
-              <AddCaseNotice
-                tone="loading"
-                icon={<Loader2 aria-hidden className="h-5 w-5 animate-spin text-slate-600" />}
-                message="Searching for case…"
-              />
-            ) : null}
-
             {!loading && !error && result ? (
               <AddCaseResultCard
                 caseData={result}
                 creating={creating}
-                created={created}
-                createError={createError}
                 formatDate={formatDate}
                 onCreate={handleCreate}
               />
-            ) : null}
-
-            {!loading && !error && !result && hasSearched ? (
-              <AddCaseNotice tone="info" message="Search for a Charité case by entering its ID above." />
             ) : null}
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/custom/PageHeader';
-import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
@@ -56,6 +56,30 @@ export function AdminApprovalsPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error, { id: 'admin-approvals-error' });
+    } else {
+      toast.dismiss('admin-approvals-error');
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (message) {
+      toast.info(message, { id: 'admin-approvals-message' });
+    } else {
+      toast.dismiss('admin-approvals-message');
+    }
+  }, [message]);
+
+  useEffect(() => {
+    if (user && user.role !== 'admin') {
+      toast.error('You do not have permission to view this page.', { id: 'admin-approvals-permission' });
+    } else {
+      toast.dismiss('admin-approvals-permission');
+    }
+  }, [user]);
 
   const filterUsers = useCallback(
     (users: AdminUser[]) =>
@@ -183,9 +207,7 @@ export function AdminApprovalsPage() {
           title="User access"
           description="Admin access is required to manage access requests."
         />
-        <div className="mt-6">
-          <AddCaseNotice tone="error" message="You do not have permission to view this page." />
-        </div>
+        <div className="mt-6" />
       </>
     );
   }
@@ -229,10 +251,7 @@ export function AdminApprovalsPage() {
           />
         </div>
 
-        <div className="mt-4 space-y-3">
-          {error ? <AddCaseNotice tone="error" message={error} /> : null}
-          {message ? <AddCaseNotice tone="info" message={message} /> : null}
-        </div>
+        <div className="mt-4" />
 
         {loading ? (
           <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">

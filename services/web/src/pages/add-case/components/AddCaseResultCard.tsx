@@ -1,4 +1,4 @@
-import type { CaseCreated, ChariteCase } from '@/api/openapi-client';
+import type { ChariteCase } from '@/api/openapi-client';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InfoItem } from '../../../components/custom/InfoItem';
@@ -6,8 +6,6 @@ import { InfoItem } from '../../../components/custom/InfoItem';
 type AddCaseResultCardProps = {
   caseData: ChariteCase;
   creating: boolean;
-  created: CaseCreated | null;
-  createError: string | null;
   formatDate: (value: ChariteCase['birthDate']) => string;
   onCreate: () => void;
 };
@@ -15,8 +13,6 @@ type AddCaseResultCardProps = {
 export function AddCaseResultCard({
   caseData,
   creating,
-  created,
-  createError,
   formatDate,
   onCreate,
 }: AddCaseResultCardProps) {
@@ -52,32 +48,6 @@ export function AddCaseResultCard({
           {creating ? <Loader2 aria-hidden className="h-4 w-4 animate-spin" /> : null}
           Add case to system
         </Button>
-
-        {createError ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
-            {createError}
-          </div>
-        ) : null}
-
-        {created ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-            <p className="m-0 font-semibold">Case created</p>
-            <ul className="m-1 ml-4 list-disc space-y-1">
-              <li>
-                Patient ID:{' '}
-                <span className="font-mono font-semibold tracking-[0.02em] text-emerald-800">{created.patientId}</span>
-              </li>
-              <li>
-                Case ID:{' '}
-                <span className="font-mono font-semibold tracking-[0.02em] text-emerald-800">{created.caseId}</span>
-              </li>
-              <li>
-                Case token:{' '}
-                <span className="font-mono font-semibold tracking-[0.02em] text-emerald-800">{created.caseToken}</span>
-              </li>
-            </ul>
-          </div>
-        ) : null}
       </div>
     </div>
   );

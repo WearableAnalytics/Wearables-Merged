@@ -15,7 +15,7 @@ export const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ child
   }
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/access" state={{ from: location }} replace />;
   }
 
   if (user.status && user.status !== 'approved') {

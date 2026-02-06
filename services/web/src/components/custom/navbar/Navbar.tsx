@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Menu, User } from 'lucide-react';
+import { Menu, Shield, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveCase } from '@/lib/activeCase';
 import { useAuth } from '@/context/AuthContext';
@@ -9,13 +9,13 @@ import { NavButton, NavButtonMobile } from './navButtons';
 
 import { Logo } from './logo';
 
-interface GuestNavbarProps {
+interface NavbarProps {
   alwaysGuestRoutes: string[];
   navigate: ReturnType<typeof useNavigate>;
   location: ReturnType<typeof useLocation>;
 }
 
-export const GuestNavbar: React.FC<GuestNavbarProps> = ({
+export const Navbar: React.FC<NavbarProps> = ({
   alwaysGuestRoutes,
   navigate,
   location,
@@ -57,7 +57,7 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
       console.error('Logout failed:', err);
     } finally {
       setIsLoggingOut(false);
-      void navigate('/login');
+      void navigate('/access');
     }
   };
 
@@ -71,7 +71,6 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
           {isAuthenticated ? (
             <div className="hidden md:flex items-center space-x-6">
               <NavButton path="/overview">Overview</NavButton>
-              {isAdmin ? <NavButton path="/admin/approvals">Admin</NavButton> : null}
               {isCasePage && activeCase && activePatientNavLabel ? (
                 <NavButton path={`/cases/${activeCase.caseId}`}>
                   <span className="max-w-[180px] truncate" title={activePatientName ?? undefined}>
@@ -92,12 +91,24 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
           <div className="hidden md:flex items-center space-x-3">
             {isAuthenticated ? (
               <>
+                {isAdmin ? (
+                  <NavButton
+                    path="/admin/approvals"
+                    invertedColors={true}
+                    iconOnly
+                    className="h-10 w-10 p-0 flex items-center justify-center"
+                  >
+                    <Shield className="h-8 w-8" aria-hidden />
+                    <span className="sr-only">Admin</span>
+                  </NavButton>
+                ) : null}
                 <NavButton
                   path="/account"
                   invertedColors={true}
-                  className="h-11 w-11 p-0 flex items-center justify-center"
+                  iconOnly
+                  className="h-10 w-10 p-0 flex items-center justify-center"
                 >
-                  <User className="h-5 w-5" aria-hidden />
+                  <User className="h-8 w-8" aria-hidden />
                   <span className="sr-only">Account</span>
                 </NavButton>
                 <NavButton invertedColors={true} onClick={handleLogout} isDisabled={isLoggingOut}>
@@ -106,10 +117,9 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
               </>
             ) : (
               <>
-                <NavButton path="/login" invertedColors={true}>
-                  Login
+                <NavButton path="/access" invertedColors={true}>
+                  Access
                 </NavButton>
-                <NavButton path="/register">Register</NavButton>
               </>
             )}
           </div>
@@ -198,18 +208,11 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
                   <div className="flex flex-col gap-2">
                     <NavButtonMobile
                       invertedColors={true}
-                      path="/login"
+                      path="/access"
                       className="w-full justify-start text-left"
                       onClick={handleMobileLinkClick}
                     >
-                      Login
-                    </NavButtonMobile>
-                    <NavButtonMobile
-                      path="/register"
-                      className="w-full justify-start text-left"
-                      onClick={handleMobileLinkClick}
-                    >
-                      Register
+                      Access
                     </NavButtonMobile>
                   </div>
                 )}
