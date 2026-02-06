@@ -19,11 +19,6 @@ var (
 )
 
 func init() {
-	// Logger konfigurieren
-	log.SetOutput(os.Stderr)
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.SetPrefix("ingestion-service-lg: ")
-
 	// Konfiguration laden
 	serviceURL = mustGetEnvString("SERVICE_URL")
 	messageSize = mustGetEnvInt("MESSAGE_SIZE")

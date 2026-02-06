@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -165,16 +166,11 @@ func (c *Collector) Collect(result Result) {
 	defer c.mu.Unlock()
 
 	if !c.headersWritten {
-		if err := c.writer.Write(result.CSVHeaders()); err != nil {
-			log.Printf("failed to write CSV header: %v", err)
-			return
-		}
+		log.Printf(strings.Join(result.CSVHeaders(), ","))
 
 		c.headersWritten = true
 	} else {
-		if err := c.writer.Write(result.CSVRecord()); err != nil {
-			log.Printf("failed to write CSV record: %v", err)
-		}
+		log.Printf(strings.Join(result.CSVRecord(), ","))
 	}
 }
 
