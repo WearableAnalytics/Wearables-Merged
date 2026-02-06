@@ -98,7 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     iconOnly
                     className="h-10 w-10 p-0 flex items-center justify-center"
                   >
-                    <Shield className="h-8 w-8" aria-hidden />
+                    <Shield className="h-5 w-5" aria-hidden />
                     <span className="sr-only">Admin</span>
                   </NavButton>
                 ) : null}
@@ -108,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   iconOnly
                   className="h-10 w-10 p-0 flex items-center justify-center"
                 >
-                  <User className="h-8 w-8" aria-hidden />
+                  <User className="h-5 w-5" aria-hidden />
                   <span className="sr-only">Account</span>
                 </NavButton>
                 <NavButton invertedColors={true} onClick={handleLogout} isDisabled={isLoggingOut}>
@@ -132,7 +132,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 hover:bg-primary group"
             >
-              <Menu className="h-6 w-6 text-foreground group-hover:text-primary-foreground" />
+              <Menu className="h-5 w-5 text-foreground group-hover:text-primary-foreground" />
             </Button>
           </div>
         </div>

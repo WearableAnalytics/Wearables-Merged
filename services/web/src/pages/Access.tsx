@@ -21,13 +21,6 @@ export function AccessPage() {
     }
   }, [error]);
 
-  useEffect(() => {
-    if (loading) {
-      toast.loading('Processing request…', { id: 'access-loading' });
-    } else {
-      toast.dismiss('access-loading');
-    }
-  }, [loading]);
 
   const resetFeedback = () => {
     setError(null);

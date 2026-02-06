@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Inbox } from 'lucide-react';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,30 @@ type AdminUser = {
 };
 
 type ViewMode = 'users' | 'requests' | 'denied';
+type UserRole = 'admin' | 'user';
+type UserStatus = 'approved' | 'pending' | 'denied';
+
+type EmptyStateProps = {
+  title: string;
+  description?: string;
+  icon?: ReactNode;
+};
+
+function EmptyState({ title, description, icon }: EmptyStateProps) {
+  return (
+    <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-600">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 rounded-full bg-white p-1 text-slate-400 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]">
+          {icon}
+        </div>
+        <div>
+          <p className="font-medium text-slate-700">{title}</p>
+          {description ? <p className="mt-1 text-slate-500">{description}</p> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function AdminApprovalsPage() {
   const { user } = useAuth();
@@ -31,6 +56,7 @@ export function AdminApprovalsPage() {
   const [actionUserId, setActionUserId] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('requests');
   const [search, setSearch] = useState('');
+  const [draftEdits, setDraftEdits] = useState<Record<string, { role: UserRole; status: UserStatus }>>({});
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -112,6 +138,28 @@ export function AdminApprovalsPage() {
     () => filterUsers(pendingAdminRequests),
     [pendingAdminRequests, filterUsers],
   );
+
+  const updateDraft = (entry: AdminUser, updates: Partial<{ role: UserRole; status: UserStatus }>) => {
+    setDraftEdits((current) => {
+      const existing = current[entry.id] ?? {
+        role: (entry.role ?? 'user') as UserRole,
+        status: (entry.status ?? 'approved') as UserStatus,
+      };
+      return {
+        ...current,
+        [entry.id]: { ...existing, ...updates },
+      };
+    });
+  };
+
+  const clearDraft = (userId: string) => {
+    setDraftEdits((current) => {
+      if (!current[userId]) return current;
+      const next = { ...current };
+      delete next[userId];
+      return next;
+    });
+  };
 
   const handleDecision = async (userId: string, decision: 'approve' | 'deny') => {
     setActionUserId(userId);
@@ -199,6 +247,38 @@ export function AdminApprovalsPage() {
     }
   };
 
+  const handleUpdateUser = async (entry: AdminUser) => {
+    const currentRole = (entry.role ?? 'user') as UserRole;
+    const currentStatus = (entry.status ?? 'approved') as UserStatus;
+    const draft = draftEdits[entry.id] ?? { role: currentRole, status: currentStatus };
+    const updates: Partial<{ role: UserRole; status: UserStatus }> = {};
+
+    if (draft.role !== currentRole) {
+      updates.role = draft.role;
+    }
+    if (draft.status !== currentStatus) {
+      updates.status = draft.status;
+    }
+    if (Object.keys(updates).length === 0) {
+      clearDraft(entry.id);
+      return;
+    }
+
+    setActionUserId(entry.id);
+    setError(null);
+    setMessage(null);
+    try {
+      await defaultApi.updateUser(entry.id, updates);
+      setMessage('User updated.');
+      clearDraft(entry.id);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update user.');
+    } finally {
+      setActionUserId(null);
+    }
+  };
+
   if (user?.role !== 'admin') {
     return (
       <>
@@ -260,26 +340,73 @@ export function AdminApprovalsPage() {
         ) : view === 'users' ? (
           <div className="mt-4 overflow-auto">
             {filteredApprovedUsers.length === 0 ? (
-              <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
-                No users found.
-              </div>
+              <EmptyState
+                title="No users match this search."
+                description="Try a different name or email to see results."
+                icon={<Inbox className="h-4 w-4" />}
+              />
             ) : (
               <table className="w-full border-collapse text-[15px]">
                 <thead className="bg-slate-50 text-left text-slate-600 font-bold">
                   <tr className="border-b border-slate-200">
                     <th className="px-3 py-3">Email</th>
                     <th className="px-3 py-3">Role</th>
-                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3">Access</th>
+                    <th className="px-3 py-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredApprovedUsers.map((entry) => (
-                    <tr key={entry.id} className="border-b last:border-b-0 border-slate-200">
-                      <td className="px-3 py-3 font-medium text-slate-900">{entry.email}</td>
-                      <td className="px-3 py-3 capitalize text-slate-600">{entry.role ?? 'user'}</td>
-                      <td className="px-3 py-3 capitalize text-slate-600">{entry.status ?? 'approved'}</td>
-                    </tr>
-                  ))}
+                  {filteredApprovedUsers.map((entry) => {
+                    const isSelf = user?.id === entry.id;
+                    const currentRole = (entry.role ?? 'user') as UserRole;
+                    const currentStatus = (entry.status ?? 'approved') as UserStatus;
+                    const draft = draftEdits[entry.id] ?? { role: currentRole, status: currentStatus };
+                    const isDirty = draft.role !== currentRole || draft.status !== currentStatus;
+                    const isBusy = actionUserId === entry.id;
+
+                    return (
+                      <tr key={entry.id} className="border-b last:border-b-0 border-slate-200">
+                        <td className="px-3 py-3 font-medium text-slate-900">{entry.email}</td>
+                        <td className="px-3 py-3">
+                          <select
+                            value={draft.role}
+                            onChange={(event) => updateDraft(entry, { role: event.target.value as UserRole })}
+                            disabled={isSelf || isBusy}
+                            className="w-full min-w-[120px] rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 focus:border-slate-400 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="user">User</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-3">
+                          <select
+                            value={draft.status}
+                            onChange={(event) => updateDraft(entry, { status: event.target.value as UserStatus })}
+                            disabled={isSelf || isBusy}
+                            className="w-full min-w-[140px] rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 focus:border-slate-400 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                          >
+                            <option value="approved">Approved</option>
+                            <option value="pending">Pending</option>
+                            <option value="denied">Denied</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-3 text-right space-x-2">
+                          {isSelf ? (
+                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Signed in</span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant={isDirty ? 'default' : 'outline'}
+                              disabled={!isDirty || isBusy}
+                              onClick={() => handleUpdateUser(entry)}
+                            >
+                              Update
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -289,9 +416,11 @@ export function AdminApprovalsPage() {
             <div>
               <h3 className="text-lg font-semibold text-slate-900">Pending access approvals</h3>
               {filteredPendingUsers.length === 0 ? (
-                <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
-                  No pending access requests.
-                </div>
+                <EmptyState
+                  title="No pending access requests."
+                  description="New access requests will appear here as they come in."
+                  icon={<Inbox className="h-4 w-4" />}
+                />
               ) : (
                 <div className="mt-3 overflow-auto">
                   <table className="w-full border-collapse text-[15px]">
@@ -342,9 +471,11 @@ export function AdminApprovalsPage() {
             <div>
               <h3 className="text-lg font-semibold text-slate-900">Pending admin requests</h3>
               {filteredAdminRequests.length === 0 ? (
-                <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
-                  No pending admin requests.
-                </div>
+                <EmptyState
+                  title="No pending admin requests."
+                  description="Admin requests will surface here for review."
+                  icon={<Inbox className="h-4 w-4" />}
+                />
               ) : (
                 <div className="mt-3 overflow-auto">
                   <table className="w-full border-collapse text-[15px]">
@@ -395,9 +526,11 @@ export function AdminApprovalsPage() {
         ) : (
           <div className="mt-4 overflow-auto">
             {filteredDeniedUsers.length === 0 ? (
-              <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
-                No denied users.
-              </div>
+              <EmptyState
+                title="No denied users."
+                description="Denied accounts will be listed here."
+                icon={<Inbox className="h-4 w-4" />}
+              />
             ) : (
               <table className="w-full border-collapse text-[15px]">
                 <thead className="bg-slate-50 text-left text-slate-600 font-bold">

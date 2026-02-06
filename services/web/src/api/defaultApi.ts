@@ -282,6 +282,29 @@ export class DefaultApi {
     return data;
   };
 
+  updateUser = async (
+    userId: string,
+    updates: { role?: 'admin' | 'user'; status?: 'approved' | 'pending' | 'denied' },
+  ) => {
+    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(updates),
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to update user.';
+      const error = new Error(message) as Error & { status?: number; code?: string };
+      error.status = response.status;
+      error.code = (data && (data.code ?? data.errorCode)) as string | undefined;
+      throw error;
+    }
+
+    return data;
+  };
+
   // Cases
   casesCaseIdGet = this.casesApi.casesCaseIdGet.bind(this.casesApi);
   casesFromChariteCasePost = this.casesApi.casesFromChariteCasePost.bind(this.casesApi);
