@@ -6,15 +6,18 @@ import { auth, parseCookies } from '../../middleware.js';
 import { sendApprovalEmail, sendMagicLinkEmail } from '../../services/mailer.js';
 import { logger } from '../../logger.js';
 import {
+  countActiveAdmins,
   createUser,
   ensureAdminUser,
   getUserByEmail,
+  getUserById,
   isAdminEmail,
   listAdminRequests,
   listUsersByStatus,
   normalizeUserEmail,
   requestAdminAccess,
   reviewAdminRequest,
+  updateUserAccess,
   setUserStatus,
   type UserRecord,
   type UserStatus,
@@ -398,6 +401,31 @@ const updateUserStatus = async (
     return;
   }
 
+  if (req.user?.userId === userId) {
+    res.status(403).json({
+      error: 'Self update forbidden',
+      message: 'You cannot update your own role or access.',
+      code: 'SELF_UPDATE',
+    });
+    return;
+  }
+
+  const userRecord = getUserById(userId);
+  if (!userRecord) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const isActiveAdmin = userRecord.role === 'admin' && userRecord.status === 'approved';
+  if (status !== 'approved' && isActiveAdmin && countActiveAdmins() <= 1) {
+    res.status(409).json({
+      error: 'At least one admin required',
+      message: 'You must keep at least one active admin account.',
+      code: 'LAST_ADMIN',
+    });
+    return;
+  }
+
   const updated = setUserStatus(userId, status);
   if (!updated) {
     res.status(404).json({ error: 'User not found' });
@@ -464,6 +492,88 @@ router.post('/admin/users/:userId/deny-admin', ...auth.adminOnly, (req: Request,
   if (!updated) {
     res.status(404).json({ error: 'User not found' });
     return;
+  }
+
+  res.json({
+    success: true,
+    user: {
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      role: updated.role,
+      status: updated.status,
+      adminRequestStatus: updated.adminRequestStatus,
+    },
+  });
+});
+
+router.patch('/admin/users/:userId', ...auth.adminOnly, async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  if (!userId) {
+    res.status(400).json({ error: 'User ID required' });
+    return;
+  }
+
+  if (req.user?.userId === userId) {
+    res.status(403).json({
+      error: 'Self update forbidden',
+      message: 'You cannot update your own role or access.',
+      code: 'SELF_UPDATE',
+    });
+    return;
+  }
+
+  const { role, status } = req.body as { role?: string; status?: string };
+  if (!role && !status) {
+    res.status(400).json({ error: 'No updates provided' });
+    return;
+  }
+
+  const isValidRole = !role || role === 'admin' || role === 'user';
+  const isValidStatus = !status || status === 'approved' || status === 'pending' || status === 'denied';
+  if (!isValidRole || !isValidStatus) {
+    res.status(400).json({ error: 'Invalid role or status' });
+    return;
+  }
+
+  const userRecord = getUserById(userId);
+  if (!userRecord) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const nextRole = (role as UserRecord['role'] | undefined) ?? userRecord.role;
+  const nextStatus = (status as UserRecord['status'] | undefined) ?? userRecord.status;
+  const isActiveAdmin = userRecord.role === 'admin' && userRecord.status === 'approved';
+  const willBeActiveAdmin = nextRole === 'admin' && nextStatus === 'approved';
+  const activeAdmins = countActiveAdmins();
+
+  if (isActiveAdmin && !willBeActiveAdmin && activeAdmins <= 1) {
+    res.status(409).json({
+      error: 'At least one admin required',
+      message: 'You must keep at least one active admin account.',
+      code: 'LAST_ADMIN',
+    });
+    return;
+  }
+
+  const previousStatus = userRecord.status;
+  const updated = updateUserAccess(userId, {
+    role: role as UserRecord['role'] | undefined,
+    status: status as UserRecord['status'] | undefined,
+  });
+
+  if (!updated) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  if (status === 'approved' && previousStatus !== 'approved') {
+    try {
+      await sendApprovalEmail(updated.email);
+    } catch (error) {
+      logger.error('Failed to send approval email', error as Error);
+    }
   }
 
   res.json({

@@ -41,6 +41,11 @@ export const listUsersByStatus = (status: UserStatus): UserRecord[] =>
     .filter((user) => user.status === status)
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
+export const countActiveAdmins = (): number =>
+  Array.from(usersByEmail.values()).filter(
+    (user) => user.role === 'admin' && user.status === 'approved',
+  ).length;
+
 export const createUser = (
   email: string,
   options: Partial<Pick<UserRecord, 'role' | 'status' | 'name'>> = {},
@@ -116,8 +121,66 @@ export const setUserRole = (userId: string, role: UserRole): UserRecord | undefi
   const user = usersById.get(userId);
   if (!user) return undefined;
   if (user.role === role) return user;
+  const now = new Date();
   user.role = role;
-  user.updatedAt = new Date();
+  user.updatedAt = now;
+
+  if (role === 'admin') {
+    user.adminRequestStatus = 'approved';
+    user.adminReviewedAt = now;
+    user.adminRequestedAt = user.adminRequestedAt ?? now;
+  } else {
+    user.adminRequestStatus = 'none';
+    user.adminReviewedAt = now;
+    user.adminRequestedAt = undefined;
+  }
+  return user;
+};
+
+export const updateUserAccess = (
+  userId: string,
+  updates: Partial<Pick<UserRecord, 'role' | 'status'>>,
+): UserRecord | undefined => {
+  const user = usersById.get(userId);
+  if (!user) return undefined;
+
+  let updated = false;
+  const now = new Date();
+
+  if (updates.role && user.role !== updates.role) {
+    user.role = updates.role;
+    updated = true;
+
+    if (updates.role === 'admin') {
+      user.adminRequestStatus = 'approved';
+      user.adminReviewedAt = now;
+      user.adminRequestedAt = user.adminRequestedAt ?? now;
+    } else {
+      user.adminRequestStatus = 'none';
+      user.adminReviewedAt = now;
+      user.adminRequestedAt = undefined;
+    }
+  }
+
+  if (updates.status && user.status !== updates.status) {
+    user.status = updates.status;
+    updated = true;
+
+    if (updates.status === 'approved') {
+      user.approvedAt = now;
+      user.deniedAt = undefined;
+    } else if (updates.status === 'denied') {
+      user.deniedAt = now;
+    } else {
+      user.approvedAt = undefined;
+      user.deniedAt = undefined;
+    }
+  }
+
+  if (updated) {
+    user.updatedAt = now;
+  }
+
   return user;
 };
 
