@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,6 +22,11 @@ export function CasePage() {
   const [error, setError] = useState<string | null>(null);
   const { setActiveCase, clearActiveCase, activeCase } = useActiveCase();
   const [isQrOpen, setIsQrOpen] = useState(false);
+  const activeCaseRef = useRef(activeCase);
+
+  useEffect(() => {
+    activeCaseRef.current = activeCase;
+  }, [activeCase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,7 +44,8 @@ export function CasePage() {
       try {
         const caseResponse = await defaultApi.casesCaseIdGet({ caseId });
         const patientResponse = await defaultApi.patientsPatientIdGet({ patientId: caseResponse.patientId });
-        const caseToken = caseResponse.caseToken ?? activeCase?.caseToken ?? null;
+        const currentActiveCase = activeCaseRef.current;
+        const caseToken = caseResponse.caseToken ?? currentActiveCase?.caseToken ?? null;
         const mergedCase = { ...caseResponse, caseToken };
 
         if (cancelled) return;
@@ -48,10 +54,10 @@ export function CasePage() {
         setPatient(patientResponse);
 
         const shouldUpdateActiveCase =
-          !activeCase ||
-          activeCase.caseId !== mergedCase.caseId ||
-          activeCase.caseToken !== mergedCase.caseToken ||
-          activeCase.patientId !== patientResponse.patientId;
+          !currentActiveCase ||
+          currentActiveCase.caseId !== mergedCase.caseId ||
+          currentActiveCase.caseToken !== mergedCase.caseToken ||
+          currentActiveCase.patientId !== patientResponse.patientId;
 
         if (shouldUpdateActiveCase) {
           setActiveCase({ caseData: mergedCase, patient: patientResponse });
