@@ -2,13 +2,15 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { defaultApi } from '@/api/defaultApi';
+import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { SearchForm } from '@/components/custom/SearchForm';
 import { ArrowRight } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +49,11 @@ export function RegisterPage() {
 
     try {
       const data = await defaultApi.register(trimmedEmail);
+      if (isDirectAuthResponse(data)) {
+        await refreshUser();
+        navigate('/overview', { replace: true });
+        return;
+      }
       const successMessage =
         (data as { message?: string }).message ?? 'Your account is awaiting admin approval.';
       navigate('/request-sent', {

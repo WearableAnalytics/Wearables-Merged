@@ -1,7 +1,35 @@
 import { Configuration, CasesApi, CharitCasesApi, PatientsApi } from './openapi-client';
 
+const normalizeApiBasePath = (rawBasePath: string) => {
+  const trimmed = rawBasePath.replace(/\/$/, '') || '/api';
+
+  if (!import.meta.env.DEV) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const isLocalHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    if (isLocalHost) {
+      return url.pathname.replace(/\/$/, '') || '/api';
+    }
+  } catch {
+    return trimmed;
+  }
+
+  return trimmed;
+};
+
 // Shared configuration for all generated API classes.
-export const API_BASE_PATH = import.meta.env.VITE_API_BASE_URL ?? '/api';
+export const API_BASE_PATH = normalizeApiBasePath(import.meta.env.VITE_API_BASE_URL ?? '/api');
+
+export const isDirectAuthResponse = (data: unknown): boolean =>
+  Boolean(
+    data &&
+      typeof data === 'object' &&
+      'authenticated' in data &&
+      (data as { authenticated?: unknown }).authenticated === true,
+  );
 
 const sharedConfig = new Configuration({
   basePath: API_BASE_PATH,

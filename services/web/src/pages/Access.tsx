@@ -2,13 +2,15 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { defaultApi } from '@/api/defaultApi';
+import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { SearchForm } from '@/components/custom/SearchForm';
 import { ArrowRight } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 export function AccessPage() {
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +51,21 @@ export function AccessPage() {
       });
     };
 
+    const handleDirectAuth = async (data: unknown): Promise<boolean> => {
+      if (!isDirectAuthResponse(data)) {
+        return false;
+      }
+      await refreshUser();
+      navigate('/overview', { replace: true });
+      return true;
+    };
+
     try {
       const data = await defaultApi.login(trimmedEmail);
+      if (await handleDirectAuth(data)) {
+        setLoading(false);
+        return;
+      }
       const successMessage =
         (data as { message?: string }).message ?? 'Check your email for the login link.';
       sendToRequestSent({
@@ -81,6 +96,9 @@ export function AccessPage() {
 
     try {
       const data = await defaultApi.register(trimmedEmail);
+      if (await handleDirectAuth(data)) {
+        return;
+      }
       const successMessage =
         (data as { message?: string }).message ?? 'Your account is awaiting admin approval.';
       sendToRequestSent({
@@ -93,6 +111,9 @@ export function AccessPage() {
       if (error.status === 409) {
         try {
           const data = await defaultApi.login(trimmedEmail);
+          if (await handleDirectAuth(data)) {
+            return;
+          }
           const successMessage =
             (data as { message?: string }).message ?? 'Check your email for the login link.';
           sendToRequestSent({

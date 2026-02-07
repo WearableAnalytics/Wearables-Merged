@@ -2,6 +2,7 @@ import express from 'express';
 import type { CookieOptions, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import config from '../../config.js';
 import { auth, parseCookies } from '../../middleware.js';
 import { sendApprovalEmail, sendMagicLinkEmail } from '../../services/mailer.js';
 import { logger } from '../../logger.js';
@@ -27,13 +28,47 @@ const router = express.Router();
 const requestCookies = (req: Request) =>
   (req as Request & { cookies?: Record<string, string> }).cookies ?? parseCookies(req.headers.cookie);
 
+const isLocalHost = (hostname: string) =>
+  hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+
+const parseHostnames = (raw?: string) =>
+  (raw ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => {
+      try {
+        return new URL(value).hostname;
+      } catch {
+        return undefined;
+      }
+    })
+    .filter((value): value is string => Boolean(value));
+
+const isLocalCookieContext = () => {
+  const hostnames = [
+    ...parseHostnames(process.env.FRONTEND_URL),
+    ...parseHostnames(process.env.BACKEND_URL),
+  ];
+  return hostnames.some((hostname) => isLocalHost(hostname));
+};
+
+const resolveSecureCookies = () => {
+  const explicit = process.env.COOKIE_SECURE;
+  if (explicit === 'true') return true;
+  if (explicit === 'false') return false;
+  if (process.env.NODE_ENV === 'development') return false;
+  if (isLocalCookieContext()) return false;
+  return true;
+};
+
 // In-memory store for temporary EMAILAUTH tokens
 const tokenStore = new Map<string, { email: string; expiresAt: Date }>();
-const sameSite: CookieOptions['sameSite'] =
-  process.env.NODE_ENV !== 'development' ? 'strict' : 'lax';
+const useSecureCookies = resolveSecureCookies();
+const sameSite: CookieOptions['sameSite'] = useSecureCookies ? 'strict' : 'lax';
 const baseCookieOptions: CookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV !== 'development',
+  secure: useSecureCookies,
   sameSite,
   path: '/',
 };
@@ -85,7 +120,8 @@ const createMagicLinkToken = (email: string) => {
   return token;
 };
 
-const isDevBypass = () => process.env.NODE_ENV === 'development';
+const isMagicLinkBypass = () =>
+  config.nodeEnv === 'development' || !config.mailerEnabled;
 
 // POST /login
 router.post('/login', async (req: Request, res: Response) => {
@@ -128,11 +164,12 @@ router.post('/login', async (req: Request, res: Response) => {
       return;
     }
 
-    if (isDevBypass()) {
+    if (isMagicLinkBypass()) {
       const jwtToken = createJwtToken(existingUser);
       setAuthCookie(res, jwtToken);
       res.json({
-        message: 'Development mode: Direct authentication successful',
+        authenticated: true,
+        message: 'Direct authentication successful',
         userId: existingUser.id,
       });
       return;
@@ -162,11 +199,12 @@ router.post('/register', async (req: Request, res: Response) => {
 
     if (adminEmail) {
       const adminUser = ensureAdminUser(normalizedEmail);
-      if (isDevBypass()) {
+      if (isMagicLinkBypass()) {
         const jwtToken = createJwtToken(adminUser);
         setAuthCookie(res, jwtToken);
         res.status(201).json({
-          message: 'Development mode: Direct authentication successful',
+          authenticated: true,
+          message: 'Direct authentication successful',
           id: adminUser.id,
         });
       } else {

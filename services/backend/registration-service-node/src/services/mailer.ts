@@ -9,9 +9,9 @@ const defaultSender: Sender = {
 };
 
 const shouldLogOnly =
-  process.env.MAILER_ENABLED === 'false' ||
+  !config.mailerEnabled ||
   !process.env.BREVO_API_KEY ||
-  process.env.NODE_ENV === 'development';
+  config.nodeEnv === 'development';
 
 function getBackendUrl(): string {
   return process.env.BACKEND_URL || `http://localhost:${config.port}`;

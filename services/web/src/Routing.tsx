@@ -7,7 +7,6 @@ import { CasePage } from './pages/case/CasePage';
 import { PrivateRoute } from './components/PrivateRoute';
 import { LandingPage } from './pages/Landing';
 import { ErrorMagicLinkPage } from './pages/ErrorMagicLink';
-import { PatientMonitoringPage } from './pages/PatientMonitoring';
 import { AdminApprovalsPage } from './pages/AdminApprovals';
 import { AccountPage } from './pages/Account';
 import { AuthRequestSentPage } from './pages/AuthRequestSent';
@@ -46,14 +45,6 @@ export function Routing() {
         element={
           <PrivateRoute>
             <LogoutPage />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/monitoring/:caseId"
-        element={
-          <PrivateRoute>
-            <PatientMonitoringPage />
           </PrivateRoute>
         }
       />

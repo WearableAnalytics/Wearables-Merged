@@ -25,6 +25,8 @@ export const config = {
   proxyPrefix: normalizePrefix(process.env.PROXY_PREFIX ?? '/grafana'),
   grafanaBaseUrl: process.env.GRAFANA_BASE_URL ?? '',
   grafanaPathPrefix: normalizePrefix(process.env.GRAFANA_PATH_PREFIX ?? ''),
+  grafanaDashboardId: process.env.GRAFANA_DASHBOARD_ID ?? '',
+  grafanaDashboardDatasource: process.env.GRAFANA_DASHBOARD_DATASOURCE ?? '',
   grafanaTlsSkipVerify: process.env.GRAFANA_TLS_SKIP_VERIFY === 'true',
   grafanaJwtHeader: process.env.GRAFANA_JWT_HEADER ?? 'X-JWT-Assertion',
   grafanaJwtHeaderValuePrefix: process.env.GRAFANA_JWT_HEADER_VALUE_PREFIX ?? '',
