@@ -15,7 +15,19 @@ export const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ child
   }
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/access" state={{ from: location }} replace />;
+  }
+
+  if (user.status && user.status !== 'approved') {
+    const message =
+      user.status === 'pending'
+        ? 'Your account is awaiting admin approval.'
+        : 'Unable to access the application. Please contact support.';
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center text-red-600">
+        {message}
+      </div>
+    );
   }
 
   return children;

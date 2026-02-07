@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
@@ -77,6 +78,14 @@ export function CasePage() {
     };
   }, [caseId, setActiveCase, clearActiveCase]);
 
+  useEffect(() => {
+    if (error) {
+      toast.error(error, { id: 'case-error' });
+    } else {
+      toast.dismiss('case-error');
+    }
+  }, [error]);
+
   const formatDate = (value: Patient['birthDate']) =>
     new Date(value).toLocaleDateString('en-GB', {
       day: '2-digit',
@@ -106,11 +115,7 @@ export function CasePage() {
       <SignedInAs />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-        {error ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
-            {error}
-          </div>
-        ) : loading ? (
+        {error ? null : loading ? (
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
             <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
             Loading case…

@@ -23,10 +23,11 @@ const grafanaPrivateKey = readPrivateKey();
 export const config = {
   port: Number(process.env.PORT) || 3002,
   proxyPrefix: normalizePrefix(process.env.PROXY_PREFIX ?? '/grafana'),
-  grafanaBaseUrl: process.env.GRAFANA_BASE_URL ?? 'http://localhost:3000',
+  grafanaBaseUrl: process.env.GRAFANA_BASE_URL ?? '',
   grafanaPathPrefix: normalizePrefix(process.env.GRAFANA_PATH_PREFIX ?? ''),
   grafanaTlsSkipVerify: process.env.GRAFANA_TLS_SKIP_VERIFY === 'true',
   grafanaJwtHeader: process.env.GRAFANA_JWT_HEADER ?? 'X-JWT-Assertion',
+  grafanaJwtHeaderValuePrefix: process.env.GRAFANA_JWT_HEADER_VALUE_PREFIX ?? '',
   grafanaJwtIssuer: process.env.GRAFANA_JWT_ISSUER ?? 'wearables-grafana-proxy',
   grafanaJwtAudience: process.env.GRAFANA_JWT_AUDIENCE ?? 'grafana',
   grafanaJwtTtlSeconds: Number(process.env.GRAFANA_JWT_TTL_SECONDS) || 300,
@@ -35,5 +36,8 @@ export const config = {
   grafanaJwtName: process.env.GRAFANA_JWT_NAME ?? '',
   grafanaJwtRole: process.env.GRAFANA_JWT_ROLE ?? '',
   grafanaOrgId: process.env.GRAFANA_ORG_ID ?? '',
-  grafanaJwtPrivateKey: grafanaPrivateKey,
+  grafanaJwtPrivateKey: grafanaPrivateKey ?? '',
+  grafanaJwtIatSkewSeconds: Number(process.env.GRAFANA_JWT_IAT_SKEW_SECONDS) || 0,
+  sessionCookieName: process.env.SESSION_COOKIE_NAME ?? 'jwt',
+  appJwtSecret: process.env.APP_JWT_SECRET ?? process.env.JWT_SECRET ?? '',
 };

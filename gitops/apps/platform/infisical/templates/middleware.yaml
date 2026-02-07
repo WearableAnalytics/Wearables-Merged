@@ -1,0 +1,12 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Release.Name }}-stripprefix
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  stripPrefix:
+    prefixes:
+      - {{ .Values.ingress.prefix }}
+{{- end }}

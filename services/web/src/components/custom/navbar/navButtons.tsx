@@ -7,9 +7,19 @@ export const NavButton: React.FC<{
   isDisabled?: boolean;
   className?: string;
   onClick?: () => void;
-  id?: string; //add id prop for tutorial
+  id?: string;
   invertedColors?: boolean;
-}> = ({ path, children, className = '', onClick, id, isDisabled, invertedColors }) => {
+  iconOnly?: boolean; 
+}> = ({
+  path,
+  children,
+  className = '',
+  onClick,
+  id,
+  isDisabled,
+  invertedColors,
+  iconOnly = false, 
+}) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -23,20 +33,22 @@ export const NavButton: React.FC<{
   };
 
   return (
-    <button
-      type="button"
-      onClick={isDisabled ? undefined : handleClick}
-      id={id}
-      className={`text-sm px-4 py-2 rounded-full border border-1 transition-shadow transition-colors cursor-pointer ${
-        isActive
-          ? 'bg-primary border-primary text-primary-foreground shadow-md transform transition-transform duration-200 ease-out hover:scale-[1.05] group' // active button
-          : !invertedColors
-            ? 'font-medium border border-[rgba(255,255,255,0.3)] text-foreground bg-white/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:text-primary hover:border-primary hover:bg-transparent hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
-            : 'font-medium text-primary border border-primary bg-transparent text-foreground bg-white/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:border-primary hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
-      } ${isDisabled ? 'opacity-80' : 'cursor-pointer'} ${className}`}
-    >
-      {children}
-    </button>
+      <button
+        type="button"
+        onClick={isDisabled ? undefined : handleClick}
+        id={id}
+        className={`h-10 inline-flex items-center justify-center rounded-full border border-1 transition-shadow transition-colors cursor-pointer
+  ${iconOnly ? 'w-10 p-0' : 'px-5 text-sm'}
+  ${
+    isActive
+      ? 'bg-primary border-primary text-primary-foreground shadow-md transform transition-transform duration-200 ease-out hover:scale-[1.05] group'
+      : !invertedColors
+        ? 'font-medium border border-[rgba(255,255,255,0.3)] text-foreground bg-white/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:text-primary hover:border-primary hover:bg-transparent hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
+        : 'font-medium text-primary border border-primary bg-transparent text-foreground bg-white/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:border-primary hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
+  } ${isDisabled ? 'opacity-80' : 'cursor-pointer'} ${className}`}
+      >
+        {children}
+      </button>
   );
 };
 

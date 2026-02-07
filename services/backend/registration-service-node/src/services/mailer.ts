@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { logger } from '../logger.js';
 
 type Sender = { name: string; email: string };
 
@@ -14,6 +15,10 @@ const shouldLogOnly =
 
 function getBackendUrl(): string {
   return process.env.BACKEND_URL || `http://localhost:${config.port}`;
+}
+
+function getFrontendUrl(): string {
+  return process.env.FRONTEND_URL || 'http://localhost:5173';
 }
 
 function buildMagicLink(token: string, redirect?: string): string {
@@ -68,8 +73,10 @@ export async function sendMagicLinkEmail(
     : 'Your Wearables login link';
 
   if (shouldLogOnly) {
-    // eslint-disable-next-line no-console
-    console.log(`[magic-link] send to ${email}: ${magicLink}`);
+    logger.info('Magic link email suppressed (log-only mode)', {
+      email,
+      magicLink,
+    });
     return;
   }
 
@@ -101,6 +108,41 @@ export async function sendMagicLinkEmail(
   `;
 
   await sendEmail(email, subject, getMagicLinkEmailTemplate(innerHtml));
+}
+
+export async function sendApprovalEmail(email: string) {
+  const loginUrl = `${getFrontendUrl()}/login`;
+  const subject = 'Your Wearables account is approved';
+
+  if (shouldLogOnly) {
+    logger.info('Approval email suppressed (log-only mode)', {
+      email,
+      loginUrl,
+    });
+    return;
+  }
+
+  const contentHtml = `
+    <div style="background:#E8F3F8;padding:28px;border-radius:12px;margin-bottom:20px;">
+      <h2 style="color:#0A1C3E;margin:0 0 16px 0;font-size:20px;font-weight:600;">
+        You're approved
+      </h2>
+      <p style="color:#105067;margin:0 0 18px 0;font-size:15px;line-height:1.6;">
+        Your Wearables account has been approved. You can now sign in using your email.
+      </p>
+      <div style="text-align:center;margin:24px 0;">
+        <a href="${loginUrl}"
+           style="display:inline-block;background:#1A3F6E;color:#FFFFFF;padding:12px 20px;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">
+          Go to login
+        </a>
+      </div>
+      <p style="color:#578494;margin:0;font-size:13px;text-align:center;">
+        If you did not request access, you can ignore this email.
+      </p>
+    </div>
+  `;
+
+  await sendEmail(email, subject, getEmailTemplate('Access approved', contentHtml));
 }
 
 function getEmailTemplate(title: string, contentHtml: string): string {

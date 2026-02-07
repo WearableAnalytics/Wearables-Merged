@@ -1,20 +1,36 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
-import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { defaultApi } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { SearchForm } from '@/components/custom/SearchForm';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 export function RegisterPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error, { id: 'register-error' });
+    } else {
+      toast.dismiss('register-error');
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (loading) {
+      toast.loading('Submitting access request…', { id: 'register-loading' });
+    } else {
+      toast.dismiss('register-loading');
+    }
+  }, [loading]);
 
   const resetFeedback = () => {
     setError(null);
-    setMessage(null);
   };
 
   const handleRegister = async (event: FormEvent) => {
@@ -23,19 +39,24 @@ export function RegisterPage() {
 
     if (!trimmedEmail) {
       setError('Please enter your email address.');
-      setMessage(null);
       return;
     }
 
     setLoading(true);
     setError(null);
-    setMessage(null);
 
     try {
       const data = await defaultApi.register(trimmedEmail);
-      const successMessage = (data as { message?: string }).message ?? 'Check your email to complete sign up.';
-      setMessage(successMessage);
-      window.dispatchEvent(new Event('auth-change'));
+      const successMessage =
+        (data as { message?: string }).message ?? 'Your account is awaiting admin approval.';
+      navigate('/request-sent', {
+        replace: true,
+        state: {
+          title: 'Request submitted',
+          description: 'We will review your request and email you with next steps.',
+          message: successMessage,
+        },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to register.');
     } finally {
@@ -47,8 +68,8 @@ export function RegisterPage() {
     <>
       <PageHeader
         label="Register"
-        title="Create an account"
-        description="Enter your email to receive a registration link."
+        title="Request access"
+        description="Enter your email to request access. You will be notified after approval."
       />
 
       <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">
@@ -66,22 +87,8 @@ export function RegisterPage() {
             autoComplete="email"
             placeholder="Enter your email address"
             submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
-            submitLabel="Send registration link"
+            submitLabel="Request access"
           />
-
-          <div className="mt-6 space-y-3 min-h-[120px]">
-            {error ? <AddCaseNotice tone="error" message={error} /> : null}
-
-            {loading ? (
-              <AddCaseNotice
-                tone="loading"
-                icon={<Loader2 aria-hidden className="h-5 w-5 animate-spin text-slate-600" />}
-                message="Sending registration link…"
-              />
-            ) : null}
-
-            {!loading && message ? <AddCaseNotice tone="info" message={message} /> : null}
-          </div>
         </div>
       </div>
     </>

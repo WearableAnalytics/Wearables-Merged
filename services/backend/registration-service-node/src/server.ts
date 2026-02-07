@@ -2,7 +2,8 @@ import cors from 'cors';
 import express, { Request, Response } from 'express';
 import config from './config.js';
 import authRouter from './api/routes/auth.js';
-import { auth } from './middleware.js';
+import { auth, requestLogger } from './middleware.js';
+import { logger } from './logger.js';
 import { patientService, caseService, chariteCaseService } from './services/index.js';
 import type {
   CasesFromChariteCasePostRequest,
@@ -13,6 +14,7 @@ const app = express();
 
 app.use(cors({ origin: config.frontendOrigins, credentials: true }));
 app.use(express.json());
+app.use(requestLogger);
 app.use(config.apiPrefix, authRouter);
 
 const route = (path: string) => `${config.apiPrefix}${path}`;
@@ -41,7 +43,7 @@ app.get(route('/charite/cases/:cCaseId'), async (req, res) => {
 
     return res.json(chariteCase);
   } catch (error) {
-    console.error('Error fetching Charité case:', error);
+    logger.error('Error fetching Charité case', error as Error);
     return sendError(res, 500, 'Internal server error');
   }
 });
@@ -51,7 +53,7 @@ app.get(route('/patients'), async (_req, res) => {
     const patients = await patientService.listPatients();
     return res.json(patients);
   } catch (error) {
-    console.error('Error listing patients:', error);
+    logger.error('Error listing patients', error as Error);
     return sendError(res, 500, 'Internal server error');
   }
 });
@@ -65,7 +67,7 @@ app.get(route('/patients/:patientId'), async (req, res) => {
 
     return res.json(patient);
   } catch (error) {
-    console.error('Error fetching patient:', error);
+    logger.error('Error fetching patient', error as Error);
     return sendError(res, 500, 'Internal server error');
   }
 });
@@ -80,7 +82,7 @@ app.get(route('/patients/:patientId/cases'), async (req, res) => {
     const cases = await patientService.getPatientCases(req.params.patientId);
     return res.json(cases);
   } catch (error) {
-    console.error('Error fetching patient cases:', error);
+    logger.error('Error fetching patient cases', error as Error);
     return sendError(res, 500, 'Internal server error');
   }
 });
@@ -90,7 +92,7 @@ app.get(route('/cases'), async (_req, res) => {
     const cases = await caseService.listCases();
     return res.json(cases);
   } catch (error) {
-    console.error('Error listing cases:', error);
+    logger.error('Error listing cases', error as Error);
     return sendError(res, 500, 'Internal server error');
   }
 });
@@ -104,7 +106,7 @@ app.get(route('/cases/:caseId'), async (req, res) => {
 
     return res.json(caseRecord);
   } catch (error) {
-    console.error('Error fetching case:', error);
+    logger.error('Error fetching case', error as Error);
     return sendError(res, 500, 'Internal server error');
   }
 });
@@ -130,7 +132,7 @@ app.post(route('/cases/from-charite-case'), async (req: Request, res: Response) 
 
     return res.status(created ? 201 : 200).json(payload);
   } catch (error) {
-    console.error('Error creating case from Charité:', error);
+    logger.error('Error creating case from Charité', error as Error);
     return sendError(res, 500, 'Internal server error');
   }
 });
@@ -154,7 +156,7 @@ app.post(route('/cases/verify-token'), async (req: Request, res: Response) => {
       status: caseRecord.status,
     });
   } catch (error) {
-    console.error('Error verifying case token:', error);
+    logger.error('Error verifying case token', error as Error);
     return sendError(res, 500, 'Internal server error');
   }
 });
@@ -164,10 +166,9 @@ app.use((_req, res) => {
 });
 
 app.listen(config.port, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Registration service listening on http://localhost:${config.port}${config.apiPrefix}`);
-  console.log(`Using ${config.useMockData ? 'MOCK' : 'REAL'} data`);
+  logger.info(`Registration service listening on http://localhost:${config.port}${config.apiPrefix}`);
+  logger.info(`Using ${config.useMockData ? 'MOCK' : 'REAL'} data`);
   if (!config.useMockData) {
-    console.log(`Database API URL: ${config.databaseApi.baseUrl}`);
+    logger.debug(`Database API URL: ${config.databaseApi.baseUrl}`);
   }
 });

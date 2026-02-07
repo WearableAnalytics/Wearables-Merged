@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { API_BASE_PATH, defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
@@ -51,6 +52,14 @@ export function OverviewPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (error) {
+      toast.error(`Unable to load cases: ${error}`, { id: 'overview-error' });
+    } else {
+      toast.dismiss('overview-error');
+    }
+  }, [error]);
+
   const formattedBasePath = useMemo(() => API_BASE_PATH.replace(/\/$/, ''), []);
 
   return (
@@ -77,11 +86,7 @@ export function OverviewPage() {
           </div>
         </div>
 
-        {error ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 font-semibold text-rose-700">
-            Unable to load cases: {error}
-          </div>
-        ) : loading ? (
+        {error ? null : loading ? (
           <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
             Loading cases…
           </div>
