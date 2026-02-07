@@ -9,7 +9,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-if (config.grafanaJwtPrivateKey && config.grafanaJwtSubject) {
+if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSubject || config.appJwtSecret)) {
   const jwtProxy = createJwtProxy(config);
   const mountPath = config.proxyPrefix || '/grafana';
   app.use(mountPath, (req, _res, next) => {
@@ -32,7 +32,9 @@ if (config.grafanaJwtPrivateKey && config.grafanaJwtSubject) {
   console.log(`Grafana JWT subject: ${config.grafanaJwtSubject}`);
 } else {
   // eslint-disable-next-line no-console
-  console.warn('Missing GRAFANA_JWT_PRIVATE_KEY or GRAFANA_JWT_SUBJECT; proxy is not mounted.');
+  console.warn(
+    'Missing GRAFANA_BASE_URL, GRAFANA_JWT_PRIVATE_KEY, and/or both GRAFANA_JWT_SUBJECT + APP_JWT_SECRET; proxy is not mounted.',
+  );
 }
 
 app.listen(port, () => {

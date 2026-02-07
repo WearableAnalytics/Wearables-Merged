@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Menu } from 'lucide-react';
+import { Menu, Shield, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveCase } from '@/lib/activeCase';
 import { useAuth } from '@/context/AuthContext';
@@ -9,13 +9,13 @@ import { NavButton, NavButtonMobile } from './navButtons';
 
 import { Logo } from './logo';
 
-interface GuestNavbarProps {
+interface NavbarProps {
   alwaysGuestRoutes: string[];
   navigate: ReturnType<typeof useNavigate>;
   location: ReturnType<typeof useLocation>;
 }
 
-export const GuestNavbar: React.FC<GuestNavbarProps> = ({
+export const Navbar: React.FC<NavbarProps> = ({
   alwaysGuestRoutes,
   navigate,
   location,
@@ -27,6 +27,7 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
   const isCasePage = location.pathname.startsWith('/cases/');
   const activePatientName = patient ? `${patient.firstName} ${patient.lastName}` : null;
   const isAuthenticated = !!user;
+  const isAdmin = user?.role === 'admin';
 
   const activePatientNavLabel =
     patient && patient.lastName
@@ -56,7 +57,7 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
       console.error('Logout failed:', err);
     } finally {
       setIsLoggingOut(false);
-      void navigate('/login');
+      void navigate('/access');
     }
   };
 
@@ -89,15 +90,36 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center space-x-3">
             {isAuthenticated ? (
-              <NavButton invertedColors={true} onClick={handleLogout} isDisabled={isLoggingOut}>
-                Logout
-              </NavButton>
+              <>
+                {isAdmin ? (
+                  <NavButton
+                    path="/admin/approvals"
+                    invertedColors={true}
+                    iconOnly
+                    className="h-10 w-10 p-0 flex items-center justify-center"
+                  >
+                    <Shield className="h-5 w-5" aria-hidden />
+                    <span className="sr-only">Admin</span>
+                  </NavButton>
+                ) : null}
+                <NavButton
+                  path="/account"
+                  invertedColors={true}
+                  iconOnly
+                  className="h-10 w-10 p-0 flex items-center justify-center"
+                >
+                  <User className="h-5 w-5" aria-hidden />
+                  <span className="sr-only">Account</span>
+                </NavButton>
+                <NavButton invertedColors={true} onClick={handleLogout} isDisabled={isLoggingOut}>
+                  Logout
+                </NavButton>
+              </>
             ) : (
               <>
-                <NavButton path="/login" invertedColors={true}>
-                  Login
+                <NavButton path="/access" invertedColors={true}>
+                  Access
                 </NavButton>
-                <NavButton path="/register">Register</NavButton>
               </>
             )}
           </div>
@@ -110,7 +132,7 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 hover:bg-primary group"
             >
-              <Menu className="h-6 w-6 text-foreground group-hover:text-primary-foreground" />
+              <Menu className="h-5 w-5 text-foreground group-hover:text-primary-foreground" />
             </Button>
           </div>
         </div>
@@ -128,6 +150,22 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
                   >
                     Overview
                   </NavButtonMobile>
+                  <NavButtonMobile
+                    path="/account"
+                    className="w-full justify-start text-left"
+                    onClick={handleMobileLinkClick}
+                  >
+                    Account
+                  </NavButtonMobile>
+                  {isAdmin ? (
+                    <NavButtonMobile
+                      path="/admin/approvals"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      Admin
+                    </NavButtonMobile>
+                  ) : null}
                   {isCasePage && activeCase && activePatientMobileLabel ? (
                     <NavButtonMobile
                       path={`/cases/${activeCase.caseId}`}
@@ -170,18 +208,11 @@ export const GuestNavbar: React.FC<GuestNavbarProps> = ({
                   <div className="flex flex-col gap-2">
                     <NavButtonMobile
                       invertedColors={true}
-                      path="/login"
+                      path="/access"
                       className="w-full justify-start text-left"
                       onClick={handleMobileLinkClick}
                     >
-                      Login
-                    </NavButtonMobile>
-                    <NavButtonMobile
-                      path="/register"
-                      className="w-full justify-start text-left"
-                      onClick={handleMobileLinkClick}
-                    >
-                      Register
+                      Access
                     </NavButtonMobile>
                   </div>
                 )}

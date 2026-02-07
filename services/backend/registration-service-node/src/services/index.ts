@@ -3,6 +3,7 @@ import { databaseApiClient } from '../clients/databaseApi.js';
 import * as mockData from '../mockData.js';
 import type { Patient } from '../api/openapi-client/models/index.js';
 import { tokenService } from './tokenService.js';
+import { logger } from '../logger.js';
 
 export interface CaseCreationResult {
   created: boolean;
@@ -37,7 +38,7 @@ class PatientService {
         birthDate: p.dob ? new Date(p.dob) : new Date(),
       }));
     } catch (error) {
-      console.error('Error fetching patients from API:', error);
+      logger.error('Error fetching patients from API', error as Error);
       throw new Error('Failed to fetch patients');
     }
   }
@@ -56,7 +57,7 @@ class PatientService {
         birthDate: patient.dob ? new Date(patient.dob) : new Date(),
       };
     } catch (error) {
-      console.error(`Error fetching patient ${patientId}:`, error);
+      logger.error(`Error fetching patient ${patientId}`, error as Error);
       return undefined;
     }
   }
@@ -75,7 +76,7 @@ class PatientService {
         caseToken: null,
       }));
     } catch (error) {
-      console.error(`Error fetching cases for patient ${patientId}:`, error);
+      logger.error(`Error fetching cases for patient ${patientId}`, error as Error);
       throw new Error('Failed to fetch patient cases');
     }
   }
@@ -96,7 +97,7 @@ class CaseService {
         caseToken: null, // Cases list doesn't include tokens
       }));
     } catch (error) {
-      console.error('Error fetching cases from API:', error);
+      logger.error('Error fetching cases from API', error as Error);
       throw new Error('Failed to fetch cases');
     }
   }
@@ -115,7 +116,7 @@ class CaseService {
         caseToken: null, // Individual case fetch doesn't include token
       };
     } catch (error) {
-      console.error(`Error fetching case ${caseId}:`, error);
+      logger.error(`Error fetching case ${caseId}`, error as Error);
       return undefined;
     }
   }
@@ -219,7 +220,7 @@ class CaseService {
         chariteCase,
       };
     } catch (error) {
-      console.error('Error creating case from Charité:', error);
+      logger.error('Error creating case from Charité', error as Error);
       throw error;
     }
   }
@@ -266,7 +267,7 @@ class CaseService {
         patientVerifier,
       };
     } catch (error) {
-      console.error('Error verifying case token:', error);
+      logger.error('Error verifying case token', error as Error);
       return undefined;
     }
   }

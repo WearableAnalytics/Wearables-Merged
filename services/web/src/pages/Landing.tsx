@@ -1,8 +1,19 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import wLogo from '@/assets/W.png';
+import { useAuth } from '@/context/AuthContext';
 
 export function LandingPage() {
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/overview', { replace: true });
+    }
+  }, [user, loading, navigate]);
+
   return (
     <section className="relative flex min-h-[70vh] items-center justify-center">
       <div
@@ -33,15 +44,7 @@ export function LandingPage() {
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
             <Button asChild size="lg" className="w-full sm:w-auto px-7 py-5">
-              <Link to="/login">Login</Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="w-full sm:w-auto border-slate-200 bg-white px-7 py-5 text-slate-800 hover:border-primary hover:text-primary"
-            >
-              <Link to="/register">Register</Link>
+              <Link to="/access">Access</Link>
             </Button>
           </div>
         </div>

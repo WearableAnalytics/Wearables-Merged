@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { logger } from '../logger.js';
 
 interface CaseTokenPayload {
   caseId: string;
@@ -69,7 +70,7 @@ class TokenService {
 
       // Check if token type is correct
       if (decoded.type !== 'case-verification') {
-        console.warn('Invalid token type:', decoded.type);
+        logger.warn('Invalid token type', { tokenType: decoded.type });
         return null;
       }
 
@@ -78,7 +79,7 @@ class TokenService {
       if (!stored) {
         // Token not in store - could be old or from before restart
         // In production, this should query a persistent store
-        console.warn('Token not found in store, allowing based on JWT verification');
+        logger.warn('Token not found in store, allowing based on JWT verification');
         return decoded;
       }
 
@@ -91,12 +92,12 @@ class TokenService {
       return decoded;
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
-        console.warn('Invalid token:', error.message);
+        logger.warn('Invalid token', { message: error.message });
       } else if (error instanceof jwt.TokenExpiredError) {
-        console.warn('Token expired:', error.message);
+        logger.warn('Token expired', { message: error.message });
         this.tokenStore.delete(token);
       } else {
-        console.error('Token verification error:', error);
+        logger.error('Token verification error', error as Error);
       }
       return null;
     }

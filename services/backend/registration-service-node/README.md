@@ -14,6 +14,7 @@ Environment variables:
 
 - `PORT` (default `3001`)
 - `API_PREFIX` (default `/api`) – set to `` when pointing `VITE_API_BASE_URL` directly at the server root.
+- `LOG_LEVEL` (`trace` | `debug` | `info` | `warn` | `error`, defaults to `debug` in development and `info` in production)
 
 When running the web frontend, set `VITE_API_BASE_URL=http://localhost:3001` (or match whatever host/port you used).
 
