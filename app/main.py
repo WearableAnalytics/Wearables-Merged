@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 _kafka_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="kafka_send")
 
-app = FastAPI(title="Wearables Import Service", version="0.9.0")
+app = FastAPI(title="Wearables Import Service", version="0.9.1")
 
 @app.get("/health")
 async def health():
