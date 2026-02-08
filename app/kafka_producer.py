@@ -68,11 +68,13 @@ class MeasurementProducer:
             raise KafkaException("No Kafka brokers available to send message")
 
         value = json.dumps(message).encode('utf-8')
+        self.producer.poll(0)
         self.producer.produce(
             self.topic,
             value=value,
             callback=self._delivery_callback,
         )
+        self.producer.poll(0)
 
     def produce_measurements(self, messages: Iterable[Dict[str, Any]]):
         count = 0
@@ -83,6 +85,16 @@ class MeasurementProducer:
                     self._send(msg)
                     count += 1
                     break
+                except BufferError:
+                    logger.warning(
+                        "Kafka queue full when sending message (attempt %d/%d)",
+                        attempt, send_attempts
+                    )
+                    if self.producer is not None:
+                        self.producer.poll(0.1)
+                    if attempt == send_attempts:
+                        raise
+                    time.sleep(0.05 * attempt)
                 except KafkaException:
                     logger.warning(
                         "Kafka unavailable when sending message (attempt %d/%d)",
