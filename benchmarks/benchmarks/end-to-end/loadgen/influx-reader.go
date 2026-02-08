@@ -57,14 +57,7 @@ from(bucket: "%s")
 			}
 
 			for result.Next() {
-				record := result.Record()
-
-				producedTime := record.Time()
-				observedTime := time.Now()
-
-				messageId := record.Value()
-
-				log.Printf("%s,%s,%s", messageId, producedTime, observedTime)
+				log.Printf(result.Record().String())
 			}
 		}
 	}
