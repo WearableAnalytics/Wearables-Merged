@@ -6,7 +6,7 @@ You need to create it yourself based on the `placeholder-secrets.yaml` file prov
 
 Then just deploy with:
 
-helm upgrade --install my-lakefs . \
+helm upgrade --install lakefs . \
   --namespace lakefs \
   --create-namespace \
   -f values.yaml \
@@ -22,7 +22,7 @@ Run this on your local machine:
 
 Then on the jumphost, run:
 ```bash
-  kubectl port-forward svc/my-lakefs 8000:80 -n lakefs
+  kubectl port-forward svc/lakefs 8000:80 -n lakefs
 ```
 
 ## First time setup
