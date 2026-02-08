@@ -1,11 +1,8 @@
 package main
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"os"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -15,11 +12,15 @@ type Provider struct {
 	MessageCounter atomic.Uint32
 }
 
-type Collector struct {
-	writer         *csv.Writer
-	headersWritten bool
-	mu             *sync.Mutex
+type Collector struct{}
+
+func NewCollector() *Collector {
+	return &Collector{}
 }
+
+func (c Collector) Collect(result Result) {}
+
+func (c Collector) Close() {}
 
 type Payload struct {
 	DeviceInfo      DeviceInfo   `json:"deviceInfo"`
@@ -128,12 +129,4 @@ func NewProvider(msgSize int) *Provider {
 func (p *Provider) GetData() Payload {
 	p.Payload.DeviceInfo.DeviceId = fmt.Sprintf("%d", p.MessageCounter.Add(1))
 	return p.Payload
-}
-
-func NewCollector() *Collector {
-	return &Collector{
-		writer:         csv.NewWriter(os.Stdout),
-		headersWritten: false,
-		mu:             &sync.Mutex{},
-	}
 }
