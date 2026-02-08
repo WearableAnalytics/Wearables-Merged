@@ -6,17 +6,30 @@ seaweedfs:
 
   volume:
     enabled: true
-    replicas: 1
+    replicas: 2
     data:
       type: "persistentVolumeClaim" # automatic PVC creation
       storageClass: cinder-csi
-      size: 65Gi
+      size: 40Gi
 
   filer:
     enabled: true
     replicas: 1
     s3:
       enabled: true
+    extraEnvironmentVars:
+      WEED_MYSQL_ENABLED: "false"
+      WEED_LEVELDB2_ENABLED: "false"
+
+      WEED_POSTGRES_ENABLED: "true"
+      WEED_POSTGRES_HOSTNAME: "prod-postgres.prod-postgres.svc.cluster.local" 
+      WEED_POSTGRES_PORT: "5432"
+      WEED_POSTGRES_DATABASE: "seaweedfs"
+
+      WEED_POSTGRES_USERNAME: "seaweedfs_user"
+      WEED_POSTGRES_PASSWORD: "tuSfWf@3UNNhw2@b9Ygq"
+
+      WEED_POSTGRES_SSLMODE: "disable" # it needs to be disabled because our Postgres does not have SSL configured yet
 
   s3:
     enabled: true
