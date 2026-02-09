@@ -28,6 +28,8 @@ spec:
               value: {{ .Values.env.API_PREFIX | quote }}
             - name: USE_MOCK_DATA
               value: {{ .Values.env.USE_MOCK_DATA | quote }}
+            - name: NODE_ENV
+              value: {{ .Values.env.NODE_ENV | quote }}
           envFrom:
             - secretRef:
                 name: {{ .Values.secretRef }}

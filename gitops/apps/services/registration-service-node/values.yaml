@@ -13,6 +13,11 @@ env:
   PORT: "3001"
   API_PREFIX: "/api"
   USE_MOCK_DATA: "false"
+  NODE_ENV: "development"
+
+frontendOrigins: "http://localhost:8080,http://localhost:8081"
+
+adminEmails: ""
 
 secretRef: "registration-service-node-secrets"
 

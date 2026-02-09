@@ -3,14 +3,14 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install dependencies based on the lockfile for reproducible builds
-COPY services/web/package*.json ./
+COPY ./package*.json ./
 
 # Cache npm's download cache between builds
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund
 
 # Copy source and build. Override VITE_API_BASE_URL at build time if needed.
-COPY services/web ./
+COPY ./ ./ 
 ARG VITE_BACKEND_URL
 ARG VITE_API_BASE_URL
 ARG VITE_GRAFANA_PROXY_URL
@@ -39,7 +39,7 @@ WORKDIR /usr/share/nginx/html
 RUN rm -rf ./*
 
 # Custom Nginx config ensures SPA routing works
-COPY services/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY ./nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist ./
 
 EXPOSE 80
