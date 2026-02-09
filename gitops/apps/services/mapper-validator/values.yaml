@@ -13,6 +13,7 @@ envs:
   dlqTopic: "dlq"
   numStreamThreads: "10" #how many partitions one instance can handle through multithreading
   partitions: "30" #number of partitions that the wearables raw topic has
+  validationFrequency: 100 # every n-th message will be checked according to this (if 0, all messages are checked)
 
 
 image:

@@ -16,23 +16,25 @@ import java.util.Set;
 
 class MapperMockSupplier implements ProcessorSupplier<String, String, String, String> {
 
-    public MapperMockSupplier(MappingYaml yaml){
+    public MapperMockSupplier(MappingYaml yaml, int validationFrq){
         this.yaml = yaml;
+        this.validationFrq = validationFrq;
     }
 
     MappingYaml yaml;
+    int validationFrq;
 
     @Override
     public Processor<String, String, String, String> get() {
-        return new MapperMock(this.yaml);
+        return new MapperMock(this.yaml, validationFrq);
     }
 }
 
 class MapperMock implements Processor<String, String, String, String> {
     private ProcessorContext<String, String> context;
 
-    public MapperMock(MappingYaml yaml){
-        this.mapper = new Mapper(yaml);
+    public MapperMock(MappingYaml yaml, int validationFrq){
+        this.mapper = new Mapper(yaml, validationFrq);
     }
 
     Mapper mapper;
@@ -41,7 +43,7 @@ class MapperMock implements Processor<String, String, String, String> {
     @SuppressWarnings("unchecked")
     @Override
     public void init(ProcessorContext context) {
-        Validator.initiliazeFhirValidator();
+        Validator.initiliazeFhirValidator(mapper.getValidationFrq());
         this.context = context;
 
         DependencyGraph dependencyGraph = new DependencyGraph(mapper.getYaml());

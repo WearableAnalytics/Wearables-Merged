@@ -56,7 +56,7 @@ public class RawTransformer extends Transformer{
                 }
 
                 case "prepend":
-                    log.warn("transformation 'prepend' for field {} is not implemented", field.getName());
+                    value = resolvePrepend(vt, value);
                     break;
 
                 case "map": //TODO rename this everywhere
@@ -160,7 +160,7 @@ public class RawTransformer extends Transformer{
 
         try{
             String s = elementToString(e);
-            if(s.charAt(0) != '"' || s.charAt(s.length()-1) != '"') {
+            if(!(s.charAt(0) == '"' && s.charAt(s.length()-1) == '"') || !(s.charAt(0) == '\'' && s.charAt(s.length()-1) == '\'')) {
                 log.warn("could not unquote string '{}' since first and last characters are not quotes", s);
                 return new JsonPrimitive(s);
             }
