@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"strconv"
@@ -11,6 +12,8 @@ import (
 
 var (
 	serviceURL       string
+	influxURL        string
+	influxToken      string
 	messageSize      int
 	rampUpDuration   int
 	duration         int // seconds
@@ -20,6 +23,9 @@ var (
 
 func init() {
 	serviceURL = mustGetEnvString("SERVICE_URL")
+	influxURL = mustGetEnvString("INFLUX_URL")
+	influxToken = mustGetEnvString("INFLUX_TOKEN")
+
 	messageSize = mustGetEnvInt("MESSAGE_SIZE")
 	rampUpDuration = mustGetEnvInt("RAMP_UP_DURATION")
 	duration = mustGetEnvInt("DURATION")
@@ -31,6 +37,16 @@ func main() {
 	provider := NewProvider(messageSize)
 	client := NewClient(serviceURL)
 	collector := NewCollector()
+	conf := &InfluxObserverConfig{
+		Addr:       influxURL,
+		Token:      influxToken,
+		Org:        influxOrg,
+		Bucket:     influxBucket,
+		WindowSize: 10 * time.Millisecond,
+		T0:         time.Now(),
+	}
+
+	obs := NewInfluxObserver(conf)
 
 	maxDuration := rampUpDuration + duration + rampDownDuration
 
@@ -77,8 +93,7 @@ func main() {
 	}
 	go ew.Run()
 
-	// start the Influx Reader
-	// TODO
+	obs.ObserveAndLog(context.Background())
 }
 
 func mustGetEnvString(key string) string {

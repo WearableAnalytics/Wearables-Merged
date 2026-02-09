@@ -33,7 +33,7 @@ func NewInfluxObserver(conf *InfluxObserverConfig) *InfluxObserver {
 	return &observer
 }
 
-func (obs *InfluxObserver) ObserveAndLog(ctx context.Context) error {
+func (obs *InfluxObserver) ObserveAndLog(ctx context.Context) {
 	queryAPI := obs.Client.QueryAPI(obs.Config.Org)
 	ticker := time.NewTicker(obs.Config.WindowSize)
 	defer ticker.Stop()
@@ -44,7 +44,7 @@ func (obs *InfluxObserver) ObserveAndLog(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case <-ticker.C:
 			query := fmt.Sprintf(`
 from(bucket: "%s")
@@ -53,7 +53,7 @@ from(bucket: "%s")
 
 			result, err := queryAPI.Query(ctx, query)
 			if err != nil {
-				return err
+				return
 			}
 
 			for result.Next() {

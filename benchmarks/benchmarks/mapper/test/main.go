@@ -19,7 +19,7 @@ var (
 	rampUpDuration   int
 	duration         int
 	rampDownDuration int
-	rps              int
+	rps              float64
 )
 
 func init() {
@@ -29,7 +29,7 @@ func init() {
 	rampUpDuration = mustGetEnvInt("RAMP_UP_DURATION")
 	duration = mustGetEnvInt("DURATION")
 	rampDownDuration = mustGetEnvInt("RAMP_DOWN_DURATION")
-	rps = mustGetEnvInt("RPS")
+	rps = mustGetEnvFloat("RPS")
 }
 
 func main() {
@@ -94,7 +94,7 @@ func main() {
 
 	payload, _ := json.Marshal(provider.GetData())
 
-	ticker := time.NewTicker(time.Second / time.Duration(rps))
+	ticker := time.NewTicker(time.Duration(float64(time.Second) / rps))
 	defer ticker.Stop()
 
 	end := time.Now().Add(time.Duration(duration+rampUpDuration+rampDownDuration) * time.Second)
@@ -136,6 +136,19 @@ func mustGetEnvString(key string) string {
 		log.Fatalf("env var %s is not set or empty", key)
 	}
 	return value
+}
+
+func mustGetEnvFloat(key string) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		log.Fatalf("env var %s is not set", key)
+	}
+
+	f, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		log.Fatalf("env var %s must be an float: %v", key, err)
+	}
+	return f
 }
 
 func mustGetEnvInt(key string) int {
