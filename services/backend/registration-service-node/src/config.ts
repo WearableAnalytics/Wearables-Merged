@@ -7,10 +7,20 @@ import 'dotenv/config';
 
 const jwtSecret = process.env.JWT_SECRET || 'dev-secret';
 const nodeEnv = process.env.NODE_ENV || 'development';
+const isProduction = nodeEnv === 'production';
 const defaultLogLevel = nodeEnv === 'production' ? 'info' : 'debug';
 const logLevelRaw = (process.env.LOG_LEVEL || defaultLogLevel).toLowerCase();
 const allowedLogLevels = new Set(['trace', 'debug', 'info', 'warn', 'error']);
 const logLevel = allowedLogLevels.has(logLevelRaw) ? logLevelRaw : defaultLogLevel;
+const mailerEnabledRaw = (process.env.MAILER_ENABLED ?? 'true').trim().toLowerCase();
+const mailerEnabled = mailerEnabledRaw !== 'false';
+
+if (isProduction && !mailerEnabled) {
+  throw new Error(
+    'Invalid configuration: MAILER_ENABLED=false is not allowed when NODE_ENV=production.',
+  );
+}
+
 const adminEmails = (process.env.ADMIN_EMAILS ?? '')
   .split(',')
   .map((email) => email.trim())
@@ -19,8 +29,10 @@ const adminEmails = (process.env.ADMIN_EMAILS ?? '')
 export const config = {
   port: Number(process.env.PORT) || 3001,
   nodeEnv,
+  isProduction,
   apiPrefix: (process.env.API_PREFIX ?? '/api').replace(/\/$/, ''),
   logLevel,
+  mailerEnabled,
   
   frontendOrigins: (process.env.FRONTEND_URL ?? 'http://localhost:5173,http://localhost:8080')
     .split(',')

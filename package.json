@@ -1,0 +1,9 @@
+{
+  "name": "wearables-merged",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "lint": "npm --prefix services/web run lint",
+    "lint:web": "npm --prefix services/web run lint"
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,6 +12,8 @@ import { SignedInAs } from '@/components/custom/SignedInAs';
 import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
 
+const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL;
+
 export function CasePage() {
   const { caseId } = useParams();
   const [caseData, setCaseData] = useState<Case | null>(null);
@@ -20,6 +22,11 @@ export function CasePage() {
   const [error, setError] = useState<string | null>(null);
   const { setActiveCase, clearActiveCase, activeCase } = useActiveCase();
   const [isQrOpen, setIsQrOpen] = useState(false);
+  const activeCaseRef = useRef(activeCase);
+
+  useEffect(() => {
+    activeCaseRef.current = activeCase;
+  }, [activeCase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +44,8 @@ export function CasePage() {
       try {
         const caseResponse = await defaultApi.casesCaseIdGet({ caseId });
         const patientResponse = await defaultApi.patientsPatientIdGet({ patientId: caseResponse.patientId });
-        const caseToken = caseResponse.caseToken ?? activeCase?.caseToken ?? null;
+        const currentActiveCase = activeCaseRef.current;
+        const caseToken = caseResponse.caseToken ?? currentActiveCase?.caseToken ?? null;
         const mergedCase = { ...caseResponse, caseToken };
 
         if (cancelled) return;
@@ -46,10 +54,10 @@ export function CasePage() {
         setPatient(patientResponse);
 
         const shouldUpdateActiveCase =
-          !activeCase ||
-          activeCase.caseId !== mergedCase.caseId ||
-          activeCase.caseToken !== mergedCase.caseToken ||
-          activeCase.patientId !== patientResponse.patientId;
+          !currentActiveCase ||
+          currentActiveCase.caseId !== mergedCase.caseId ||
+          currentActiveCase.caseToken !== mergedCase.caseToken ||
+          currentActiveCase.patientId !== patientResponse.patientId;
 
         if (shouldUpdateActiveCase) {
           setActiveCase({ caseData: mergedCase, patient: patientResponse });
@@ -98,6 +106,18 @@ export function CasePage() {
     [patient],
   );
 
+  const grafanaUrl = useMemo(() => {
+    const caseToken = caseData?.caseToken?.trim();
+    if (!caseToken) return null;
+    if (!GRAFANA_PROXY_URL) return null;
+
+    const params = new URLSearchParams({
+      deviceId: caseToken,
+    });
+
+    return `${GRAFANA_PROXY_URL}/embed?${params.toString()}`;
+  }, [caseData?.caseToken]);
+
   return (
     <>
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
@@ -114,12 +134,12 @@ export function CasePage() {
       </div>
       <SignedInAs />
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+      <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
         {error ? null : loading ? (
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
-            <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
-            Loading case…
-          </div>
+        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+          <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+          Loading case…
+        </div>
         ) : (
           <>
             <dl className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -133,14 +153,28 @@ export function CasePage() {
                 value={patient?.birthDate ? formatDate(patient.birthDate) : '—'}
               />
             </dl>
-
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-              <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Case token</p>
-              <code className="mt-1 inline-block rounded-lg bg-white px-3 py-2 font-mono text-sm tracking-[0.02em] text-slate-900 shadow-sm">
-                {caseData?.caseToken ?? '—'}
-              </code>
-            </div>
           </>
+        )}         
+         {error ? null : loading ? (
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+            <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+            Loading grafana dashboard…
+          </div>
+        ) : (
+          grafanaUrl ? (
+            <div className="relative w-full">
+              <iframe
+                title="Grafana patient monitoring dashboard"
+                src={grafanaUrl}
+                className="h-[min(80vh,1000px)] w-full rounded-xl"
+                allow="fullscreen"
+              />
+            </div>
+          ) : (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+              Missing case token or Grafana proxy URL. Dashboard cannot be loaded.
+            </div>
+          )
         )}
       </section>
 

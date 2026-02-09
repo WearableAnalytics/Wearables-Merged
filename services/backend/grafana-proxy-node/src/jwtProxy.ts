@@ -256,6 +256,7 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
         const token = signJwt(config, sessionUser);
         const jwtHeaderValue = formatJwtHeaderValue(token, config);
         proxyReq.removeHeader('authorization');
+        proxyReq.removeHeader('cookie');
         proxyReq.setHeader(config.grafanaJwtHeader, jwtHeaderValue);
         if (config.grafanaJwtHeader.toLowerCase() !== 'authorization') {
           proxyReq.setHeader('authorization', `Bearer ${token}`);
@@ -283,6 +284,7 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
         const token = signJwt(config, sessionUser);
         const jwtHeaderValue = formatJwtHeaderValue(token, config);
         proxyReq.removeHeader('authorization');
+        proxyReq.removeHeader('cookie');
         proxyReq.setHeader(config.grafanaJwtHeader, jwtHeaderValue);
         if (config.grafanaJwtHeader.toLowerCase() !== 'authorization') {
           proxyReq.setHeader('authorization', `Bearer ${token}`);

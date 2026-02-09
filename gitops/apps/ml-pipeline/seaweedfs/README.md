@@ -23,8 +23,8 @@ We set the password secrets values via --set, the ids are hardcoded in the value
     helm upgrade --install seaweedfs . \
     --namespace seaweedfs \
     --create-namespace \
-    --set mySecrets.adminSecretAccessKey="SuperSecurePassword123" \
-    --set mySecrets.readSecretAccessKey="ReadonlyPassword123" 
+    --set mySecrets.adminSecretAccessKey="qPH8JS2yz%$3K7wxUi2!" \
+    --set mySecrets.readSecretAccessKey="CHxgjgbM%5cb8rBNJx#a" 
 ```
 
 If you want to first run dry run you can append the ` --dry-run --debug `
@@ -70,10 +70,10 @@ secret-seaweedfs-db               Opaque               2      5m21s
 sh.helm.release.v1.seaweedfs.v1   helm.sh/release.v1   1      5m21s
 
 #### Delete pvc if not binded to appropriate volume in OpenStack
-
 ```bash
+    kubectl patch pv pvc-72ed65e7-58e1-47a0-aa30-32455261b6cc -p '{"metadata":{"finalizers":null}}'
     kubectl delete pvc data-seaweedfs-volume-0 -n seaweedfs --force --grace-period=0
-    kubectl delete pv pvc-d53d6734-90b2-4ba0-9b37-a0b19e0e93c5 --force --grace-period=0
+    # kubectl delete pv  pvc-72ed65e7-58e1-47a0-aa30-32455261b6cc --force --grace-period=0
 ```
 
 #### Run temporary curl pod
@@ -111,6 +111,6 @@ check the disk space
 - [x] Clean the repo
 - [x] Better readme
 - [x] Use secrets correctly
-- [ ] Use encryption
-- [ ] Schedule workers
-- [ ] Add admin panel
+- [ ] Use encryption (UPDATE 02.2026: we do not need it right now)
+- [ ] Schedule workers (UPDATE 02.2026: we do not need them right now)
+- [ ] Add admin panel (UPDATE 02.2026: the upstream chart does not support it, failed after many attempts)

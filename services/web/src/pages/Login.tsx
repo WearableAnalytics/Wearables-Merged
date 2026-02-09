@@ -2,7 +2,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { defaultApi } from '@/api/defaultApi';
+import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { SearchForm } from '@/components/custom/SearchForm';
 import { ArrowRight } from 'lucide-react';
@@ -10,7 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshUser } = useAuth();
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +55,11 @@ export function LoginPage() {
 
     try {
       const data = await defaultApi.login(trimmedEmail);
+      if (isDirectAuthResponse(data)) {
+        await refreshUser();
+        navigate('/overview', { replace: true });
+        return;
+      }
       const successMessage = (data as { message?: string }).message ?? 'Check your email for the login link.';
       navigate('/request-sent', {
         replace: true,

@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'src/api/openapi-client']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -15,9 +15,21 @@ export default defineConfig([
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
+    rules: {
+      'react-refresh/only-export-components': [
+        'error',
+        { allowConstantExport: true },
+      ],
+    },
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+  },
+  {
+    files: ['src/context/AuthContext.tsx', 'src/lib/activeCase.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])
