@@ -23,9 +23,13 @@ public class Mapper {
 
     private static final Logger log = LoggerFactory.getLogger(Mapper.class);
     private final MappingYaml yaml;
+    private final int validationFrq;
+    private int validationCounter;
 
-    public Mapper(MappingYaml yaml) {
+    public Mapper(MappingYaml yaml, int validationFrq) {
         this.yaml = yaml;
+        this.validationFrq = validationFrq;
+        this.validationCounter = 0;
     }
 
     public String mapAndValidate(String value, Map<String, Set<Node>> categoryGraphs) {
@@ -64,7 +68,10 @@ public class Mapper {
                 return dlq("Mapped fhir was null, original input attached", value);
             }
 
-            if (!Validator.validateFhir(fhir)) {
+            try{
+                validationCounter = Validator.validateFhir(fhir, validationCounter);
+            }catch(IllegalArgumentException iae){
+                log.warn("fhir validation failed with exception: {}", iae.getMessage());
                 return dlq("Mapped fhir is not valid", fhir.toString());
             }
 
@@ -72,9 +79,7 @@ public class Mapper {
 
             try {
                 Set<Node> fittingBase = categoryGraphs.get(category);
-                String lpString = lpParser.parse(category, fhir, fittingBase);
-                log.info(lpString);
-                return lpString;
+                return lpParser.parse(category, fhir, fittingBase);
 
             } catch (IllegalArgumentException iae) {
                 log.error("Line Protocol transformation failed", iae);
@@ -89,7 +94,8 @@ public class Mapper {
             }
 
 
-        } catch (Exception ex) {
+        } catch (
+                Exception ex) {
             log.error("Failed to transform payload into FHIR, pushing problematic message to DLQ", ex);
             return dlq(ex.getMessage(), value);
         }
@@ -127,8 +133,7 @@ public class Mapper {
                 boolean res2 = applyFields(outgoingMeasurementTemplate, pathConfig, incoming, measurementElement, 0);
                 if (!outgoingMeasurementTemplate.isEmpty() && res1 && res2) {
                     return new Pair<>(pathConfig.getPath(), outgoingMeasurementTemplate);
-                }
-                else{
+                } else {
                     throw new RuntimeException(String.format("Invalid fhir created through mapping: %s", outgoingMeasurementTemplate));
                 }
             } else {

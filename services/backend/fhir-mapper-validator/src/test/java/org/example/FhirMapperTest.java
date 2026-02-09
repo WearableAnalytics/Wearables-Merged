@@ -37,8 +37,10 @@ public class FhirMapperTest {
         MappingYaml yaml = ConfigLoader.loadConfig("./config/mapping-2026-01-28.yaml", MappingYaml.class);
         yaml.validate();
 
-        Validator.initiliazeFhirValidator();
-        Mapper mapper = new Mapper(yaml);
+        Validator.initiliazeFhirValidator(100);
+        int validationCounter = 0;
+
+        Mapper mapper = new Mapper(yaml, 100);
         LineProtocolParser lpParser = new LineProtocolParser(yaml);
 
         DependencyGraph g = new DependencyGraph(yaml);
@@ -76,8 +78,10 @@ public class FhirMapperTest {
                 continue;
             }
 
-            if (!Validator.validateFhir(fhir)) {
-                log.warn("FHIR was not valid: {}", fhir);
+            try {
+                validationCounter = Validator.validateFhir(fhir, validationCounter);
+            } catch (IllegalArgumentException iae) {
+                log.warn("fhir validation failed with exception: {}", iae.getMessage());
                 continue;
             }
 
@@ -103,7 +107,7 @@ public class FhirMapperTest {
                 log.error("Line Protocol transformation failed", iae);
 
                 try {
-                    if (lpString != null){
+                    if (lpString != null) {
                         Files.write(
                                 Paths.get("outputs/lp/invalid_lp.txt"),
                                 List.of(lpString),
@@ -119,7 +123,7 @@ public class FhirMapperTest {
                 log.error("Unexpected error during Line Protocol transformation", ex);
 
                 try {
-                    if (lpString != null){
+                    if (lpString != null) {
                         Files.write(
                                 Paths.get("outputs/lp/invalid_lp.txt"),
                                 List.of(lpString),
@@ -133,7 +137,7 @@ public class FhirMapperTest {
             }
 
             try {
-                if (lpString != null){
+                if (lpString != null) {
                     Files.write(
                             Paths.get("outputs/lp/valid_lp.txt"),
                             List.of(lpString),

@@ -53,7 +53,7 @@ public class FhirTransformer extends Transformer{
                     }
 
                     case "prepend":
-                        log.warn("transformation 'prepend' for field {} is not implemented", field.getName());
+                        value = resolvePrepend(vt, value);
                         break;
 
                     case "map":
