@@ -1,83 +1,64 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Query, status
+from fastapi_filters import FilterSet
+from fastapi_pagination.cursor import CursorPage
 
-from app.api.deps import get_db, get_db_read
-from app.db.postgres.repos.patient_repo import PatientRepo
-from app.db.postgres.repos.case_repo import CaseRepo
-from app.schemas.patient import Patient, PatientCreate, PatientUpdate
-from app.schemas.case import Case
-from app.services.patient_service import PatientService
+from app.api.dependencies import get_case_service, get_patient_service
+from app.api.streaming import stream_as_ndjson
+from app.filters import PatientFilters, PatientSorting, SortingValues
+from app.schemas.case import CaseResponse
+from app.schemas.patient import PatientCreate, PatientResponse, PatientUpdate
 from app.services.case_service import CaseService
+from app.services.patient_service import PatientService
 
 router = APIRouter()
 
 
-def get_patient_service(db: Annotated[AsyncSession, Depends(get_db)]) -> PatientService:
-    return PatientService(PatientRepo(db))
-
-
-def get_patient_service_read(db: Annotated[AsyncSession, Depends(get_db_read)]) -> PatientService:
-    return PatientService(PatientRepo(db))
-
-
-def get_case_service_read(db: Annotated[AsyncSession, Depends(get_db_read)]) -> CaseService:
-    return CaseService(CaseRepo(db))
-
-
-@router.post("/", response_model=Patient, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=PatientResponse, status_code=status.HTTP_201_CREATED)
 async def create_patient(item_in: PatientCreate, service: Annotated[PatientService, Depends(get_patient_service)]):
-    try:
-        return await service.create(item_in)
-    except IntegrityError as exc:
-        raise HTTPException(status_code=409, detail="Patient already exists") from exc
+    return await service.create(item_in)
 
 
-@router.get("/", response_model=list[Patient])
-async def list_patients(service: Annotated[PatientService, Depends(get_patient_service_read)]):
-    return await service.get_all()
+@router.get("/", response_model=CursorPage[PatientResponse])
+async def list_patients(
+    service: Annotated[PatientService, Depends(get_patient_service)],
+    filters: Annotated[FilterSet, Depends(PatientFilters)],
+    sorting: Annotated[SortingValues, Depends(PatientSorting)],
+):
+    return await service.list(filters=filters, sorting=sorting)
 
 
-@router.get("/{id}", response_model=Patient)
-async def get_patient(id: UUID, service: Annotated[PatientService, Depends(get_patient_service_read)]):
-    try:
-        return await service.get(id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Patient not found") from exc
+@router.get("/stream")
+async def stream_patients(
+    service: Annotated[PatientService, Depends(get_patient_service)],
+    filters: Annotated[FilterSet, Depends(PatientFilters)],
+    sorting: Annotated[SortingValues, Depends(PatientSorting)],
+    batch_size: int = Query(500, ge=1, le=10_000),
+):
+    return stream_as_ndjson(service.stream_all(filters=filters, sorting=sorting, batch_size=batch_size))
+
+
+@router.get("/{id}", response_model=PatientResponse)
+async def get_patient(id: UUID, service: Annotated[PatientService, Depends(get_patient_service)]):
+    return await service.get(id)
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_patient(id: UUID, service: Annotated[PatientService, Depends(get_patient_service)]):
-    try:
-        await service.delete(id)
-        return None
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Patient not found") from exc
-    except IntegrityError as exc:
-        raise HTTPException(status_code=409, detail="Cannot delete patient due to conflict") from exc
+    await service.delete(id)
+    return None
 
 
-@router.put("/{id}", response_model=Patient, status_code=status.HTTP_200_OK)
+@router.put("/{id}", response_model=PatientResponse, status_code=status.HTTP_200_OK)
 async def update_patient(
-    id: UUID,
-    item_in: PatientUpdate,
-    service: Annotated[PatientService, Depends(get_patient_service)],
+    id: UUID, item_in: PatientUpdate, service: Annotated[PatientService, Depends(get_patient_service)]
 ):
-    try:
-        return await service.update(id, item_in)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Patient not found") from exc
-    except IntegrityError:
-        raise HTTPException(status_code=409, detail="Conflict during update")
+    return await service.update(id, item_in)
 
 
-@router.get("/{id}/cases", response_model=list[Case])
-async def get_patient_cases(
-    id: UUID,
-    service: Annotated[CaseService, Depends(get_case_service_read)],
-):
+@router.get("/{id}/cases", response_model=list[CaseResponse])
+async def get_patient_cases(id: UUID, service: Annotated[CaseService, Depends(get_case_service)]):
     """Get all cases for a specific patient"""
     return await service.get_by_patient_id(id)

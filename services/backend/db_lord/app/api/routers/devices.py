@@ -1,63 +1,56 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Query, status
+from fastapi_filters import FilterSet
+from fastapi_pagination.cursor import CursorPage
 
-from app.api.deps import get_db, get_db_read
-from app.db.postgres.repos.device_repo import DeviceRepo
-from app.schemas.device import Device, DeviceCreate, DeviceUpdate
+from app.api.dependencies import get_device_service
+from app.api.streaming import stream_as_ndjson
+from app.filters import DeviceFilters, DeviceSorting, SortingValues
+from app.schemas.device import DeviceCreate, DeviceResponse, DeviceUpdate
 from app.services.device_service import DeviceService
 
 router = APIRouter()
 
 
-def get_device_service(db: Annotated[AsyncSession, Depends(get_db)]) -> DeviceService:
-    return DeviceService(DeviceRepo(db))
-
-
-def get_device_service_read(db: Annotated[AsyncSession, Depends(get_db_read)]) -> DeviceService:
-    return DeviceService(DeviceRepo(db))
-
-
-@router.post("/", response_model=Device, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)
 async def create_device(item_in: DeviceCreate, service: Annotated[DeviceService, Depends(get_device_service)]):
-    try:
-        return await service.create(item_in)
-    except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Constraint violation") from exc
+    return await service.create(item_in)
 
 
-@router.get("/", response_model=list[Device])
-async def list_devices(service: Annotated[DeviceService, Depends(get_device_service_read)]):
-    return await service.get_all()
+@router.get("/", response_model=CursorPage[DeviceResponse])
+async def list_devices(
+    service: Annotated[DeviceService, Depends(get_device_service)],
+    filters: Annotated[FilterSet, Depends(DeviceFilters)],
+    sorting: Annotated[SortingValues, Depends(DeviceSorting)],
+):
+    return await service.list(filters=filters, sorting=sorting)
 
 
-@router.get("/{id}", response_model=Device)
-async def get_device(id: UUID, service: Annotated[DeviceService, Depends(get_device_service_read)]):
-    try:
-        return await service.get(id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Device not found") from exc
+@router.get("/stream")
+async def stream_devices(
+    service: Annotated[DeviceService, Depends(get_device_service)],
+    filters: Annotated[FilterSet, Depends(DeviceFilters)],
+    sorting: Annotated[SortingValues, Depends(DeviceSorting)],
+    batch_size: int = Query(500, ge=1, le=10_000),
+):
+    return stream_as_ndjson(service.stream_all(filters=filters, sorting=sorting, batch_size=batch_size))
+
+
+@router.get("/{id}", response_model=DeviceResponse)
+async def get_device(id: UUID, service: Annotated[DeviceService, Depends(get_device_service)]):
+    return await service.get(id)
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_device(id: UUID, service: Annotated[DeviceService, Depends(get_device_service)]):
-    try:
-        await service.delete(id)
-        return None
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Device not found") from exc
+    await service.delete(id)
+    return None
 
 
-@router.put("/{id}", response_model=Device, status_code=status.HTTP_200_OK)
+@router.put("/{id}", response_model=DeviceResponse, status_code=status.HTTP_200_OK)
 async def update_device(
-    id: UUID,
-    item_in: DeviceUpdate,
-    service: Annotated[DeviceService, Depends(get_device_service)],
+    id: UUID, item_in: DeviceUpdate, service: Annotated[DeviceService, Depends(get_device_service)]
 ):
-    try:
-        return await service.update(id, item_in)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Device not found") from exc
+    return await service.update(id, item_in)

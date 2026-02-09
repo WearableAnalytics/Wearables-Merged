@@ -1,5 +1,7 @@
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
 from datetime import UTC, datetime
+
+from fastapi_pagination.types import Cursor
 
 from app.db.influx.repos.telemetry_repo import TelemetryPage, TelemetryRepo
 from app.schemas.telemetry import TelemetryCreate
@@ -23,29 +25,65 @@ class TelemetryService:
         measurement: str,
         start: datetime | None = None,
         end: datetime | None = None,
-        tags: dict[str, str] | None = None,
+        tags: dict[str, str | list[str]] | None = None,
+        fields: list[str] | None = None,
         page_size: int = 100,
-        cursor: str | None = None,
+        cursor: Cursor | None = None,
     ) -> TelemetryPage:
-        return await self.repo.get_points(
-            measurement=measurement,
-            start=start,
-            end=end,
-            tags=tags,
-            page_size=page_size,
-            cursor=cursor,
-        )
+        return await self.repo.get_points(measurement, start, end, tags, fields, page_size, cursor)
 
-    def _create_to_dict(self, item: TelemetryCreate) -> dict:
+    async def read_telemetry_raw(
+        self,
+        measurement: str,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        tags: dict[str, str | list[str]] | None = None,
+        fields: list[str] | None = None,
+        page_size: int = 100,
+        cursor: Cursor | None = None,
+    ) -> TelemetryPage:
+        return await self.repo.get_points_raw(measurement, start, end, tags, fields, page_size, cursor)
+
+    def stream_telemetry(
+        self,
+        measurement: str,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        tags: dict[str, str | list[str]] | None = None,
+        fields: list[str] | None = None,
+        page_size: int = 100,
+        cursor: Cursor | None = None,
+    ) -> AsyncIterator[dict[str, object]]:
+        return self.repo.stream_points(measurement, start, end, tags, fields, page_size, cursor)
+
+    def stream_telemetry_raw(
+        self,
+        measurement: str,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        tags: dict[str, str | list[str]] | None = None,
+        fields: list[str] | None = None,
+        page_size: int = 100,
+        cursor: Cursor | None = None,
+    ) -> AsyncIterator[dict[str, object]]:
+        return self.repo.stream_points_raw(measurement, start, end, tags, fields, page_size, cursor)
+
+    # TODO: finally remove this cause why tf did i even create this in the first place
+    def _create_to_dict(self, item: TelemetryCreate) -> dict[str, object]:
         timestamp = item.timestamp or datetime.now(UTC)
 
         tags = {
-            "patient_id": str(item.patient_id),
-            "case_id": str(item.case_id),
-            "device_id": str(item.device_id),
+            "patient_id": item.patient_id,
+            "case_id": item.case_id,
+            "device_id": item.device_id,
+            "wearable_id": item.wearable_id,
+            "mapping_id": item.mapping_id,
+            "code": item.code,
         }
-        if item.tags:
-            tags.update(item.tags)
+        if item.context_id:
+            tags["context_id"] = item.context_id
+        if item.other_tags:
+            tags.update(item.other_tags)
 
         return {
             "measurement": item.measurement,

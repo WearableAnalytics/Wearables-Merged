@@ -2,83 +2,103 @@ from collections.abc import Collection
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, literal_column, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import lateral, true
+from sqlalchemy.orm import selectinload
 
-from app.db.postgres.models import (
-    case_contexts,
-    case_devices,
-    case_wearables,
-    cases,
-    contexts,
-    devices,
-    patients,
-    wearables,
-)
+from app.db.postgres.orm import Case, CaseDevice, CaseWearable
 from app.db.postgres.repos.base import BaseRepo
 from app.schemas.case import CaseCreate, CaseUpdate
 
 
-class CaseRepo(BaseRepo[cases, CaseCreate, CaseUpdate]):
+class CaseRepo(BaseRepo[Case, CaseCreate, CaseUpdate]):
     def __init__(self, db: AsyncSession):
-        super().__init__(cases, db)
+        super().__init__(Case, db)
 
+    # TODO: improve performance (1. Dont build dicts in PYTHON??? 2. Optimize queries)
     async def get_with_relations(self, id: UUID, expand: Collection[str] | None = None) -> dict[str, Any] | None:
-        # Probably dumb to do this again here, but whatever
+        """
+        Get a case with optional relationship expansion using ORM.
+        """
         expand_set = {e.strip().lower() for e in (expand or []) if e and e.strip()}
 
-        c_alias = cases.alias("c")
+        query = select(Case).where(Case.id == id)
 
-        cols = [
-            c_alias.c.id.label("id"),
-            c_alias.c.status.label("status"),
-            c_alias.c.patient_id.label("patient_id"),
-        ]
-
-        stmt = select(*cols).select_from(c_alias)
-
+        # Add selectinload options for requested expansions
         if "devices" in expand_set:
-            dev_sub = (
-                select(func.jsonb_agg(func.to_jsonb(literal_column("devices"))).label("devices"))
-                .select_from(case_devices.join(devices, devices.c.id == case_devices.c.device_id))
-                .where(case_devices.c.case_id == c_alias.c.id)
-            )
-            dev_lat = lateral(dev_sub).alias("dev")
-            stmt = stmt.outerjoin(dev_lat, true()).add_columns(dev_lat.c.devices)
-
+            query = query.options(selectinload(Case.device_assignments).selectinload(CaseDevice.device))
         if "wearables" in expand_set:
-            wr_sub = (
-                select(func.jsonb_agg(func.to_jsonb(literal_column("wearables"))).label("wearables"))
-                .select_from(case_wearables.join(wearables, wearables.c.id == case_wearables.c.wearable_id))
-                .where(case_wearables.c.case_id == c_alias.c.id)
-            )
-            wr_lat = lateral(wr_sub).alias("wr")
-            stmt = stmt.outerjoin(wr_lat, true()).add_columns(wr_lat.c.wearables)
-
+            query = query.options(selectinload(Case.wearable_assignments).selectinload(CaseWearable.wearable))
         if "contexts" in expand_set:
-            ctx_sub = (
-                select(func.jsonb_agg(func.to_jsonb(literal_column("contexts"))).label("contexts"))
-                .select_from(case_contexts.join(contexts, contexts.c.id == case_contexts.c.context_id))
-                .where(case_contexts.c.case_id == c_alias.c.id)
-            )
-            ctx_lat = lateral(ctx_sub).alias("ctx")
-            stmt = stmt.outerjoin(ctx_lat, true()).add_columns(ctx_lat.c.contexts)
-
+            query = query.options(selectinload(Case.contexts))
         if "patient" in expand_set:
-            stmt = stmt.outerjoin(patients, patients.c.id == c_alias.c.patient_id).add_columns(
-                func.to_jsonb(literal_column("patients")).label("patient")
-            )
+            query = query.options(selectinload(Case.patient))
 
-        stmt = stmt.where(c_alias.c.id == id)
+        result = await self.db.execute(query)
+        case = result.scalar_one_or_none()
 
+        if not case:
+            return None
+
+        response: dict[str, Any] = {
+            "id": case.id,
+            "status": case.status.value if hasattr(case.status, "value") else case.status,
+            "patient_id": case.patient_id,
+        }
+
+        # Add expanded relationships
+        if "devices" in expand_set:
+            # Expose active assigned device entities only.
+            response["devices"] = [
+                {
+                    "id": da.device.id,
+                    "serial_nr": da.device.serial_nr,
+                    "model": da.device.model,
+                    "manufacturer": da.device.manufacturer,
+                    "os_version": da.device.os_version,
+                    "status": da.device.status.value if hasattr(da.device.status, "value") else da.device.status,
+                }
+                for da in case.device_assignments
+                if da.assigned_to is None and da.device is not None
+            ]
+        if "wearables" in expand_set:
+            # Expose active assigned wearable entities only.
+            response["wearables"] = [
+                {
+                    "id": wa.wearable.id,
+                    "serial_nr": wa.wearable.serial_nr,
+                    "model": wa.wearable.model,
+                    "manufacturer": wa.wearable.manufacturer,
+                    "os_version": wa.wearable.os_version,
+                    "status": wa.wearable.status.value if hasattr(wa.wearable.status, "value") else wa.wearable.status,
+                }
+                for wa in case.wearable_assignments
+                if wa.assigned_to is None and wa.wearable is not None
+            ]
+        if "contexts" in expand_set:
+            response["contexts"] = [
+                {
+                    "id": ctx.id,
+                    "group_name": ctx.group_name,
+                    "coordinator": ctx.coordinator,
+                }
+                for ctx in case.contexts
+            ]
+        if "patient" in expand_set and case.patient:
+            response["patient"] = {
+                "id": case.patient.id,
+                "charite_id": case.patient.charite_id,
+                "name": case.patient.name,
+                "sex": case.patient.sex,
+                "dob": case.patient.dob,
+                "weight": case.patient.weight,
+                "height": case.patient.height,
+            }
+
+        return response
+
+    async def get_by_patient_id(self, patient_id: UUID) -> list[Case]:
+        """Get all cases for a specific patient."""
+        stmt = select(Case).where(Case.patient_id == patient_id)
         result = await self.db.execute(stmt)
-        row = result.mappings().first()
-
-        return dict(row) if row else None
-
-    async def get_by_patient_id(self, patient_id: UUID) -> list:
-        """Get all cases for a specific patient"""
-        stmt = select(cases).where(cases.c.patient_id == patient_id)
-        result = await self.db.execute(stmt)
-        return list(result.mappings().all())
+        return list(result.scalars())

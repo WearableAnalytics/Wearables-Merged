@@ -10,21 +10,29 @@ dependencies = [
     "alembic[tz]>=1.17.2",
     "asyncpg>=0.31.0",
     "fastapi>=0.128.0",
+    "fastapi-filters>=0.3.1",
+    "fastapi-pagination>=0.15.9",
     "greenlet>=3.3.0",
-    "influxdb-client>=1.49.0",
+    "influxdb-client[async,ciso]>=1.50.0",
+    "orjson>=3.11.5",
     "pydantic-settings>=2.12.0",
     "python-dateutil>=2.9.0.post0",
-    "requests>=2.32.5",
+    "sqlakeyset>=2.0.1762907931",
     "sqlalchemy>=2.0.45",
+    "sqlalchemy-utils>=0.42.1",
+    "strawberry-graphql[fastapi]>=0.289.5",
     "uvicorn[standard]>=0.40.0",
 ]
 
 [dependency-groups]
 dev = [
+    "aiosqlite>=0.21.0",
     "httpx>=0.28.1",
+    "locust>=2.43.2",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "ruff>=0.14.10",
+    "testcontainers>=4.14.1",
 ]
 
 [tool.ruff]
@@ -35,4 +43,19 @@ line-length = 120
 # B = Find Bugs, UP = Modernize Syntax, SIM = Simplify Code
 select = ["E", "F", "I", "B", "UP", "SIM"]
 fixable = ["ALL"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+markers = [
+    "unit: Unit tests (sqllite, mock influxd)",
+    "integration: Integration tests (may(Definitly needs db but should be handeld in test containers))",
+    "e2e: End-to-end API tests",
+]
+addopts = "-v --tb=short"
 

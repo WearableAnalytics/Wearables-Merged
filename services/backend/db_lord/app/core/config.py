@@ -1,27 +1,47 @@
-import os
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import URL
 
 
 class Settings(BaseSettings):
-    # Postgres
-    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "postgres.postgres.svc.cluster.local")
-    POSTGRES_PORT: int = os.getenv("POSTGRES_PORT", "5432")
-    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "db_lord")
-    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
+    """Application settings loaded from environment variables.
+    Do NOT wrap defaults in os.getenv()... that bypasses Pydantics loading mechanism apperntly
+    """
 
-    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "")
+    # Postgres
+    POSTGRES_SERVER: str = "postgres.postgres.svc.cluster.local"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = "db_lord"
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = ""
 
     # Influx
-    INFLUX_URL: str = os.getenv("INFLUX_URL", "http://influxdb-service.influx.svc.cluster.local:8086")
-    INFLUX_ORG: str = os.getenv("INFLUX_ORG", "my-org")
-    INFLUX_BUCKET: str = os.getenv("INFLUX_BUCKET", "medical_data")
+    INFLUX_URL: str = "http://influxdb-service.influx.svc.cluster.local:8086"
+    INFLUX_ORG: str = "my-org"
+    INFLUX_BUCKET: str = "medical_data"
+    INFLUX_TOKEN: str = ""
+    INFLUX_ENABLE_GZIP: bool = True
+    INFLUX_TIMEOUT_MS: int | None = None
+    INFLUX_CONNECTION_POOL_MAXSIZE: int | None = None
 
-    INFLUX_TOKEN: str = os.getenv("INFLUX_TOKEN", "")
+    # SQLAlchemy pool tuning
+    DB_ECHO: bool = False
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_TIMEOUT: int = 30
+    DB_POOL_RECYCLE: int = 1800
+    DB_POOL_PRE_PING: bool = True
 
     @property
-    def POSTGRES_URL(self) -> str:
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+    def POSTGRES_URL(self) -> URL:
+        url = URL.create(
+            drivername="postgresql+asyncpg",
+            username=self.POSTGRES_USER,
+            password=self.POSTGRES_PASSWORD,
+            host=self.POSTGRES_SERVER,
+            port=int(self.POSTGRES_PORT),
+            database=self.POSTGRES_DB,
+        )
+        return url
 
     model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True, extra="ignore")
 

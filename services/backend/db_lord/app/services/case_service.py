@@ -1,30 +1,23 @@
 from collections.abc import Sequence
-from typing import Any
 from uuid import UUID
 
-from sqlalchemy import RowMapping
-
+from app.core.exceptions import EntityNotFoundError
+from app.db.postgres.orm import Case
 from app.db.postgres.repos.case_repo import CaseRepo
-from app.schemas.case import CaseCreate, CaseUpdate
+from app.schemas.case import CaseCreate, CaseExpanded, CaseUpdate
+from app.services.base import BaseService
 
 
-class CaseService:
+class CaseService(BaseService[Case, CaseCreate, CaseUpdate, CaseRepo]):
     def __init__(self, repo: CaseRepo):
-        self.repo = repo
+        super().__init__(repo)
 
-    async def get(self, id: UUID, expand: Sequence[str] | None = None) -> RowMapping | None:
-        base = await self.repo.get(id)
-        if not base:
-            raise ValueError("Case not found")
-        return base
-
-    async def get_with_relations(self, id: UUID, expand: list[str] | None = None) -> dict[str, Any]:
+    async def get_with_relations(self, id: UUID, expand: list[str] | None = None) -> CaseExpanded:
         allowed = {"devices", "wearables", "contexts", "patient"}
         expand_set = {e.strip().lower() for e in (expand or []) if e and e.strip().lower() in allowed}
-
         res = await self.repo.get_with_relations(id, expand_set)
         if not res:
-            raise ValueError("Case not found")
+            raise EntityNotFoundError("Case", id)
 
         for key in ["devices", "wearables", "contexts"]:
             if key in expand_set:
@@ -35,26 +28,8 @@ class CaseService:
         if "patient" in expand_set and res.get("patient") is None:
             res["patient"] = None
 
-        return res
+        return CaseExpanded.model_validate(res)
 
-    async def create(self, obj_in: CaseCreate) -> RowMapping | None:
-        return await self.repo.create(obj_in)
-
-    async def get_all(self) -> Sequence[RowMapping]:
-        return await self.repo.get_all()
-
-    async def delete(self, id: UUID) -> RowMapping | None:
-        res = await self.repo.delete(id)
-        if not res:
-            raise ValueError("Case not found")
-        return res
-
-    async def update(self, id: UUID, obj_in: CaseUpdate) -> RowMapping | None:
-        res = await self.repo.update(id, obj_in)
-        if not res:
-            raise ValueError("Case not found")
-        return res
-
-    async def get_by_patient_id(self, patient_id: UUID) -> list[RowMapping]:
+    async def get_by_patient_id(self, patient_id: UUID) -> Sequence[Case]:
         """Get all cases for a specific patient"""
         return await self.repo.get_by_patient_id(patient_id)

@@ -1,61 +1,56 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Query, status
+from fastapi_filters import FilterSet
+from fastapi_pagination.cursor import CursorPage
 
-from app.api.deps import get_db, get_db_read
-from app.db.postgres.repos.wearable_repo import WearableRepo
-from app.schemas.wearable import Wearable, WearableCreate, WearableUpdate
+from app.api.dependencies import get_wearable_service
+from app.api.streaming import stream_as_ndjson
+from app.filters import SortingValues, WearableFilters, WearableSorting
+from app.schemas.wearable import WearableCreate, WearableResponse, WearableUpdate
 from app.services.wearable_service import WearableService
 
 router = APIRouter()
 
 
-def get_wearable_service(db: Annotated[AsyncSession, Depends(get_db)]) -> WearableService:
-    return WearableService(WearableRepo(db))
-
-
-def get_wearable_service_read(db: Annotated[AsyncSession, Depends(get_db_read)]) -> WearableService:
-    return WearableService(WearableRepo(db))
-
-
-@router.post("/", response_model=Wearable, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=WearableResponse, status_code=status.HTTP_201_CREATED)
 async def create_wearable(item_in: WearableCreate, service: Annotated[WearableService, Depends(get_wearable_service)]):
-    try:
-        return await service.create(item_in)
-    except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Constraint violation") from exc
+    return await service.create(item_in)
 
 
-@router.get("/", response_model=list[Wearable])
-async def list_wearables(service: Annotated[WearableService, Depends(get_wearable_service_read)]):
-    return await service.get_all()
+@router.get("/", response_model=CursorPage[WearableResponse])
+async def list_wearables(
+    service: Annotated[WearableService, Depends(get_wearable_service)],
+    filters: Annotated[FilterSet, Depends(WearableFilters)],
+    sorting: Annotated[SortingValues, Depends(WearableSorting)],
+):
+    return await service.list(filters, sorting)
 
 
-@router.get("/{id}", response_model=Wearable)
-async def get_wearable(id: UUID, service: Annotated[WearableService, Depends(get_wearable_service_read)]):
-    try:
-        return await service.get(id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Wearable not found") from exc
+@router.get("/stream")
+async def stream_wearables(
+    service: Annotated[WearableService, Depends(get_wearable_service)],
+    filters: Annotated[FilterSet, Depends(WearableFilters)],
+    sorting: Annotated[SortingValues, Depends(WearableSorting)],
+    batch_size: int = Query(500, ge=1, le=10_000),
+):
+    return stream_as_ndjson(service.stream_all(filters, sorting, batch_size))
+
+
+@router.get("/{id}", response_model=WearableResponse)
+async def get_wearable(id: UUID, service: Annotated[WearableService, Depends(get_wearable_service)]):
+    return await service.get(id)
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_wearable(id: UUID, service: Annotated[WearableService, Depends(get_wearable_service)]):
-    try:
-        await service.delete(id)
-        return None
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Wearable not found") from exc
+    await service.delete(id)
+    return None
 
 
-@router.put("/{id}", response_model=Wearable, status_code=status.HTTP_200_OK)
+@router.put("/{id}", response_model=WearableResponse, status_code=status.HTTP_200_OK)
 async def update_wearable(
     id: UUID, item_in: WearableUpdate, service: Annotated[WearableService, Depends(get_wearable_service)]
 ):
-    try:
-        return await service.update(id, item_in)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Wearable not found") from exc
+    return await service.update(id, item_in)

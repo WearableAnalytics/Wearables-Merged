@@ -1,152 +1,154 @@
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi_filters import FilterSet
+from fastapi_pagination.cursor import CursorPage
 
-from app.api.deps import get_db, get_db_read
-from app.db.postgres.repos.case_repo import CaseRepo
-from app.schemas.case import Case, CaseCreate, CaseExpanded
-from app.services.assignment_service import AssignmentService
-from app.services.case_service import CaseService
+from app.api.dependencies import AssignmentServiceDep, CaseServiceDep
+from app.api.streaming import stream_as_ndjson
+from app.filters import CaseFilters, CaseSorting, SortingValues
+from app.schemas.assignment import ContextAssignmentResponse, DeviceAssignmentResponse, WearableAssignmentResponse
+from app.schemas.case import CaseCreate, CaseExpanded, CaseResponse, CaseUpdate
 
 router = APIRouter()
+OptionalDateTimeQuery = Annotated[datetime | None, Query()]
 
 
-def get_case_service(db: Annotated[AsyncSession, Depends(get_db)]) -> CaseService:
-    return CaseService(CaseRepo(db))
+@router.post("/", response_model=CaseResponse, status_code=status.HTTP_201_CREATED)
+async def create_case(item_in: CaseCreate, service: CaseServiceDep):
+    return await service.create(item_in)
 
 
-def get_case_service_read(db: Annotated[AsyncSession, Depends(get_db_read)]) -> CaseService:
-    return CaseService(CaseRepo(db))
-
-
-def get_assignment_service(db: Annotated[AsyncSession, Depends(get_db)]) -> AssignmentService:
-    return AssignmentService(db)
-
-
-@router.post("/", response_model=Case, status_code=status.HTTP_201_CREATED)
-async def create_case(item_in: CaseCreate, service: Annotated[CaseService, Depends(get_case_service)]):
-    try:
-        return await service.create(item_in)
-    except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Constraint violation") from exc
-
-
-@router.get("/", response_model=list[Case])
-async def list_cases(service: Annotated[CaseService, Depends(get_case_service_read)]):
-    return await service.get_all()
-
-
-@router.get("/{id}", response_model=Case)
-async def get_case(id: UUID, service: Annotated[CaseService, Depends(get_case_service_read)]):
-    try:
-        return await service.get(id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Case not found") from exc
-
-
-@router.get("/{id}/expanded", response_model=CaseExpanded)
-async def get_case_expanded(
-    id: UUID,
-    service: Annotated[CaseService, Depends(get_case_service_read)],
-    expand: Annotated[list[str] | None, Query()] = None,
+@router.get("/", response_model=CursorPage[CaseResponse], status_code=status.HTTP_200_OK)
+async def list_cases(
+    service: CaseServiceDep,
+    filters: Annotated[FilterSet, Depends(CaseFilters)],
+    sorting: Annotated[SortingValues, Depends(CaseSorting)],
 ):
-    try:
-        return await service.get_with_relations(id, expand=expand)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Case not found") from exc
+    return await service.list(filters=filters, sorting=sorting)
+
+
+@router.get("/stream")
+async def stream_cases(
+    service: CaseServiceDep,
+    filters: Annotated[FilterSet, Depends(CaseFilters)],
+    sorting: Annotated[SortingValues, Depends(CaseSorting)],
+    batch_size: int = Query(500, ge=1, le=10_000),
+):
+    return stream_as_ndjson(service.stream_all(filters, sorting, batch_size))
+
+
+@router.get("/{id}", response_model=CaseResponse, status_code=status.HTTP_200_OK)
+async def get_case(id: UUID, service: CaseServiceDep):
+    return await service.get(id)
+
+
+@router.get("/{id}/expanded", response_model=CaseExpanded, status_code=status.HTTP_200_OK)
+async def get_case_expanded(id: UUID, service: CaseServiceDep, expand: Annotated[list[str] | None, Query()] = None):
+    return await service.get_with_relations(id, expand=expand)
+
+
+@router.put("/{id}", response_model=CaseResponse, status_code=status.HTTP_200_OK)
+async def update_case(id: UUID, item_in: CaseUpdate, service: CaseServiceDep):
+    return await service.update(id, item_in)
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_case(id: UUID, service: Annotated[CaseService, Depends(get_case_service)]):
+async def delete_case(id: UUID, service: CaseServiceDep):
     await service.delete(id)
-    return None
 
 
 # Assignment Endpoints
-@router.post("/{case_id}/devices/{device_id}", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{case_id}/devices/{device_id}", response_model=DeviceAssignmentResponse, status_code=status.HTTP_201_CREATED
+)
 async def assign_device(
     case_id: UUID,
     device_id: UUID,
-    service: Annotated[AssignmentService, Depends(get_assignment_service)],
+    service: AssignmentServiceDep,
+    start_time: OptionalDateTimeQuery = None,
+    end_time: OptionalDateTimeQuery = None,
 ):
-    try:
-        await service.assign_device(case_id, device_id)
-        return None
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except IntegrityError as exc:
-        raise HTTPException(status_code=409, detail="Constraint violation") from exc
+    return await service.assign_device(case_id, device_id, start_time, end_time)
 
 
-@router.post("/{case_id}/wearables/{wearable_id}", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{case_id}/wearables/{wearable_id}", response_model=WearableAssignmentResponse, status_code=status.HTTP_201_CREATED
+)
 async def assign_wearable(
     case_id: UUID,
     wearable_id: UUID,
-    service: Annotated[AssignmentService, Depends(get_assignment_service)],
+    service: AssignmentServiceDep,
+    start_time: OptionalDateTimeQuery = None,
+    end_time: OptionalDateTimeQuery = None,
 ):
-    try:
-        await service.assign_wearable(case_id, wearable_id)
-        return None
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except IntegrityError as exc:
-        raise HTTPException(status_code=409, detail="Constraint violation") from exc
+    return await service.assign_wearable(case_id, wearable_id, start_time, end_time)
 
 
-@router.post("/{case_id}/contexts/{context_id}", status_code=status.HTTP_201_CREATED)
-async def link_context(
-    case_id: UUID,
-    context_id: UUID,
-    service: Annotated[AssignmentService, Depends(get_assignment_service)],
-):
-    try:
-        await service.link_context(case_id, context_id)
-        return None
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except IntegrityError as exc:
-        raise HTTPException(status_code=409, detail="Constraint violation") from exc
+@router.post(
+    "/{case_id}/contexts/{context_id}", response_model=ContextAssignmentResponse, status_code=status.HTTP_201_CREATED
+)
+async def link_context(case_id: UUID, context_id: UUID, service: AssignmentServiceDep):
+    return await service.link_context(case_id, context_id)
 
 
 @router.delete("/{case_id}/contexts/{context_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def unlink_context(
-    case_id: UUID,
-    context_id: UUID,
-    service: Annotated[AssignmentService, Depends(get_assignment_service)],
-):
-    try:
-        await service.unlink_context(case_id, context_id)
-        return None
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except IntegrityError as exc:
-        raise HTTPException(status_code=409, detail="Constraint violation") from exc
+async def unlink_context(case_id: UUID, context_id: UUID, service: AssignmentServiceDep):
+    await service.unlink_context(case_id, context_id)
+    return None
+
+
+@router.delete("/{case_id}/devices/last", status_code=status.HTTP_204_NO_CONTENT)
+async def unassign_last_device(case_id: UUID, service: AssignmentServiceDep, end_time: OptionalDateTimeQuery = None):
+    await service.unassign_last_device(case_id, end_time=end_time)
+    return None
+
+
+@router.delete("/{case_id}/wearables/last", status_code=status.HTTP_204_NO_CONTENT)
+async def unassign_last_wearable(case_id: UUID, service: AssignmentServiceDep, end_time: OptionalDateTimeQuery = None):
+    await service.unassign_last_wearable(case_id, end_time=end_time)
+    return None
 
 
 @router.delete("/{case_id}/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def unassign_device(
-    case_id: UUID,
-    device_id: UUID,
-    service: Annotated[AssignmentService, Depends(get_assignment_service)],
+    case_id: UUID, device_id: UUID, service: AssignmentServiceDep, end_time: OptionalDateTimeQuery = None
 ):
-    try:
-        await service.unassign_device(case_id, device_id)
-        return None
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    await service.unassign_device(case_id, device_id, end_time=end_time)
+    return None
 
 
 @router.delete("/{case_id}/wearables/{wearable_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def unassign_wearable(
-    case_id: UUID,
-    wearable_id: UUID,
-    service: Annotated[AssignmentService, Depends(get_assignment_service)],
+    case_id: UUID, wearable_id: UUID, service: AssignmentServiceDep, end_time: OptionalDateTimeQuery = None
 ):
-    try:
-        await service.unassign_wearable(case_id, wearable_id)
-        return None
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    await service.unassign_wearable(case_id, wearable_id, end_time=end_time)
+    return None
+
+
+@router.delete("/{case_id}/devices/{device_id}/assignments", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_device_assignment(
+    case_id: UUID, device_id: UUID, service: AssignmentServiceDep, assigned_from: OptionalDateTimeQuery = None
+):
+    result = await service.delete_device_assignment(case_id, device_id, assigned_from=assigned_from)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Device assignment not found or ambiguous without assigned_from",
+        )
+    return None
+
+
+@router.delete("/{case_id}/wearables/{wearable_id}/assignments", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_wearable_assignment(
+    case_id: UUID, wearable_id: UUID, service: AssignmentServiceDep, assigned_from: OptionalDateTimeQuery = None
+):
+    result = await service.delete_wearable_assignment(case_id, wearable_id, assigned_from=assigned_from)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Wearable assignment not found or ambiguous without assigned_from",
+        )
+    return None

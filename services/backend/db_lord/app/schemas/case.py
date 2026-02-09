@@ -1,13 +1,13 @@
-import uuid
 from enum import Enum
+from uuid import UUID
 
 from pydantic import Field
 
 from .common import TunedBase, TunedUpdateBase
-from .context import Context
-from .device import Device
-from .patient import Patient
-from .wearable import Wearable
+from .context import ContextResponse
+from .device import DeviceResponse
+from .patient import PatientResponse
+from .wearable import WearableResponse
 
 
 class CaseStatus(str, Enum):
@@ -20,7 +20,7 @@ class CaseStatus(str, Enum):
 
 class CaseBase(TunedBase):
     status: CaseStatus = Field(default=CaseStatus.PLANNED)
-    patient_id: uuid.UUID
+    patient_id: UUID
 
 
 class CaseCreate(CaseBase):
@@ -29,15 +29,15 @@ class CaseCreate(CaseBase):
 
 class CaseUpdate(TunedUpdateBase):
     status: CaseStatus | None = None
-    patient_id: uuid.UUID | None = None
+    patient_id: UUID | None = None
 
 
-class Case(CaseBase):
-    id: uuid.UUID
+class CaseResponse(CaseBase):
+    id: UUID
 
 
-class CaseExpanded(Case):
-    devices: list[Device] = Field(default_factory=list)
-    wearables: list[Wearable] = Field(default_factory=list)
-    contexts: list[Context] = Field(default_factory=list)
-    patient: Patient | None = None
+class CaseExpanded(CaseResponse):
+    devices: list[DeviceResponse] = Field(default_factory=list)
+    wearables: list[WearableResponse] = Field(default_factory=list)
+    contexts: list[ContextResponse] = Field(default_factory=list)
+    patient: PatientResponse | None = None
