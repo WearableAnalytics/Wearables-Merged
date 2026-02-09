@@ -1,5 +1,16 @@
 # Registration Service Node Helm Chart
 
+## Important
+
+`frontendOrigins` and `adminEmails` in `values.yaml` are used to generate environment
+variables in the Kubernetes Secret:
+
+- `frontendOrigins` -> `FRONTEND_URL` (CORS allowlist). If the frontend URL is not
+  included here, the browser will block requests to this service.
+- `adminEmails` -> `ADMIN_EMAILS`. These emails are automatically created as admin
+  users and set to `approved` on first registration, so they can log in without
+  waiting for manual approval.
+
 ## Secrets Management
 
 The chart creates a Secret resource for sensitive configuration. Edit the secret template at `templates/registration-service-node-secret.yaml` to add your secrets:

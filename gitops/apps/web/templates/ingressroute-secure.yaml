@@ -1,3 +1,4 @@
+{{- if .Values.ingress.enabled }}
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -14,3 +15,4 @@ spec:
           port: {{ .Values.service.port }}
   tls:
     secretName: {{ .Values.certificate.secretName }}
+{{- end }}

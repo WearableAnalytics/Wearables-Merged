@@ -17,7 +17,7 @@ buildArgs:
   VITE_GRAFANA_PROXY_URL: "/grafana/"
 
 ingress:
-  enabled: true
+  enabled: false
   host: "wearables.charite.de"
   
 certificate:
