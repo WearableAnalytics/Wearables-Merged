@@ -27,7 +27,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/context/AuthContext.tsx', 'src/lib/activeCase.tsx'],
+    files: ['src/context/AuthContext.tsx', 'src/context/ThemeContext.tsx', 'src/lib/activeCase.tsx'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },

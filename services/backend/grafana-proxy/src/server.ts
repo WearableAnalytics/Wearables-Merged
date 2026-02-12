@@ -33,6 +33,11 @@ const toGrafanaPanelValue = (value: unknown): string | null => {
   return /^[A-Za-z0-9_-]+$/.test(candidate) ? candidate : null;
 };
 
+const toGrafanaThemeValue = (value: unknown): 'light' | 'dark' => {
+  const candidate = queryValue(value)?.toLowerCase();
+  return candidate === 'dark' ? 'dark' : 'light';
+};
+
 const toGrafanaTimeValue = (value: unknown, fallback: string): string => {
   const candidate = queryValue(value);
   if (!candidate) return fallback;
@@ -77,6 +82,7 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
     let from = toGrafanaTimeValue(req.query.from, DEFAULT_FROM);
     const to = toGrafanaTimeValue(req.query.to, DEFAULT_TO);
     const viewPanel = toGrafanaPanelValue(req.query.viewPanel);
+    const theme = toGrafanaThemeValue(req.query.theme);
     if (/^\d+$/.test(from) && /^\d+$/.test(to) && Number(from) >= Number(to)) {
       from = DEFAULT_FROM;
     }
@@ -85,7 +91,7 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
       orgId: config.grafanaOrgId || '1',
       from,
       to,
-      theme: 'light',
+      theme,
       timezone: 'browser',
       'var-DS_INFLUXDB': config.grafanaDashboardDatasource,
       'var-deviceId': deviceId,

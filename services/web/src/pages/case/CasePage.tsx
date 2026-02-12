@@ -9,6 +9,7 @@ import { ResponseError } from '@/api/openapi-client/runtime';
 import { InfoItem } from '@/components/custom/InfoItem';
 import { useActiveCase } from '@/lib/activeCase';
 import { SignedInAs } from '@/components/custom/SignedInAs';
+import { useTheme } from '@/context/ThemeContext';
 import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
 
@@ -34,6 +35,7 @@ export function CasePage() {
   const [error, setError] = useState<string | null>(null);
   const { setActiveCase, clearActiveCase, activeCase } = useActiveCase();
   const [isQrOpen, setIsQrOpen] = useState(false);
+  const { isDark } = useTheme();
   const activeCaseRef = useRef(activeCase);
   const [toInput, setToInput] = useState<string>(() => toDatetimeLocalValue(new Date()));
   const [fromInput, setFromInput] = useState<string>(() =>
@@ -151,9 +153,12 @@ export function CasePage() {
       params.set('from', String(from.getTime()));
       params.set('to', String(to.getTime()));
     }
+    if (isDark) {
+      params.set('theme', 'dark');
+    }
 
     return params.toString();
-  }, [caseData?.caseToken, fromInput, toInput]);
+  }, [caseData?.caseToken, fromInput, isDark, toInput]);
 
   const grafanaUrl = useMemo(() => {
     if (!GRAFANA_PROXY_URL || !grafanaBaseQuery) return null;

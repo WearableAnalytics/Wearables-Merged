@@ -5,14 +5,17 @@ import './styles/tailwind.css';
 import App from './App.tsx';
 import { ActiveCaseProvider } from './lib/activeCase';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <ActiveCaseProvider>
-          <App />
-        </ActiveCaseProvider>
+        <ThemeProvider>
+          <ActiveCaseProvider>
+            <App />
+          </ActiveCaseProvider>
+        </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
