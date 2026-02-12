@@ -411,6 +411,8 @@ export function GrafanaTileLayout({
           }
 
           const src = panelUrl(item.panelId ?? '');
+          const panelLabel = item.title || null;
+
           return (
             <div
               key={item.key}
@@ -422,12 +424,12 @@ export function GrafanaTileLayout({
                   <iframe
                     title={item.title || `Grafana panel ${item.panelId}`}
                     src={src}
-                    className="h-full w-full"
-                    allow="fullscreen"
-                  />
-                  {item.title ? (
+                      className="h-full w-full"
+                      allow="fullscreen"
+                    />
+                  {panelLabel ? (
                     <div className="pointer-events-none absolute left-2 top-2 rounded-md bg-white/90 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-700">
-                      {item.title}
+                      {panelLabel}
                     </div>
                   ) : null}
                 </>

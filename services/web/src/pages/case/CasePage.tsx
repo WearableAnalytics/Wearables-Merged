@@ -213,12 +213,74 @@ export function CasePage() {
         colSpan: 4,
         rowSpan: 2,
       },
-
-
       {
         type: 'section',
-        title: 'Cardio',
-        description: 'First tile rendered via the layout framework.',
+        title: 'Activity & Exercise',
+        description: 'This section provides insights into the patient\'s physical activity levels and exercise patterns.',
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-8',
+        colSpan: 4,
+        rowSpan: 2,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-9',
+        colSpan: 2,
+        rowSpan: 2,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-10',
+        colSpan: 2,
+        rowSpan: 2,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-11',
+        colSpan: 4,
+        rowSpan: 2,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-12',
+        colSpan: 4,
+        rowSpan: 2,
+      },
+      {
+        type: 'section',
+        title: 'Energy & Calories',
+        description: 'This section provides insights into the patient\'s energy expenditure and calorie consumption.',
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-13',
+        colSpan: 5,
+        rowSpan: 2,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-14',
+        colSpan: 3,
+        rowSpan: 1,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-15',
+        colSpan: 3,
+        rowSpan: 1,
+      },
+      {
+        type: 'section',
+        title: 'Sleep Analysis',
+        description: 'This section provides insights into the patient\'s sleep patterns and quality.',
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-16',
+        colSpan: 5,
+        rowSpan: 2,
       },
     ],
     [],
