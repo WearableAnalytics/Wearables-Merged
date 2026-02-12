@@ -282,6 +282,59 @@ export function CasePage() {
         colSpan: 5,
         rowSpan: 2,
       },
+      {
+        type: 'panel',
+        panelId: 'panel-17',
+        colSpan: 3,
+        rowSpan: 1,
+      },
+            {
+        type: 'panel',
+        panelId: 'panel-18',
+        colSpan: 3,
+        rowSpan: 1,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-18',
+        colSpan: 5,
+        rowSpan: 2,
+      },
+      {
+        type: 'section',
+        title: 'Body Metrics',
+        description: 'This section provides insights into the patient\'s body metrics.',
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-19',
+        colSpan: 4,
+        rowSpan: 2,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-20',
+        colSpan: 2,
+        rowSpan: 2,
+      },
+     {
+        type: 'panel',
+        panelId: 'panel-21',
+        colSpan: 2,
+        rowSpan: 2,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-22',
+        colSpan: 4,
+        rowSpan: 2,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-23',
+        colSpan: 4,
+        rowSpan: 2,
+      },
     ],
     [],
   );
@@ -401,14 +454,6 @@ export function CasePage() {
                 grafanaProxyUrl={GRAFANA_PROXY_URL}
                 grafanaBaseQuery={grafanaBaseQuery}
               />
-              <div>
-                <iframe
-                  title="Grafana patient monitoring dashboard"
-                  src={grafanaUrl}
-                  className="h-[min(80vh,1000px)] w-full rounded-xl"
-                  allow="fullscreen"
-                />
-              </div>
             </div>
           ) : (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">

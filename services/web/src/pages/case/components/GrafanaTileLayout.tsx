@@ -361,7 +361,12 @@ export function GrafanaTileLayout({
           key={segment.key}
           className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
         >
-          <div className="flex items-start justify-between gap-3">
+          <button
+            type="button"
+            className="flex w-full items-start justify-between gap-3 text-left"
+            aria-expanded={!isCollapsed}
+            onClick={() => toggleSection(segment.key)}
+          >
             <div>
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-700">
                 {segment.block.title}
@@ -370,15 +375,10 @@ export function GrafanaTileLayout({
                 <p className="mt-1 text-sm text-slate-600">{segment.block.description}</p>
               ) : null}
             </div>
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
-              aria-label={isCollapsed ? 'Expand section' : 'Collapse section'}
-              onClick={() => toggleSection(segment.key)}
-            >
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600">
               <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'}`} />
-            </button>
-          </div>
+            </span>
+          </button>
         </article>,
       );
       return;
@@ -386,14 +386,11 @@ export function GrafanaTileLayout({
 
     const isHiddenBySection =
       currentSectionKey !== null && !!collapsedSections[currentSectionKey];
-    if (isHiddenBySection) {
-      return;
-    }
 
     renderedSegments.push(
       <div
         key={segment.key}
-        className="grid gap-3"
+        className={`grid gap-3 ${isHiddenBySection ? 'hidden' : ''}`}
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
           gridAutoRows: `${cellSizePx}px`,
