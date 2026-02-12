@@ -93,7 +93,7 @@
     --popover: var(--slate-000);
     --popover-foreground: 217 75% 15%;
 
-    --primary: var(--blue-700);
+    --primary: 210 60% 26%; /* Match Option 2 light primary (#1A3F6E) */
     --primary-foreground: var(--slate-000);
     --secondary: var(--blue-500);
     --secondary-foreground: 217 75% 15%;
@@ -224,12 +224,12 @@
     --popover: var(--slate-800);
     --popover-foreground: var(--slate-100);
 
-    --primary: var(--blue-400);
+    --primary: var(--blue-500);
     --primary-foreground: var(--slate-900);
-    --secondary: var(--slate-700);
+    --secondary: var(--slate-800);
     --secondary-foreground: var(--slate-100);
 
-    --accent: var(--slate-700);
+    --accent: var(--slate-800);
     --accent-foreground: var(--slate-100);
     --muted: var(--slate-700);
     --muted-foreground: var(--slate-300);

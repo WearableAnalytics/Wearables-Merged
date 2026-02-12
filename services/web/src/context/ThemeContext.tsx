@@ -2,17 +2,32 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import type { ReactNode } from 'react';
 
 type ThemeMode = 'light' | 'dark';
+export type ThemePreference = 'system' | 'light' | 'dark';
 
 interface ThemeContextType {
   theme: ThemeMode;
   isDark: boolean;
+  preference: ThemePreference;
+  setThemePreference: (preference: ThemePreference) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const THEME_PREFERENCE_STORAGE_KEY = 'wearables-theme-preference';
 
-function getInitialTheme(): ThemeMode {
+function getSystemTheme(): ThemeMode {
   if (typeof window === 'undefined') return 'light';
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function getInitialPreference(): ThemePreference {
+  if (typeof window === 'undefined') return 'system';
+
+  const storedPreference = window.localStorage.getItem(THEME_PREFERENCE_STORAGE_KEY);
+  if (storedPreference === 'light' || storedPreference === 'dark' || storedPreference === 'system') {
+    return storedPreference;
+  }
+
+  return 'system';
 }
 
 interface ThemeProviderProps {
@@ -20,18 +35,25 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const [preference, setPreference] = useState<ThemePreference>(getInitialPreference);
+  const [systemTheme, setSystemTheme] = useState<ThemeMode>(getSystemTheme);
+
+  const theme: ThemeMode = preference === 'system' ? systemTheme : preference;
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const updateThemeFromSystem = () => {
-      setTheme(mediaQuery.matches ? 'dark' : 'light');
+      setSystemTheme(mediaQuery.matches ? 'dark' : 'light');
     };
 
     updateThemeFromSystem();
     mediaQuery.addEventListener('change', updateThemeFromSystem);
     return () => mediaQuery.removeEventListener('change', updateThemeFromSystem);
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, preference);
+  }, [preference]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -44,8 +66,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     () => ({
       theme,
       isDark: theme === 'dark',
+      preference,
+      setThemePreference: setPreference,
     }),
-    [theme],
+    [preference, theme],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
