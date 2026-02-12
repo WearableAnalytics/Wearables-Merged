@@ -13,6 +13,7 @@ import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
 
 const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL;
+const GRAFANA_TILE_PANEL_ID = import.meta.env.VITE_GRAFANA_TILE_PANEL_ID?.trim() || 'panel-1';
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
 
@@ -137,10 +138,9 @@ export function CasePage() {
     setFromInput(toDatetimeLocalValue(from));
   };
 
-  const grafanaUrl = useMemo(() => {
+  const grafanaBaseParams = useMemo(() => {
     const caseToken = caseData?.caseToken?.trim();
     if (!caseToken) return null;
-    if (!GRAFANA_PROXY_URL) return null;
 
     const params = new URLSearchParams({
       deviceId: caseToken,
@@ -153,8 +153,20 @@ export function CasePage() {
       params.set('to', String(to.getTime()));
     }
 
-    return `${GRAFANA_PROXY_URL}/embed?${params.toString()}`;
+    return params;
   }, [caseData?.caseToken, fromInput, toInput]);
+
+  const grafanaUrl = useMemo(() => {
+    if (!GRAFANA_PROXY_URL || !grafanaBaseParams) return null;
+    return `${GRAFANA_PROXY_URL}/embed?${grafanaBaseParams.toString()}`;
+  }, [grafanaBaseParams]);
+
+  const grafanaTileUrl = useMemo(() => {
+    if (!GRAFANA_PROXY_URL || !grafanaBaseParams || !GRAFANA_TILE_PANEL_ID) return null;
+    const params = new URLSearchParams(grafanaBaseParams.toString());
+    params.set('viewPanel', GRAFANA_TILE_PANEL_ID);
+    return `${GRAFANA_PROXY_URL}/embed?${params.toString()}`;
+  }, [grafanaBaseParams]);
 
   return (
     <>
@@ -264,6 +276,19 @@ export function CasePage() {
               {timeRangeError ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
                   {timeRangeError}
+                </div>
+              ) : null}
+              {grafanaTileUrl ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    Single panel preview ({GRAFANA_TILE_PANEL_ID})
+                  </p>
+                  <iframe
+                    title={`Grafana panel ${GRAFANA_TILE_PANEL_ID}`}
+                    src={grafanaTileUrl}
+                    className="h-[260px] w-full rounded-xl"
+                    allow="fullscreen"
+                  />
                 </div>
               ) : null}
               <div>

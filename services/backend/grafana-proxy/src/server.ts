@@ -27,6 +27,12 @@ const queryValue = (value: unknown): string | null => {
   return null;
 };
 
+const toGrafanaPanelValue = (value: unknown): string | null => {
+  const candidate = queryValue(value);
+  if (!candidate) return null;
+  return /^[A-Za-z0-9_-]+$/.test(candidate) ? candidate : null;
+};
+
 const toGrafanaTimeValue = (value: unknown, fallback: string): string => {
   const candidate = queryValue(value);
   if (!candidate) return fallback;
@@ -70,6 +76,7 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
 
     let from = toGrafanaTimeValue(req.query.from, DEFAULT_FROM);
     const to = toGrafanaTimeValue(req.query.to, DEFAULT_TO);
+    const viewPanel = toGrafanaPanelValue(req.query.viewPanel);
     if (/^\d+$/.test(from) && /^\d+$/.test(to) && Number(from) >= Number(to)) {
       from = DEFAULT_FROM;
     }
@@ -85,6 +92,10 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
       '_dash.hideVariables': 'true',
       '_dash.hideLinks': 'true',
     });
+    if (viewPanel) {
+      params.set('viewPanel', viewPanel);
+      params.set('__feature.dashboardSceneSolo', 'true');
+    }
 
     const dashboardPath = toPath(
       mountPath,
