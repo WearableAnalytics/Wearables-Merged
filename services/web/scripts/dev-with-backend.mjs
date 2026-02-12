@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const webDir = path.resolve(__dirname, '..');
-const backendDir = path.resolve(webDir, '../backend/registration-service-node');
+const backendDir = path.resolve(webDir, '../backend/wearables-bff');
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const backendHealthUrl = process.env.WEB_DEV_BACKEND_HEALTH_URL ?? 'http://localhost:3001/api/health';
 

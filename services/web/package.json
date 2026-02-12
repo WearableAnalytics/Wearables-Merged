@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node ./scripts/dev-with-backend.mjs",
     "dev:web": "vite",
-    "dev:backend": "npm --prefix ../backend/registration-service-node run dev",
+    "dev:backend": "npm --prefix ../backend/wearables-bff run dev",
     "build": "tsc --noEmit && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
