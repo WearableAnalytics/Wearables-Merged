@@ -11,9 +11,9 @@ import { useActiveCase } from '@/lib/activeCase';
 import { SignedInAs } from '@/components/custom/SignedInAs';
 import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
+import { GrafanaTileLayout, type GrafanaLayoutBlock } from './components/GrafanaTileLayout';
 
 const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL;
-const GRAFANA_TILE_PANEL_ID = import.meta.env.VITE_GRAFANA_TILE_PANEL_ID?.trim() || 'panel-1';
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
 
@@ -138,7 +138,7 @@ export function CasePage() {
     setFromInput(toDatetimeLocalValue(from));
   };
 
-  const grafanaBaseParams = useMemo(() => {
+  const grafanaBaseQuery = useMemo(() => {
     const caseToken = caseData?.caseToken?.trim();
     if (!caseToken) return null;
 
@@ -153,20 +153,76 @@ export function CasePage() {
       params.set('to', String(to.getTime()));
     }
 
-    return params;
+    return params.toString();
   }, [caseData?.caseToken, fromInput, toInput]);
 
   const grafanaUrl = useMemo(() => {
-    if (!GRAFANA_PROXY_URL || !grafanaBaseParams) return null;
-    return `${GRAFANA_PROXY_URL}/embed?${grafanaBaseParams.toString()}`;
-  }, [grafanaBaseParams]);
+    if (!GRAFANA_PROXY_URL || !grafanaBaseQuery) return null;
+    return `${GRAFANA_PROXY_URL}/embed?${grafanaBaseQuery}`;
+  }, [grafanaBaseQuery]);
 
-  const grafanaTileUrl = useMemo(() => {
-    if (!GRAFANA_PROXY_URL || !grafanaBaseParams || !GRAFANA_TILE_PANEL_ID) return null;
-    const params = new URLSearchParams(grafanaBaseParams.toString());
-    params.set('viewPanel', GRAFANA_TILE_PANEL_ID);
-    return `${GRAFANA_PROXY_URL}/embed?${params.toString()}`;
-  }, [grafanaBaseParams]);
+  const grafanaLayoutBlocks = useMemo<GrafanaLayoutBlock[]>(
+    () => [
+      {
+        type: 'section',
+        title: 'Cardiovascular Health',
+        description: 'This section shows key cardiovascular metrics and trends.',
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-1',
+        colSpan: 4,
+        rowSpan: 3,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-2',
+        colSpan: 2,
+        rowSpan: 2,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-4',
+        colSpan: 2,
+        rowSpan: 1,
+      },
+      {
+        type: 'panel',
+        panelId: 'panel-3',
+        colSpan: 2,
+        rowSpan: 2,
+      },
+
+            {
+        type: 'panel',
+        panelId: 'panel-5',
+        colSpan: 2,
+        rowSpan: 1,
+      },
+
+      {
+        type: 'panel',
+        panelId: 'panel-6',
+        colSpan: 4,
+        rowSpan: 2,
+      },
+
+      {
+        type: 'panel',
+        panelId: 'panel-7',
+        colSpan: 4,
+        rowSpan: 2,
+      },
+
+
+      {
+        type: 'section',
+        title: 'Cardio',
+        description: 'First tile rendered via the layout framework.',
+      },
+    ],
+    [],
+  );
 
   return (
     <>
@@ -278,19 +334,11 @@ export function CasePage() {
                   {timeRangeError}
                 </div>
               ) : null}
-              {grafanaTileUrl ? (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    Single panel preview ({GRAFANA_TILE_PANEL_ID})
-                  </p>
-                  <iframe
-                    title={`Grafana panel ${GRAFANA_TILE_PANEL_ID}`}
-                    src={grafanaTileUrl}
-                    className="h-[260px] w-full rounded-xl"
-                    allow="fullscreen"
-                  />
-                </div>
-              ) : null}
+              <GrafanaTileLayout
+                blocks={grafanaLayoutBlocks}
+                grafanaProxyUrl={GRAFANA_PROXY_URL}
+                grafanaBaseQuery={grafanaBaseQuery}
+              />
               <div>
                 <iframe
                   title="Grafana patient monitoring dashboard"

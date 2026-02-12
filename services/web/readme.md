@@ -6,7 +6,6 @@
 - Detached (no logs in the terminal): `docker compose up --build -d web`
 - Env: set `VITE_API_BASE_URL` in a `.env` next to `docker-compose.yml` (defaults to `http://localhost:3001/api`). Compose passes it as a build arg.
 - Required for Docker builds: `VITE_GRAFANA_PROXY_URL=http://localhost:3002/grafana` to control the Grafana iframe source.
-- Optional: `VITE_GRAFANA_TILE_PANEL_ID=panel-1` to control which single Grafana panel is shown in the case page tile preview.
 
 ## Build a single image (for Kubernetes or manual runs)
 - Build from repo root: `docker build -f services/web/Dockerfile -t wearables-web --build-arg VITE_API_BASE_URL=https://api.example.com .`
