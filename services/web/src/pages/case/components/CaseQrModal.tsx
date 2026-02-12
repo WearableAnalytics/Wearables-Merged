@@ -51,7 +51,7 @@ export function CaseQrModal({ isOpen, caseToken, onClose }: Props) {
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white"
+          className="ui-control-square absolute right-4 top-4 inline-flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white"
           aria-label="Close QR code"
         >
           <X aria-hidden className="h-5 w-5" />

@@ -17,7 +17,7 @@ export function CaseQrCard({ caseToken, onOpen }: Props) {
           <button
             type="button"
             onClick={onOpen}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white"
+            className="ui-control-h inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white"
           >
             <QrCode aria-hidden className="h-5 w-5 text-slate-700" />
             <span>Show QR</span>

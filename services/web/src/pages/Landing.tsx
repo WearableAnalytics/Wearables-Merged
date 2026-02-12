@@ -43,7 +43,7 @@ export function LandingPage() {
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
-            <Button asChild size="lg" className="w-full sm:w-auto px-7 py-5">
+            <Button asChild size="lg" className="w-full sm:w-auto px-7">
               <Link to="/access">Access</Link>
             </Button>
           </div>

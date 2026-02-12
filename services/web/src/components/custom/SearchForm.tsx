@@ -56,7 +56,7 @@ export function SearchForm({
           type="submit"
           disabled={loading}
           size="icon"
-          className="absolute right-2 h-12 w-12 rounded-full active:scale-50 disabled:hover:scale-100"
+          className="absolute right-2 rounded-full active:scale-50 disabled:hover:scale-100"
         >
           {loading ? (
             <Loader2 aria-hidden className="h-5 w-5 animate-spin" />

@@ -43,7 +43,7 @@ export function AddCaseResultCard({
           type="button"
           disabled={creating}
           onClick={onCreate}
-          className="w-full rounded-xl px-4 py-3 text-base font-semibold transition hover:scale-[1.01] focus-visible:ring-black active:scale-95"
+          className="w-full rounded-xl px-4 text-base font-semibold transition hover:scale-[1.01] focus-visible:ring-black active:scale-95"
         >
           {creating ? <Loader2 aria-hidden className="h-4 w-4 animate-spin" /> : null}
           Add case to system

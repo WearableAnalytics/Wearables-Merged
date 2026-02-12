@@ -37,8 +37,8 @@ export const NavButton: React.FC<{
         type="button"
         onClick={isDisabled ? undefined : handleClick}
         id={id}
-        className={`h-10 inline-flex items-center justify-center rounded-full border border-1 transition-shadow transition-colors cursor-pointer
-  ${iconOnly ? 'w-10 p-0' : 'px-5 text-sm'}
+        className={`ui-control-h inline-flex items-center justify-center rounded-full border border-1 transition-shadow transition-colors cursor-pointer
+  ${iconOnly ? 'ui-control-square p-0' : 'px-5 text-sm'}
   ${
     isActive
       ? 'bg-primary border-primary text-primary-foreground shadow-md transform transition-transform duration-200 ease-out hover:scale-[1.05] group'
@@ -77,7 +77,7 @@ export const NavButtonMobile: React.FC<{
       type="button"
       onClick={isDisabled ? undefined : handleClick}
       id={id}
-      className={`text-sm font-medium px-4 py-2 rounded-full border transition-shadow transition-colors cursor-pointer ${
+      className={`ui-control-h inline-flex items-center text-sm font-medium px-4 rounded-full border transition-shadow transition-colors cursor-pointer ${
         isActive
           ? 'bg-primary border-primary text-primary-foreground shadow-md' // is active always the same
           : !invertedColors

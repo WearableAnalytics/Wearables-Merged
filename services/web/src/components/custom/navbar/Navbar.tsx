@@ -93,7 +93,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     path="/admin/approvals"
                     invertedColors={true}
                     iconOnly
-                    className="h-10 w-10 p-0 flex items-center justify-center"
+                    className="ui-control-square p-0 flex items-center justify-center"
                   >
                     <Shield className="h-5 w-5" aria-hidden />
                     <span className="sr-only">Admin</span>
@@ -103,7 +103,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   path="/account"
                   invertedColors={true}
                   iconOnly
-                  className="h-10 w-10 p-0 flex items-center justify-center"
+                  className="ui-control-square p-0 flex items-center justify-center"
                 >
                   <User className="h-5 w-5" aria-hidden />
                   <span className="sr-only">Account</span>

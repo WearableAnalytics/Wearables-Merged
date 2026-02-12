@@ -13,6 +13,18 @@ import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
 
 const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL;
+const ONE_HOUR_MS = 60 * 60 * 1000;
+const ONE_DAY_MS = 24 * ONE_HOUR_MS;
+
+function toDatetimeLocalValue(date: Date): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function parseDatetimeLocalValue(value: string): Date | null {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 export function CasePage() {
   const { caseId } = useParams();
@@ -23,6 +35,10 @@ export function CasePage() {
   const { setActiveCase, clearActiveCase, activeCase } = useActiveCase();
   const [isQrOpen, setIsQrOpen] = useState(false);
   const activeCaseRef = useRef(activeCase);
+  const [toInput, setToInput] = useState<string>(() => toDatetimeLocalValue(new Date()));
+  const [fromInput, setFromInput] = useState<string>(() =>
+    toDatetimeLocalValue(new Date(Date.now() - ONE_DAY_MS)),
+  );
 
   useEffect(() => {
     activeCaseRef.current = activeCase;
@@ -106,6 +122,21 @@ export function CasePage() {
     [patient],
   );
 
+  const timeRangeError = useMemo(() => {
+    const from = parseDatetimeLocalValue(fromInput);
+    const to = parseDatetimeLocalValue(toInput);
+    if (!from || !to) return 'Please select a valid date and time range.';
+    if (from.getTime() >= to.getTime()) return '"From" must be earlier than "To".';
+    return null;
+  }, [fromInput, toInput]);
+
+  const setRangeFromNow = (durationMs: number) => {
+    const now = new Date();
+    const from = new Date(now.getTime() - durationMs);
+    setToInput(toDatetimeLocalValue(now));
+    setFromInput(toDatetimeLocalValue(from));
+  };
+
   const grafanaUrl = useMemo(() => {
     const caseToken = caseData?.caseToken?.trim();
     if (!caseToken) return null;
@@ -115,8 +146,15 @@ export function CasePage() {
       deviceId: caseToken,
     });
 
+    const from = parseDatetimeLocalValue(fromInput);
+    const to = parseDatetimeLocalValue(toInput);
+    if (from && to && from.getTime() < to.getTime()) {
+      params.set('from', String(from.getTime()));
+      params.set('to', String(to.getTime()));
+    }
+
     return `${GRAFANA_PROXY_URL}/embed?${params.toString()}`;
-  }, [caseData?.caseToken]);
+  }, [caseData?.caseToken, fromInput, toInput]);
 
   return (
     <>
@@ -162,13 +200,80 @@ export function CasePage() {
           </div>
         ) : (
           grafanaUrl ? (
-            <div className="relative w-full">
-              <iframe
-                title="Grafana patient monitoring dashboard"
-                src={grafanaUrl}
-                className="h-[min(80vh,1000px)] w-full rounded-xl"
-                allow="fullscreen"
-              />
+            <div className="relative w-full space-y-3">
+              <div className="rounded-xl bg-slate-50 px-3 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  Data time range
+                </p>
+                <div className="mt-3 flex flex-wrap items-end gap-3">
+                  <div className="min-w-[220px]">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                      Quick range
+                    </span>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="ui-control-h inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                        onClick={() => setRangeFromNow(ONE_DAY_MS)}
+                      >
+                        Last 24h
+                      </button>
+                      <button
+                        type="button"
+                        className="ui-control-h inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                        onClick={() => setRangeFromNow(2 * ONE_DAY_MS)}
+                      >
+                        Last 48h
+                      </button>
+                      <button
+                        type="button"
+                        className="ui-control-h inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                        onClick={() => setRangeFromNow(7 * ONE_DAY_MS)}
+                      >
+                        Last 7d
+                      </button>
+                    </div>
+                  </div>
+                  <label className="min-w-[240px] flex-1">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                      From
+                    </span>
+                    <input
+                      type="datetime-local"
+                      className="ui-control-h mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+                      value={fromInput}
+                      max={toInput}
+                      onChange={(event) => setFromInput(event.target.value)}
+                    />
+                  </label>
+                  <label className="min-w-[240px] flex-1">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                      Till
+                    </span>
+                    <input
+                      type="datetime-local"
+                      className="ui-control-h mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+                      value={toInput}
+                      min={fromInput}
+                      max={toDatetimeLocalValue(new Date())}
+                      onChange={(event) => setToInput(event.target.value)}
+                    />
+                  </label>
+                </div>
+              </div>
+              {timeRangeError ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                  {timeRangeError}
+                </div>
+              ) : null}
+              <div>
+                <iframe
+                  title="Grafana patient monitoring dashboard"
+                  src={grafanaUrl}
+                  className="h-[min(80vh,1000px)] w-full rounded-xl"
+                  allow="fullscreen"
+                />
+              </div>
             </div>
           ) : (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
