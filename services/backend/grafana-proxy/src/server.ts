@@ -85,6 +85,7 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
       orgId: config.grafanaOrgId || '1',
       from,
       to,
+      theme: 'light',
       timezone: 'browser',
       'var-DS_INFLUXDB': config.grafanaDashboardDatasource,
       'var-deviceId': deviceId,

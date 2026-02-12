@@ -11,7 +11,6 @@ import { useActiveCase } from '@/lib/activeCase';
 import { SignedInAs } from '@/components/custom/SignedInAs';
 import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
-import { GrafanaTileLayout, type GrafanaLayoutBlock } from './components/GrafanaTileLayout';
 
 const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL;
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -161,184 +160,6 @@ export function CasePage() {
     return `${GRAFANA_PROXY_URL}/embed?${grafanaBaseQuery}`;
   }, [grafanaBaseQuery]);
 
-  const grafanaLayoutBlocks = useMemo<GrafanaLayoutBlock[]>(
-    () => [
-      {
-        type: 'section',
-        title: 'Cardiovascular Health',
-        description: 'This section shows key cardiovascular metrics and trends.',
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-1',
-        colSpan: 4,
-        rowSpan: 3,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-2',
-        colSpan: 2,
-        rowSpan: 2,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-4',
-        colSpan: 2,
-        rowSpan: 1,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-3',
-        colSpan: 2,
-        rowSpan: 2,
-      },
-
-            {
-        type: 'panel',
-        panelId: 'panel-5',
-        colSpan: 2,
-        rowSpan: 1,
-      },
-
-      {
-        type: 'panel',
-        panelId: 'panel-6',
-        colSpan: 4,
-        rowSpan: 2,
-      },
-
-      {
-        type: 'panel',
-        panelId: 'panel-7',
-        colSpan: 4,
-        rowSpan: 2,
-      },
-      {
-        type: 'section',
-        title: 'Activity & Exercise',
-        description: 'This section provides insights into the patient\'s physical activity levels and exercise patterns.',
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-8',
-        colSpan: 4,
-        rowSpan: 2,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-9',
-        colSpan: 2,
-        rowSpan: 2,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-10',
-        colSpan: 2,
-        rowSpan: 2,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-11',
-        colSpan: 4,
-        rowSpan: 2,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-12',
-        colSpan: 4,
-        rowSpan: 2,
-      },
-      {
-        type: 'section',
-        title: 'Energy & Calories',
-        description: 'This section provides insights into the patient\'s energy expenditure and calorie consumption.',
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-13',
-        colSpan: 5,
-        rowSpan: 2,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-14',
-        colSpan: 3,
-        rowSpan: 1,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-15',
-        colSpan: 3,
-        rowSpan: 1,
-      },
-      {
-        type: 'section',
-        title: 'Sleep Analysis',
-        description: 'This section provides insights into the patient\'s sleep patterns and quality.',
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-16',
-        colSpan: 5,
-        rowSpan: 2,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-17',
-        colSpan: 3,
-        rowSpan: 1,
-      },
-            {
-        type: 'panel',
-        panelId: 'panel-18',
-        colSpan: 3,
-        rowSpan: 1,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-18',
-        colSpan: 5,
-        rowSpan: 2,
-      },
-      {
-        type: 'section',
-        title: 'Body Metrics',
-        description: 'This section provides insights into the patient\'s body metrics.',
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-19',
-        colSpan: 4,
-        rowSpan: 2,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-20',
-        colSpan: 2,
-        rowSpan: 2,
-      },
-     {
-        type: 'panel',
-        panelId: 'panel-21',
-        colSpan: 2,
-        rowSpan: 2,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-22',
-        colSpan: 4,
-        rowSpan: 2,
-      },
-      {
-        type: 'panel',
-        panelId: 'panel-23',
-        colSpan: 4,
-        rowSpan: 2,
-      },
-    ],
-    [],
-  );
-
   return (
     <>
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
@@ -449,10 +270,12 @@ export function CasePage() {
                   {timeRangeError}
                 </div>
               ) : null}
-              <GrafanaTileLayout
-                blocks={grafanaLayoutBlocks}
-                grafanaProxyUrl={GRAFANA_PROXY_URL}
-                grafanaBaseQuery={grafanaBaseQuery}
+              <iframe
+                title="Grafana patient monitoring dashboard"
+                src={grafanaUrl}
+                // Cross-origin iframes cannot be auto-sized reliably from parent page.
+                className="h-[600px] md:h-[800px] lg:h-[1000px] w-full rounded-xl"
+                allow="fullscreen"
               />
             </div>
           ) : (
