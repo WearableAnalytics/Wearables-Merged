@@ -41,8 +41,8 @@ public class Main {
 
         log.debug("Using slf4j for logging");
 
-        Validator.initiliazeFhirValidator();
-        Mapper mapper = new Mapper(Environment.TEMPLATE);
+        Validator.initiliazeFhirValidator(100);
+        Mapper mapper = new Mapper(Environment.TEMPLATE, Environment.VALIDATION_FREQUENCY);
 
         DependencyGraph dependencyGraph = new DependencyGraph(Environment.TEMPLATE);
 

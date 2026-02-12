@@ -23,14 +23,16 @@ public class Validator {
     private static FhirValidator validator;
     // Use a cached context and reuse it for parsing and validation
     private static FhirContext CTX;
+    private static int validationFrq;
 
-    public static void initiliazeFhirValidator() {
+    public static void initiliazeFhirValidator(int validationFrequency) {
 
         log.info("Initializing FHIR validator (with caching)...");
         long start = System.currentTimeMillis();
 
         CTX = FhirContext.forR4Cached();
         validator = CTX.newValidator();
+        validationFrq = validationFrequency;
 
         ValidationSupportChain.CacheConfiguration.defaultValues();
 
@@ -48,18 +50,23 @@ public class Validator {
         log.info("FHIR validator initialized in {} ms", (end - start));
     }
 
-    public static boolean validateFhir(JsonObject producedStr){
+    public static int validateFhir(JsonObject producedStr, Integer counter){
+
+        if (validationFrq != 0 && counter < validationFrq) {
+            counter++;
+            return counter;
+        }
 
         try {
             // Parse once to avoid internal re-parsing costs and validate the resource instance
             IParser parser = CTX.newJsonParser();
             IBaseResource resource = parser.parseResource(producedStr.toString());
             ValidationResult result = validator.validateWithResult(resource);
-            log.info("Validation result: {}", result.toString());
-            return result.isSuccessful();
+            log.debug("Validation result: {}", result.toString());
+            throw new IllegalArgumentException(String.format("Fhir validation failed with result: %s", result));
         } catch (Exception e) {
             log.error("Validation failed (input may not be a valid FHIR resource).", e);
-            return false;
+            return 0;
         }
     }
 

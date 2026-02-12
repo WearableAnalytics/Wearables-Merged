@@ -20,6 +20,7 @@ public class Environment {
     public static final int PARTITIONS = parseInt(setEnvWithDefault("PARTITIONS", "8"));
     public static final String APP_ID = setEnvWithDefault("APP_ID", "mapper-validator");
     public static final String MAPPING_YAML_PATH = setEnvWithDefault("MAPPING_YAML_PATH", "config/json-to-fhir-new.yaml");
+    public static final int VALIDATION_FREQUENCY = parseInt(setEnvWithDefault("VALIDATION_FREQUENCY", "100"));
 
     public static final MappingYaml TEMPLATE = ConfigLoader.loadConfig(MAPPING_YAML_PATH, MappingYaml.class);
 

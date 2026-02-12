@@ -11,3 +11,4 @@ data:
   DLQ_TOPIC: {{ .Values.envs.dlqTopic }}
   NUM_STREAM_THREADS: {{ .Values.envs.numStreamThreads | quote }}
   PARTITIONS: {{ .Values.envs.partitions | quote }}
+  VALIDATION_FREQUENCY: {{ .Values.envs.validationFrequency | quote }}

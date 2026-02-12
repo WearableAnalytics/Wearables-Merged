@@ -43,6 +43,8 @@ public class E2ETest {
     private final String outputTopicName = "output";
     private final String dlqTopicName = "dlq";
 
+    private final int validationFrq = 100;
+
     private Serde<String> stringSerde = new Serdes.StringSerde();
 
     @Before
@@ -53,8 +55,8 @@ public class E2ETest {
 
         Topology topology = new Topology();
         topology.addSource("sourceProcessor", Serdes.String().deserializer(), Serdes.String().deserializer(), inputTopicName);
-        topology.addProcessor(flatMapperProcessorName, new FlatMapperMockSupplier(yaml), "sourceProcessor");
-        topology.addProcessor(mapperProcessorName, new MapperMockSupplier(yaml), flatMapperProcessorName);
+        topology.addProcessor(flatMapperProcessorName, new FlatMapperMockSupplier(yaml, validationFrq), "sourceProcessor");
+        topology.addProcessor(mapperProcessorName, new MapperMockSupplier(yaml, validationFrq), flatMapperProcessorName);
         topology.addSink("sinkProcessor", outputTopicName, Serdes.String().serializer(), Serdes.String().serializer(), mapperProcessorName);
         topology.addSink("dlqProcessor", dlqTopicName, Serdes.String().serializer(), Serdes.String().serializer(), mapperProcessorName);
 

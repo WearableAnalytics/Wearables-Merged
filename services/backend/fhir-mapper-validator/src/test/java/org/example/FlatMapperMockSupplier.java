@@ -11,23 +11,25 @@ import java.util.List;
 
 class FlatMapperMockSupplier implements ProcessorSupplier<String, String, String, String> {
 
-    public FlatMapperMockSupplier(MappingYaml yaml){
+    public FlatMapperMockSupplier(MappingYaml yaml, int validationFrq){
         this.yaml = yaml;
+        this.validationFrq = validationFrq;
     }
 
     MappingYaml yaml;
+    int validationFrq;
 
     @Override
     public Processor<String, String, String, String> get() {
-        return new FlatMapperMock(yaml);
+        return new FlatMapperMock(yaml, validationFrq);
     }
 }
 
 class FlatMapperMock implements Processor<String, String, String, String> {
     private ProcessorContext<String, String> context;
 
-    public FlatMapperMock(MappingYaml yaml){
-        this.mapper = new Mapper(yaml);
+    public FlatMapperMock(MappingYaml yaml, int validationFrq){
+        this.mapper = new Mapper(yaml, validationFrq);
     }
 
     Mapper mapper;
