@@ -1,4 +1,4 @@
-# Grafana proxy (Node)
+# Grafana proxyx
 
 This service forwards Grafana requests and injects a signed JWT for Grafana auth.
 
