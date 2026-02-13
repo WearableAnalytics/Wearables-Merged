@@ -109,7 +109,7 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
                   </span>
                   <input
                     type="datetime-local"
-                    className="field-input ui-control-h mt-2 w-full"
+                    className="field-input ui-control-h mt-2 w-full rounded-xl"
                     value={fromInput}
                     max={toInput}
                     onChange={(event) => onFromInputChange(event.target.value)}
@@ -121,7 +121,7 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
                   </span>
                   <input
                     type="datetime-local"
-                    className="field-input ui-control-h mt-2 w-full"
+                    className="field-input ui-control-h mt-2 w-full rounded-xl"
                     value={toInput}
                     min={fromInput}
                     max={maxToInput}

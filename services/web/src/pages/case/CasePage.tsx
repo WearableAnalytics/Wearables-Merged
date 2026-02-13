@@ -5,7 +5,6 @@ import { defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
 import { ResponseError } from '@/api/openapi-client/runtime';
 import { useActiveCase } from '@/lib/activeCase';
-import { SignedInAs } from '@/components/custom/SignedInAs';
 import { useTheme } from '@/context/ThemeContext';
 import { formatDateDayMonthYear } from '@/lib/date';
 import { useMessageToast } from '@/lib/toast';
@@ -317,7 +316,6 @@ export function CasePage() {
           <CaseQrCard caseToken={caseData?.caseToken} onOpen={() => setIsQrOpen(true)} />
         </div>
       </div>
-      <SignedInAs />
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-4 md:items-start">
         <CaseDataPanel

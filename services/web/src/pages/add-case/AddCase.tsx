@@ -9,7 +9,6 @@ import type { CaseCreated, ChariteCase } from '@/api/openapi-client';
 import { ResponseError } from '@/api/openapi-client/runtime';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { useActiveCase } from '@/lib/activeCase';
-import { SignedInAs } from '@/components/custom/SignedInAs';
 import { getTrimmedOrNull } from '@/lib/input';
 import { useLoadingToast, useMessageToast } from '@/lib/toast';
 
@@ -139,7 +138,6 @@ export function AddCasePage() {
         title="Add a Case"
         description="Search for an existing Charité case by ID."
       />
-      <SignedInAs />
 
       <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">
         <div className="w-full max-w-3xl px-4">
