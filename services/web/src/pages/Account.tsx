@@ -111,19 +111,17 @@ export function AccountPage() {
             {THEME_OPTIONS.map((option) => {
               const isActive = preference === option.value;
               return (
-                <button
+                <Button
                   key={option.value}
                   type="button"
                   onClick={() => setThemePreference(option.value)}
-                  className={`ui-control-h rounded-lg px-3 text-sm font-medium transition ${
-                    isActive
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'text-slate-700 hover:bg-slate-100'
-                  }`}
+                  variant={isActive ? 'default' : 'ghost'}
+                  size="sm"
+                  className="px-3"
                   aria-pressed={isActive}
                 >
                   {option.label}
-                </button>
+                </Button>
               );
             })}
           </div>

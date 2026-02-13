@@ -6,16 +6,23 @@ import { PageHeader } from '@/components/custom/PageHeader';
 import { defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
 import { ResponseError } from '@/api/openapi-client/runtime';
+import { Button } from '@/components/ui/button';
 import { InfoItem } from '@/components/custom/InfoItem';
 import { useActiveCase } from '@/lib/activeCase';
 import { SignedInAs } from '@/components/custom/SignedInAs';
 import { useTheme } from '@/context/ThemeContext';
+import { formatDateDayMonthYear } from '@/lib/date';
 import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
 
 const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL;
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
+const QUICK_RANGE_OPTIONS: Array<{ label: string; durationMs: number }> = [
+  { label: 'Last 24h', durationMs: ONE_DAY_MS },
+  { label: 'Last 48h', durationMs: 2 * ONE_DAY_MS },
+  { label: 'Last 7d', durationMs: 7 * ONE_DAY_MS },
+];
 
 function toDatetimeLocalValue(date: Date): string {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -112,13 +119,6 @@ export function CasePage() {
     }
   }, [error]);
 
-  const formatDate = (value: Patient['birthDate']) =>
-    new Date(value).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-
   const patientName = useMemo(
     () => (patient ? `${patient.firstName} ${patient.lastName}` : 'Case details'),
     [patient],
@@ -197,7 +197,7 @@ export function CasePage() {
               <InfoItem label="Status" value={caseData?.status ?? '—'} />
               <InfoItem
                 label="Date of birth"
-                value={patient?.birthDate ? formatDate(patient.birthDate) : '—'}
+                value={patient?.birthDate ? formatDateDayMonthYear(patient.birthDate) : '—'}
               />
             </dl>
           </>
@@ -220,27 +220,18 @@ export function CasePage() {
                       Quick range
                     </span>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="ui-control-h inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
-                        onClick={() => setRangeFromNow(ONE_DAY_MS)}
-                      >
-                        Last 24h
-                      </button>
-                      <button
-                        type="button"
-                        className="ui-control-h inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
-                        onClick={() => setRangeFromNow(2 * ONE_DAY_MS)}
-                      >
-                        Last 48h
-                      </button>
-                      <button
-                        type="button"
-                        className="ui-control-h inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
-                        onClick={() => setRangeFromNow(7 * ONE_DAY_MS)}
-                      >
-                        Last 7d
-                      </button>
+                      {QUICK_RANGE_OPTIONS.map((option) => (
+                        <Button
+                          key={option.label}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="px-3 font-normal"
+                          onClick={() => setRangeFromNow(option.durationMs)}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
                     </div>
                   </div>
                   <label className="min-w-[240px] flex-1">

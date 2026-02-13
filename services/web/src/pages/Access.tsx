@@ -3,10 +3,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
-import { PageHeader } from '@/components/custom/PageHeader';
-import { SearchForm } from '@/components/custom/SearchForm';
-import { ArrowRight } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { AuthEmailFormPage } from '@/components/custom/AuthEmailFormPage';
+import { getTrimmedOrNull } from '@/lib/input';
 
 export function AccessPage() {
   const navigate = useNavigate();
@@ -30,7 +29,7 @@ export function AccessPage() {
 
   const handleAccess = async (event: FormEvent) => {
     event.preventDefault();
-    const trimmedEmail = email.trim();
+    const trimmedEmail = getTrimmedOrNull(email);
 
     if (!trimmedEmail) {
       setError('Please enter your email address.');
@@ -135,32 +134,17 @@ export function AccessPage() {
   };
 
   return (
-    <>
-      <PageHeader
-        label="Access"
-        title="Sign in or request access"
-        description="Enter your email to sign in or request access."
-      />
-
-      <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">
-        <div className="w-full max-w-3xl px-4">
-          <SearchForm
-            value={email}
-            loading={loading}
-            onChange={(value) => setEmail(value)}
-            onFocusReset={resetFeedback}
-            onSubmit={handleAccess}
-            inputId="access-email"
-            inputLabel="Email address"
-            inputType="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="Enter your email address"
-            submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
-            submitLabel="Continue"
-          />
-        </div>
-      </div>
-    </>
+    <AuthEmailFormPage
+      headerLabel="Access"
+      headerTitle="Sign in or request access"
+      headerDescription="Enter your email to sign in or request access."
+      email={email}
+      loading={loading}
+      onEmailChange={setEmail}
+      onFocusReset={resetFeedback}
+      onSubmit={handleAccess}
+      inputId="access-email"
+      submitLabel="Continue"
+    />
   );
 }

@@ -2,18 +2,17 @@ import type { ChariteCase } from '@/api/openapi-client';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InfoItem } from '../../../components/custom/InfoItem';
+import { formatDateDayMonthYear } from '@/lib/date';
 
 type AddCaseResultCardProps = {
   caseData: ChariteCase;
   creating: boolean;
-  formatDate: (value: ChariteCase['birthDate']) => string;
   onCreate: () => void;
 };
 
 export function AddCaseResultCard({
   caseData,
   creating,
-  formatDate,
   onCreate,
 }: AddCaseResultCardProps) {
   return (
@@ -34,17 +33,12 @@ export function AddCaseResultCard({
       <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <InfoItem label="First name" value={caseData.firstName} />
         <InfoItem label="Last name" value={caseData.lastName} />
-        <InfoItem label="Date of birth" value={formatDate(caseData.birthDate)} />
+        <InfoItem label="Date of birth" value={formatDateDayMonthYear(caseData.birthDate)} />
         <InfoItem label="Charité Case ID" value={caseData.cCaseId} />
       </dl>
 
       <div className="mt-4 flex flex-col gap-3">
-        <Button
-          type="button"
-          disabled={creating}
-          onClick={onCreate}
-          className="w-full rounded-xl px-4 text-base font-semibold transition hover:scale-[1.01] focus-visible:ring-black active:scale-95"
-        >
+        <Button type="button" disabled={creating} onClick={onCreate} className="w-full text-base font-semibold">
           {creating ? <Loader2 aria-hidden className="h-4 w-4 animate-spin" /> : null}
           Add case to system
         </Button>

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
+import { formatDateOrFallback } from '@/lib/date';
 
 type AdminUser = {
   id: string;
@@ -433,9 +434,7 @@ export function AdminApprovalsPage() {
                     </thead>
                     <tbody>
                       {filteredPendingUsers.map((pendingUser) => {
-                        const createdAt = pendingUser.createdAt
-                          ? new Date(pendingUser.createdAt).toLocaleDateString()
-                          : '—';
+                        const createdAt = formatDateOrFallback(pendingUser.createdAt);
                         const isBusy = actionUserId === pendingUser.id;
 
                         return (
@@ -488,9 +487,7 @@ export function AdminApprovalsPage() {
                     </thead>
                     <tbody>
                       {filteredAdminRequests.map((pendingUser) => {
-                        const requestedAt = pendingUser.adminRequestedAt
-                          ? new Date(pendingUser.adminRequestedAt).toLocaleDateString()
-                          : '—';
+                        const requestedAt = formatDateOrFallback(pendingUser.adminRequestedAt);
                         const isBusy = actionUserId === pendingUser.id;
 
                         return (
@@ -542,9 +539,7 @@ export function AdminApprovalsPage() {
                 </thead>
                 <tbody>
                   {filteredDeniedUsers.map((entry) => {
-                    const deniedAt = entry.deniedAt
-                      ? new Date(entry.deniedAt).toLocaleDateString()
-                      : '—';
+                    const deniedAt = formatDateOrFallback(entry.deniedAt);
                     const isBusy = actionUserId === entry.id;
 
                     return (

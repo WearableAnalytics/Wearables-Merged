@@ -126,10 +126,13 @@ export function OverviewPage() {
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right">
-                      <Button asChild 
-                      size="icon" 
-                      className="rounded-full active:scale-50 disabled:hover:scale-100" 
-                      aria-label={`Open case ${caseItem.caseId}`}>
+                      <Button
+                        asChild
+                        size="icon"
+                        searchBehavior
+                        className="rounded-full"
+                        aria-label={`Open case ${caseItem.caseId}`}
+                      >
                         <Link to={`/cases/${caseItem.caseId}`}>
                           <ArrowRight aria-hidden className="h-4 w-4" />
                           <span className="sr-only">Open case {caseItem.caseId}</span>

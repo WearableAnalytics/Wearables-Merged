@@ -1,4 +1,5 @@
 import { QrCode } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 type Props = {
   caseToken: string | null | undefined;
@@ -14,14 +15,15 @@ export function CaseQrCard({ caseToken, onOpen }: Props) {
       </div>
       <div className="flex items-center">
         {caseToken ? (
-          <button
+          <Button
             type="button"
             onClick={onOpen}
-            className="ui-control-h inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white"
+            variant="outline"
+            className="px-3 font-semibold"
           >
             <QrCode aria-hidden className="h-5 w-5 text-slate-700" />
             <span>Show QR</span>
-          </button>
+          </Button>
         ) : (
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
             No token available

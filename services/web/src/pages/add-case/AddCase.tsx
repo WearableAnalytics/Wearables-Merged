@@ -10,6 +10,7 @@ import { ResponseError } from '@/api/openapi-client/runtime';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { useActiveCase } from '@/lib/activeCase';
 import { SignedInAs } from '@/components/custom/SignedInAs';
+import { getTrimmedOrNull } from '@/lib/input';
 
 export function AddCasePage() {
   const [caseId, setCaseId] = useState('');
@@ -66,13 +67,6 @@ export function AddCasePage() {
     }
   }, [created]);
 
-  const formatDate = (value: ChariteCase['birthDate']) =>
-    new Date(value).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-
   const resetFeedback = () => {
     setResult(null);
     setError(null);
@@ -83,7 +77,7 @@ export function AddCasePage() {
 
   const handleSearch = async (event: FormEvent) => {
     event.preventDefault();
-    const trimmedId = caseId.trim();
+    const trimmedId = getTrimmedOrNull(caseId);
 
     if (!trimmedId) {
       setError('Please enter a Charité case ID.');
@@ -190,7 +184,6 @@ export function AddCasePage() {
               <AddCaseResultCard
                 caseData={result}
                 creating={creating}
-                formatDate={formatDate}
                 onCreate={handleCreate}
               />
             ) : null}

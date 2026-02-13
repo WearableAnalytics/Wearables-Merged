@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import QRCode from 'qrcode';
+import { Button } from '@/components/ui/button';
 
 type Props = {
   isOpen: boolean;
@@ -48,14 +49,16 @@ export function CaseQrModal({ isOpen, caseToken, onClose }: Props) {
         className="relative w-full max-w-[420px] rounded-2xl bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.18)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <button
+        <Button
           type="button"
           onClick={onClose}
-          className="ui-control-square absolute right-4 top-4 inline-flex items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white"
+          variant="ghost"
+          size="icon"
+          className="absolute right-4 top-4 rounded-full text-slate-500 hover:bg-transparent active:bg-transparent hover:text-slate-800"
           aria-label="Close QR code"
         >
           <X aria-hidden className="h-5 w-5" />
-        </button>
+        </Button>
         <div className="flex flex-col items-center gap-3">
           <p className="m-0 text-center text-sm font-semibold uppercase tracking-[0.08em] text-slate-500">
             Case access QR
