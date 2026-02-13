@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { API_BASE_PATH, defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
@@ -41,6 +41,9 @@ const getStatusPillClassName = (status: string) => {
   return `${baseClassName} border-border bg-muted/40 text-foreground`;
 };
 
+type SortKey = 'patientFirstName' | 'patientLastName' | 'hospitalCaseId' | 'birthDate';
+type SortDirection = 'asc' | 'desc';
+
 export function OverviewPage() {
   const navigate = useNavigate();
   const [cases, setCases] = useState<(Case & { patient?: Patient })[]>([]);
@@ -48,6 +51,8 @@ export function OverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('patientLastName');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const loadErrorToastMessage = error ? `Unable to load cases: ${error}` : null;
   useMessageToast('error', 'overview-error', loadErrorToastMessage);
 
@@ -115,6 +120,80 @@ export function OverviewPage() {
     });
   }, [cases, search, statusFilter]);
 
+  const sortedCases = useMemo(() => {
+    const compareText = (left: string, right: string) =>
+      left.localeCompare(right, undefined, { sensitivity: 'base', numeric: true });
+
+    return [...filteredCases].sort((leftCase, rightCase) => {
+      if (sortKey === 'patientFirstName' || sortKey === 'patientLastName') {
+        const leftLastName = (leftCase.patient?.lastName ?? '').trim();
+        const rightLastName = (rightCase.patient?.lastName ?? '').trim();
+        const leftFirstName = (leftCase.patient?.firstName ?? '').trim();
+        const rightFirstName = (rightCase.patient?.firstName ?? '').trim();
+
+        const firstNameComparison = compareText(leftFirstName, rightFirstName);
+        const lastNameComparison = compareText(leftLastName, rightLastName);
+        const directionMultiplier = sortDirection === 'asc' ? 1 : -1;
+
+        if (sortKey === 'patientFirstName') {
+          if (firstNameComparison !== 0) return firstNameComparison * directionMultiplier;
+          if (lastNameComparison !== 0) return lastNameComparison * directionMultiplier;
+        } else {
+          if (lastNameComparison !== 0) return lastNameComparison * directionMultiplier;
+          if (firstNameComparison !== 0) return firstNameComparison * directionMultiplier;
+        }
+
+        return compareText(leftCase.caseId, rightCase.caseId);
+      }
+
+      if (sortKey === 'hospitalCaseId') {
+        const leftHospitalCaseId = (leftCase.hospitalCaseId ?? '').trim();
+        const rightHospitalCaseId = (rightCase.hospitalCaseId ?? '').trim();
+        const hospitalCaseComparison = compareText(leftHospitalCaseId, rightHospitalCaseId);
+        const directionMultiplier = sortDirection === 'asc' ? 1 : -1;
+
+        if (hospitalCaseComparison !== 0) return hospitalCaseComparison * directionMultiplier;
+
+        return compareText(leftCase.caseId, rightCase.caseId);
+      }
+
+      const leftBirthTimestamp = leftCase.patient?.birthDate?.getTime();
+      const rightBirthTimestamp = rightCase.patient?.birthDate?.getTime();
+      const leftHasBirthDate = typeof leftBirthTimestamp === 'number' && Number.isFinite(leftBirthTimestamp);
+      const rightHasBirthDate = typeof rightBirthTimestamp === 'number' && Number.isFinite(rightBirthTimestamp);
+
+      if (!leftHasBirthDate && !rightHasBirthDate) {
+        return compareText(leftCase.caseId, rightCase.caseId);
+      }
+
+      if (!leftHasBirthDate) return 1;
+      if (!rightHasBirthDate) return -1;
+
+      const birthDateComparison = leftBirthTimestamp - rightBirthTimestamp;
+      const directionMultiplier = sortDirection === 'asc' ? 1 : -1;
+
+      if (birthDateComparison !== 0) return birthDateComparison * directionMultiplier;
+
+      return compareText(leftCase.caseId, rightCase.caseId);
+    });
+  }, [filteredCases, sortDirection, sortKey]);
+
+  const handleSortClick = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection((currentDirection) => (currentDirection === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+
+    setSortKey(key);
+    setSortDirection('asc');
+  };
+
+  const renderSortIcon = (key: SortKey) => {
+    if (sortKey !== key) return <ArrowUpDown aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />;
+    if (sortDirection === 'asc') return <ArrowUp aria-hidden className="h-3.5 w-3.5" />;
+    return <ArrowDown aria-hidden className="h-3.5 w-3.5" />;
+  };
+
   return (
     <>
       <PageHeader
@@ -179,31 +258,82 @@ export function OverviewPage() {
           <div className="overflow-auto">
             <table className="table-grid table-fixed">
               <colgroup>
-                <col className="w-[22.5%]" />
-                <col className="w-[22.5%]" />
-                <col className="w-[22.5%]" />
-                <col className="w-[22.5%]" />
+                <col className="w-[16%]" />
+                <col className="w-[16%]" />
+                <col className="w-[20%]" />
+                <col className="w-[18%]" />
+                <col className="w-[20%]" />
                 <col className="w-[10%]" />
               </colgroup>
               <thead className="table-head">
                 <tr className="table-row">
-                  <th className="px-3 py-3">Patient</th>
-                  <th className="px-3 py-3">Hospital case ID</th>
-                  <th className="px-3 py-3">Birthdate</th>
+                  <th className="px-3 py-3">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-foreground/80"
+                      onClick={() => handleSortClick('patientFirstName')}
+                      aria-label={`Sort by first name ${sortKey === 'patientFirstName' && sortDirection === 'asc' ? 'descending' : 'ascending'}`}
+                    >
+                      First name
+                      {renderSortIcon('patientFirstName')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-3">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-foreground/80"
+                      onClick={() => handleSortClick('patientLastName')}
+                      aria-label={`Sort by patient last name ${sortKey === 'patientLastName' && sortDirection === 'asc' ? 'descending' : 'ascending'}`}
+                    >
+                      Last name
+                      {renderSortIcon('patientLastName')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-3">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-foreground/80"
+                      onClick={() => handleSortClick('hospitalCaseId')}
+                      aria-label={`Sort by hospital case ID ${sortKey === 'hospitalCaseId' && sortDirection === 'asc' ? 'descending' : 'ascending'}`}
+                    >
+                      Hospital case ID
+                      {renderSortIcon('hospitalCaseId')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-3">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-foreground/80"
+                      onClick={() => handleSortClick('birthDate')}
+                      aria-label={`Sort by birthdate ${sortKey === 'birthDate' && sortDirection === 'asc' ? 'descending' : 'ascending'}`}
+                    >
+                      Birthdate
+                      {renderSortIcon('birthDate')}
+                    </button>
+                  </th>
                   <th className="px-3 py-3">Status</th>
                   <th className="px-3 py-3 text-right">Details</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredCases.map((caseItem) => (
+                {sortedCases.map((caseItem) => (
                   <tr key={caseItem.caseId} className="table-row last:border-b-0">
                     <td className="px-3 py-3">
                       {caseItem.patient ? (
-                        <span className="block truncate" title={`${caseItem.patient.firstName} ${caseItem.patient.lastName}`}>
-                          {caseItem.patient.firstName} {caseItem.patient.lastName}
+                        <span className="block truncate" title={caseItem.patient.firstName}>
+                          {caseItem.patient.firstName}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">Unknown patient</span>
+                        <span className="text-muted-foreground">Unknown</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3">
+                      {caseItem.patient ? (
+                        <span className="block truncate" title={caseItem.patient.lastName}>
+                          {caseItem.patient.lastName}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Unknown</span>
                       )}
                     </td>
                     <td className="px-3 py-3">

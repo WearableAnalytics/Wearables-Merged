@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { PageHeader } from '@/components/custom/PageHeader';
-import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
 import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
@@ -67,9 +66,7 @@ export function AccountPage() {
         </div>
 
         <div className="mt-6 space-y-3">
-          {userRole === 'admin' ? (
-            <AddCaseNotice tone="info" message="You already have admin access." />
-          ) : adminRequestStatus === 'pending' ? null : (
+          {userRole === 'admin' ? null : adminRequestStatus === 'pending' ? null : (
             <Button onClick={handleRequestAdmin} disabled={!canRequestAdmin || isSubmitting}>
               {isSubmitting ? 'Submitting…' : 'Request admin access'}
             </Button>
