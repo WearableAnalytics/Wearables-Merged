@@ -64,8 +64,6 @@ export function AccountPage() {
           <p className="text-lg font-semibold text-foreground">{user.email}</p>
           <p className="text-sm text-muted-foreground">Role</p>
           <p className="text-base font-semibold capitalize text-foreground">{user.role ?? 'user'}</p>
-          <p className="text-sm text-muted-foreground">Account status</p>
-          <p className="text-base font-semibold capitalize text-foreground">{user.status ?? 'approved'}</p>
         </div>
 
         <div className="mt-6 space-y-3">

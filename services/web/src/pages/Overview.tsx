@@ -109,9 +109,9 @@ export function OverviewPage() {
 
       const patientName =
         caseItem.patient ? `${caseItem.patient.firstName} ${caseItem.patient.lastName}`.toLowerCase() : '';
-      const chariteId = (caseItem.cCaseId ?? '').toLowerCase();
+      const hospitalCaseId = (caseItem.hospitalCaseId ?? '').toLowerCase();
 
-      return patientName.includes(query) || chariteId.includes(query);
+      return patientName.includes(query) || hospitalCaseId.includes(query);
     });
   }, [cases, search, statusFilter]);
 
@@ -140,7 +140,7 @@ export function OverviewPage() {
           <div className="flex flex-1 flex-col gap-3 md:flex-row md:items-center md:justify-end">
             <input
               type="search"
-              placeholder="Search by patient name or Charite ID"
+              placeholder="Search by patient name or Hospital case ID"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="field-input h-[calc(var(--ui-control-height)+0.5rem)] rounded-full px-4 w-full md:w-[20rem] md:min-w-[18rem]"
@@ -188,7 +188,7 @@ export function OverviewPage() {
               <thead className="table-head">
                 <tr className="table-row">
                   <th className="px-3 py-3">Patient</th>
-                  <th className="px-3 py-3">Charite ID</th>
+                  <th className="px-3 py-3">Hospital case ID</th>
                   <th className="px-3 py-3">Birthdate</th>
                   <th className="px-3 py-3">Status</th>
                   <th className="px-3 py-3 text-right">Details</th>
@@ -207,9 +207,9 @@ export function OverviewPage() {
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      {caseItem.cCaseId ? (
-                        <span className="block truncate" title={caseItem.cCaseId}>
-                          {caseItem.cCaseId}
+                      {caseItem.hospitalCaseId ? (
+                        <span className="block truncate" title={caseItem.hospitalCaseId}>
+                          {caseItem.hospitalCaseId}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">Unknown</span>

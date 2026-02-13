@@ -4,9 +4,9 @@ import config from './config.js';
 import authRouter from './api/routes/auth.js';
 import { auth, requestLogger } from './middleware.js';
 import { logger } from './logger.js';
-import { patientService, caseService, chariteCaseService } from './services/index.js';
+import { patientService, caseService, hospitalCaseService } from './services/index.js';
 import type {
-  CasesFromChariteCasePostRequest,
+  CasesFromHospitalCasePostRequest,
   CasesVerifyTokenPostRequest,
 } from './api/openapi-client/models/index.js';
 
@@ -23,8 +23,8 @@ function sendError(res: Response, status: number, message: string, code?: string
   return res.status(status).json({ message, code });
 }
 
-type CasesFromChariteCaseBody =
-  CasesFromChariteCasePostRequest;
+type CasesFromHospitalCaseBody =
+  CasesFromHospitalCasePostRequest;
 type CasesVerifyTokenBody =
   CasesVerifyTokenPostRequest;
 
@@ -34,16 +34,16 @@ app.get(route('/health'), (_req, res) => {
 
 app.use(config.apiPrefix, auth.required);
 
-app.get(route('/charite/cases/:cCaseId'), async (req, res) => {
+app.get(route('/hospital/cases/:hospitalCaseId'), async (req, res) => {
   try {
-    const chariteCase = await chariteCaseService.findChariteCase(req.params.cCaseId);
-    if (!chariteCase) {
-      return sendError(res, 404, 'Charité case not found', 'NOT_FOUND');
+    const hospitalCase = await hospitalCaseService.findHospitalCase(req.params.hospitalCaseId);
+    if (!hospitalCase) {
+      return sendError(res, 404, 'Hospital case not found', 'NOT_FOUND');
     }
 
-    return res.json(chariteCase);
+    return res.json(hospitalCase);
   } catch (error) {
-    logger.error('Error fetching Charité case', error as Error);
+    logger.error('Error fetching Hospital case', error as Error);
     return sendError(res, 500, 'Internal server error');
   }
 });
@@ -111,16 +111,16 @@ app.get(route('/cases/:caseId'), async (req, res) => {
   }
 });
 
-app.post(route('/cases/from-charite-case'), async (req: Request, res: Response) => {
-  const { cCaseId } = (req.body ?? {}) as CasesFromChariteCaseBody;
-  if (typeof cCaseId !== 'string' || !cCaseId) {
-    return sendError(res, 400, 'cCaseId is required');
+app.post(route('/cases/from-hospital-case'), async (req: Request, res: Response) => {
+  const { hospitalCaseId } = (req.body ?? {}) as CasesFromHospitalCaseBody;
+  if (typeof hospitalCaseId !== 'string' || !hospitalCaseId) {
+    return sendError(res, 400, 'hospitalCaseId is required');
   }
 
   try {
-    const creationResult = await caseService.createCaseFromCharite(cCaseId);
+    const creationResult = await caseService.createCaseFromHospital(hospitalCaseId);
     if (!creationResult) {
-      return sendError(res, 404, 'Charité case not found', 'NOT_FOUND');
+      return sendError(res, 404, 'Hospital case not found', 'NOT_FOUND');
     }
 
     const { created, caseRecord } = creationResult;
@@ -132,7 +132,7 @@ app.post(route('/cases/from-charite-case'), async (req: Request, res: Response) 
 
     return res.status(created ? 201 : 200).json(payload);
   } catch (error) {
-    logger.error('Error creating case from Charité', error as Error);
+    logger.error('Error creating case from Hospital', error as Error);
     return sendError(res, 500, 'Internal server error');
   }
 });

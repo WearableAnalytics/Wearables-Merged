@@ -10,11 +10,11 @@ extendZodWithOpenApi(z);
 export const registry = new OpenAPIRegistry();
 
 // Components
-export const ChariteCaseSchema = registry.register(
-  'ChariteCase',
+export const HospitalCaseSchema = registry.register(
+  'HospitalCase',
   z
     .object({
-      cCaseId: z.string().describe('Charité case identifier').openapi({ example: 'C-123456' }),
+      hospitalCaseId: z.string().describe('Hospital case identifier').openapi({ example: 'C-123456' }),
       firstName: z.string().describe('Patient first name').openapi({ example: 'Max' }),
       lastName: z.string().describe('Patient last name').openapi({ example: 'Mustermann' }),
       birthDate: z
@@ -22,7 +22,7 @@ export const ChariteCaseSchema = registry.register(
         .describe('Patient date of birth')
         .openapi({ format: 'date', example: '1980-01-01' }),
     })
-    .describe('External read-only Charité case')
+    .describe('External read-only Hospital case')
     .strict(),
 );
 
@@ -52,9 +52,9 @@ export const CaseSchema = registry.register(
     .object({
       caseId: z.string().describe('Internal case identifier').openapi({ example: 'IC-54321' }),
       patientId: z.string().describe('Associated patient identifier').openapi({ example: 'P-98765' }),
-      cCaseId: z
+      hospitalCaseId: z
         .string()
-        .describe('Original Charité case identifier')
+        .describe('Original Hospital case identifier')
         .openapi({ example: 'C-123456' })
         .optional(),
       status: caseStatusSchema,
@@ -113,14 +113,14 @@ export const ErrorSchema = registry.register(
 );
 
 // Request bodies
-const CreateCaseFromChariteBodySchema = z
+const CreateCaseFromHospitalBodySchema = z
   .object({
-    cCaseId: z
+    hospitalCaseId: z
       .string()
-      .describe('Charité case identifier')
+      .describe('Hospital case identifier')
       .openapi({ example: 'C-123456' }),
   })
-  .describe('Create internal case from Charité case payload')
+  .describe('Create internal case from Hospital case payload')
   .strict();
 
 const VerifyCaseTokenBodySchema = z
@@ -136,25 +136,25 @@ const VerifyCaseTokenBodySchema = z
 // Paths
 registry.registerPath({
   method: 'get',
-  path: '/charite/cases/{cCaseId}',
-  tags: ['Charité Cases'],
-  summary: 'Get a Charité case',
-  description: 'Returns a read-only Charité case by ID',
+  path: '/hospital/cases/{hospitalCaseId}',
+  tags: ['Hospital Cases'],
+  summary: 'Get a Hospital case',
+  description: 'Returns a read-only Hospital case by ID',
   request: {
     params: z.object({
-      cCaseId: z
+      hospitalCaseId: z
         .string()
-        .describe('Charité case identifier')
+        .describe('Hospital case identifier')
         .openapi({ example: 'C-123456' }),
     }),
   },
   responses: {
     200: {
-      description: 'Charité case retrieved successfully',
-      content: { 'application/json': { schema: ChariteCaseSchema } },
+      description: 'Hospital case retrieved successfully',
+      content: { 'application/json': { schema: HospitalCaseSchema } },
     },
     404: {
-      description: 'Charité case not found',
+      description: 'Hospital case not found',
       content: { 'application/json': { schema: ErrorSchema } },
     },
   },
@@ -268,17 +268,17 @@ registry.registerPath({
 
 registry.registerPath({
   method: 'post',
-  path: '/cases/from-charite-case',
+  path: '/cases/from-hospital-case',
   tags: ['Cases'],
-  summary: 'Create internal case from Charité case',
+  summary: 'Create internal case from Hospital case',
   description:
-    'Creates an internal case from an external Charité case with the specified conflict-resolution rules.',
+    'Creates an internal case from an external Hospital case with the specified conflict-resolution rules.',
   request: {
     body: {
       required: true,
       content: {
         'application/json': {
-          schema: CreateCaseFromChariteBodySchema,
+          schema: CreateCaseFromHospitalBodySchema,
         },
       },
     },
@@ -297,7 +297,7 @@ registry.registerPath({
       content: { 'application/json': { schema: ErrorSchema } },
     },
     404: {
-      description: 'Charité case not found',
+      description: 'Hospital case not found',
       content: { 'application/json': { schema: ErrorSchema } },
     },
   },
@@ -338,14 +338,14 @@ export function generateOpenApiDocument() {
     info: {
       title: 'Patient & Case API',
       version: '1.0.0',
-      description: `Endpoints for fetching read-only Charité cases and managing internal patients/cases.
+      description: `Endpoints for fetching read-only Hospital cases and managing internal patients/cases.
 
 ## Frontend Flow
-1. Enter a Charité case ID (cCaseId)
-2. Fetch and display the external Charité case
+1. Enter a Hospital case ID (hospitalCaseId)
+2. Fetch and display the external Hospital case
 3. User clicks "Create Case" to create an internal case
 4. Show that patient/case was created and store the caseId
-5. Display the case token as QR code for scanning in the Charité app
+5. Display the case token as QR code for scanning in the Hospital app
 
 ## Existing Patient Access
 1. Fetch all internal patients/cases
@@ -353,7 +353,7 @@ export function generateOpenApiDocument() {
 3. Display case details and show case token as QR code
 
 ## App Flow
-1. Receive a caseToken scanned from Charité app
+1. Receive a caseToken scanned from Hospital app
 2. Fetch the internal case using POST /cases/verify-token
 3. Display case details
 4. Allow user to proceed with further actions`,
@@ -361,7 +361,7 @@ export function generateOpenApiDocument() {
     },
     servers: [{ url: 'https://api.example.com/v1', description: 'Production server' }],
     tags: [
-      { name: 'Charité Cases', description: 'Read-only external Charité cases' },
+      { name: 'Hospital Cases', description: 'Read-only external Hospital cases' },
       { name: 'Patients', description: 'Internal patient management' },
       { name: 'Cases', description: 'Internal case management' },
     ],

@@ -9,7 +9,7 @@ Despite the folder name, this service is not only registration. It currently han
 - User onboarding and approval states (`pending`, `approved`, `denied`)
 - Admin workflows (user approval, role/status management, admin-request review)
 - Patient and case endpoints used by the frontend
-- Case creation from Charite case IDs
+- Case creation from Hospital case IDs
 - Case token verification
 
 ## Runtime model
@@ -18,7 +18,7 @@ Despite the folder name, this service is not only registration. It currently han
 - Magic-link tokens are stored in memory (`src/api/routes/auth.ts`).
 - Case tokens are JWTs with an in-memory metadata store (`src/services/tokenService.ts`).
 - Patient/case data can come from mock data (`USE_MOCK_DATA=true`, `src/mockData.ts`) or the external database API (`USE_MOCK_DATA=false`, `src/clients/databaseApi.ts`).
-- Charite case lookup currently uses local mock data in both modes (`src/services/index.ts`).
+- Hospital case lookup currently uses local mock data in both modes (`src/services/index.ts`).
 
 Important: in-memory stores are reset on process restart.
 
@@ -74,13 +74,13 @@ Authenticated:
 
 - `GET {API_PREFIX}/me`
 - `POST {API_PREFIX}/request-admin`
-- `GET {API_PREFIX}/charite/cases/:cCaseId`
+- `GET {API_PREFIX}/hospital/cases/:hospitalCaseId`
 - `GET {API_PREFIX}/patients`
 - `GET {API_PREFIX}/patients/:patientId`
 - `GET {API_PREFIX}/patients/:patientId/cases`
 - `GET {API_PREFIX}/cases`
 - `GET {API_PREFIX}/cases/:caseId`
-- `POST {API_PREFIX}/cases/from-charite-case`
+- `POST {API_PREFIX}/cases/from-hospital-case`
 - `POST {API_PREFIX}/cases/verify-token`
 
 Admin only:

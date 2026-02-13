@@ -1,40 +1,34 @@
 import { nanoid } from 'nanoid';
-import type { Case, ChariteCase, Patient } from './api/openapi-client/models';
+import type { Case, HospitalCase, Patient } from './api/openapi-client/models';
 
 export type CaseStatus = Case['status'];
 export type CaseRecord = Case;
 
-interface ChariteCaseWithUUID extends ChariteCase {
+interface HospitalCaseWithUUID extends HospitalCase {
   uuid: string;
 }
 
-const chariteCases: ChariteCaseWithUUID[] = [
+const hospitalCases: HospitalCaseWithUUID[] = [
   { 
-    cCaseId: 'C-123456', 
+    hospitalCaseId: 'C-123456', 
     uuid: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
     firstName: 'Max', 
     lastName: 'Mustermann', 
-    birthDate: new Date('1980-01-01'), 
-    sex: 'male', 
-    weight: 82.5 
+    birthDate: new Date('1980-01-01'),
   },
   { 
-    cCaseId: 'C-654321', 
+    hospitalCaseId: 'C-654321', 
     uuid: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
     firstName: 'Jane', 
     lastName: 'Doe', 
-    birthDate: new Date('1975-05-20'), 
-    sex: 'female', 
-    weight: 68.0 
+    birthDate: new Date('1975-05-20'),
   },
     { 
-    cCaseId: 'C-000000', 
+    hospitalCaseId: 'C-000000', 
     uuid: 'd2c3d4e5-f6a7-8901-bbbb-f12345678901',
     firstName: 'Blubb', 
     lastName: 'Doe', 
-    birthDate: new Date('1975-05-20'), 
-    sex: 'female', 
-    weight: 68.0 
+    birthDate: new Date('1975-05-20'),
   },
 ];
 
@@ -47,15 +41,15 @@ const cases: CaseRecord[] = [
   {
     caseId: 'IC-54321',
     patientId: 'P-98765',
-    cCaseId: 'C-123456',
+    hospitalCaseId: 'C-123456',
     status: 'active',
     caseToken: 'token-12345',
   },
   { caseId: 'IC-13579', patientId: 'P-24680', status: 'inactive', caseToken: 'token-24680' },
 ];
 
-export function findChariteCase(cCaseId: string): ChariteCaseWithUUID | undefined {
-  return chariteCases.find((item) => item.cCaseId === cCaseId);
+export function findHospitalCase(hospitalCaseId: string): HospitalCaseWithUUID | undefined {
+  return hospitalCases.find((item) => item.hospitalCaseId === hospitalCaseId);
 }
 
 export function listPatients() {
@@ -82,12 +76,12 @@ export function casesForPatient(patientId: string) {
   return cases.filter((item) => item.patientId === patientId);
 }
 
-function ensurePatientForChariteCase(chariteCase: ChariteCaseWithUUID): Patient {
+function ensurePatientForHospitalCase(hospitalCase: HospitalCaseWithUUID): Patient {
   const existing = patients.find(
     (patient) =>
-      patient.firstName === chariteCase.firstName &&
-      patient.lastName === chariteCase.lastName &&
-      patient.birthDate === chariteCase.birthDate,
+      patient.firstName === hospitalCase.firstName &&
+      patient.lastName === hospitalCase.lastName &&
+      patient.birthDate === hospitalCase.birthDate,
   );
 
   if (existing) {
@@ -96,9 +90,9 @@ function ensurePatientForChariteCase(chariteCase: ChariteCaseWithUUID): Patient 
 
   const patient: Patient = {
     patientId: `P-${nanoid(6)}`,
-    firstName: chariteCase.firstName,
-    lastName: chariteCase.lastName,
-    birthDate: chariteCase.birthDate,
+    firstName: hospitalCase.firstName,
+    lastName: hospitalCase.lastName,
+    birthDate: hospitalCase.birthDate,
   };
 
   patients.push(patient);
@@ -114,31 +108,31 @@ export function buildPatientVerifier(patient: Patient) {
   return `${initials.charAt(0)}${birthPortion}${initials.charAt(1) || 'X'}`;
 }
 
-export function createCaseFromCharite(cCaseId: string) {
-  const chariteCase = findChariteCase(cCaseId);
-  if (!chariteCase) {
+export function createCaseFromHospital(hospitalCaseId: string) {
+  const hospitalCase = findHospitalCase(hospitalCaseId);
+  if (!hospitalCase) {
     return undefined;
   }
 
-  const existingCase = cases.find((item) => item.cCaseId === cCaseId);
+  const existingCase = cases.find((item) => item.hospitalCaseId === hospitalCaseId);
   if (existingCase) {
     const patient = findPatient(existingCase.patientId);
-    return { created: false, caseRecord: existingCase, patient: patient ?? null, chariteCase };
+    return { created: false, caseRecord: existingCase, patient: patient ?? null, hospitalCase };
   }
 
-  const patient = ensurePatientForChariteCase(chariteCase);
+  const patient = ensurePatientForHospitalCase(hospitalCase);
 
   const caseRecord: CaseRecord = {
     caseId: `IC-${nanoid(6)}`,
     patientId: patient.patientId,
-    cCaseId,
+    hospitalCaseId,
     status: 'active',
     caseToken: `case-token-${nanoid(10)}`,
   };
 
   cases.push(caseRecord);
 
-  return { created: true, caseRecord, patient, chariteCase };
+  return { created: true, caseRecord, patient, hospitalCase };
 }
 
 export function verifyCaseToken(caseToken: string) {

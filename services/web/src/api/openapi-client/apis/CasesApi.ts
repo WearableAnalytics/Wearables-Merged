@@ -3,7 +3,7 @@
 /* eslint-disable */
 /**
  * Patient & Case API
- * Endpoints for fetching read-only Charité cases and managing internal patients/cases.  ## Frontend Flow 1. Enter a Charité case ID (cCaseId) 2. Fetch and display the external Charité case 3. User clicks \"Create Case\" to create an internal case 4. Show that patient/case was created and store the caseId 5. Display the case token as QR code for scanning in the Charité app  ## Existing Patient Access 1. Fetch all internal patients/cases 2. User selects a patient/case to view details 3. Display case details and show case token as QR code  ## App Flow 1. Receive a caseToken scanned from Charité app 2. Fetch the internal case using POST /cases/verify-token 3. Display case details 4. Allow user to proceed with further actions
+ * Endpoints for fetching read-only Hospital cases and managing internal patients/cases.  ## Frontend Flow 1. Enter a Hospital case ID (hospitalCaseId) 2. Fetch and display the external Hospital case 3. User clicks \"Create Case\" to create an internal case 4. Show that patient/case was created and store the caseId 5. Display the case token as QR code for scanning in the Hospital app  ## Existing Patient Access 1. Fetch all internal patients/cases 2. User selects a patient/case to view details 3. Display case details and show case token as QR code  ## App Flow 1. Receive a caseToken scanned from Hospital app 2. Fetch the internal case using POST /cases/verify-token 3. Display case details 4. Allow user to proceed with further actions
  *
  * The version of the OpenAPI document: 1.0.0
  * 
@@ -19,7 +19,7 @@ import type {
   Case,
   CaseCreated,
   CaseVerified,
-  CasesFromChariteCasePostRequest,
+  CasesFromHospitalCasePostRequest,
   CasesVerifyTokenPostRequest,
 } from '../models/index';
 import {
@@ -29,8 +29,8 @@ import {
     CaseCreatedToJSON,
     CaseVerifiedFromJSON,
     CaseVerifiedToJSON,
-    CasesFromChariteCasePostRequestFromJSON,
-    CasesFromChariteCasePostRequestToJSON,
+    CasesFromHospitalCasePostRequestFromJSON,
+    CasesFromHospitalCasePostRequestToJSON,
     CasesVerifyTokenPostRequestFromJSON,
     CasesVerifyTokenPostRequestToJSON,
 } from '../models/index';
@@ -39,8 +39,8 @@ export interface CasesCaseIdGetRequest {
     caseId: string;
 }
 
-export interface CasesFromChariteCasePostOperationRequest {
-    casesFromChariteCasePostRequest: CasesFromChariteCasePostRequest;
+export interface CasesFromHospitalCasePostOperationRequest {
+    casesFromHospitalCasePostRequest: CasesFromHospitalCasePostRequest;
 }
 
 export interface CasesVerifyTokenPostOperationRequest {
@@ -71,20 +71,20 @@ export interface CasesApiInterface {
     casesCaseIdGet(requestParameters: CasesCaseIdGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Case>;
 
     /**
-     * Creates an internal case from an external Charité case with the specified conflict-resolution rules.
-     * @summary Create internal case from Charité case
-     * @param {CasesFromChariteCasePostRequest} casesFromChariteCasePostRequest 
+     * Creates an internal case from an external Hospital case with the specified conflict-resolution rules.
+     * @summary Create internal case from Hospital case
+     * @param {CasesFromHospitalCasePostRequest} casesFromHospitalCasePostRequest 
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof CasesApiInterface
      */
-    casesFromChariteCasePostRaw(requestParameters: CasesFromChariteCasePostOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CaseCreated>>;
+    casesFromHospitalCasePostRaw(requestParameters: CasesFromHospitalCasePostOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CaseCreated>>;
 
     /**
-     * Creates an internal case from an external Charité case with the specified conflict-resolution rules.
-     * Create internal case from Charité case
+     * Creates an internal case from an external Hospital case with the specified conflict-resolution rules.
+     * Create internal case from Hospital case
      */
-    casesFromChariteCasePost(requestParameters: CasesFromChariteCasePostOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CaseCreated>;
+    casesFromHospitalCasePost(requestParameters: CasesFromHospitalCasePostOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CaseCreated>;
 
     /**
      * Returns a list of all internal cases
@@ -164,14 +164,14 @@ export class CasesApi extends runtime.BaseAPI implements CasesApiInterface {
     }
 
     /**
-     * Creates an internal case from an external Charité case with the specified conflict-resolution rules.
-     * Create internal case from Charité case
+     * Creates an internal case from an external Hospital case with the specified conflict-resolution rules.
+     * Create internal case from Hospital case
      */
-    async casesFromChariteCasePostRaw(requestParameters: CasesFromChariteCasePostOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CaseCreated>> {
-        if (requestParameters['casesFromChariteCasePostRequest'] == null) {
+    async casesFromHospitalCasePostRaw(requestParameters: CasesFromHospitalCasePostOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CaseCreated>> {
+        if (requestParameters['casesFromHospitalCasePostRequest'] == null) {
             throw new runtime.RequiredError(
-                'casesFromChariteCasePostRequest',
-                'Required parameter "casesFromChariteCasePostRequest" was null or undefined when calling casesFromChariteCasePost().'
+                'casesFromHospitalCasePostRequest',
+                'Required parameter "casesFromHospitalCasePostRequest" was null or undefined when calling casesFromHospitalCasePost().'
             );
         }
 
@@ -182,25 +182,25 @@ export class CasesApi extends runtime.BaseAPI implements CasesApiInterface {
         headerParameters['Content-Type'] = 'application/json';
 
 
-        let urlPath = `/cases/from-charite-case`;
+        let urlPath = `/cases/from-hospital-case`;
 
         const response = await this.request({
             path: urlPath,
             method: 'POST',
             headers: headerParameters,
             query: queryParameters,
-            body: CasesFromChariteCasePostRequestToJSON(requestParameters['casesFromChariteCasePostRequest']),
+            body: CasesFromHospitalCasePostRequestToJSON(requestParameters['casesFromHospitalCasePostRequest']),
         }, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => CaseCreatedFromJSON(jsonValue));
     }
 
     /**
-     * Creates an internal case from an external Charité case with the specified conflict-resolution rules.
-     * Create internal case from Charité case
+     * Creates an internal case from an external Hospital case with the specified conflict-resolution rules.
+     * Create internal case from Hospital case
      */
-    async casesFromChariteCasePost(requestParameters: CasesFromChariteCasePostOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CaseCreated> {
-        const response = await this.casesFromChariteCasePostRaw(requestParameters, initOverrides);
+    async casesFromHospitalCasePost(requestParameters: CasesFromHospitalCasePostOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CaseCreated> {
+        const response = await this.casesFromHospitalCasePostRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

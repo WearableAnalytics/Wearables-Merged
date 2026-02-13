@@ -1,41 +1,41 @@
-# CharitCasesApi
+# HospitalCasesApi
 
 All URIs are relative to *https://api.example.com/v1*
 
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
-| [**chariteCasesCCaseIdGet**](CharitCasesApi.md#charitecasesccaseidget) | **GET** /charite/cases/{cCaseId} | Get a Charité case |
+| [**hospitalCasesHospitalCaseIdGet**](HospitalCasesApi.md#hospitalcaseshospitalcaseidget) | **GET** /hospital/cases/{hospitalCaseId} | Get a Hospital case |
 
 
 
-## chariteCasesCCaseIdGet
+## hospitalCasesHospitalCaseIdGet
 
-> ChariteCase chariteCasesCCaseIdGet(cCaseId)
+> HospitalCase hospitalCasesHospitalCaseIdGet(hospitalCaseId)
 
-Get a Charité case
+Get a Hospital case
 
-Returns a read-only Charité case by ID
+Returns a read-only Hospital case by ID
 
 ### Example
 
 ```ts
 import {
   Configuration,
-  CharitCasesApi,
+  HospitalCasesApi,
 } from '';
-import type { ChariteCasesCCaseIdGetRequest } from '';
+import type { HospitalCasesHospitalCaseIdGetRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
-  const api = new CharitCasesApi();
+  const api = new HospitalCasesApi();
 
   const body = {
-    // string | Charité case identifier
-    cCaseId: C-123456,
-  } satisfies ChariteCasesCCaseIdGetRequest;
+    // string | Hospital case identifier
+    hospitalCaseId: C-123456,
+  } satisfies HospitalCasesHospitalCaseIdGetRequest;
 
   try {
-    const data = await api.chariteCasesCCaseIdGet(body);
+    const data = await api.hospitalCasesHospitalCaseIdGet(body);
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -51,11 +51,11 @@ example().catch(console.error);
 
 | Name | Type | Description  | Notes |
 |------------- | ------------- | ------------- | -------------|
-| **cCaseId** | `string` | Charité case identifier | [Defaults to `undefined`] |
+| **hospitalCaseId** | `string` | Hospital case identifier | [Defaults to `undefined`] |
 
 ### Return type
 
-[**ChariteCase**](ChariteCase.md)
+[**HospitalCase**](HospitalCase.md)
 
 ### Authorization
 
@@ -70,8 +70,8 @@ No authorization required
 ### HTTP response details
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
-| **200** | Charité case retrieved successfully |  -  |
-| **404** | Charité case not found |  -  |
+| **200** | Hospital case retrieved successfully |  -  |
+| **404** | Hospital case not found |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 

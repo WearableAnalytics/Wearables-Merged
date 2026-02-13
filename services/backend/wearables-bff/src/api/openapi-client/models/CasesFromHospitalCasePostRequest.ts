@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -17,59 +16,51 @@ import { mapValues } from '../runtime';
 /**
  * 
  * @export
- * @interface ModelError
+ * @interface CasesFromHospitalCasePostRequest
  */
-export interface ModelError {
+export interface CasesFromHospitalCasePostRequest {
     /**
-     * Error message
+     * Hospital case identifier
      * @type {string}
-     * @memberof ModelError
+     * @memberof CasesFromHospitalCasePostRequest
      */
-    message: string;
-    /**
-     * Error code
-     * @type {string}
-     * @memberof ModelError
-     */
-    code?: string;
+    hospitalCaseId: string;
 }
 
 /**
- * Check if a given object implements the ModelError interface.
+ * Check if a given object implements the CasesFromHospitalCasePostRequest interface.
  */
-export function instanceOfModelError(value: object): value is ModelError {
-    if (!('message' in value) || value['message'] === undefined) return false;
+export function instanceOfCasesFromHospitalCasePostRequest(value: object): value is CasesFromHospitalCasePostRequest {
+    if (!('hospitalCaseId' in value) || value['hospitalCaseId'] === undefined) return false;
     return true;
 }
 
-export function ModelErrorFromJSON(json: any): ModelError {
-    return ModelErrorFromJSONTyped(json, false);
+export function CasesFromHospitalCasePostRequestFromJSON(json: any): CasesFromHospitalCasePostRequest {
+    return CasesFromHospitalCasePostRequestFromJSONTyped(json, false);
 }
 
-export function ModelErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): ModelError {
+export function CasesFromHospitalCasePostRequestFromJSONTyped(json: any, ignoreDiscriminator: boolean): CasesFromHospitalCasePostRequest {
     if (json == null) {
         return json;
     }
     return {
         
-        'message': json['message'],
-        'code': json['code'] == null ? undefined : json['code'],
+        'hospitalCaseId': json['hospitalCaseId'],
     };
 }
 
-export function ModelErrorToJSON(json: any): ModelError {
-    return ModelErrorToJSONTyped(json, false);
+export function CasesFromHospitalCasePostRequestToJSON(json: any): CasesFromHospitalCasePostRequest {
+    return CasesFromHospitalCasePostRequestToJSONTyped(json, false);
 }
 
-export function ModelErrorToJSONTyped(value?: ModelError | null, ignoreDiscriminator: boolean = false): any {
+export function CasesFromHospitalCasePostRequestToJSONTyped(value?: CasesFromHospitalCasePostRequest | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
 
     return {
         
-        'message': value['message'],
-        'code': value['code'],
+        'hospitalCaseId': value['hospitalCaseId'],
     };
 }
 
