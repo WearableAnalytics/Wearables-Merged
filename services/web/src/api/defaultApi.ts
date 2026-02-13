@@ -1,4 +1,6 @@
 import { Configuration, CasesApi, CharitCasesApi, PatientsApi } from './openapi-client';
+import type { Middleware } from './openapi-client';
+import { dispatchSessionExpiredEvent } from '@/lib/authSession';
 
 const normalizeApiBasePath = (rawBasePath: string) => {
   const trimmed = rawBasePath.replace(/\/$/, '') || '/api';
@@ -31,9 +33,29 @@ export const isDirectAuthResponse = (data: unknown): boolean =>
       (data as { authenticated?: unknown }).authenticated === true,
   );
 
+const handleUnauthorizedStatus = (status: number) => {
+  if (status === 401) {
+    dispatchSessionExpiredEvent();
+  }
+};
+
+const fetchWithAuthHandling: typeof fetch = async (input, init) => {
+  const response = await fetch(input, init);
+  handleUnauthorizedStatus(response.status);
+  return response;
+};
+
+const authMiddleware: Middleware = {
+  post: async ({ response }) => {
+    handleUnauthorizedStatus(response.status);
+    return response;
+  },
+};
+
 const sharedConfig = new Configuration({
   basePath: API_BASE_PATH,
   credentials: 'include',
+  middleware: [authMiddleware],
 });
 
 export class DefaultApi {
@@ -43,7 +65,7 @@ export class DefaultApi {
 
   // Auth (custom)
   login = async (email: string) => {
-    const response = await fetch(`${API_BASE_PATH}/login`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -77,7 +99,7 @@ export class DefaultApi {
   };
 
   register = async (email: string) => {
-    const response = await fetch(`${API_BASE_PATH}/register`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -103,7 +125,7 @@ export class DefaultApi {
   };
 
   me = async () => {
-    const response = await fetch(`${API_BASE_PATH}/me`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/me`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -124,7 +146,7 @@ export class DefaultApi {
   };
 
   logout = async () => {
-    const response = await fetch(`${API_BASE_PATH}/logout`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/logout`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -141,7 +163,7 @@ export class DefaultApi {
   };
 
   requestAdminAccess = async () => {
-    const response = await fetch(`${API_BASE_PATH}/request-admin`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/request-admin`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -158,7 +180,7 @@ export class DefaultApi {
   };
 
   listPendingUsers = async () => {
-    const response = await fetch(`${API_BASE_PATH}/admin/pending-users`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/pending-users`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -175,7 +197,7 @@ export class DefaultApi {
   };
 
   listApprovedUsers = async () => {
-    const response = await fetch(`${API_BASE_PATH}/admin/approved-users`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/approved-users`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -192,7 +214,7 @@ export class DefaultApi {
   };
 
   listDeniedUsers = async () => {
-    const response = await fetch(`${API_BASE_PATH}/admin/denied-users`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/denied-users`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -209,7 +231,7 @@ export class DefaultApi {
   };
 
   listPendingAdminRequests = async () => {
-    const response = await fetch(`${API_BASE_PATH}/admin/pending-admin-requests`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/pending-admin-requests`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -226,7 +248,7 @@ export class DefaultApi {
   };
 
   approveUser = async (userId: string) => {
-    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}/approve`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/approve`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -243,7 +265,7 @@ export class DefaultApi {
   };
 
   denyUser = async (userId: string) => {
-    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}/deny`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/deny`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -260,7 +282,7 @@ export class DefaultApi {
   };
 
   unblockUser = async (userId: string) => {
-    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}/unblock`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/unblock`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -277,7 +299,7 @@ export class DefaultApi {
   };
 
   approveAdminRequest = async (userId: string) => {
-    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}/approve-admin`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/approve-admin`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -294,7 +316,7 @@ export class DefaultApi {
   };
 
   denyAdminRequest = async (userId: string) => {
-    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}/deny-admin`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/deny-admin`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -314,7 +336,7 @@ export class DefaultApi {
     userId: string,
     updates: { role?: 'admin' | 'user'; status?: 'approved' | 'pending' | 'denied' },
   ) => {
-    const response = await fetch(`${API_BASE_PATH}/admin/users/${userId}`, {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',

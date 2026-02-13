@@ -460,6 +460,14 @@
   .field-input-pill {
     @apply w-full rounded-full border border-border bg-card px-6 py-4 pr-16 text-lg text-foreground shadow-[var(--shadow-input)] outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:cursor-not-allowed;
   }
+
+  .field-input-pill-search {
+    @apply pr-20;
+  }
+
+  .field-input-pill-search::-webkit-search-cancel-button {
+    margin-inline-end: 2.75rem;
+  }
 }
 
 @layer utilities {

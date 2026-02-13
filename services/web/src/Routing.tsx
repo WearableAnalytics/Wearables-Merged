@@ -42,11 +42,7 @@ export function Routing() {
       />
       <Route
         path="/logout"
-        element={
-          <PrivateRoute>
-            <LogoutPage />
-          </PrivateRoute>
-        }
+        element={<LogoutPage />}
       />
       <Route
         path="/account"

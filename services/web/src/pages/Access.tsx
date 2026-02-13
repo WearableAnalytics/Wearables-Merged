@@ -9,7 +9,7 @@ import { getTrimmedOrNull } from '@/lib/input';
 
 export function AccessPage() {
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
+  const { user, loading: authLoading, refreshUser } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +22,11 @@ export function AccessPage() {
     }
   }, [error]);
 
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/overview', { replace: true });
+    }
+  }, [authLoading, navigate, user]);
 
   const resetFeedback = () => {
     setError(null);

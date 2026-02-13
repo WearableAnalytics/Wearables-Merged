@@ -4,6 +4,7 @@ import { Menu, Shield, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveCase } from '@/lib/activeCase';
 import { useAuth } from '@/context/AuthContext';
+import { LOGOUT_REASON_SUCCESS, getLogoutPath } from '@/lib/authSession';
 
 import { NavButton, NavButtonMobile } from './navButtons';
 
@@ -57,7 +58,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       console.error('Logout failed:', err);
     } finally {
       setIsLoggingOut(false);
-      void navigate('/access');
+      void navigate(getLogoutPath(LOGOUT_REASON_SUCCESS), { replace: true });
     }
   };
 

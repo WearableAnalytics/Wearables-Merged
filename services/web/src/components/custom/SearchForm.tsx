@@ -48,7 +48,7 @@ export function SearchForm({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onFocus={onFocusReset}
-          className="field-input-pill"
+          className={inputType === 'search' ? 'field-input-pill field-input-pill-search' : 'field-input-pill'}
           disabled={loading}
           autoComplete={autoComplete}
         />
