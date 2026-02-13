@@ -181,12 +181,12 @@ export function CasePage() {
       </div>
       <SignedInAs />
 
-      <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+      <section className="surface-card flex flex-col gap-4 p-4">
         {error ? null : loading ? (
-        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
-          <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
-          Loading case…
-        </div>
+          <div className="surface-subtle flex items-center gap-2 px-3 py-2 text-sm font-semibold text-muted-foreground">
+            <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+            Loading case…
+          </div>
         ) : (
           <>
             <dl className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -201,22 +201,22 @@ export function CasePage() {
               />
             </dl>
           </>
-        )}         
-         {error ? null : loading ? (
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+        )}
+        {error ? null : loading ? (
+          <div className="surface-subtle flex items-center gap-2 px-3 py-2 text-sm font-semibold text-muted-foreground">
             <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
             Loading grafana dashboard…
           </div>
         ) : (
           grafanaUrl ? (
             <div className="relative w-full space-y-3">
-              <div className="rounded-xl bg-slate-50 px-3 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+              <div className="surface-subtle px-3 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                   Data time range
                 </p>
                 <div className="mt-3 flex flex-wrap items-end gap-3">
                   <div className="min-w-[220px]">
-                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       Quick range
                     </span>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -235,24 +235,24 @@ export function CasePage() {
                     </div>
                   </div>
                   <label className="min-w-[240px] flex-1">
-                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       From
                     </span>
                     <input
                       type="datetime-local"
-                      className="ui-control-h mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+                      className="field-input ui-control-h mt-2 w-full"
                       value={fromInput}
                       max={toInput}
                       onChange={(event) => setFromInput(event.target.value)}
                     />
                   </label>
                   <label className="min-w-[240px] flex-1">
-                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       Till
                     </span>
                     <input
                       type="datetime-local"
-                      className="ui-control-h mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+                      className="field-input ui-control-h mt-2 w-full"
                       value={toInput}
                       min={fromInput}
                       max={toDatetimeLocalValue(new Date())}
@@ -262,7 +262,7 @@ export function CasePage() {
                 </div>
               </div>
               {timeRangeError ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                <div className="rounded-lg border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.16)] px-3 py-2 text-sm font-semibold text-foreground">
                   {timeRangeError}
                 </div>
               ) : null}
@@ -275,7 +275,7 @@ export function CasePage() {
               />
             </div>
           ) : (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+            <div className="rounded-lg border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.16)] px-3 py-2 text-sm font-semibold text-foreground">
               Missing case token or Grafana proxy URL. Dashboard cannot be loaded.
             </div>
           )

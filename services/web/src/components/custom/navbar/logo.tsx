@@ -34,7 +34,7 @@ export const Logo: React.FC<LogoProps> = ({ userType, alwaysGuestRoutes, navigat
       <img
         src={wearablesLogo}
         alt="Wearables Logo"
-        className="h-10 w-auto text-sm px-4 py-0 rounded-full border transition-shadow transition-colors cursor-pointer font-medium border border-[rgba(255,255,255,0.3)] text-foreground bg-white/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:text-primary hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] group'"
+        className="h-10 w-auto text-sm px-4 py-0 rounded-full border border-border/70 transition-shadow transition-colors cursor-pointer font-medium text-foreground bg-card/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[var(--shadow-card)] hover:text-primary hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] group"
       />
     </div>
   );

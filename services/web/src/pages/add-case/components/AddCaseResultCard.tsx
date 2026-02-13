@@ -16,17 +16,17 @@ export function AddCaseResultCard({
   onCreate,
 }: AddCaseResultCardProps) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+    <div className="surface-card p-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="m-0 text-sm font-semibold uppercase tracking-[0.08em] text-slate-500">Charité case</p>
-          <h3 className="m-0 text-[22px] font-semibold text-slate-900">
+          <p className="m-0 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Charite case</p>
+          <h3 className="text-section-title">
             {caseData.firstName} {caseData.lastName}
           </h3>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 font-mono text-sm tracking-[0.02em] text-slate-700">
+        <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 font-mono text-sm tracking-[0.02em] text-muted-foreground">
           ID
-          <span className="font-semibold text-slate-900">{caseData.cCaseId}</span>
+          <span className="font-semibold text-foreground">{caseData.cCaseId}</span>
         </span>
       </div>
 

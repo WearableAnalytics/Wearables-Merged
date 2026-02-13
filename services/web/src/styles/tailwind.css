@@ -7,8 +7,8 @@
 @layer base {
   :root {
     font-family: 'Satoshi', 'Inter', sans-serif;
-    color: #0A1C3E;
-    background-color: #F7FBFF;
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--background));
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -93,7 +93,7 @@
     --popover: var(--slate-000);
     --popover-foreground: 217 75% 15%;
 
-    --primary: 210 60% 26%; /* Match Option 2 light primary (#1A3F6E) */
+    --primary: 210 60% 26%;
     --primary-foreground: var(--slate-000);
     --secondary: var(--blue-500);
     --secondary-foreground: 217 75% 15%;
@@ -125,6 +125,17 @@
 
     --radius: 0.5rem;
     --ui-control-height: 2.5rem;
+    --font-size-page-label: 0.75rem;
+    --font-size-page-title: clamp(1.75rem, 4vw, 2.25rem);
+    --font-size-hero-title: clamp(1.75rem, 4vw, 2.375rem);
+    --font-size-section-title: 1.375rem;
+    --font-size-table: 0.9375rem;
+    --shadow-card: 0 12px 30px hsl(var(--foreground) / 0.08);
+    --shadow-input: 0 16px 40px hsl(var(--foreground) / 0.1);
+    --shadow-glass: 0 25px 80px hsl(var(--foreground) / 0.12);
+    --shadow-modal: 0 24px 60px hsl(var(--foreground) / 0.18);
+    --surface-gradient-primary: hsl(var(--info) / 0.22);
+    --surface-gradient-secondary: hsl(var(--primary) / 0.18);
   }
 
   body {
@@ -252,6 +263,12 @@
     --chart-3: var(--sky-300);
     --chart-4: var(--red-400);
     --chart-5: var(--green-400);
+    --shadow-card: 0 12px 30px hsl(var(--foreground) / 0.34);
+    --shadow-input: 0 16px 40px hsl(var(--foreground) / 0.4);
+    --shadow-glass: 0 25px 80px hsl(var(--foreground) / 0.45);
+    --shadow-modal: 0 24px 60px hsl(var(--foreground) / 0.55);
+    --surface-gradient-primary: hsl(var(--info) / 0.2);
+    --surface-gradient-secondary: hsl(var(--primary) / 0.18);
   }
 }
 
@@ -383,21 +400,65 @@
 }
 
 @layer components {
-  input[type='search']::-webkit-search-cancel-button {
-    -webkit-appearance: none;
-    height: 1rem;
-    width: 1rem;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='%230A1C3E' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Cpath d='m6 6 12 12M18 6 6 18'/%3E%3C/svg%3E") center no-repeat;
-    opacity: 0.65;
-    cursor: pointer;
+  .text-page-label {
+    font-size: var(--font-size-page-label);
+    line-height: 1rem;
+    @apply m-0 font-bold uppercase tracking-[0.12em] text-primary;
   }
 
-  input[type='search']::-webkit-search-cancel-button:hover {
-    opacity: 1;
+  .text-page-title {
+    font-size: var(--font-size-page-title);
+    line-height: 1.1;
+    @apply m-0 font-bold text-foreground;
   }
 
-  .dark input[type='search']::-webkit-search-cancel-button {
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='%23E8F3F8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Cpath d='m6 6 12 12M18 6 6 18'/%3E%3C/svg%3E") center no-repeat;
+  .text-hero-title {
+    font-size: var(--font-size-hero-title);
+    line-height: 1.1;
+    @apply font-bold text-foreground;
+  }
+
+  .text-section-title {
+    font-size: var(--font-size-section-title);
+    line-height: 1.2;
+    @apply m-0 font-semibold text-foreground;
+  }
+
+  .text-table {
+    font-size: var(--font-size-table);
+    line-height: 1.375rem;
+  }
+
+  .surface-card {
+    @apply rounded-2xl border border-border bg-card shadow-[var(--shadow-card)];
+  }
+
+  .surface-glass {
+    @apply rounded-3xl border border-border/70 bg-card/70 shadow-[var(--shadow-glass)] backdrop-blur-xl;
+  }
+
+  .surface-subtle {
+    @apply rounded-xl border border-border bg-muted/40;
+  }
+
+  .table-grid {
+    @apply w-full border-collapse text-table;
+  }
+
+  .table-head {
+    @apply bg-muted/50 text-left font-semibold text-muted-foreground;
+  }
+
+  .table-row {
+    @apply border-b border-border;
+  }
+
+  .field-input {
+    @apply rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none disabled:bg-muted disabled:text-muted-foreground;
+  }
+
+  .field-input-pill {
+    @apply w-full rounded-full border border-border bg-card px-6 py-4 pr-16 text-lg text-foreground shadow-[var(--shadow-input)] outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:cursor-not-allowed;
   }
 }
 

@@ -82,14 +82,14 @@ export function AccountPage() {
         description="Review your access details and request admin privileges if needed."
       />
 
-      <section className="mt-6 bg-white border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.06)] rounded-2xl p-4 md:p-5">
+      <section className="surface-card mt-6 p-4 md:p-5">
         <div className="space-y-2">
-          <p className="text-sm text-slate-500">Email</p>
-          <p className="text-lg font-semibold text-slate-900">{user.email}</p>
-          <p className="text-sm text-slate-500">Role</p>
-          <p className="text-base font-semibold capitalize text-slate-900">{user.role ?? 'user'}</p>
-          <p className="text-sm text-slate-500">Account status</p>
-          <p className="text-base font-semibold capitalize text-slate-900">{user.status ?? 'approved'}</p>
+          <p className="text-sm text-muted-foreground">Email</p>
+          <p className="text-lg font-semibold text-foreground">{user.email}</p>
+          <p className="text-sm text-muted-foreground">Role</p>
+          <p className="text-base font-semibold capitalize text-foreground">{user.role ?? 'user'}</p>
+          <p className="text-sm text-muted-foreground">Account status</p>
+          <p className="text-base font-semibold capitalize text-foreground">{user.status ?? 'approved'}</p>
         </div>
 
         <div className="mt-6 space-y-3">
@@ -103,11 +103,11 @@ export function AccountPage() {
         </div>
       </section>
 
-      <section className="mt-6 bg-white border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.06)] rounded-2xl p-4 md:p-5">
-        <h2 className="m-0 text-lg font-semibold text-slate-900">Settings</h2>
+      <section className="surface-card mt-6 p-4 md:p-5">
+        <h2 className="text-section-title">Settings</h2>
         <div className="mt-4 flex flex-col gap-3">
-          <p className="m-0 text-sm font-semibold text-slate-900">Theme</p>
-          <div className="inline-flex w-full flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
+          <p className="m-0 text-sm font-semibold text-foreground">Theme</p>
+          <div className="inline-flex w-full flex-wrap gap-2 rounded-xl border border-border bg-muted/40 p-1">
             {THEME_OPTIONS.map((option) => {
               const isActive = preference === option.value;
               return (

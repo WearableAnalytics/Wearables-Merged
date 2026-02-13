@@ -11,8 +11,8 @@ export function LogoutPage() {
       />
       <SignedInAs />
 
-      <div className="bg-white border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.06)] rounded-2xl p-5">
-        <p className="text-slate-700 m-0">Use the navbar to navigate elsewhere.</p>
+      <div className="surface-card p-5">
+        <p className="m-0 text-muted-foreground">Use the navbar to navigate elsewhere.</p>
       </div>
     </div>
   );

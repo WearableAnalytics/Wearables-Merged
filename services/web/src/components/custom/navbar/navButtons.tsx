@@ -43,8 +43,8 @@ export const NavButton: React.FC<{
     isActive
       ? 'bg-primary border-primary text-primary-foreground shadow-md transform transition-transform duration-200 ease-out hover:scale-[1.05] group'
       : !invertedColors
-        ? 'font-medium border border-[rgba(255,255,255,0.3)] text-foreground bg-white/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:text-primary hover:border-primary hover:bg-transparent hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
-        : 'font-medium text-primary border border-primary bg-transparent text-foreground bg-white/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:border-primary hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
+        ? 'font-medium border border-border/70 text-foreground bg-card/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[var(--shadow-card)] hover:text-primary hover:border-primary hover:bg-transparent hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
+        : 'font-medium text-primary border border-primary bg-transparent text-foreground bg-card/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[var(--shadow-card)] hover:border-primary hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
   } ${isDisabled ? 'opacity-80' : 'cursor-pointer'} ${className}`}
       >
         {children}
