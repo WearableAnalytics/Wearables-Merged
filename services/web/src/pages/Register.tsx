@@ -1,11 +1,11 @@
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
 import { AuthEmailFormPage } from '@/components/custom/AuthEmailFormPage';
 import { getTrimmedOrNull } from '@/lib/input';
+import { useLoadingToast, useMessageToast } from '@/lib/toast';
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -13,22 +13,8 @@ export function RegisterPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (error) {
-      toast.error(error, { id: 'register-error' });
-    } else {
-      toast.dismiss('register-error');
-    }
-  }, [error]);
-
-  useEffect(() => {
-    if (loading) {
-      toast.loading('Submitting access request…', { id: 'register-loading' });
-    } else {
-      toast.dismiss('register-loading');
-    }
-  }, [loading]);
+  useMessageToast('error', 'register-error', error);
+  useLoadingToast('register-loading', loading, 'Submitting access request…');
 
   const resetFeedback = () => {
     setError(null);

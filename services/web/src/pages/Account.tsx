@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemePreference } from '@/context/ThemeContext';
+import { useMessageToast } from '@/lib/toast';
 
 const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
   { value: 'system', label: 'System theme' },
@@ -21,22 +21,11 @@ export function AccountPage() {
   const [message, setMessage] = useState<string | null>(null);
   const adminRequestStatus = user?.adminRequestStatus ?? 'none';
   const userRole = user?.role ?? 'user';
-
-  useEffect(() => {
-    if (error) {
-      toast.error(error, { id: 'account-error' });
-    } else {
-      toast.dismiss('account-error');
-    }
-  }, [error]);
-
-  useEffect(() => {
-    if (message) {
-      toast.info(message, { id: 'account-message' });
-    } else {
-      toast.dismiss('account-message');
-    }
-  }, [message]);
+  const pendingAdminToastMessage =
+    user && adminRequestStatus === 'pending' ? 'Your admin request is pending review.' : null;
+  useMessageToast('error', 'account-error', error);
+  useMessageToast('info', 'account-message', message);
+  useMessageToast('info', 'account-pending', pendingAdminToastMessage);
 
   const handleRequestAdmin = async () => {
     setIsSubmitting(true);
@@ -54,19 +43,6 @@ export function AccountPage() {
       setIsSubmitting(false);
     }
   };
-
-  useEffect(() => {
-    if (!user) {
-      toast.dismiss('account-pending');
-      return;
-    }
-
-    if (adminRequestStatus === 'pending') {
-      toast.info('Your admin request is pending review.', { id: 'account-pending' });
-    } else {
-      toast.dismiss('account-pending');
-    }
-  }, [adminRequestStatus, user]);
 
   if (!user) {
     return null;

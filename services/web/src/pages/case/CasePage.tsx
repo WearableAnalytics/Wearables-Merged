@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, ChevronUp, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
@@ -12,25 +11,34 @@ import { useActiveCase } from '@/lib/activeCase';
 import { SignedInAs } from '@/components/custom/SignedInAs';
 import { useTheme } from '@/context/ThemeContext';
 import { formatDateDayMonthYear } from '@/lib/date';
+import { useMessageToast } from '@/lib/toast';
 import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
 
 const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL;
 const GENERAL_GRAFANA_UID = 'wearables-health-real';
 const MEDICAL_USE_CASE_GRAFANA_UID = 'wearables-six-min';
+const ONE_MINUTE_MS = 60 * 1000;
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
-const QUICK_RANGE_OPTIONS: Array<{ label: string; durationMs: number }> = [
+type RawSectionData = Record<string, unknown>;
+type MonitoringViewId = 'general' | 'useCase';
+type QuickRangeOption = { label: string; durationMs: number };
+
+const GENERAL_QUICK_RANGE_OPTIONS: QuickRangeOption[] = [
   { label: 'Last 24h', durationMs: ONE_DAY_MS },
   { label: 'Last 48h', durationMs: 2 * ONE_DAY_MS },
   { label: 'Last 7d', durationMs: 7 * ONE_DAY_MS },
 ];
-type RawSectionData = Record<string, unknown>;
-type MonitoringViewId = 'general' | 'useCase';
+const SIX_MINUTE_WALKING_TEST_QUICK_RANGE_OPTIONS: QuickRangeOption[] = [
+  { label: 'Last 6m', durationMs: 6 * ONE_MINUTE_MS },
+  { label: 'Last 15m', durationMs: 15 * ONE_MINUTE_MS },
+  { label: 'Last 30m', durationMs: 30 * ONE_MINUTE_MS },
+];
 
 const MONITORING_VIEWS: Array<{ id: MonitoringViewId; label: string; kind: 'grafana' | 'custom' }> = [
   { id: 'general', label: 'General data', kind: 'grafana' },
-  { id: 'useCase', label: 'Medical use case', kind: 'grafana' },
+  { id: 'useCase', label: 'Six minute walking test', kind: 'grafana' },
 ];
 
 function toDatetimeLocalValue(date: Date): string {
@@ -123,6 +131,49 @@ function toDisplayItems(sectionData: RawSectionData | null) {
     }));
 }
 
+type DisplayItem = ReturnType<typeof toDisplayItems>[number];
+
+type CollapsibleInfoSectionProps = {
+  title: string;
+  isCollapsed: boolean;
+  onToggle: () => void;
+  items: DisplayItem[];
+  emptyMessage: string;
+  itemKeyPrefix: string;
+};
+
+function CollapsibleInfoSection({
+  title,
+  isCollapsed,
+  onToggle,
+  items,
+  emptyMessage,
+  itemKeyPrefix,
+}: CollapsibleInfoSectionProps) {
+  return (
+    <div>
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        aria-expanded={!isCollapsed}
+        onClick={onToggle}
+      >
+        <ChevronRight aria-hidden className={`h-4 w-4 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
+        <span>{title}</span>
+      </button>
+      {isCollapsed ? null : items.length === 0 ? (
+        <div className="surface-subtle mt-2 px-3 py-2 text-sm text-muted-foreground">{emptyMessage}</div>
+      ) : (
+        <dl className="mt-2 grid grid-cols-1 gap-3">
+          {items.map((item) => (
+            <InfoItem key={`${itemKeyPrefix}-${item.key}`} label={item.label} value={item.value} />
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
 export function CasePage() {
   const { caseId } = useParams();
   const [caseData, setCaseData] = useState<Case | null>(null);
@@ -139,6 +190,7 @@ export function CasePage() {
   const [activeMonitoringView, setActiveMonitoringView] = useState<MonitoringViewId>('general');
   const { isDark } = useTheme();
   const activeCaseRef = useRef(activeCase);
+  useMessageToast('error', 'case-error', error);
   const [toInput, setToInput] = useState<string>(() => toDatetimeLocalValue(new Date()));
   const [fromInput, setFromInput] = useState<string>(() =>
     toDatetimeLocalValue(new Date(Date.now() - ONE_DAY_MS)),
@@ -216,14 +268,6 @@ export function CasePage() {
     };
   }, [caseId, setActiveCase, clearActiveCase]);
 
-  useEffect(() => {
-    if (error) {
-      toast.error(error, { id: 'case-error' });
-    } else {
-      toast.dismiss('case-error');
-    }
-  }, [error]);
-
   const patientName = useMemo(() => {
     if (!patient) return 'Case details';
     const fullName = [patient.firstName, patient.lastName].filter(Boolean).join(' ').trim();
@@ -291,6 +335,13 @@ export function CasePage() {
     if (activeMonitoringConfig.kind !== 'grafana') return null;
     return activeMonitoringView === 'useCase' ? useCaseGrafanaUrl : generalGrafanaUrl;
   }, [activeMonitoringConfig.kind, activeMonitoringView, generalGrafanaUrl, useCaseGrafanaUrl]);
+  const activeQuickRangeOptions = useMemo(
+    () =>
+      activeMonitoringView === 'useCase'
+        ? SIX_MINUTE_WALKING_TEST_QUICK_RANGE_OPTIONS
+        : GENERAL_QUICK_RANGE_OPTIONS,
+    [activeMonitoringView],
+  );
 
   return (
     <>
@@ -341,57 +392,23 @@ export function CasePage() {
               </div>
             ) : (
               <>
-                <div>
-                  <button
-                    type="button"
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    aria-expanded={!isPatientSectionCollapsed}
-                    onClick={() => setIsPatientSectionCollapsed((prev) => !prev)}
-                  >
-                    <ChevronRight
-                      aria-hidden
-                      className={`h-4 w-4 transition-transform ${isPatientSectionCollapsed ? '' : 'rotate-90'}`}
-                    />
-                    <span>Patient</span>
-                  </button>
-                  {isPatientSectionCollapsed ? null : patientDisplayItems.length === 0 ? (
-                    <div className="surface-subtle mt-2 px-3 py-2 text-sm text-muted-foreground">
-                      No patient fields available.
-                    </div>
-                  ) : (
-                    <dl className="mt-2 grid grid-cols-1 gap-3">
-                      {patientDisplayItems.map((item) => (
-                        <InfoItem key={`patient-${item.key}`} label={item.label} value={item.value} />
-                      ))}
-                    </dl>
-                  )}
-                </div>
+                <CollapsibleInfoSection
+                  title="Patient"
+                  isCollapsed={isPatientSectionCollapsed}
+                  onToggle={() => setIsPatientSectionCollapsed((prev) => !prev)}
+                  items={patientDisplayItems}
+                  emptyMessage="No patient fields available."
+                  itemKeyPrefix="patient"
+                />
 
-                <div>
-                  <button
-                    type="button"
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    aria-expanded={!isCaseSectionCollapsed}
-                    onClick={() => setIsCaseSectionCollapsed((prev) => !prev)}
-                  >
-                    <ChevronRight
-                      aria-hidden
-                      className={`h-4 w-4 transition-transform ${isCaseSectionCollapsed ? '' : 'rotate-90'}`}
-                    />
-                    <span>Case</span>
-                  </button>
-                  {isCaseSectionCollapsed ? null : caseDisplayItems.length === 0 ? (
-                    <div className="surface-subtle mt-2 px-3 py-2 text-sm text-muted-foreground">
-                      No case fields available.
-                    </div>
-                  ) : (
-                    <dl className="mt-2 grid grid-cols-1 gap-3">
-                      {caseDisplayItems.map((item) => (
-                        <InfoItem key={`case-${item.key}`} label={item.label} value={item.value} />
-                      ))}
-                    </dl>
-                  )}
-                </div>
+                <CollapsibleInfoSection
+                  title="Case"
+                  isCollapsed={isCaseSectionCollapsed}
+                  onToggle={() => setIsCaseSectionCollapsed((prev) => !prev)}
+                  items={caseDisplayItems}
+                  emptyMessage="No case fields available."
+                  itemKeyPrefix="case"
+                />
               </>
             )}
           </div>
@@ -438,7 +455,7 @@ export function CasePage() {
                         Quick range
                       </span>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {QUICK_RANGE_OPTIONS.map((option) => (
+                        {activeQuickRangeOptions.map((option) => (
                           <Button
                             key={option.label}
                             type="button"

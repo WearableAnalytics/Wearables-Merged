@@ -1,11 +1,11 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
 import { AuthEmailFormPage } from '@/components/custom/AuthEmailFormPage';
 import { getTrimmedOrNull } from '@/lib/input';
+import { useMessageToast } from '@/lib/toast';
 
 export function AccessPage() {
   const navigate = useNavigate();
@@ -13,14 +13,7 @@ export function AccessPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (error) {
-      toast.error(error, { id: 'access-error' });
-    } else {
-      toast.dismiss('access-error');
-    }
-  }, [error]);
+  useMessageToast('error', 'access-error', error);
 
   useEffect(() => {
     if (!authLoading && user) {

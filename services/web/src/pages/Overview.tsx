@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { toast } from 'sonner';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { API_BASE_PATH, defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
 import { Button } from '@/components/ui/button';
 import { SignedInAs } from '@/components/custom/SignedInAs';
+import { useMessageToast } from '@/lib/toast';
 
 export function OverviewPage() {
   const navigate = useNavigate();
   const [cases, setCases] = useState<(Case & { patient?: Patient })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadErrorToastMessage = error ? `Unable to load cases: ${error}` : null;
+  useMessageToast('error', 'overview-error', loadErrorToastMessage);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,14 +54,6 @@ export function OverviewPage() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (error) {
-      toast.error(`Unable to load cases: ${error}`, { id: 'overview-error' });
-    } else {
-      toast.dismiss('overview-error');
-    }
-  }, [error]);
 
   const formattedBasePath = useMemo(() => API_BASE_PATH.replace(/\/$/, ''), []);
 

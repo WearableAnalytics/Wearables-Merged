@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-export const NavButton: React.FC<{
+type SharedNavButtonProps = {
   path?: string;
   children: React.ReactNode;
   isDisabled?: boolean;
@@ -11,8 +11,29 @@ export const NavButton: React.FC<{
   onClick?: () => void;
   id?: string;
   invertedColors?: boolean;
-  iconOnly?: boolean; 
-}> = ({
+};
+
+type NavButtonProps = SharedNavButtonProps & {
+  iconOnly?: boolean;
+};
+
+function useNavButtonBehavior(path: string | undefined, onClick: (() => void) | undefined) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isActive = !path || location.pathname === path || location.pathname.startsWith(`${path}/`);
+
+  const handleClick = () => {
+    if (path) {
+      void navigate(path);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    onClick?.();
+  };
+
+  return { isActive, handleClick };
+}
+
+export const NavButton: React.FC<NavButtonProps> = ({
   path,
   children,
   className = '',
@@ -22,17 +43,7 @@ export const NavButton: React.FC<{
   invertedColors,
   iconOnly = false, 
 }) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  // Mark active if the current URL starts with the button's path
-  const isActive = !path || location.pathname === path || location.pathname.startsWith(path + '/');
-
-  const handleClick = () => {
-    if (path) void navigate(path);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    onClick?.();
-  };
+  const { isActive, handleClick } = useNavButtonBehavior(path, onClick);
 
   const desktopInactiveClass = !invertedColors
     ? 'border-primary bg-card/40 bg-clip-padding text-foreground backdrop-blur-lg shadow-[var(--shadow-card)] hover:bg-card/55 hover:text-primary hover:shadow-md'
@@ -59,25 +70,16 @@ export const NavButton: React.FC<{
   );
 };
 
-export const NavButtonMobile: React.FC<{
-  path?: string;
-  children: React.ReactNode;
-  isDisabled?: boolean;
-  className?: string;
-  onClick?: () => void;
-  id?: string;
-  invertedColors?: boolean;
-}> = ({ path, children, className = '', onClick, id, isDisabled, invertedColors }) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const isActive = !path || location.pathname === path || location.pathname.startsWith(path + '/');
-
-  const handleClick = () => {
-    if (path) void navigate(path);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    onClick?.();
-  };
+export const NavButtonMobile: React.FC<SharedNavButtonProps> = ({
+  path,
+  children,
+  className = '',
+  onClick,
+  id,
+  isDisabled,
+  invertedColors,
+}) => {
+  const { isActive, handleClick } = useNavButtonBehavior(path, onClick);
 
   const mobileInactiveClass = !invertedColors
     ? 'border-primary bg-card/40 text-foreground hover:bg-card/55 hover:text-primary hover:shadow-md'

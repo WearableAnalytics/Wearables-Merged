@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/custom/PageHeader';
 import { useActiveCase } from '@/lib/activeCase';
 import { SignedInAs } from '@/components/custom/SignedInAs';
 import { getTrimmedOrNull } from '@/lib/input';
+import { useLoadingToast, useMessageToast } from '@/lib/toast';
 
 export function AddCasePage() {
   const [caseId, setCaseId] = useState('');
@@ -23,38 +24,14 @@ export function AddCasePage() {
   const [hasSearched, setHasSearched] = useState(false);
   const navigate = useNavigate();
   const { setActiveCase } = useActiveCase();
-
-  useEffect(() => {
-    if (error) {
-      toast.error(error, { id: 'add-case-error' });
-    } else {
-      toast.dismiss('add-case-error');
-    }
-  }, [error]);
-
-  useEffect(() => {
-    if (loading) {
-      toast.loading('Searching for case…', { id: 'add-case-loading' });
-    } else {
-      toast.dismiss('add-case-loading');
-    }
-  }, [loading]);
-
-  useEffect(() => {
-    if (!loading && !error && !result && hasSearched) {
-      toast.info('Search for a Charité case by entering its ID above.', { id: 'add-case-empty' });
-    } else {
-      toast.dismiss('add-case-empty');
-    }
-  }, [loading, error, result, hasSearched]);
-
-  useEffect(() => {
-    if (createError) {
-      toast.error(createError, { id: 'add-case-create-error' });
-    } else {
-      toast.dismiss('add-case-create-error');
-    }
-  }, [createError]);
+  const emptySearchMessage =
+    !loading && !error && !result && hasSearched
+      ? 'Search for a Charité case by entering its ID above.'
+      : null;
+  useMessageToast('error', 'add-case-error', error);
+  useLoadingToast('add-case-loading', loading, 'Searching for case…');
+  useMessageToast('info', 'add-case-empty', emptySearchMessage);
+  useMessageToast('error', 'add-case-create-error', createError);
 
   useEffect(() => {
     if (created) {

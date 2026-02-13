@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Inbox } from 'lucide-react';
 import { PageHeader } from '@/components/custom/PageHeader';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
 import { formatDateOrFallback } from '@/lib/date';
+import { useMessageToast } from '@/lib/toast';
 
 type AdminUser = {
   id: string;
@@ -58,6 +58,10 @@ export function AdminApprovalsPage() {
   const [view, setView] = useState<ViewMode>('requests');
   const [search, setSearch] = useState('');
   const [draftEdits, setDraftEdits] = useState<Record<string, { role: UserRole; status: UserStatus }>>({});
+  const permissionMessage = user && user.role !== 'admin' ? 'You do not have permission to view this page.' : null;
+  useMessageToast('error', 'admin-approvals-error', error);
+  useMessageToast('info', 'admin-approvals-message', message);
+  useMessageToast('error', 'admin-approvals-permission', permissionMessage);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -83,30 +87,6 @@ export function AdminApprovalsPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
-
-  useEffect(() => {
-    if (error) {
-      toast.error(error, { id: 'admin-approvals-error' });
-    } else {
-      toast.dismiss('admin-approvals-error');
-    }
-  }, [error]);
-
-  useEffect(() => {
-    if (message) {
-      toast.info(message, { id: 'admin-approvals-message' });
-    } else {
-      toast.dismiss('admin-approvals-message');
-    }
-  }, [message]);
-
-  useEffect(() => {
-    if (user && user.role !== 'admin') {
-      toast.error('You do not have permission to view this page.', { id: 'admin-approvals-permission' });
-    } else {
-      toast.dismiss('admin-approvals-permission');
-    }
-  }, [user]);
 
   const filterUsers = useCallback(
     (users: AdminUser[]) =>

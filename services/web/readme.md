@@ -1,11 +1,38 @@
 # Wearables Web Containers
 
+## Local development (without Docker)
+- From repo root: `cd services/web`
+- Install deps: `npm install`
+- Run web + backend: `npm run dev`
+- Run only web (Vite): `npm run dev:web`
+- Run only backend: `npm run dev:backend`
+
+## Environment variables
+- Frontend variables prefixed with `VITE_` are bundled into client code and visible in the browser.
+- Never place private keys, service credentials, or secrets in `VITE_*` variables.
+
+### Variables used by this service
+1. `VITE_API_BASE_URL`
+- Used by API clients in `src/api/defaultApi.ts` and `src/api/index.ts`.
+- Default: `/api` (or `http://localhost:3001/api` in local Docker usage).
+- Build-time variable for production bundles.
+2. `VITE_GRAFANA_PROXY_URL`
+- Used by `src/pages/case/CasePage.tsx` to build Grafana iframe URLs.
+- Example: `http://localhost:3002/grafana`.
+- Required if you use the case monitoring dashboard.
+3. `WEB_DEV_BACKEND_HEALTH_URL`
+- Used by `scripts/dev-with-backend.mjs` when running `npm run dev`.
+- Default: `http://localhost:3001/api/health`.
+- Optional override for custom backend health endpoints.
+4. `VITE_SOCKET_URL` (currently optional)
+- Referenced by `src/socket.ts`.
+- This socket module is not currently imported by app pages/components.
+
 ## Run locally with Docker Compose
 - From the repo root: `cd services/web`
 - With logs in the foreground: `docker compose up --build web`
 - Detached (no logs in the terminal): `docker compose up --build -d web`
-- Env: set `VITE_API_BASE_URL` in a `.env` next to `docker-compose.yml` (defaults to `http://localhost:3001/api`). Compose passes it as a build arg.
-- Required for Docker builds: `VITE_GRAFANA_PROXY_URL=http://localhost:3002/grafana` to control the Grafana iframe source.
+- Env: set `VITE_API_BASE_URL` and `VITE_GRAFANA_PROXY_URL` in a `.env` next to `docker-compose.yml`. Compose passes both as build args.
 
 ## Build a single image (for Kubernetes or manual runs)
 - Build from repo root: `docker build -f services/web/Dockerfile -t wearables-web --build-arg VITE_API_BASE_URL=https://api.example.com .`
