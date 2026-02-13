@@ -6,6 +6,9 @@ import App from './App.tsx';
 import { ActiveCaseProvider } from './lib/activeCase';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { syncBrandFavicon } from './lib/brandLogos';
+
+syncBrandFavicon();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

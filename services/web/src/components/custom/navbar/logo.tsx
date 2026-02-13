@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import wearablesLogo from '@/assets/Wearables.png';
+import { BrandLogo } from '@/components/branding/BrandLogo';
 
 interface LogoProps {
   userType?: 'Retiree' | 'Startup'; // undefined ⇒ guest / not authenticated
@@ -31,10 +31,11 @@ export const Logo: React.FC<LogoProps> = ({ userType, alwaysGuestRoutes, navigat
 
   return (
     <div className="flex items-center cursor-pointer" onClick={handleClick}>
-      <img
-        src={wearablesLogo}
+      <BrandLogo
+        logoType="horizontal"
         alt="Wearables Logo"
-        className="h-10 w-auto text-sm px-4 py-0 rounded-full border border-border/70 transition-shadow transition-colors cursor-pointer font-medium text-foreground bg-card/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[var(--shadow-card)] hover:text-primary hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] group"
+        className="h-10 w-auto"
+        containerClassName="rounded-full border border-border/70 bg-card/40 px-4 py-0 shadow-[var(--shadow-card)] transition-shadow transition-transform duration-200 backdrop-blur-lg hover:shadow-lg hover:scale-[1.05]"
       />
     </div>
   );

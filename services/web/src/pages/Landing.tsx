@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import wLogo from '@/assets/W.png';
+import { BrandLogo } from '@/components/branding/BrandLogo';
 import { useAuth } from '@/context/AuthContext';
 
 export function LandingPage() {
@@ -27,9 +27,12 @@ export function LandingPage() {
 
       <div className="surface-glass w-full max-w-3xl overflow-hidden">
         <div className="relative px-8 py-12 text-center md:px-12 md:py-16">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card/90 shadow-sm">
-            <img src={wLogo} alt="W Logo" className="h-10 w-10 object-contain" />
-          </div>
+          <BrandLogo
+            logoType="square"
+            alt="Wearables emblem"
+            className="h-10 w-10"
+            containerClassName="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card/90 shadow-sm"
+          />
 
           <div className="mb-2 text-page-label tracking-[0.14em]">
             Wearables Platform
