@@ -38,7 +38,7 @@ export function AddCaseResultCard({
       </dl>
 
       <div className="mt-4 flex flex-col gap-3">
-        <Button type="button" disabled={creating} onClick={onCreate} className="self-center text-base font-semibold">
+        <Button type="button" disabled={creating} onClick={onCreate} className="self-center">
           {creating ? <Loader2 aria-hidden className="h-4 w-4 animate-spin" /> : null}
           Add case to system
         </Button>

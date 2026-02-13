@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/branding/BrandLogo';
@@ -13,6 +13,10 @@ export function LandingPage() {
       navigate('/overview', { replace: true });
     }
   }, [user, loading, navigate]);
+
+  const handleAccessClick = () => {
+    void navigate('/access');
+  };
 
   return (
     <section className="relative flex min-h-[70vh] items-center justify-center">
@@ -39,16 +43,14 @@ export function LandingPage() {
           </div>
 
           <h1 className="text-hero-title">
-            Welcome back. Choose how you want to continue.
+            Welcome <br /> Choose how you want to continue.
           </h1>
           <p className="mt-3 text-base text-muted-foreground">
             Access patient cases and monitor progress by signing in, or create a new account to get started.
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
-            <Button asChild size="lg" className="w-full sm:w-auto px-7">
-              <Link to="/access">Access</Link>
-            </Button>
+            <Button type="button" onClick={handleAccessClick}>Access</Button>
           </div>
         </div>
       </div>
