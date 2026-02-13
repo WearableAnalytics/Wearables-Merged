@@ -37,14 +37,14 @@ export const NavButton: React.FC<{
         type="button"
         onClick={isDisabled ? undefined : handleClick}
         id={id}
-        className={`h-10 inline-flex items-center justify-center rounded-full border border-1 transition-shadow transition-colors cursor-pointer
-  ${iconOnly ? 'w-10 p-0' : 'px-5 text-sm'}
+        className={`ui-control-h inline-flex items-center justify-center rounded-full border border-1 border-primary transition-shadow transition-colors cursor-pointer
+  ${iconOnly ? 'ui-control-square p-0' : 'px-5 text-sm'}
   ${
     isActive
       ? 'bg-primary border-primary text-primary-foreground shadow-md transform transition-transform duration-200 ease-out hover:scale-[1.05] group'
       : !invertedColors
-        ? 'font-medium border border-[rgba(255,255,255,0.3)] text-foreground bg-white/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:text-primary hover:border-primary hover:bg-transparent hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
-        : 'font-medium text-primary border border-primary bg-transparent text-foreground bg-white/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:border-primary hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
+        ? 'font-medium border border-border/70 text-foreground bg-card/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[var(--shadow-card)] hover:text-primary  hover:bg-transparent hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
+        : 'font-medium text-primary border border-primary bg-transparent text-foreground bg-card/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[var(--shadow-card)]  hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
   } ${isDisabled ? 'opacity-80' : 'cursor-pointer'} ${className}`}
       >
         {children}
@@ -77,11 +77,11 @@ export const NavButtonMobile: React.FC<{
       type="button"
       onClick={isDisabled ? undefined : handleClick}
       id={id}
-      className={`text-sm font-medium px-4 py-2 rounded-full border transition-shadow transition-colors cursor-pointer ${
+      className={`ui-control-h inline-flex items-center text-sm font-medium px-4 rounded-full border transition-shadow transition-colors cursor-pointer ${
         isActive
           ? 'bg-primary border-primary text-primary-foreground shadow-md' // is active always the same
           : !invertedColors
-            ? 'border-transparent text-foreground hover:text-primary hover:border-primary hover:shadow-md' // default colors not active
+            ? 'border-transparent text-foreground hover:text-primary  hover:shadow-md' // default colors not active
             : 'border-primary text-primary bg-transparent hover:shadow-md' // inverted colors not active
       } ${isDisabled ? 'opacity-80' : 'cursor-pointer'} ${className}`}
     >

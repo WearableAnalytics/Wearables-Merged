@@ -1,11 +1,13 @@
-# Grafana proxy (Node)
+# Grafana proxyx
 
 This service forwards Grafana requests and injects a signed JWT for Grafana auth.
 
 ## How it works
-- Frontend iframe points at the proxy embed endpoint (default `/grafana/embed?deviceId=<caseToken>`).
+- Frontend iframe points at the proxy embed endpoint (default `/grafana/embed?deviceId=<caseToken>&from=<time>&to=<time>`).
 - Proxy forwards to Grafana and injects `X-JWT-Assertion: <signed-token>`.
 - Proxy builds the dashboard URL server-side using `GRAFANA_DASHBOARD_ID`, `GRAFANA_DASHBOARD_DATASOURCE`, and `GRAFANA_ORG_ID`.
+- `/embed` accepts optional `from` and `to` query params (Grafana relative times like `now-24h`, epoch ms, or ISO date/time). Defaults are `from=now-24h` and `to=now`.
+- `/embed` also accepts optional `viewPanel=<panel-id>` to open a single panel/tile in the dashboard route.
 - Proxy always appends `kiosk` (full kiosk mode) and `_dash.hide*` flags to suppress dashboard chrome in the iframe.
 - Proxy blocks HTML navigation to Grafana pages outside the configured dashboard UID.
 - Header value prefix is supported via `GRAFANA_JWT_HEADER_VALUE_PREFIX` (for example `Bearer`).

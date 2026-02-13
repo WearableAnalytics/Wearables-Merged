@@ -8,7 +8,7 @@ export const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ child
 
   if (loading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center text-slate-600">
+      <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">
         Checking authentication…
       </div>
     );
@@ -24,7 +24,7 @@ export const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ child
         ? 'Your account is awaiting admin approval.'
         : 'Unable to access the application. Please contact support.';
     return (
-      <div className="flex min-h-[50vh] items-center justify-center text-red-600">
+      <div className="flex min-h-[50vh] items-center justify-center text-destructive">
         {message}
       </div>
     );

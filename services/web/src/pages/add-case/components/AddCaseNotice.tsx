@@ -7,9 +7,9 @@ type AddCaseNoticeProps = {
 };
 
 const toneStyles: Record<AddCaseNoticeProps['tone'], string> = {
-  error: 'border border-rose-200 bg-rose-50 text-rose-700 font-semibold',
-  loading: 'border border-sky-200 bg-sky-50 text-slate-900',
-  info: 'border border-slate-200 bg-slate-50 text-slate-700',
+  error: 'border border-destructive/40 bg-destructive/10 text-destructive font-semibold',
+  loading: 'border border-border bg-muted/40 text-foreground',
+  info: 'border border-border bg-muted/40 text-muted-foreground',
 };
 
 export function AddCaseNotice({ tone, message, icon }: AddCaseNoticeProps) {

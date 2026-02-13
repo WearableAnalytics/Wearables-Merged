@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import QRCode from 'qrcode';
+import { Button } from '@/components/ui/button';
 
 type Props = {
   isOpen: boolean;
@@ -40,34 +41,36 @@ export function CaseQrModal({ isOpen, caseToken, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 px-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[hsl(var(--slate-900)/0.7)] px-4 backdrop-blur-sm"
       onClick={onClose}
       role="presentation"
     >
       <div
-        className="relative w-full max-w-[420px] rounded-2xl bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.18)]"
+        className="relative w-full max-w-[420px] rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-modal)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <button
+        <Button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white"
+          variant="ghost"
+          size="icon"
+          className="absolute right-4 top-4 rounded-full text-muted-foreground hover:bg-transparent active:bg-transparent hover:text-foreground"
           aria-label="Close QR code"
         >
           <X aria-hidden className="h-5 w-5" />
-        </button>
+        </Button>
         <div className="flex flex-col items-center gap-3">
-          <p className="m-0 text-center text-sm font-semibold uppercase tracking-[0.08em] text-slate-500">
+          <p className="m-0 text-center text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Case access QR
           </p>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="surface-subtle rounded-2xl p-4">
             <canvas
               ref={qrCanvasRef}
               className="h-[320px] w-[320px]"
               aria-label="Case access QR code expanded view"
             />
           </div>
-          <p className="m-0 text-center text-xs text-slate-600">Tap outside the QR code to close.</p>
+          <p className="m-0 text-center text-xs text-muted-foreground">Tap outside the QR code to close.</p>
         </div>
       </div>
     </div>

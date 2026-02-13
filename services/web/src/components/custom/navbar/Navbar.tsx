@@ -4,6 +4,7 @@ import { Menu, Shield, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveCase } from '@/lib/activeCase';
 import { useAuth } from '@/context/AuthContext';
+import { LOGOUT_REASON_SUCCESS, getLogoutPath } from '@/lib/authSession';
 
 import { NavButton, NavButtonMobile } from './navButtons';
 
@@ -57,14 +58,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       console.error('Logout failed:', err);
     } finally {
       setIsLoggingOut(false);
-      void navigate('/access');
+      void navigate(getLogoutPath(LOGOUT_REASON_SUCCESS), { replace: true });
     }
   };
 
   return (
     <nav className="w-full fixed top-0 left-0 right-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div
+          className={`flex items-center justify-between h-16 ${
+            isMobileMenuOpen ? 'bg-background border-b border-border' : ''
+          }`}
+        >
           <Logo alwaysGuestRoutes={alwaysGuestRoutes} navigate={navigate} location={location} />
 
           {/* Desktop Navigation */}
@@ -93,7 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     path="/admin/approvals"
                     invertedColors={true}
                     iconOnly
-                    className="h-10 w-10 p-0 flex items-center justify-center"
+                    className="ui-control-square p-0 flex items-center justify-center"
                   >
                     <Shield className="h-5 w-5" aria-hidden />
                     <span className="sr-only">Admin</span>
@@ -103,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   path="/account"
                   invertedColors={true}
                   iconOnly
-                  className="h-10 w-10 p-0 flex items-center justify-center"
+                  className="ui-control-square p-0 flex items-center justify-center"
                 >
                   <User className="h-5 w-5" aria-hidden />
                   <span className="sr-only">Account</span>

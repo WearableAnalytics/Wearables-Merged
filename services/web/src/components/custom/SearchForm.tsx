@@ -48,7 +48,7 @@ export function SearchForm({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onFocus={onFocusReset}
-          className="w-full rounded-full border border-slate-200 bg-white px-6 py-4 pr-16 text-lg shadow-[0_16px_40px_rgba(15,23,42,0.08)] outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed"
+          className={inputType === 'search' ? 'field-input-pill field-input-pill-search' : 'field-input-pill'}
           disabled={loading}
           autoComplete={autoComplete}
         />
@@ -56,7 +56,8 @@ export function SearchForm({
           type="submit"
           disabled={loading}
           size="icon"
-          className="absolute right-2 h-12 w-12 rounded-full active:scale-50 disabled:hover:scale-100"
+          searchBehavior
+          className="absolute right-2 rounded-full"
         >
           {loading ? (
             <Loader2 aria-hidden className="h-5 w-5 animate-spin" />

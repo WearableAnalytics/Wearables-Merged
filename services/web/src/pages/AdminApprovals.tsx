@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
+import { formatDateOrFallback } from '@/lib/date';
 
 type AdminUser = {
   id: string;
@@ -30,14 +31,14 @@ type EmptyStateProps = {
 
 function EmptyState({ title, description, icon }: EmptyStateProps) {
   return (
-    <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-600">
+    <div className="surface-subtle mt-3 border-dashed px-4 py-3 text-sm text-muted-foreground">
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 rounded-full bg-white p-1 text-slate-400 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]">
+        <div className="mt-0.5 rounded-full bg-card p-1 text-muted-foreground ring-1 ring-inset ring-border/40">
           {icon}
         </div>
         <div>
-          <p className="font-medium text-slate-700">{title}</p>
-          {description ? <p className="mt-1 text-slate-500">{description}</p> : null}
+          <p className="font-medium text-foreground">{title}</p>
+          {description ? <p className="mt-1 text-muted-foreground">{description}</p> : null}
         </div>
       </div>
     </div>
@@ -300,11 +301,11 @@ export function AdminApprovalsPage() {
         description="Manage users, access requests, and denied accounts."
       />
 
-      <section className="mt-6 bg-white border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.06)] rounded-2xl p-4 md:p-5">
+      <section className="surface-card mt-6 p-4 md:p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
           <div>
-            <h2 className="m-0 text-[22px] font-semibold">Admin console</h2>
-            <p className="m-0 text-slate-500">
+            <h2 className="text-section-title">Admin console</h2>
+            <p className="m-0 text-muted-foreground">
               {loading ? 'Loading data…' : `${approvedUsers.length} users`}
             </p>
           </div>
@@ -327,14 +328,14 @@ export function AdminApprovalsPage() {
             placeholder="Search by email or name"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="w-full md:max-w-xs rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+            className="field-input w-full md:max-w-xs"
           />
         </div>
 
         <div className="mt-4" />
 
         {loading ? (
-          <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
+          <div className="surface-subtle mt-4 px-3 py-3 font-semibold text-foreground">
             Loading data…
           </div>
         ) : view === 'users' ? (
@@ -346,9 +347,9 @@ export function AdminApprovalsPage() {
                 icon={<Inbox className="h-4 w-4" />}
               />
             ) : (
-              <table className="w-full border-collapse text-[15px]">
-                <thead className="bg-slate-50 text-left text-slate-600 font-bold">
-                  <tr className="border-b border-slate-200">
+              <table className="table-grid">
+                <thead className="table-head">
+                  <tr className="table-row">
                     <th className="px-3 py-3">Email</th>
                     <th className="px-3 py-3">Role</th>
                     <th className="px-3 py-3">Access</th>
@@ -365,14 +366,14 @@ export function AdminApprovalsPage() {
                     const isBusy = actionUserId === entry.id;
 
                     return (
-                      <tr key={entry.id} className="border-b last:border-b-0 border-slate-200">
-                        <td className="px-3 py-3 font-medium text-slate-900">{entry.email}</td>
+                      <tr key={entry.id} className="table-row last:border-b-0">
+                        <td className="px-3 py-3 font-medium text-foreground">{entry.email}</td>
                         <td className="px-3 py-3">
                           <select
                             value={draft.role}
                             onChange={(event) => updateDraft(entry, { role: event.target.value as UserRole })}
                             disabled={isSelf || isBusy}
-                            className="w-full min-w-[120px] rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 focus:border-slate-400 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                            className="field-input w-full min-w-[120px] rounded-md bg-card px-2 py-1"
                           >
                             <option value="admin">Admin</option>
                             <option value="user">User</option>
@@ -383,7 +384,7 @@ export function AdminApprovalsPage() {
                             value={draft.status}
                             onChange={(event) => updateDraft(entry, { status: event.target.value as UserStatus })}
                             disabled={isSelf || isBusy}
-                            className="w-full min-w-[140px] rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 focus:border-slate-400 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                            className="field-input w-full min-w-[140px] rounded-md bg-card px-2 py-1"
                           >
                             <option value="approved">Approved</option>
                             <option value="pending">Pending</option>
@@ -392,7 +393,7 @@ export function AdminApprovalsPage() {
                         </td>
                         <td className="px-3 py-3 text-right space-x-2">
                           {isSelf ? (
-                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Signed in</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Signed in</span>
                           ) : (
                             <Button
                               size="sm"
@@ -414,7 +415,7 @@ export function AdminApprovalsPage() {
         ) : view === 'requests' ? (
           <div className="mt-4 space-y-6">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Pending access approvals</h3>
+              <h3 className="text-lg font-semibold text-foreground">Pending access approvals</h3>
               {filteredPendingUsers.length === 0 ? (
                 <EmptyState
                   title="No pending access requests."
@@ -423,9 +424,9 @@ export function AdminApprovalsPage() {
                 />
               ) : (
                 <div className="mt-3 overflow-auto">
-                  <table className="w-full border-collapse text-[15px]">
-                    <thead className="bg-slate-50 text-left text-slate-600 font-bold">
-                      <tr className="border-b border-slate-200">
+                  <table className="table-grid">
+                    <thead className="table-head">
+                      <tr className="table-row">
                         <th className="px-3 py-3">Email</th>
                         <th className="px-3 py-3">Requested</th>
                         <th className="px-3 py-3 text-right">Action</th>
@@ -433,15 +434,13 @@ export function AdminApprovalsPage() {
                     </thead>
                     <tbody>
                       {filteredPendingUsers.map((pendingUser) => {
-                        const createdAt = pendingUser.createdAt
-                          ? new Date(pendingUser.createdAt).toLocaleDateString()
-                          : '—';
+                        const createdAt = formatDateOrFallback(pendingUser.createdAt);
                         const isBusy = actionUserId === pendingUser.id;
 
                         return (
-                          <tr key={pendingUser.id} className="border-b last:border-b-0 border-slate-200">
-                            <td className="px-3 py-3 font-medium text-slate-900">{pendingUser.email}</td>
-                            <td className="px-3 py-3 text-slate-600">{createdAt}</td>
+                          <tr key={pendingUser.id} className="table-row last:border-b-0">
+                            <td className="px-3 py-3 font-medium text-foreground">{pendingUser.email}</td>
+                            <td className="px-3 py-3 text-muted-foreground">{createdAt}</td>
                             <td className="px-3 py-3 text-right space-x-2">
                               <Button
                                 size="sm"
@@ -469,7 +468,7 @@ export function AdminApprovalsPage() {
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Pending admin requests</h3>
+              <h3 className="text-lg font-semibold text-foreground">Pending admin requests</h3>
               {filteredAdminRequests.length === 0 ? (
                 <EmptyState
                   title="No pending admin requests."
@@ -478,9 +477,9 @@ export function AdminApprovalsPage() {
                 />
               ) : (
                 <div className="mt-3 overflow-auto">
-                  <table className="w-full border-collapse text-[15px]">
-                    <thead className="bg-slate-50 text-left text-slate-600 font-bold">
-                      <tr className="border-b border-slate-200">
+                  <table className="table-grid">
+                    <thead className="table-head">
+                      <tr className="table-row">
                         <th className="px-3 py-3">Email</th>
                         <th className="px-3 py-3">Requested</th>
                         <th className="px-3 py-3 text-right">Action</th>
@@ -488,15 +487,13 @@ export function AdminApprovalsPage() {
                     </thead>
                     <tbody>
                       {filteredAdminRequests.map((pendingUser) => {
-                        const requestedAt = pendingUser.adminRequestedAt
-                          ? new Date(pendingUser.adminRequestedAt).toLocaleDateString()
-                          : '—';
+                        const requestedAt = formatDateOrFallback(pendingUser.adminRequestedAt);
                         const isBusy = actionUserId === pendingUser.id;
 
                         return (
-                          <tr key={pendingUser.id} className="border-b last:border-b-0 border-slate-200">
-                            <td className="px-3 py-3 font-medium text-slate-900">{pendingUser.email}</td>
-                            <td className="px-3 py-3 text-slate-600">{requestedAt}</td>
+                          <tr key={pendingUser.id} className="table-row last:border-b-0">
+                            <td className="px-3 py-3 font-medium text-foreground">{pendingUser.email}</td>
+                            <td className="px-3 py-3 text-muted-foreground">{requestedAt}</td>
                             <td className="px-3 py-3 text-right space-x-2">
                               <Button
                                 size="sm"
@@ -532,9 +529,9 @@ export function AdminApprovalsPage() {
                 icon={<Inbox className="h-4 w-4" />}
               />
             ) : (
-              <table className="w-full border-collapse text-[15px]">
-                <thead className="bg-slate-50 text-left text-slate-600 font-bold">
-                  <tr className="border-b border-slate-200">
+              <table className="table-grid">
+                <thead className="table-head">
+                  <tr className="table-row">
                     <th className="px-3 py-3">Email</th>
                     <th className="px-3 py-3">Denied</th>
                     <th className="px-3 py-3 text-right">Action</th>
@@ -542,15 +539,13 @@ export function AdminApprovalsPage() {
                 </thead>
                 <tbody>
                   {filteredDeniedUsers.map((entry) => {
-                    const deniedAt = entry.deniedAt
-                      ? new Date(entry.deniedAt).toLocaleDateString()
-                      : '—';
+                    const deniedAt = formatDateOrFallback(entry.deniedAt);
                     const isBusy = actionUserId === entry.id;
 
                     return (
-                      <tr key={entry.id} className="border-b last:border-b-0 border-slate-200">
-                        <td className="px-3 py-3 font-medium text-slate-900">{entry.email}</td>
-                        <td className="px-3 py-3 text-slate-600">{deniedAt}</td>
+                      <tr key={entry.id} className="table-row last:border-b-0">
+                        <td className="px-3 py-3 font-medium text-foreground">{entry.email}</td>
+                        <td className="px-3 py-3 text-muted-foreground">{deniedAt}</td>
                         <td className="px-3 py-3 text-right">
                           <Button
                             size="sm"

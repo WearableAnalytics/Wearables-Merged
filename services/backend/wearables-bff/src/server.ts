@@ -8,7 +8,7 @@ import { patientService, caseService, chariteCaseService } from './services/inde
 import type {
   CasesFromChariteCasePostRequest,
   CasesVerifyTokenPostRequest,
-} from './api/openapi-client/models';
+} from './api/openapi-client/models/index.js';
 
 const app = express();
 

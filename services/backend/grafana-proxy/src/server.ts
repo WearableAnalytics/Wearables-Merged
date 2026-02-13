@@ -5,6 +5,8 @@ import { config } from './config.js';
 const app = express();
 const port = config.port;
 const DASHBOARD_SLUG = 'wearables-dashboard-real';
+const DEFAULT_FROM = 'now-24h';
+const DEFAULT_TO = 'now';
 
 const toPath = (prefix: string, suffix: string): string => `${prefix}${suffix}` || '/';
 const acceptsHtml = (value: string | string[] | undefined): boolean => {
@@ -23,6 +25,36 @@ const queryValue = (value: unknown): string | null => {
     return trimmed.length > 0 ? trimmed : null;
   }
   return null;
+};
+
+const toGrafanaPanelValue = (value: unknown): string | null => {
+  const candidate = queryValue(value);
+  if (!candidate) return null;
+  return /^[A-Za-z0-9_-]+$/.test(candidate) ? candidate : null;
+};
+
+const toGrafanaThemeValue = (value: unknown): 'light' | 'dark' => {
+  const candidate = queryValue(value)?.toLowerCase();
+  return candidate === 'dark' ? 'dark' : 'light';
+};
+
+const toGrafanaTimeValue = (value: unknown, fallback: string): string => {
+  const candidate = queryValue(value);
+  if (!candidate) return fallback;
+
+  if (/^\d{10,13}$/.test(candidate)) {
+    return candidate;
+  }
+  if (/^now(?:[-+]\d+[smhdwMy])?$/.test(candidate)) {
+    return candidate;
+  }
+
+  const parsed = Date.parse(candidate);
+  if (!Number.isNaN(parsed)) {
+    return String(parsed);
+  }
+
+  return fallback;
 };
 
 app.get('/health', (_req, res) => {
@@ -47,10 +79,19 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
       return;
     }
 
+    let from = toGrafanaTimeValue(req.query.from, DEFAULT_FROM);
+    const to = toGrafanaTimeValue(req.query.to, DEFAULT_TO);
+    const viewPanel = toGrafanaPanelValue(req.query.viewPanel);
+    const theme = toGrafanaThemeValue(req.query.theme);
+    if (/^\d+$/.test(from) && /^\d+$/.test(to) && Number(from) >= Number(to)) {
+      from = DEFAULT_FROM;
+    }
+
     const params = new URLSearchParams({
       orgId: config.grafanaOrgId || '1',
-      from: 'now-7d',
-      to: 'now',
+      from,
+      to,
+      theme,
       timezone: 'browser',
       'var-DS_INFLUXDB': config.grafanaDashboardDatasource,
       'var-deviceId': deviceId,
@@ -58,6 +99,10 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
       '_dash.hideVariables': 'true',
       '_dash.hideLinks': 'true',
     });
+    if (viewPanel) {
+      params.set('viewPanel', viewPanel);
+      params.set('__feature.dashboardSceneSolo', 'true');
+    }
 
     const dashboardPath = toPath(
       mountPath,

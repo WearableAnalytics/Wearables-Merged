@@ -3,10 +3,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
-import { PageHeader } from '@/components/custom/PageHeader';
-import { SearchForm } from '@/components/custom/SearchForm';
-import { ArrowRight } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { AuthEmailFormPage } from '@/components/custom/AuthEmailFormPage';
+import { getTrimmedOrNull } from '@/lib/input';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -43,7 +42,7 @@ export function LoginPage() {
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();
-    const trimmedEmail = email.trim();
+    const trimmedEmail = getTrimmedOrNull(email);
 
     if (!trimmedEmail) {
       setError('Please enter your email address.');
@@ -77,32 +76,17 @@ export function LoginPage() {
   };
 
   return (
-    <>
-      <PageHeader
-        label="Login"
-        title="Sign in with your email"
-        description="Enter the email you used to register. Approved accounts will receive a login link."
-      />
-
-      <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">
-        <div className="w-full max-w-3xl px-4">
-          <SearchForm
-            value={email}
-            loading={isSubmitting}
-            onChange={(value) => setEmail(value)}
-            onFocusReset={resetFeedback}
-            onSubmit={handleLogin}
-            inputId="login-email"
-            inputLabel="Email address"
-            inputType="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="Enter your email address"
-            submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
-            submitLabel="Send login link"
-          />
-        </div>
-      </div>
-    </>
+    <AuthEmailFormPage
+      headerLabel="Login"
+      headerTitle="Sign in with your email"
+      headerDescription="Enter the email you used to register. Approved accounts will receive a login link."
+      email={email}
+      loading={isSubmitting}
+      onEmailChange={setEmail}
+      onFocusReset={resetFeedback}
+      onSubmit={handleLogin}
+      inputId="login-email"
+      submitLabel="Send login link"
+    />
   );
 }

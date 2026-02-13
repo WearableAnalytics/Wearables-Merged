@@ -27,6 +27,15 @@ const chariteCases: ChariteCaseWithUUID[] = [
     sex: 'female', 
     weight: 68.0 
   },
+    { 
+    cCaseId: 'C-000000', 
+    uuid: 'd2c3d4e5-f6a7-8901-bbbb-f12345678901',
+    firstName: 'Blubb', 
+    lastName: 'Doe', 
+    birthDate: new Date('1975-05-20'), 
+    sex: 'female', 
+    weight: 68.0 
+  },
 ];
 
 const patients: Patient[] = [

@@ -46,7 +46,7 @@ class _DataViewPageState extends State<DataViewPage> {
           }
         }
         if (notGranted.isNotEmpty) {
-          _showMessage('Authorization not granted for:\n' + notGranted.join('\n'));
+          _showMessage('Authorization not granted for:\n${notGranted.join('\n')}');
           return;
         }
         if (!requested) {
@@ -491,10 +491,10 @@ class _QuickButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OutlinedButton(
       onPressed: () => onPressed(duration),
-      child: Text(label),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
+      child: Text(label),
     );
   }
 }
