@@ -12,19 +12,22 @@ benchmarks/
     |- mapper/
     |- end-to-end/          # ingestion-service -> influxdb
     |- ml-pipeline/         # @Lukasz should specify benchmarks for this service
-    |- db-lord/             # @Oskar should specify benchmarks
-    |- extraction-service/  # @Daniil should specify benchmarks
-    |- registration-sevice/ # not clear if needed?
-    |- frontend/            # qualitative evaluation?
 ```
 Steps already taken and implemented
 - [x] Runner
 - [x] Test-Benchmark (Test-Runner)
 - [x] Ingestion-Service-Latency (maybe Throughput) 
-- [x] Mapper-Throughput (=> Approach Works)
-- [ ] End-to-end-Throughput (=> Currently working on it)
-
+- [x] Mapper-Throughput
+- [x] End-to-end-Throughput
+- [ ] ML-Pipeline?? Clarify how
 ---
+### Next Steps (so I don't forget)
+- [ ] Mapper: Processing Time with different Sampling Configs (0,1%, 1%, 10%, 100%)
+- [ ] End-to-End: Processing Time different Message-Sizes
+- [ ] End-to-End: Throughput
+  - [ ] Test 10k msg/sec á 100KB
+
+
 
 Make sure that the Job is able to runnable!
 ```shell
