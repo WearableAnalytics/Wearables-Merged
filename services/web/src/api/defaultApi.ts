@@ -356,6 +356,7 @@ export class DefaultApi {
   };
 
   // Cases
+  casesCaseIdGetRaw = this.casesApi.casesCaseIdGetRaw.bind(this.casesApi);
   casesCaseIdGet = this.casesApi.casesCaseIdGet.bind(this.casesApi);
   casesFromChariteCasePost = this.casesApi.casesFromChariteCasePost.bind(this.casesApi);
   casesGet = this.casesApi.casesGet.bind(this.casesApi);
@@ -367,6 +368,7 @@ export class DefaultApi {
   // Patients
   patientsGet = this.patientsApi.patientsGet.bind(this.patientsApi);
   patientsPatientIdCasesGet = this.patientsApi.patientsPatientIdCasesGet.bind(this.patientsApi);
+  patientsPatientIdGetRaw = this.patientsApi.patientsPatientIdGetRaw.bind(this.patientsApi);
   patientsPatientIdGet = this.patientsApi.patientsPatientIdGet.bind(this.patientsApi);
 }
 
