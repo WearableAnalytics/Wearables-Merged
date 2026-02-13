@@ -16,6 +16,8 @@ import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
 
 const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL;
+const GENERAL_GRAFANA_UID = 'wearables-health-real';
+const MEDICAL_USE_CASE_GRAFANA_UID = 'wearables-six-min';
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
 const QUICK_RANGE_OPTIONS: Array<{ label: string; durationMs: number }> = [
@@ -24,6 +26,12 @@ const QUICK_RANGE_OPTIONS: Array<{ label: string; durationMs: number }> = [
   { label: 'Last 7d', durationMs: 7 * ONE_DAY_MS },
 ];
 type RawSectionData = Record<string, unknown>;
+type MonitoringViewId = 'general' | 'useCase';
+
+const MONITORING_VIEWS: Array<{ id: MonitoringViewId; label: string; kind: 'grafana' | 'custom' }> = [
+  { id: 'general', label: 'General data', kind: 'grafana' },
+  { id: 'useCase', label: 'Medical use case', kind: 'grafana' },
+];
 
 function toDatetimeLocalValue(date: Date): string {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -33,6 +41,25 @@ function toDatetimeLocalValue(date: Date): string {
 function parseDatetimeLocalValue(value: string): Date | null {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function buildGrafanaEmbedUrl(
+  baseUrl: string | undefined,
+  query: string | null,
+  extraParams?: Record<string, string | null | undefined>,
+): string | null {
+  if (!baseUrl || !query) return null;
+  const params = new URLSearchParams(query);
+
+  if (extraParams) {
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value) {
+        params.set(key, value);
+      }
+    });
+  }
+
+  return `${baseUrl}/embed?${params.toString()}`;
 }
 
 function formatFieldLabel(fieldKey: string): string {
@@ -109,6 +136,7 @@ export function CasePage() {
   const [isDataPanelCollapsedMobile, setIsDataPanelCollapsedMobile] = useState(false);
   const [isPatientSectionCollapsed, setIsPatientSectionCollapsed] = useState(false);
   const [isCaseSectionCollapsed, setIsCaseSectionCollapsed] = useState(false);
+  const [activeMonitoringView, setActiveMonitoringView] = useState<MonitoringViewId>('general');
   const { isDark } = useTheme();
   const activeCaseRef = useRef(activeCase);
   const [toInput, setToInput] = useState<string>(() => toDatetimeLocalValue(new Date()));
@@ -241,10 +269,28 @@ export function CasePage() {
     return params.toString();
   }, [caseData?.caseToken, fromInput, isDark, toInput]);
 
-  const grafanaUrl = useMemo(() => {
-    if (!GRAFANA_PROXY_URL || !grafanaBaseQuery) return null;
-    return `${GRAFANA_PROXY_URL}/embed?${grafanaBaseQuery}`;
-  }, [grafanaBaseQuery]);
+  const generalGrafanaUrl = useMemo(
+    () =>
+      buildGrafanaEmbedUrl(GRAFANA_PROXY_URL, grafanaBaseQuery, {
+        dashboardUid: GENERAL_GRAFANA_UID,
+      }),
+    [grafanaBaseQuery],
+  );
+  const useCaseGrafanaUrl = useMemo(
+    () =>
+      buildGrafanaEmbedUrl(GRAFANA_PROXY_URL, grafanaBaseQuery, {
+        dashboardUid: MEDICAL_USE_CASE_GRAFANA_UID,
+      }),
+    [grafanaBaseQuery],
+  );
+  const activeMonitoringConfig = useMemo(
+    () => MONITORING_VIEWS.find((view) => view.id === activeMonitoringView) ?? MONITORING_VIEWS[0],
+    [activeMonitoringView],
+  );
+  const activeGrafanaUrl = useMemo(() => {
+    if (activeMonitoringConfig.kind !== 'grafana') return null;
+    return activeMonitoringView === 'useCase' ? useCaseGrafanaUrl : generalGrafanaUrl;
+  }, [activeMonitoringConfig.kind, activeMonitoringView, generalGrafanaUrl, useCaseGrafanaUrl]);
 
   return (
     <>
@@ -362,8 +408,26 @@ export function CasePage() {
               Loading grafana dashboard…
             </div>
           ) : (
-            grafanaUrl ? (
+            activeMonitoringConfig.kind === 'grafana' ? (
               <div className="relative w-full space-y-3">
+                <div className="inline-flex max-w-full flex-wrap gap-2 rounded-xl border border-border bg-muted/40 p-1">
+                  {MONITORING_VIEWS.map((view) => {
+                    const isActive = activeMonitoringView === view.id;
+                    return (
+                      <Button
+                        key={view.id}
+                        type="button"
+                        size="sm"
+                        variant={isActive ? 'default' : 'ghost'}
+                        className="px-3"
+                        aria-pressed={isActive}
+                        onClick={() => setActiveMonitoringView(view.id)}
+                      >
+                        {view.label}
+                      </Button>
+                    );
+                  })}
+                </div>
                 <div className="surface-subtle px-3 py-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                     Data time range
@@ -402,7 +466,7 @@ export function CasePage() {
                     </label>
                     <label className="min-w-[240px] flex-1">
                       <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Till
+                        Until
                       </span>
                       <input
                         type="datetime-local"
@@ -420,17 +484,23 @@ export function CasePage() {
                     {timeRangeError}
                   </div>
                 ) : null}
-                <iframe
-                  title="Grafana patient monitoring dashboard"
-                  src={grafanaUrl}
-                  // Cross-origin iframes cannot be auto-sized reliably from parent page.
-                  className="h-[600px] md:h-[800px] lg:h-[1000px] w-full rounded-xl"
-                  allow="fullscreen"
-                />
+                {activeGrafanaUrl ? (
+                  <iframe
+                    title={`Grafana ${activeMonitoringConfig.label} dashboard`}
+                    src={activeGrafanaUrl}
+                    // Cross-origin iframes cannot be auto-sized reliably from parent page.
+                    className="h-[600px] md:h-[800px] lg:h-[1000px] w-full rounded-xl"
+                    allow="fullscreen"
+                  />
+                ) : (
+                  <div className="rounded-lg border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.16)] px-3 py-2 text-sm font-semibold text-foreground">
+                    Missing configuration for the selected dashboard view.
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="rounded-lg border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.16)] px-3 py-2 text-sm font-semibold text-foreground">
-                Missing case token or Grafana proxy URL. Dashboard cannot be loaded.
+              <div className="surface-subtle px-3 py-3 text-sm font-semibold text-foreground">
+                Content for this monitoring view is not configured yet.
               </div>
             )
           )}

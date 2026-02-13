@@ -1,5 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export const NavButton: React.FC<{
   path?: string;
@@ -32,23 +34,28 @@ export const NavButton: React.FC<{
     onClick?.();
   };
 
+  const desktopInactiveClass = !invertedColors
+    ? 'border-primary bg-card/40 bg-clip-padding text-foreground backdrop-blur-lg shadow-[var(--shadow-card)] hover:bg-card/55 hover:text-primary hover:shadow-md'
+    : 'border-primary bg-card/40 bg-clip-padding text-foreground backdrop-blur-lg shadow-[var(--shadow-card)] hover:bg-card/55 hover:shadow-md';
+
   return (
-      <button
-        type="button"
-        onClick={isDisabled ? undefined : handleClick}
-        id={id}
-        className={`ui-control-h inline-flex items-center justify-center rounded-full border border-1 border-primary transition-shadow transition-colors cursor-pointer
-  ${iconOnly ? 'ui-control-square p-0' : 'px-5 text-sm'}
-  ${
-    isActive
-      ? 'bg-primary border-primary text-primary-foreground shadow-md transform transition-transform duration-200 ease-out hover:scale-[1.05] group'
-      : !invertedColors
-        ? 'font-medium border border-border/70 text-foreground bg-card/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[var(--shadow-card)] hover:text-primary  hover:bg-transparent hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
-        : 'font-medium text-primary border border-primary bg-transparent text-foreground bg-card/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[var(--shadow-card)]  hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] ease-out group'
-  } ${isDisabled ? 'opacity-80' : 'cursor-pointer'} ${className}`}
-      >
-        {children}
-      </button>
+    <Button
+      type="button"
+      id={id}
+      onClick={isDisabled ? undefined : handleClick}
+      disabled={isDisabled}
+      size={iconOnly ? 'icon' : 'default'}
+      variant={isActive ? 'default' : 'outline'}
+      className={cn(
+        'rounded-full font-medium transition-transform duration-200 ease-out',
+        !isDisabled ? 'hover:scale-[1.03]' : '',
+        !iconOnly ? 'px-5 text-sm' : 'p-0',
+        isActive ? 'border-primary shadow-md hover:shadow-md' : desktopInactiveClass,
+        className,
+      )}
+    >
+      {children}
+    </Button>
   );
 };
 
@@ -72,20 +79,25 @@ export const NavButtonMobile: React.FC<{
     onClick?.();
   };
 
+  const mobileInactiveClass = !invertedColors
+    ? 'border-primary bg-card/40 text-foreground hover:bg-card/55 hover:text-primary hover:shadow-md'
+    : 'border-primary text-primary bg-card/40 hover:bg-card/55 hover:shadow-md';
+
   return (
-    <button
+    <Button
       type="button"
       onClick={isDisabled ? undefined : handleClick}
+      disabled={isDisabled}
       id={id}
-      className={`ui-control-h inline-flex items-center text-sm font-medium px-4 rounded-full border transition-shadow transition-colors cursor-pointer ${
-        isActive
-          ? 'bg-primary border-primary text-primary-foreground shadow-md' // is active always the same
-          : !invertedColors
-            ? 'border-transparent text-foreground hover:text-primary  hover:shadow-md' // default colors not active
-            : 'border-primary text-primary bg-transparent hover:shadow-md' // inverted colors not active
-      } ${isDisabled ? 'opacity-80' : 'cursor-pointer'} ${className}`}
+      size="default"
+      variant={isActive ? 'default' : 'ghost'}
+      className={cn(
+        'w-full justify-start rounded-full px-4 text-left text-sm font-medium',
+        isActive ? 'border border-primary shadow-md' : mobileInactiveClass,
+        className,
+      )}
     >
       {children}
-    </button>
+    </Button>
   );
 };

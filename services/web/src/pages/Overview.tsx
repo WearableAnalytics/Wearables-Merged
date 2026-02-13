@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/custom/PageHeader';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { SignedInAs } from '@/components/custom/SignedInAs';
 
 export function OverviewPage() {
+  const navigate = useNavigate();
   const [cases, setCases] = useState<(Case & { patient?: Patient })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -127,16 +128,17 @@ export function OverviewPage() {
                     </td>
                     <td className="px-3 py-3 text-right">
                       <Button
-                        asChild
                         size="icon"
-                        searchBehavior
+                        variant="search"
+                        press
                         className="rounded-full"
                         aria-label={`Open case ${caseItem.caseId}`}
+                        onClick={() => {
+                          void navigate(`/cases/${caseItem.caseId}`);
+                        }}
                       >
-                        <Link to={`/cases/${caseItem.caseId}`}>
-                          <ArrowRight aria-hidden className="h-4 w-4" />
-                          <span className="sr-only">Open case {caseItem.caseId}</span>
-                        </Link>
+                        <ArrowRight aria-hidden className="h-4 w-4" />
+                        <span className="sr-only">Open case {caseItem.caseId}</span>
                       </Button>
                     </td>
                   </tr>

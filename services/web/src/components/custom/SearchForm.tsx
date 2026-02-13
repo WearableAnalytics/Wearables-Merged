@@ -56,7 +56,8 @@ export function SearchForm({
           type="submit"
           disabled={loading}
           size="icon"
-          searchBehavior
+          variant="search"
+          press
           className="absolute right-2 rounded-full"
         >
           {loading ? (
