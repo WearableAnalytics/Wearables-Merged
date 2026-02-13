@@ -3,8 +3,9 @@ from dataclasses import dataclass
 from pathlib import Path
 import yaml
 from pydantic import ValidationError
+from pygments.lexers.robotframework import SettingTable
 
-from fhir_serde.model import FhirYamlConfig
+from src.fhir_serde.model import FhirYamlConfig
 
 
 @dataclass(frozen=True)
@@ -18,8 +19,7 @@ def get_settings() -> Settings:
         graphs_path = os.environ["GRAPHS_PATH"]
     )
 
-def get_env_values() -> tuple[FhirYamlConfig, str]:
-    settings = get_settings()
+def get_env_values(settings: Settings) -> tuple[FhirYamlConfig, str]:
 
     parsed_yaml = load_config(settings.yaml_path)
 
@@ -32,6 +32,6 @@ def load_config(path: str) -> FhirYamlConfig:
     path = Path(path)
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        return FhirYamlConfig.model_validate(data)  # pydantic v2
+        return FhirYamlConfig.model_validate(data)
     except (FileNotFoundError, yaml.YAMLError, ValidationError) as e:
-        raise RuntimeError(f"Failed to load/validate YAML config from {path}: {e}") from e
+        raise RuntimeError(f"Failed to load YAML config from {path}: {e}") from e

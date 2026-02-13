@@ -12,19 +12,23 @@ class Graph:
         self.name = name
         self.nodes = nodes
 
-def parse_file(graphs: str) -> list[Graph]:
+def parse_file(graphs: str) -> dict[str, Graph]:
     graph_list = graphs.split("&")
 
-    built_graphs: list[Graph] = []
+    built_graphs: dict[str, Graph] = {}
 
     for g in graph_list:
+        if len(g) == 0:
+            continue
         name = get_category_name(g)
 
         if name is None:
             raise RuntimeError("missing category name")
 
         graph = parse_string(g, name)
-        built_graphs.append(graph)
+        built_graphs[name] = graph
+
+    return built_graphs
 
 
 def get_category_name(g: str) -> str | None:
@@ -50,8 +54,8 @@ def get_nodes(raw_graph: str) -> list[str]:
 
     lines = raw_graph.splitlines()
     for line in lines:
-        if line.find("->") == -1 and line.find("{") == -1 and line.find("}") == -1:
-            line = line.removesuffix(";")
+        if line.find("->") == -1 and line.find("{") == -1 and line.find("}") == -1 and line.find("#") == -1:
+            line = line.strip().removesuffix(";")
             nodes.append(line)
         else:
             continue
@@ -70,11 +74,13 @@ def build_nodes(node_names: list[str], raw_graph: str) -> list[Node]:
             if len(dependency) != 2:
                 raise RuntimeError("dependency in graph is malformed")
 
-            pre = dependency[0]
-            post = dependency[1]
+            pre = dependency[0].strip()
+            post = dependency[1].strip().removesuffix(";")
+
+            print(node_names)
 
             if pre not in node_names or post not in node_names:
-                raise RuntimeError("there is a dependency with a non-existent node")
+                raise RuntimeError(f"there is a dependency with a non-existent node; '{pre}' or '{post}' are not in {node_names}")
 
             pre_node = get_node_from_list(built_nodes, pre)
             post_node = get_node_from_list(built_nodes, post)
