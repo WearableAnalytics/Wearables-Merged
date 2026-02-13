@@ -8,6 +8,12 @@ const normalizePrefix = (value: string): string => {
   return withSlash.endsWith('/') ? withSlash.slice(0, -1) : withSlash;
 };
 
+const parseCsvList = (value: string): string[] =>
+  value
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
 const readPrivateKey = (): string | null => {
   if (process.env.GRAFANA_JWT_PRIVATE_KEY) {
     return process.env.GRAFANA_JWT_PRIVATE_KEY.replace(/\\n/g, '\n');
@@ -25,7 +31,7 @@ export const config = {
   proxyPrefix: normalizePrefix(process.env.PROXY_PREFIX ?? '/grafana'),
   grafanaBaseUrl: process.env.GRAFANA_BASE_URL ?? '',
   grafanaPathPrefix: normalizePrefix(process.env.GRAFANA_PATH_PREFIX ?? ''),
-  grafanaDashboardId: process.env.GRAFANA_DASHBOARD_ID ?? '',
+  grafanaAllowedDashboardIds: parseCsvList(process.env.GRAFANA_ALLOWED_DASHBOARD_IDS ?? ''),
   grafanaDashboardDatasource: process.env.GRAFANA_DASHBOARD_DATASOURCE ?? '',
   grafanaTlsSkipVerify: process.env.GRAFANA_TLS_SKIP_VERIFY === 'true',
   grafanaJwtHeader: process.env.GRAFANA_JWT_HEADER ?? 'X-JWT-Assertion',

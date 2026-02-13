@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -17,78 +16,78 @@ import { mapValues } from '../runtime';
 /**
  * 
  * @export
- * @interface Patient
+ * @interface HospitalCase
  */
-export interface Patient {
+export interface HospitalCase {
     /**
-     * Internal patient identifier
+     * Hospital case identifier
      * @type {string}
-     * @memberof Patient
+     * @memberof HospitalCase
      */
-    patientId: string;
+    hospitalCaseId: string;
     /**
      * Patient first name
      * @type {string}
-     * @memberof Patient
+     * @memberof HospitalCase
      */
     firstName: string;
     /**
      * Patient last name
      * @type {string}
-     * @memberof Patient
+     * @memberof HospitalCase
      */
     lastName: string;
     /**
      * Patient date of birth
      * @type {Date}
-     * @memberof Patient
+     * @memberof HospitalCase
      */
     birthDate: Date;
 }
 
 /**
- * Check if a given object implements the Patient interface.
+ * Check if a given object implements the HospitalCase interface.
  */
-export function instanceOfPatient(value: object): value is Patient {
-    if (!('patientId' in value) || value['patientId'] === undefined) return false;
+export function instanceOfHospitalCase(value: object): value is HospitalCase {
+    if (!('hospitalCaseId' in value) || value['hospitalCaseId'] === undefined) return false;
     if (!('firstName' in value) || value['firstName'] === undefined) return false;
     if (!('lastName' in value) || value['lastName'] === undefined) return false;
     if (!('birthDate' in value) || value['birthDate'] === undefined) return false;
     return true;
 }
 
-export function PatientFromJSON(json: any): Patient {
-    return PatientFromJSONTyped(json, false);
+export function HospitalCaseFromJSON(json: any): HospitalCase {
+    return HospitalCaseFromJSONTyped(json, false);
 }
 
-export function PatientFromJSONTyped(json: any, ignoreDiscriminator: boolean): Patient {
+export function HospitalCaseFromJSONTyped(json: any, ignoreDiscriminator: boolean): HospitalCase {
     if (json == null) {
         return json;
     }
     return {
         
-        'patientId': json['patientId'],
+        'hospitalCaseId': json['hospitalCaseId'],
         'firstName': json['firstName'],
         'lastName': json['lastName'],
         'birthDate': (new Date(json['birthDate'])),
     };
 }
 
-export function PatientToJSON(json: any): Patient {
-    return PatientToJSONTyped(json, false);
+export function HospitalCaseToJSON(json: any): HospitalCase {
+    return HospitalCaseToJSONTyped(json, false);
 }
 
-export function PatientToJSONTyped(value?: Patient | null, ignoreDiscriminator: boolean = false): any {
+export function HospitalCaseToJSONTyped(value?: HospitalCase | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
 
     return {
         
-        'patientId': value['patientId'],
+        'hospitalCaseId': value['hospitalCaseId'],
         'firstName': value['firstName'],
         'lastName': value['lastName'],
-        'birthDate': value['birthDate'].toISOString().substring(0,10),
+        'birthDate': ((value['birthDate']).toISOString().substring(0,10)),
     };
 }
 

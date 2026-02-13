@@ -3,7 +3,7 @@
   "info": {
     "title": "Patient & Case API",
     "version": "1.0.0",
-    "description": "Endpoints for fetching read-only Charité cases and managing internal patients/cases.\n\n## Frontend Flow\n1. Enter a Charité case ID (cCaseId)\n2. Fetch and display the external Charité case\n3. User clicks \"Create Case\" to create an internal case\n4. Show that patient/case was created and store the caseId\n5. Display the case token as QR code for scanning in the Charité app\n\n## Existing Patient Access\n1. Fetch all internal patients/cases\n2. User selects a patient/case to view details\n3. Display case details and show case token as QR code\n\n## App Flow\n1. Receive a caseToken scanned from Charité app\n2. Fetch the internal case using POST /cases/verify-token\n3. Display case details\n4. Allow user to proceed with further actions",
+    "description": "Endpoints for fetching read-only Hospital cases and managing internal patients/cases.\n\n## Frontend Flow\n1. Enter a Hospital case ID (hospitalCaseId)\n2. Fetch and display the external Hospital case\n3. User clicks \"Create Case\" to create an internal case\n4. Show that patient/case was created and store the caseId\n5. Display the case token as QR code for scanning in the Hospital app\n\n## Existing Patient Access\n1. Fetch all internal patients/cases\n2. User selects a patient/case to view details\n3. Display case details and show case token as QR code\n\n## App Flow\n1. Receive a caseToken scanned from Hospital app\n2. Fetch the internal case using POST /cases/verify-token\n3. Display case details\n4. Allow user to proceed with further actions",
     "contact": {
       "name": "API Support"
     }
@@ -16,8 +16,8 @@
   ],
   "tags": [
     {
-      "name": "Charité Cases",
-      "description": "Read-only external Charité cases"
+      "name": "Hospital Cases",
+      "description": "Read-only external Hospital cases"
     },
     {
       "name": "Patients",
@@ -30,12 +30,12 @@
   ],
   "components": {
     "schemas": {
-      "ChariteCase": {
+      "HospitalCase": {
         "type": "object",
         "properties": {
-          "cCaseId": {
+          "hospitalCaseId": {
             "type": "string",
-            "description": "Charité case identifier",
+            "description": "Hospital case identifier",
             "example": "C-123456"
           },
           "firstName": {
@@ -53,22 +53,10 @@
             "format": "date",
             "description": "Patient date of birth",
             "example": "1980-01-01"
-          },
-          "sex": {
-            "type": "string",
-            "enum": ["female", "male", "other"],
-            "description": "Patient sex",
-            "example": "male"
-          },
-          "weight": {
-            "type": "number",
-            "description": "Patient weight in kg",
-            "example": 75.5,
-            "minimum": 0
           }
         },
         "required": [
-          "cCaseId",
+          "hospitalCaseId",
           "firstName",
           "lastName",
           "birthDate"
@@ -121,9 +109,9 @@
             "description": "Associated patient identifier",
             "example": "P-98765"
           },
-          "cCaseId": {
+          "hospitalCaseId": {
             "type": "string",
-            "description": "Original Charité case identifier",
+            "description": "Original Hospital case identifier",
             "example": "C-123456"
           },
           "status": {
@@ -228,39 +216,39 @@
     "parameters": {}
   },
   "paths": {
-    "/charite/cases/{cCaseId}": {
+    "/hospital/cases/{hospitalCaseId}": {
       "get": {
         "tags": [
-          "Charité Cases"
+          "Hospital Cases"
         ],
-        "summary": "Get a Charité case",
-        "description": "Returns a read-only Charité case by ID",
+        "summary": "Get a Hospital case",
+        "description": "Returns a read-only Hospital case by ID",
         "parameters": [
           {
             "schema": {
               "type": "string",
-              "description": "Charité case identifier",
+              "description": "Hospital case identifier",
               "example": "C-123456"
             },
             "required": true,
-            "description": "Charité case identifier",
-            "name": "cCaseId",
+            "description": "Hospital case identifier",
+            "name": "hospitalCaseId",
             "in": "path"
           }
         ],
         "responses": {
           "200": {
-            "description": "Charité case retrieved successfully",
+            "description": "Hospital case retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChariteCase"
+                  "$ref": "#/components/schemas/HospitalCase"
                 }
               }
             }
           },
           "404": {
-            "description": "Charité case not found",
+            "description": "Hospital case not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -455,13 +443,13 @@
         }
       }
     },
-    "/cases/from-charite-case": {
+    "/cases/from-hospital-case": {
       "post": {
         "tags": [
           "Cases"
         ],
-        "summary": "Create internal case from Charité case",
-        "description": "Creates an internal case from an external Charité case with the specified conflict-resolution rules.",
+        "summary": "Create internal case from Hospital case",
+        "description": "Creates an internal case from an external Hospital case with the specified conflict-resolution rules.",
         "requestBody": {
           "required": true,
           "content": {
@@ -469,14 +457,14 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "cCaseId": {
+                  "hospitalCaseId": {
                     "type": "string",
-                    "description": "Charité case identifier",
+                    "description": "Hospital case identifier",
                     "example": "C-123456"
                   }
                 },
                 "required": [
-                  "cCaseId"
+                  "hospitalCaseId"
                 ],
                 "additionalProperties": false
               }
@@ -515,7 +503,7 @@
             }
           },
           "404": {
-            "description": "Charité case not found",
+            "description": "Hospital case not found",
             "content": {
               "application/json": {
                 "schema": {

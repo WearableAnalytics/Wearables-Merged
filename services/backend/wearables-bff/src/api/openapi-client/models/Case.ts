@@ -2,7 +2,7 @@
 /* eslint-disable */
 /**
  * Patient & Case API
- * Endpoints for fetching read-only Charité cases and managing internal patients/cases.  ## Frontend Flow 1. Enter a Charité case ID (cCaseId) 2. Fetch and display the external Charité case 3. User clicks \"Create Case\" to create an internal case 4. Show that patient/case was created and store the caseId 5. Display the case token as QR code for scanning in the Charité app  ## Existing Patient Access 1. Fetch all internal patients/cases 2. User selects a patient/case to view details 3. Display case details and show case token as QR code  ## App Flow 1. Receive a caseToken scanned from Charité app 2. Fetch the internal case using POST /cases/verify-token 3. Display case details 4. Allow user to proceed with further actions
+ * Endpoints for fetching read-only Hospital cases and managing internal patients/cases.  ## Frontend Flow 1. Enter a Hospital case ID (hospitalCaseId) 2. Fetch and display the external Hospital case 3. User clicks \"Create Case\" to create an internal case 4. Show that patient/case was created and store the caseId 5. Display the case token as QR code for scanning in the Hospital app  ## Existing Patient Access 1. Fetch all internal patients/cases 2. User selects a patient/case to view details 3. Display case details and show case token as QR code  ## App Flow 1. Receive a caseToken scanned from Hospital app 2. Fetch the internal case using POST /cases/verify-token 3. Display case details 4. Allow user to proceed with further actions
  *
  * The version of the OpenAPI document: 1.0.0
  * 
@@ -32,11 +32,11 @@ export interface Case {
      */
     patientId: string;
     /**
-     * Original Charité case identifier
+     * Original Hospital case identifier
      * @type {string}
      * @memberof Case
      */
-    cCaseId?: string;
+    hospitalCaseId?: string;
     /**
      * Case status
      * @type {string}
@@ -84,7 +84,7 @@ export function CaseFromJSONTyped(json: any, ignoreDiscriminator: boolean): Case
         
         'caseId': json['caseId'],
         'patientId': json['patientId'],
-        'cCaseId': json['cCaseId'] == null ? undefined : json['cCaseId'],
+        'hospitalCaseId': json['hospitalCaseId'] == null ? undefined : json['hospitalCaseId'],
         'status': json['status'],
         'caseToken': json['caseToken'] == null ? undefined : json['caseToken'],
     };
@@ -103,7 +103,7 @@ export function CaseToJSONTyped(value?: Case | null, ignoreDiscriminator: boolea
         
         'caseId': value['caseId'],
         'patientId': value['patientId'],
-        'cCaseId': value['cCaseId'],
+        'hospitalCaseId': value['hospitalCaseId'],
         'status': value['status'],
         'caseToken': value['caseToken'],
     };

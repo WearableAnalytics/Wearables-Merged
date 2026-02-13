@@ -1,22 +1,22 @@
 
-# CasesFromChariteCasePostRequest
+# CasesFromHospitalCasePostRequest
 
 
 ## Properties
 
 Name | Type
 ------------ | -------------
-`cCaseId` | string
+`hospitalCaseId` | string
 
 ## Example
 
 ```typescript
-import type { CasesFromChariteCasePostRequest } from ''
+import type { CasesFromHospitalCasePostRequest } from ''
 
 // TODO: Update the object below with actual values
 const example = {
-  "cCaseId": C-123456,
-} satisfies CasesFromChariteCasePostRequest
+  "hospitalCaseId": C-123456,
+} satisfies CasesFromHospitalCasePostRequest
 
 console.log(example)
 
@@ -25,7 +25,7 @@ const exampleJSON: string = JSON.stringify(example)
 console.log(exampleJSON)
 
 // Parse the JSON string back to an object
-const exampleParsed = JSON.parse(exampleJSON) as CasesFromChariteCasePostRequest
+const exampleParsed = JSON.parse(exampleJSON) as CasesFromHospitalCasePostRequest
 console.log(exampleParsed)
 ```
 

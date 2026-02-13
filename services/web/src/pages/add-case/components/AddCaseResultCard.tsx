@@ -1,11 +1,11 @@
-import type { ChariteCase } from '@/api/openapi-client';
+import type { HospitalCase } from '@/api/openapi-client';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InfoItem } from '../../../components/custom/InfoItem';
 import { formatDateDayMonthYear } from '@/lib/date';
 
 type AddCaseResultCardProps = {
-  caseData: ChariteCase;
+  caseData: HospitalCase;
   creating: boolean;
   onCreate: () => void;
 };
@@ -19,14 +19,14 @@ export function AddCaseResultCard({
     <div className="surface-card p-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="m-0 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Charite case</p>
+          <p className="m-0 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Hospital case</p>
           <h3 className="text-section-title">
             {caseData.firstName} {caseData.lastName}
           </h3>
         </div>
         <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 font-mono text-sm tracking-[0.02em] text-muted-foreground">
           ID
-          <span className="font-semibold text-foreground">{caseData.cCaseId}</span>
+          <span className="font-semibold text-foreground">{caseData.hospitalCaseId}</span>
         </span>
       </div>
 
@@ -34,7 +34,7 @@ export function AddCaseResultCard({
         <InfoItem label="First name" value={caseData.firstName} />
         <InfoItem label="Last name" value={caseData.lastName} />
         <InfoItem label="Date of birth" value={formatDateDayMonthYear(caseData.birthDate)} />
-        <InfoItem label="Charité Case ID" value={caseData.cCaseId} />
+        <InfoItem label="Hospital case ID" value={caseData.hospitalCaseId} />
       </dl>
 
       <div className="mt-4 flex flex-col gap-3">
@@ -46,5 +46,4 @@ export function AddCaseResultCard({
     </div>
   );
 }
-
 

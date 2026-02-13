@@ -129,10 +129,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Mobile menu button */}
           <div className="md:hidden">
             <Button
-              variant="ghost"
-              size="sm"
+              variant="outline"
+              size="icon"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 hover:bg-primary group"
+              className="group rounded-full border-border/70 bg-card/40 bg-clip-padding shadow-[var(--shadow-card)] backdrop-blur-lg hover:bg-primary"
             >
               <Menu className="h-5 w-5 text-foreground group-hover:text-primary-foreground" />
             </Button>

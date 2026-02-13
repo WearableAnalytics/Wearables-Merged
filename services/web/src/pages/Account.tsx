@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { PageHeader } from '@/components/custom/PageHeader';
-import { AddCaseNotice } from '@/pages/add-case/components/AddCaseNotice';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemePreference } from '@/context/ThemeContext';
+import { useMessageToast } from '@/lib/toast';
 
 const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
   { value: 'system', label: 'System theme' },
@@ -21,22 +20,11 @@ export function AccountPage() {
   const [message, setMessage] = useState<string | null>(null);
   const adminRequestStatus = user?.adminRequestStatus ?? 'none';
   const userRole = user?.role ?? 'user';
-
-  useEffect(() => {
-    if (error) {
-      toast.error(error, { id: 'account-error' });
-    } else {
-      toast.dismiss('account-error');
-    }
-  }, [error]);
-
-  useEffect(() => {
-    if (message) {
-      toast.info(message, { id: 'account-message' });
-    } else {
-      toast.dismiss('account-message');
-    }
-  }, [message]);
+  const pendingAdminToastMessage =
+    user && adminRequestStatus === 'pending' ? 'Your admin request is pending review.' : null;
+  useMessageToast('error', 'account-error', error);
+  useMessageToast('info', 'account-message', message);
+  useMessageToast('info', 'account-pending', pendingAdminToastMessage);
 
   const handleRequestAdmin = async () => {
     setIsSubmitting(true);
@@ -54,19 +42,6 @@ export function AccountPage() {
       setIsSubmitting(false);
     }
   };
-
-  useEffect(() => {
-    if (!user) {
-      toast.dismiss('account-pending');
-      return;
-    }
-
-    if (adminRequestStatus === 'pending') {
-      toast.info('Your admin request is pending review.', { id: 'account-pending' });
-    } else {
-      toast.dismiss('account-pending');
-    }
-  }, [adminRequestStatus, user]);
 
   if (!user) {
     return null;
@@ -88,14 +63,10 @@ export function AccountPage() {
           <p className="text-lg font-semibold text-foreground">{user.email}</p>
           <p className="text-sm text-muted-foreground">Role</p>
           <p className="text-base font-semibold capitalize text-foreground">{user.role ?? 'user'}</p>
-          <p className="text-sm text-muted-foreground">Account status</p>
-          <p className="text-base font-semibold capitalize text-foreground">{user.status ?? 'approved'}</p>
         </div>
 
         <div className="mt-6 space-y-3">
-          {userRole === 'admin' ? (
-            <AddCaseNotice tone="info" message="You already have admin access." />
-          ) : adminRequestStatus === 'pending' ? null : (
+          {userRole === 'admin' ? null : adminRequestStatus === 'pending' ? null : (
             <Button onClick={handleRequestAdmin} disabled={!canRequestAdmin || isSubmitting}>
               {isSubmitting ? 'Submitting…' : 'Request admin access'}
             </Button>

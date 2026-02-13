@@ -76,6 +76,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isDark } = useTheme();
+  const isCaseDetailRoute = /^\/cases\/[^/]+$/.test(location.pathname);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -84,7 +85,7 @@ function App() {
       <Toaster position="top-right" richColors closeButton theme={isDark ? 'dark' : 'light'} />
 
       <main className="pt-24 pb-[72px] px-[clamp(16px,4vw,48px)]">
-        <div className="max-w-[1100px] mx-auto">
+        <div className={isCaseDetailRoute ? 'w-full' : 'mx-auto max-w-[1100px]'}>
           <Routing />
         </div>
       </main>

@@ -4,7 +4,6 @@ import { config } from './config.js';
 
 const app = express();
 const port = config.port;
-const DASHBOARD_SLUG = 'wearables-dashboard-real';
 const DEFAULT_FROM = 'now-24h';
 const DEFAULT_TO = 'now';
 
@@ -28,6 +27,12 @@ const queryValue = (value: unknown): string | null => {
 };
 
 const toGrafanaPanelValue = (value: unknown): string | null => {
+  const candidate = queryValue(value);
+  if (!candidate) return null;
+  return /^[A-Za-z0-9_-]+$/.test(candidate) ? candidate : null;
+};
+
+const toGrafanaDashboardIdValue = (value: unknown): string | null => {
   const candidate = queryValue(value);
   if (!candidate) return null;
   return /^[A-Za-z0-9_-]+$/.test(candidate) ? candidate : null;
@@ -65,6 +70,9 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
   const jwtProxy = createJwtProxy(config);
   const mountPath = config.proxyPrefix || '/grafana';
   const embedPath = toPath(mountPath, '/embed');
+  const allowedDashboardIds = new Set(
+    config.grafanaAllowedDashboardIds.filter((dashboardId) => /^[A-Za-z0-9_-]+$/.test(dashboardId)),
+  );
 
   app.get(embedPath, (req, res) => {
     const deviceId = queryValue(req.query.deviceId);
@@ -72,9 +80,9 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
       res.status(400).json({ error: 'Missing required query parameter: deviceId' });
       return;
     }
-    if (!config.grafanaDashboardId || !config.grafanaDashboardDatasource) {
+    if (allowedDashboardIds.size === 0 || !config.grafanaDashboardDatasource) {
       res.status(500).json({
-        error: 'Proxy is missing GRAFANA_DASHBOARD_ID and/or GRAFANA_DASHBOARD_DATASOURCE configuration',
+        error: 'Proxy is missing GRAFANA_ALLOWED_DASHBOARD_IDS and/or GRAFANA_DASHBOARD_DATASOURCE configuration',
       });
       return;
     }
@@ -83,6 +91,17 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
     const to = toGrafanaTimeValue(req.query.to, DEFAULT_TO);
     const viewPanel = toGrafanaPanelValue(req.query.viewPanel);
     const theme = toGrafanaThemeValue(req.query.theme);
+    const dashboardId = toGrafanaDashboardIdValue(req.query.dashboardUid);
+    if (!dashboardId) {
+      res.status(400).json({ error: 'Missing required query parameter: dashboardUid' });
+      return;
+    }
+    if (!allowedDashboardIds.has(dashboardId)) {
+      res.status(400).json({
+        error: 'Unsupported dashboardUid. Configure GRAFANA_ALLOWED_DASHBOARD_IDS to allow this dashboard.',
+      });
+      return;
+    }
     if (/^\d+$/.test(from) && /^\d+$/.test(to) && Number(from) >= Number(to)) {
       from = DEFAULT_FROM;
     }
@@ -106,7 +125,7 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
 
     const dashboardPath = toPath(
       mountPath,
-      `/d/${encodeURIComponent(config.grafanaDashboardId)}/${encodeURIComponent(DASHBOARD_SLUG)}`,
+      `/d/${encodeURIComponent(dashboardId)}/${encodeURIComponent(dashboardId)}`,
     );
 
     // Full kiosk mode is enforced by presence of the `kiosk` flag.
@@ -126,8 +145,11 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
       return;
     }
 
-    const allowedDashboardPath = `/d/${encodeURIComponent(config.grafanaDashboardId)}`;
-    if (req.path === allowedDashboardPath || req.path.startsWith(`${allowedDashboardPath}/`)) {
+    const isAllowedDashboardPath = Array.from(allowedDashboardIds).some((dashboardId) => {
+      const dashboardPath = `/d/${encodeURIComponent(dashboardId)}`;
+      return req.path === dashboardPath || req.path.startsWith(`${dashboardPath}/`);
+    });
+    if (isAllowedDashboardPath) {
       next();
       return;
     }

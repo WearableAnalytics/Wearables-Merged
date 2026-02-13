@@ -1,4 +1,4 @@
-import { CasesApi, CharitCasesApi, Configuration, PatientsApi } from './openapi-client';
+import { CasesApi, HospitalCasesApi, Configuration, PatientsApi } from './openapi-client';
 
 const sharedConfig = new Configuration({
   basePath:
@@ -11,17 +11,17 @@ const sharedConfig = new Configuration({
 
 export class DefaultApi {
   private casesApi = new CasesApi(sharedConfig);
-  private charitCasesApi = new CharitCasesApi(sharedConfig);
+  private hospitalCasesApi = new HospitalCasesApi(sharedConfig);
   private patientsApi = new PatientsApi(sharedConfig);
 
   // Cases
   casesCaseIdGet = this.casesApi.casesCaseIdGet.bind(this.casesApi);
-  casesFromChariteCasePost = this.casesApi.casesFromChariteCasePost.bind(this.casesApi);
+  casesFromHospitalCasePost = this.casesApi.casesFromHospitalCasePost.bind(this.casesApi);
   casesGet = this.casesApi.casesGet.bind(this.casesApi);
   casesVerifyTokenPost = this.casesApi.casesVerifyTokenPost.bind(this.casesApi);
 
-  // Charité cases
-  chariteCasesCCaseIdGet = this.charitCasesApi.chariteCasesCCaseIdGet.bind(this.charitCasesApi);
+  // Hospital cases
+  hospitalCasesHospitalCaseIdGet = this.hospitalCasesApi.hospitalCasesHospitalCaseIdGet.bind(this.hospitalCasesApi);
 
   // Patients
   patientsGet = this.patientsApi.patientsGet.bind(this.patientsApi);

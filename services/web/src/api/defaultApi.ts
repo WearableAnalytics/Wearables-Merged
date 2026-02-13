@@ -1,4 +1,4 @@
-import { Configuration, CasesApi, CharitCasesApi, PatientsApi } from './openapi-client';
+import { Configuration, CasesApi, HospitalCasesApi, PatientsApi } from './openapi-client';
 import type { Middleware } from './openapi-client';
 import { dispatchSessionExpiredEvent } from '@/lib/authSession';
 
@@ -60,7 +60,7 @@ const sharedConfig = new Configuration({
 
 export class DefaultApi {
   private casesApi = new CasesApi(sharedConfig);
-  private charitCasesApi = new CharitCasesApi(sharedConfig);
+  private hospitalCasesApi = new HospitalCasesApi(sharedConfig);
   private patientsApi = new PatientsApi(sharedConfig);
 
   // Auth (custom)
@@ -356,17 +356,19 @@ export class DefaultApi {
   };
 
   // Cases
+  casesCaseIdGetRaw = this.casesApi.casesCaseIdGetRaw.bind(this.casesApi);
   casesCaseIdGet = this.casesApi.casesCaseIdGet.bind(this.casesApi);
-  casesFromChariteCasePost = this.casesApi.casesFromChariteCasePost.bind(this.casesApi);
+  casesFromHospitalCasePost = this.casesApi.casesFromHospitalCasePost.bind(this.casesApi);
   casesGet = this.casesApi.casesGet.bind(this.casesApi);
   casesVerifyTokenPost = this.casesApi.casesVerifyTokenPost.bind(this.casesApi);
 
-  // Charité cases
-  chariteCasesCCaseIdGet = this.charitCasesApi.chariteCasesCCaseIdGet.bind(this.charitCasesApi);
+  // Hospital cases
+  hospitalCasesHospitalCaseIdGet = this.hospitalCasesApi.hospitalCasesHospitalCaseIdGet.bind(this.hospitalCasesApi);
 
   // Patients
   patientsGet = this.patientsApi.patientsGet.bind(this.patientsApi);
   patientsPatientIdCasesGet = this.patientsApi.patientsPatientIdCasesGet.bind(this.patientsApi);
+  patientsPatientIdGetRaw = this.patientsApi.patientsPatientIdGetRaw.bind(this.patientsApi);
   patientsPatientIdGet = this.patientsApi.patientsPatientIdGet.bind(this.patientsApi);
 }
 

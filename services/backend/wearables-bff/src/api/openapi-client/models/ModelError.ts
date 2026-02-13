@@ -2,7 +2,7 @@
 /* eslint-disable */
 /**
  * Patient & Case API
- * Endpoints for fetching read-only Charité cases and managing internal patients/cases.  ## Frontend Flow 1. Enter a Charité case ID (cCaseId) 2. Fetch and display the external Charité case 3. User clicks \"Create Case\" to create an internal case 4. Show that patient/case was created and store the caseId 5. Display the case token as QR code for scanning in the Charité app  ## Existing Patient Access 1. Fetch all internal patients/cases 2. User selects a patient/case to view details 3. Display case details and show case token as QR code  ## App Flow 1. Receive a caseToken scanned from Charité app 2. Fetch the internal case using POST /cases/verify-token 3. Display case details 4. Allow user to proceed with further actions
+ * Endpoints for fetching read-only Hospital cases and managing internal patients/cases.  ## Frontend Flow 1. Enter a Hospital case ID (hospitalCaseId) 2. Fetch and display the external Hospital case 3. User clicks \"Create Case\" to create an internal case 4. Show that patient/case was created and store the caseId 5. Display the case token as QR code for scanning in the Hospital app  ## Existing Patient Access 1. Fetch all internal patients/cases 2. User selects a patient/case to view details 3. Display case details and show case token as QR code  ## App Flow 1. Receive a caseToken scanned from Hospital app 2. Fetch the internal case using POST /cases/verify-token 3. Display case details 4. Allow user to proceed with further actions
  *
  * The version of the OpenAPI document: 1.0.0
  * 

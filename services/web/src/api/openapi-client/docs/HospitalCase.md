@@ -1,12 +1,12 @@
 
-# ChariteCase
+# HospitalCase
 
 
 ## Properties
 
 Name | Type
 ------------ | -------------
-`cCaseId` | string
+`hospitalCaseId` | string
 `firstName` | string
 `lastName` | string
 `birthDate` | Date
@@ -14,15 +14,15 @@ Name | Type
 ## Example
 
 ```typescript
-import type { ChariteCase } from ''
+import type { HospitalCase } from ''
 
 // TODO: Update the object below with actual values
 const example = {
-  "cCaseId": C-123456,
+  "hospitalCaseId": C-123456,
   "firstName": Max,
   "lastName": Mustermann,
   "birthDate": Tue Jan 01 01:00:00 CET 1980,
-} satisfies ChariteCase
+} satisfies HospitalCase
 
 console.log(example)
 
@@ -31,7 +31,7 @@ const exampleJSON: string = JSON.stringify(example)
 console.log(exampleJSON)
 
 // Parse the JSON string back to an object
-const exampleParsed = JSON.parse(exampleJSON) as ChariteCase
+const exampleParsed = JSON.parse(exampleJSON) as HospitalCase
 console.log(exampleParsed)
 ```
 

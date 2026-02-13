@@ -1,11 +1,11 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
 import { AuthEmailFormPage } from '@/components/custom/AuthEmailFormPage';
 import { getTrimmedOrNull } from '@/lib/input';
+import { useLoadingToast, useMessageToast } from '@/lib/toast';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -13,6 +13,8 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useMessageToast('error', 'login-error', error);
+  useLoadingToast('login-loading', isSubmitting, 'Sending login link…');
 
   const resetFeedback = () => {
     setError(null);
@@ -23,22 +25,6 @@ export function LoginPage() {
       navigate('/overview', { replace: true });
     }
   }, [user, authLoading, navigate]);
-
-  useEffect(() => {
-    if (error) {
-      toast.error(error, { id: 'login-error' });
-    } else {
-      toast.dismiss('login-error');
-    }
-  }, [error]);
-
-  useEffect(() => {
-    if (isSubmitting) {
-      toast.loading('Sending login link…', { id: 'login-loading' });
-    } else {
-      toast.dismiss('login-loading');
-    }
-  }, [isSubmitting]);
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();

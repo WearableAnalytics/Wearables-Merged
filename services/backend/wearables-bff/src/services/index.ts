@@ -10,13 +10,13 @@ export interface CaseCreationResult {
   caseRecord: {
     caseId: string;
     patientId: string;
-    cCaseId?: string;
+    hospitalCaseId?: string;
     status: string;
     caseToken?: string | null;
   };
   patient: Patient | null;
-  chariteCase?: {
-    cCaseId: string;
+  hospitalCase?: {
+    hospitalCaseId: string;
     firstName: string;
     lastName: string;
     birthDate: Date;
@@ -121,20 +121,20 @@ class CaseService {
     }
   }
 
-  async createCaseFromCharite(cCaseId: string): Promise<CaseCreationResult | undefined> {
+  async createCaseFromHospital(hospitalCaseId: string): Promise<CaseCreationResult | undefined> {
     if (config.useMockData) {
-      return mockData.createCaseFromCharite(cCaseId);
+      return mockData.createCaseFromHospital(hospitalCaseId);
     }
 
     try {
-      const chariteCase = mockData.findChariteCase(cCaseId);
-      if (!chariteCase) {
+      const hospitalCase = mockData.findHospitalCase(hospitalCaseId);
+      if (!hospitalCase) {
         return undefined;
       }
 
       const searchResult = await databaseApiClient.getPatients({
-        firstname: chariteCase.firstName,
-        lastname: chariteCase.lastName
+        firstname: hospitalCase.firstName,
+        lastname: hospitalCase.lastName
       });
 
       let patient: Patient;
@@ -151,11 +151,10 @@ class CaseService {
       } else {
         // 3. Create patient if not found
         const newPatient = await databaseApiClient.createPatient({
-          charite_id: chariteCase.uuid, // Using UUID as charite_id
-          name: `${chariteCase.firstName} ${chariteCase.lastName}`,
-          sex: chariteCase.sex ?? 'other',
-          dob: chariteCase.birthDate.toISOString().split('T')[0], // Convert to ISO date string
-          weight: chariteCase.weight,
+          hospital_id: hospitalCase.uuid, // Using UUID as hospital_id
+          name: `${hospitalCase.firstName} ${hospitalCase.lastName}`,
+          sex: 'other',
+          dob: hospitalCase.birthDate.toISOString().split('T')[0], // Convert to ISO date string
         });
         patient = {
           patientId: newPatient.id,
@@ -165,7 +164,7 @@ class CaseService {
         };
       }
 
-      // 4. Check if case already exists with this cCaseId
+      // 4. Check if case already exists with this hospitalCaseId
       const patientCases = await databaseApiClient.getPatientCases(patient.patientId);
       const existingCase = patientCases.find((c) => {
         return c.status === 'ONGOING';
@@ -183,12 +182,12 @@ class CaseService {
           caseRecord: {
             caseId: existingCase.id,
             patientId: existingCase.patient_id,
-            cCaseId,
+            hospitalCaseId,
             status: existingCase.status,
             caseToken,
           },
           patient,
-          chariteCase,
+          hospitalCase,
         };
       }
 
@@ -212,15 +211,15 @@ class CaseService {
         caseRecord: {
           caseId: newCase.id,
           patientId: newCase.patient_id,
-          cCaseId,
+          hospitalCaseId,
           status: newCase.status,
           caseToken,
         },
         patient,
-        chariteCase,
+        hospitalCase,
       };
     } catch (error) {
-      logger.error('Error creating case from Charité', error as Error);
+      logger.error('Error creating case from Hospital', error as Error);
       throw error;
     }
   }
@@ -273,13 +272,13 @@ class CaseService {
   }
 }
 
-class ChariteCaseService {
-  async findChariteCase(cCaseId: string) {
-    // Using mock data for both modes until a Charité API is available
-    return mockData.findChariteCase(cCaseId);
+class HospitalCaseService {
+  async findHospitalCase(hospitalCaseId: string) {
+    // Using mock data for both modes until a Hospital API is available
+    return mockData.findHospitalCase(hospitalCaseId);
   }
 }
 
 export const patientService = new PatientService();
 export const caseService = new CaseService();
-export const chariteCaseService = new ChariteCaseService();
+export const hospitalCaseService = new HospitalCaseService();

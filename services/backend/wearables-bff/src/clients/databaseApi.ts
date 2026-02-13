@@ -2,7 +2,7 @@ import config from '../config.js';
 
 export interface Patient {
   id: string;
-  charite_id: string;
+  hospital_id: string;
   name: string;
   sex?: string;
   dob?: string; // ISO date string from db_lord
@@ -11,7 +11,7 @@ export interface Patient {
 }
 
 export interface PatientBase {
-  charite_id: string;
+  hospital_id: string;
   name: string;
   sex?: string;
   dob?: string; // ISO date string
