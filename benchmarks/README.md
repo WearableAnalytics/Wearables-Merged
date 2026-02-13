@@ -22,7 +22,7 @@ Steps already taken and implemented
 - [x] Test-Benchmark (Test-Runner)
 - [x] Ingestion-Service-Latency (maybe Throughput) 
 - [x] Mapper-Throughput (=> Approach Works)
-- [ ] End-to-end-Throughput
+- [ ] End-to-end-Throughput (=> Currently working on it)
 
 ---
 

@@ -38,9 +38,8 @@ func (obs *InfluxObserver) ObserveAndLog(ctx context.Context) {
 	ticker := time.NewTicker(obs.Config.WindowSize)
 	defer ticker.Stop()
 
-	lastObservedProducerTimestamp := obs.Config.T0
+	lastObserved := obs.Config.T0
 
-	log.Printf("message-id,t_produced,t_observed")
 	for {
 		select {
 		case <-ctx.Done():
@@ -48,17 +47,39 @@ func (obs *InfluxObserver) ObserveAndLog(ctx context.Context) {
 		case <-ticker.C:
 			query := fmt.Sprintf(`
 from(bucket: "%s")
-  |> range(start: %s) 
-  |> sort(columns: ["_time"])`, obs.Config.Bucket, lastObservedProducerTimestamp.Format(time.RFC3339Nano))
+  |> range(start: time(v: "%s"))
+  |> filter(fn: (r) => r._measurement == "heart-rate")`, obs.Config.Bucket, lastObserved.Format(time.RFC3339Nano))
 
-			result, err := queryAPI.Query(ctx, query)
+			res, err := queryAPI.Query(ctx, query)
 			if err != nil {
-				return
+				continue
 			}
 
-			for result.Next() {
-				log.Printf(result.Record().String())
+			maxTime := lastObserved
+			tObserved := time.Now()
+
+			for res.Next() {
+				rec := res.Record()
+
+				tProduced := rec.Time()
+				messageId := fmt.Sprintf("%s-%.0f", rec.ValueByKey("device-id-reference"), rec.Value())
+
+				if rec.Time().After(lastObserved) {
+					log.Printf("%s,%d,%d", messageId, tObserved.UnixMilli(), tProduced.UnixMilli())
+
+					if tProduced.After(maxTime) {
+						maxTime = tProduced
+					}
+				}
 			}
+
+			if res.Err() != nil {
+				log.Printf("result error: %v", res.Err())
+			}
+
+			res.Close()
+
+			lastObserved = maxTime
 		}
 	}
 }

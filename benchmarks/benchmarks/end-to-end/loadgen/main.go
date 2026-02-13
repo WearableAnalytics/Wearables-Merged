@@ -14,6 +14,8 @@ var (
 	serviceURL       string
 	influxURL        string
 	influxToken      string
+	influxOrg        string
+	influxBucket     string
 	messageSize      int
 	rampUpDuration   int
 	duration         int // seconds
@@ -25,7 +27,8 @@ func init() {
 	serviceURL = mustGetEnvString("SERVICE_URL")
 	influxURL = mustGetEnvString("INFLUX_URL")
 	influxToken = mustGetEnvString("INFLUX_TOKEN")
-
+	influxOrg = mustGetEnvString("INFLUX_ORG")
+	influxBucket = mustGetEnvString("INFLUX_BUCKET")
 	messageSize = mustGetEnvInt("MESSAGE_SIZE")
 	rampUpDuration = mustGetEnvInt("RAMP_UP_DURATION")
 	duration = mustGetEnvInt("DURATION")
@@ -78,6 +81,7 @@ func main() {
 					Name:      "ramp-down",
 					Type:      "variable",
 					StartTime: (time.Duration(rampUpDuration) + time.Duration(duration)) * time.Second,
+					Duration:  time.Duration(rampDownDuration) * time.Second,
 					StartRPS:  RPS,
 					EndRPS:    0,
 					Step:      2,

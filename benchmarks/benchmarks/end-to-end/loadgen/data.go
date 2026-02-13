@@ -8,8 +8,9 @@ import (
 )
 
 type Provider struct {
-	Payload        Payload
-	MessageCounter atomic.Uint32
+	MessageSize     int
+	MessageCounter  atomic.Uint32
+	TimestampLayout string
 }
 
 type Collector struct{}
@@ -73,46 +74,43 @@ type DurationMeasurement struct {
 	DurationMinutes int     `json:"durationMinutes"`
 }
 
-func CreateBenchmarkMessage(now time.Time, size int) Payload {
-	now = now.UTC()
-	layout := "2006-01-02T15:04:05.000"
+func (p *Provider) CreateBenchmarkMessage() Payload {
+	now := time.Now().UTC()
 
 	payload := Payload{
 		DeviceInfo: DeviceInfo{
 			Platform:           "android",
+			DeviceId:           fmt.Sprintf("%d", p.MessageCounter.Add(1)),
 			AuthorizationToken: "v4z1hnhocqfbn580bncß8qb",
 		},
 		BatchInfo: BatchInfo{
-			CollectionStart: now.Add(-10 * time.Minute).Format(layout),
-			CollectionEnd:   now.Format(layout),
-			LastSendTime:    now.Add(-30 * time.Second).Format(layout),
+			CollectionStart: now.Format(p.TimestampLayout),
+			CollectionEnd:   now.Format(p.TimestampLayout),
+			LastSendTime:    now.Format(p.TimestampLayout),
 		},
 		Measurements: Measurements{
-			Instantaneous: make([]InstantMeasurement, 0, 16),
-			Cumulative:    make([]CumulativeMeasurement, 0, 16),
-			Duration:      make([]DurationMeasurement, 0, 16),
+			Instantaneous: make([]InstantMeasurement, 0),
+			Cumulative:    make([]CumulativeMeasurement, 0),
+			Duration:      make([]DurationMeasurement, 0),
 		},
 		SourceName:      "mobile-client",
 		SourcePlatform:  "android",
 		TotalStepsToday: 20000,
-		Timestamp:       now.Format(layout),
+		Timestamp:       now.Format(p.TimestampLayout),
 	}
-
-	counter := 1
 
 	for {
 		instant := InstantMeasurement{
 			Type:      "heart-rate",
-			Value:     float32(counter),
+			Value:     72,
 			Unit:      "BEATS_PER_MINUTE",
-			Timestamp: now.Format(layout),
+			Timestamp: now.Format(p.TimestampLayout),
 		}
 
 		payload.Measurements.Instantaneous = append(payload.Measurements.Instantaneous, instant)
-		counter++
 
 		data, _ := json.Marshal(payload)
-		if len(data) >= size {
+		if len(data) >= p.MessageSize {
 			break
 		}
 	}
@@ -120,13 +118,14 @@ func CreateBenchmarkMessage(now time.Time, size int) Payload {
 	return payload
 }
 
-func NewProvider(msgSize int) *Provider {
-	return &Provider{
-		Payload: CreateBenchmarkMessage(time.Now(), msgSize),
-	}
+func (p *Provider) GetData() Payload {
+	return p.CreateBenchmarkMessage()
 }
 
-func (p *Provider) GetData() Payload {
-	p.Payload.DeviceInfo.DeviceId = fmt.Sprintf("%d", p.MessageCounter.Add(1))
-	return p.Payload
+func NewProvider(msgSize int) *Provider {
+	layout := "2006-01-02T15:04:05.000"
+	return &Provider{
+		MessageSize:     msgSize,
+		TimestampLayout: layout,
+	}
 }

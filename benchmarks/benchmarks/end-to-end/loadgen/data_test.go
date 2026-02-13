@@ -5,22 +5,7 @@ import (
 	"log"
 	"strconv"
 	"testing"
-	"time"
 )
-
-func BenchmarkCreateBenchmarkMessage(b *testing.B) {
-	sizes := []int{1024, 10240, 51200, 102400}
-
-	for _, size := range sizes {
-		b.Run(fmt.Sprintf("size_%d", size), func(b *testing.B) {
-			b.ReportAllocs()
-
-			for i := 0; i < b.N; i++ {
-				_ = CreateBenchmarkMessage(time.Now(), size)
-			}
-		})
-	}
-}
 
 func BenchmarkProvider_GetData(b *testing.B) {
 	sizes := []int{1024, 10240, 51200, 102400}
