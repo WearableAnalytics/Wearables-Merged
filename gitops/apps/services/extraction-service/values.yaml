@@ -1,0 +1,15 @@
+replicaCount: 1
+
+image:
+  repository: gmsdaniil/wearables-extraction-service
+  pullPolicy: Always
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 8010
+
+secretRef: "extraction-service-secrets"
+
+env:
+  DB_LORD_BASE_URL: "http://db-lord.db-lord.svc.cluster.local:8080"

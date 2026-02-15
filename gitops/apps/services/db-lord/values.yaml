@@ -18,7 +18,7 @@ env:
   POSTGRES_USER: "lakefs"
   POSTGRES_PASSWORD: "lakefs_password"
 
-  INFLUX_URL: "http://influxdb-service.influx.svc.cluster.local:8080"
-  INFLUX_ORG: "org"
-  INFLUX_BUCKET: "bucket"
-  INFLUX_TOKEN: "some-token"
+  INFLUX_URL: "http://influxdb-service.influx.svc.cluster.local:8086"
+  INFLUX_ORG: "wearables-project"
+  INFLUX_BUCKET: "measurements"
+  INFLUX_TOKEN: "token"
