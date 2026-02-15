@@ -18,11 +18,8 @@ class Settings:
     influxdb_org: str = os.getenv("INFLUXDB_ORG", "test")
     influxdb_bucket: str = os.getenv("INFLUXDB_BUCKET", "gmstest")
 
-    # Keycloak / OIDC
-    # keycloak_issuer: str = os.getenv("KEYCLOAK_ISSUER", "http://localhost:8080/realms/wearables")
-    # keycloak_client_id: str = os.getenv("KEYCLOAK_CLIENT_ID", "import-service-api")
-    # keycloak_client_secret: str = os.getenv("KEYCLOAK_CLIENT_SECRET", "CHANGE_ME")
-    # keycloak_required_role: str = os.getenv("KEYCLOAK_REQUIRED_ROLE", "data-ingest")
+    jwt_secret: str = os.getenv("JWT_SECRET", "dev-secret")
+    registration_issuer: str = os.getenv("JWT_ISSUER", "registration-service")
 
 
 @lru_cache()

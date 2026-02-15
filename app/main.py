@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, Depends
 from .models import IngestPayload, IngestResponse
 from .kafka_producer import get_producer
+from .security import verify_case_verification_token
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,14 @@ def _send_to_kafka_sync(producer, kafka_msg):
         logger.error("Failed to send to Kafka in background: %s", e)
 
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest(payload: IngestPayload, producer=Depends(get_producer)):
-    kafka_msg = [payload.model_dump(mode='json')]
+async def ingest(
+    payload: IngestPayload,
+    producer=Depends(get_producer),
+    claims=Depends(verify_case_verification_token),
+):
+    data = payload.model_dump(mode="json")
+    data["deviceInfo"]["deviceId"] = claims["patientId"]
+    kafka_msg = [data]
 
     loop = asyncio.get_running_loop()
     loop.run_in_executor(_kafka_executor, _send_to_kafka_sync, producer, kafka_msg)
