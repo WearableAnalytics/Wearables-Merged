@@ -1,7 +1,9 @@
 from __future__ import annotations
-
 from typing import Any, Literal, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict
+import yaml
+from pydantic import BaseModel, ConfigDict, ValidationError
+
+# This model was derived from the YAML using ChatGPT 5.2
 
 class LineProtocol(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -12,13 +14,6 @@ class LineProtocol(BaseModel):
 
 
 class Transform(BaseModel):
-    """
-    Examples in your YAML:
-      - {type: toLowerCase}
-      - {type: replace, params: ['_', '-']}
-      - {type: append, params: ['Z']}
-      - {type: map}
-    """
     model_config = ConfigDict(extra="forbid")
 
     type: str
@@ -33,7 +28,6 @@ class FieldDef(BaseModel):
     optional: bool
     type: str
 
-    # exactly one (or none) of these is typically present
     rawSource: Optional[str] = None
     fhirSource: Optional[str] = None
     value: Optional[Union[str, int, float, bool]] = None
@@ -57,8 +51,6 @@ class MappingDef(BaseModel):
     map: list[MapEntry]
 
 
-# --------- top-level sections ---------
-
 class Metadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -81,11 +73,39 @@ class Measurement(BaseModel):
 
 
 class FhirYamlConfig(BaseModel):
-    """
-    Root object representing your YAML.
-    """
     model_config = ConfigDict(extra="forbid")
 
     version: str
     metadata: Metadata
     measurement: Measurement
+
+def parse_yaml(yaml_string: str, category_name: str) -> tuple[dict[str, FieldDef], dict[str, MappingDef]]:
+    try:
+        data = yaml.safe_load(yaml_string)
+        fhir_yaml = FhirYamlConfig.model_validate(data)
+
+        return extract_relevant_field_and_maps(fhir_yaml, category_name)
+    except (FileNotFoundError, yaml.YAMLError, ValidationError) as e:
+        raise RuntimeError(f"Failed to load YAML config: {e}") from e
+
+def extract_relevant_field_and_maps(yaml_basis: FhirYamlConfig, category_name: str) -> tuple[dict[str, FieldDef], dict[str, MappingDef]]:
+
+    copy_yaml = yaml_basis.model_copy(deep=True)
+    yaml_basis.measurement.paths = [
+        p for p in copy_yaml.measurement.paths
+        if p.path == category_name
+    ]
+    if len(yaml_basis.measurement.paths) != 1:
+        raise RuntimeError(
+            f"there should be exactly one applicable category, but there are {yaml_basis.measurement.paths}")
+
+    field_dict: dict[str, FieldDef] = {}
+    mapping_dict: dict[str, MappingDef] = {}
+
+    for field in yaml_basis.measurement.paths[0].fields + yaml_basis.metadata.fields:
+        field_dict[field.name] = field
+
+    for mapping in yaml_basis.measurement.paths[0].mappings:
+        mapping_dict[mapping.fieldName] = mapping
+
+    return field_dict, mapping_dict

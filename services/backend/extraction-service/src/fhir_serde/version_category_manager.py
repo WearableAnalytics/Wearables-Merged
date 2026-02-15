@@ -1,32 +1,84 @@
-from src.app.db_lord_api import DbLordApi
-from src.environment.settings import get_env_values, Settings
-from src.fhir_serde import FhirParser
+import logging
 
+import line_protocol_parser
+
+from src.fhir_serde.env_client import EnvClient
+from src.fhir_serde.fhir_builder import FhirParser
+from src.fhir_serde.api_client import ApiClient
+
+logger = logging.getLogger(__name__)
 
 class VersionManager:
-    def __init__(self, settings: Settings, client: DbLordApi):
-        self.client = client
+    def __init__(self, db_client: ApiClient, env_client: EnvClient):
+        self.db_client = db_client
+        self.env_client = env_client
+        self.current_version = None
 
-        fhir_yaml, _ = get_env_values(settings)
-        self.current_version = fhir_yaml.version
         self.parser: dict[str, FhirParser] = {}
-        self.settings = settings
 
-    #TODO add a validation sampling rate here too? and add documentation
+    def initialize(self):
+
+        self.current_version = self.env_client.get_current_version()
+
+    # TODO add a validation sampling rate here too? and add documentation
     def get_serializer(self, version: str, category: str) -> FhirParser:
 
-        if self.parser[version+"/"+category] is None:
+        parser = self.parser.get(f"{version}/{category}")
+        if parser is not None:
+            return self.parser[version + "/" + category]
 
-            is_current_version = self.current_version == version
 
-            new_parser = FhirParser(self.client, self.settings, version, category, is_current_version)
-            self.parser[version + "/" + category] = new_parser
+        new_parser: FhirParser
 
-            new_parser.prepare_yaml_and_graph()
+        logger.info(f"Created new client for version {version} and category {category}")
+        if self.current_version == version:
+            new_parser = FhirParser(self.env_client, version, category)
+        else:
+            new_parser = FhirParser(self.db_client, version, category)
 
-            if not new_parser.ready:
-                raise RuntimeError("unexpectedly new parser is not ready")
+        self.parser[version + "/" + category] = new_parser
+        new_parser.prepare_yaml_and_graph()
 
-            return new_parser
+        if not new_parser.ready:
+            raise RuntimeError("unexpectedly new parser is not ready")
 
-        return self.parser[version+"/"+category]
+        return new_parser
+
+    def transform_to_fhir(self, line_protocol_string: str) -> str:
+
+        lp_dict = line_protocol_parser.parse_line(line_protocol_string)
+
+        tags: dict[str, str] = lp_dict["tags"]
+
+        version_tag: str = tags["version"]
+        category_tag: str = tags["category"]
+
+        parser: FhirParser = self.get_serializer(version_tag, category_tag)
+
+        cleaned_lp = remove_tags(line_protocol_string)
+
+        print(cleaned_lp)
+
+        return parser.build_fhir(cleaned_lp)
+
+
+
+def remove_tags(lp_string: str) -> str:
+
+    meas_and_tags, fields, timestamp = lp_string.partition(" ")
+    if not fields:
+        raise RuntimeError(f"invalid line protocol string ingested: {lp_string}")
+
+    parts = meas_and_tags.split(",")
+    measurement = parts[0]
+    tag_parts = parts[1:]
+
+    kept = []
+    for t in tag_parts:
+        key = t.split("=", 1)[0]
+        if key not in ["version", "category"]:
+            kept.append(t)
+
+    new_meas_and_tags = measurement + ("," + ",".join(kept) if kept else "")
+    return new_meas_and_tags + " " + timestamp
+

@@ -1,25 +1,20 @@
 import copy
 import json
 
-from .dot_parser import parse_file
+from .api_client import ApiClient
+from .dot_parser import Graph
 from .transformations import to_lower_case, substring, append, prepend, replace
 from datetime import datetime, timezone
 from typing import Any
 
-from line_protocol_parser import parse_line
+import line_protocol_parser
 
 from src.fhir_serde.dot_parser import Node
-from src.fhir_serde.model import FhirYamlConfig, FieldDef, MappingDef
-from ..app.db_lord_api import DbLordApi
-from ..environment.settings import Settings, get_env_values
+from src.fhir_serde.yaml_parser import FieldDef, MappingDef
 
+import logging
 
-class LPRecord:
-    def __init__(self):
-        fields: list[tuple[str, str]]
-        tags: list[tuple[str, str]]
-        measurement: str
-        time: int
+logger = logging.getLogger(__name__)
 
 
 def tokenize_path(path: str) -> list[tuple[str, str | int]]:
@@ -44,11 +39,11 @@ def tokenize_path(path: str) -> list[tuple[str, str | int]]:
 
         if c == "[":
             flush_field()
-            i += 1  # move past '['
+            i += 1
             if i >= n:
                 raise ValueError(f"Unclosed '[' in path: {path!r}")
 
-            # read digits
+
             start = i
             while i < n and path[i].isdigit():
                 i += 1
@@ -61,14 +56,13 @@ def tokenize_path(path: str) -> list[tuple[str, str | int]]:
 
             idx_str = path[start:i]
             tokens.append(("index", int(idx_str)))
-            i += 1  # move past ']'
+            i += 1
             continue
 
         if c == "]":
-            # stray closing bracket
+
             raise ValueError(f"Stray ']' in path: {path!r}")
 
-        # normal field character
         buf.append(c)
         i += 1
 
@@ -139,15 +133,12 @@ def build_path(fhir_dict: dict[str, Any], path: str, field_value: str | int | fl
 
 
 class FhirParser:
-    def __init__(self, db_lord: DbLordApi, settings: Settings, version: str, category_name: str,
-                 version_is_current: bool):
+    def __init__(self, client: ApiClient, version: str, category_name: str):
 
-        self.client = db_lord
-        self.settings = settings
+        self.client = client
 
         self.category: str = category_name
         self.version: str = version
-        self.version_is_current = version_is_current
 
         self.all_fields: dict[str, FieldDef] = {}
         self.all_maps: dict[str, MappingDef] = {}
@@ -157,48 +148,26 @@ class FhirParser:
 
     def prepare_yaml_and_graph(self):
 
-        if self.version_is_current:
-            self.prepare_current_config()
-        else:
-            self.prepare_old_version()
+        parsed_yaml = self.client.read_yaml_for_version_and_category(self.version, self.category)
+        parsed_graph = self.client.read_graph_for_version_and_category(self.version, self.category)
+
+        self.prepare_config(parsed_yaml, parsed_graph)
 
         self.ready = True
 
-    def prepare_current_config(self):
+    def prepare_config(self, relevant_yaml: tuple[dict[str, FieldDef], dict[str, MappingDef]], graph: Graph):
 
-        fhir_yaml, graphs = get_env_values(self.settings)
+        self.all_fields = relevant_yaml[0]
+        self.all_maps = relevant_yaml[1]
 
-        self.prepare_config(fhir_yaml, graphs, self.category)
-
-    def prepare_old_version(self):
-
-        fhir_yaml, graphs = self.client.read_yaml_for_version(self.version)
-
-        self.prepare_config(fhir_yaml, graphs, self.category)
-
-    def prepare_config(self, yaml_basis: FhirYamlConfig, graphs: str, category_name):
-
-        copy_yaml = yaml_basis.model_copy(deep=True)
-        yaml_basis.measurement.paths = [
-            p for p in copy_yaml.measurement.paths
-            if p.path == category_name
-        ]
-        if len(yaml_basis.measurement.paths) != 1:
-            raise RuntimeError(
-                f"there should be exactly one applicable category, but there are {yaml_basis.measurement.paths}")
-
-        for field in yaml_basis.measurement.paths[0].fields + yaml_basis.metadata.fields:
-            self.all_fields[field.name] = field
-
-        for mapping in yaml_basis.measurement.paths[0].mappings:
-            self.all_maps[mapping.fieldName] = mapping
-
-        requested_graph = parse_file(graphs)[category_name]
-
-        self.nodes = requested_graph.nodes
+        self.nodes = graph.nodes
 
     def build_fhir(self, lp_record: str) -> str:
-        lp_dict = parse_line(lp_record)
+        if not self.ready:
+            raise RuntimeError("setup for FhirParser was not completed")
+
+        #Uses an external lib
+        lp_dict = line_protocol_parser.parse_line(lp_record)
 
         fields: dict[str, str | int | float] = lp_dict["fields"]
         tags: dict[str, str] = lp_dict["tags"]
@@ -207,17 +176,8 @@ class FhirParser:
 
         fhir_dict: dict[str, Any] = {}
 
-        for field_name, field_value in fields.items():
-            node = self.nodes[field_name]
-            if node is None:
-                raise RuntimeError(f"no node found for field name {field_name}")
-            self.deduct_partial_fhir(fhir_dict, node, field_value)
-
-        for tag_name, tag_value in tags.items():
-            node = self.nodes[tag_name]
-            if node is None:
-                raise RuntimeError(f"no node found for field name {tag_name}")
-            self.deduct_partial_fhir(fhir_dict, node, tag_value)
+        self.deduct_field_type(fields, fhir_dict)
+        self.deduct_field_type(tags, fhir_dict)
 
         for field_name, field in self.all_fields.items():
             if field.lineProtocol.type == "timestamp":
@@ -225,22 +185,37 @@ class FhirParser:
                 if node is None:
                     raise RuntimeError(f"no node found for timestamp field name {field_name}")
 
-                dt = datetime.fromtimestamp(time, tz=timezone.utc)
+                dt = datetime.fromtimestamp(time / 1_000_000_000, tz=timezone.utc)
                 transformed_value = dt.isoformat(timespec="microseconds").replace("+00:00", "Z")
 
                 self.deduct_partial_fhir(fhir_dict, node, transformed_value)
+
             if field.lineProtocol.type == "measurement":
-                node = self.nodes[field_name]
+                node = self.nodes.get(field_name)
                 if node is None:
                     raise RuntimeError(f"no node found for measurement field name {field_name}")
                 self.deduct_partial_fhir(fhir_dict, node, measurement)
 
         return json.dumps(fhir_dict)
 
+    def deduct_field_type(self, entries: dict[str, str | int | float], fhir_dict: dict[str, Any]):
+        for name, value in entries.items():
+            found = False
+            for f_name, field in self.all_fields.items():
+                if field.lineProtocol.name == name:
+                    found = True
+                    node = self.nodes.get(f_name)
+                    if node is None:
+                        raise RuntimeError(f"no node found for field/tag name {f_name}")
+                    self.deduct_partial_fhir(fhir_dict, node, value)
+
+            if not found:
+                raise RuntimeError(f"no field with matching line protocol name found for tag name {name}")
+
     def deduct_partial_fhir(self, fhir_dict: dict[str, Any], node: Node, field_value: str | int | float):
 
         # start with the input node
-        field = self.all_fields[node.name]
+        field = self.all_fields.get(node.name)
         if field is None:
             raise RuntimeError(f"no field found for name {node.name}")
         if field.target is None:
@@ -249,13 +224,16 @@ class FhirParser:
         build_path(fhir_dict, field.target, field_value)
 
         for succ in node.successor:
-            self.recursively_deduct_fhir(fhir_dict, succ, field_value)
+            self.recursively_deduct_fhir(fhir_dict, node, field_value)
 
     def recursively_deduct_fhir(self, fhir_dict: dict[str, Any], node: Node, field_value: str | int | float):
 
         for succ in node.successor:
-            s_field = self.all_fields[succ.name]
-            transformed_value = self.apply_transformations(s_field, field_value)
+            s_field = self.all_fields.get(succ.name)
+            if s_field.transform is not None:
+                transformed_value = self.apply_transformations(s_field, field_value)
+            else:
+                transformed_value = field_value
             build_path(fhir_dict, s_field.target, transformed_value)
             self.recursively_deduct_fhir(fhir_dict, succ, transformed_value)
 
@@ -274,10 +252,17 @@ class FhirParser:
                 case "prepend":
                     value = prepend(value, t.params)
                 case "map":
-                    req_map = self.all_maps[field.name]
+                    req_map = self.all_maps.get(field.name)
+                    if req_map is None:
+                        raise RuntimeError(f"no map found for field {field.name} even map transformation was set")
+                    found = False
                     for m in req_map.map:
                         if m.key == value:
+                            found = True
                             value = m.value
+                    if not found:
+                        raise RuntimeError(f"no matching key found for field {field.name} in map for current value {value}")
+
                 case "substring":
                     value = substring(value, t.params)
                 case _:

@@ -12,35 +12,8 @@ class Graph:
         self.name = name
         self.nodes = nodes
 
-def parse_file(graphs: str) -> dict[str, Graph]:
-    graph_list = graphs.split("&")
 
-    built_graphs: dict[str, Graph] = {}
-
-    for g in graph_list:
-        if len(g) == 0:
-            continue
-        name = get_category_name(g)
-
-        if name is None:
-            raise RuntimeError("missing category name")
-
-        graph = parse_string(g, name)
-        built_graphs[name] = graph
-
-    return built_graphs
-
-
-def get_category_name(g: str) -> str | None:
-    lines = g.splitlines()
-    for line in lines:
-        if line.find("#") != -1:
-            return line.removeprefix("#")
-
-    return None
-
-
-def parse_string(raw_graph: str, category_name: str) -> Graph:
+def parse_graph(raw_graph: str, category_name: str) -> Graph:
 
     start = raw_graph.index("{")
     end = raw_graph.index("}")
@@ -51,7 +24,6 @@ def parse_string(raw_graph: str, category_name: str) -> Graph:
     nodes = build_dependencies(node_names, formatted)
 
     return Graph(category_name, nodes)
-
 
 def get_nodes(raw_graph: str) -> dict[str, Node]:
     nodes: dict[str, Node] = {}
@@ -83,7 +55,7 @@ def build_dependencies(nodes: dict[str, Node], raw_graph: str) -> dict[str, Node
             post = dependency[1].strip().removesuffix(";")
 
             if nodes[pre] is None or nodes[post] is None:
-                raise RuntimeError(f"there is a dependency with a non-existent node; '{pre}' or '{post}' are not in {node_names}")
+                raise RuntimeError(f"there is a dependency with a non-existent node; '{pre}' or '{post}'")
 
             pre_node = nodes[pre]
             post_node = nodes[post]
