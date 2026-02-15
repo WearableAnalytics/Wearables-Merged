@@ -30,6 +30,55 @@ const hospitalCases: HospitalCaseWithUUID[] = [
     lastName: 'Doe', 
     birthDate: new Date('1975-05-20'),
   },
+  { 
+    hospitalCaseId: 'C-000001', 
+    uuid: 'd2c3d4e5-f6a7-8901-bbxb-f12345612356',
+    firstName: 'Daniil', 
+    lastName: 'C.', 
+    birthDate: new Date('1975-05-20'),
+  },
+  { 
+    hospitalCaseId: 'C-000010', 
+    uuid: 'd2c3d4e5-f6a7-8901-basb-f12345678901',
+    firstName: 'Jakob', 
+    lastName: 'M.', 
+    birthDate: new Date('1975-05-20'),
+  },
+  { 
+    hospitalCaseId: 'C-000100', 
+    uuid: 'd2c3d4e5-f6a7-8901-baax-f12345678241',
+    firstName: 'Constantin', 
+    lastName: 'S.', 
+    birthDate: new Date('1975-05-20'),
+  },
+  { 
+    hospitalCaseId: 'C-001000', 
+    uuid: 'd2c3d4f5-f6a7-8101-bbbb-f12345678901',
+    firstName: 'Linus', 
+    lastName: 'G.', 
+    birthDate: new Date('1975-05-20'),
+  },
+  { 
+    hospitalCaseId: 'C-010000', 
+    uuid: 'd2c3d4e5-f6a7-8221-bbbb-f12345678901',
+    firstName: 'Lukas', 
+    lastName: 'S.', 
+    birthDate: new Date('1975-05-20'),
+  },
+  { 
+    hospitalCaseId: 'C-100000', 
+    uuid: 'd2c3d4e5-f6a7-8901-brrb-f12345678901',
+    firstName: 'Robin', 
+    lastName: 'R.', 
+    birthDate: new Date('1975-05-20'),
+  },
+  { 
+    hospitalCaseId: 'C-100001', 
+    uuid: 'd2c3d4e5-f6a7-8901-osar-f12345678901',
+    firstName: 'Oskar', 
+    lastName: 'R.', 
+    birthDate: new Date('1975-05-20'),
+  },
 ];
 
 const patients: Patient[] = [
