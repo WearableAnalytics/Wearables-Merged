@@ -1,8 +1,10 @@
 import json
+from typing import Any
 
 import pytest
 
-from src.fhir_serde.fhir_builder import FhirParser, tokenize_path
+from src.app.db_lord_api import DbLordApi
+from src.fhir_serde.fhir_builder import FhirParser, tokenize_path, build_path
 from src.environment.settings import get_env_values, Settings
 from src.fhir_serde.dot_parser import parse_file
 
@@ -24,7 +26,16 @@ def test_tokenize_with_indexes():
         ("index", 2),
     ]
 
+class FakeDBApi:
+    def read_yaml_for_version(self, version: str) -> str:
+
+
+
+    return
+
 CATEGORY_NAME = "measurements.cumulative"
+VERSION = "1.0.0"
+
 @pytest.fixture
 def builder():
 
@@ -32,40 +43,34 @@ def builder():
         yaml_path="/Users/linusgustafsson/Uni/DSP/current/Wearables-Merged/services/backend/extraction-service/tests/data/example.yaml",
         graphs_path="/Users/linusgustafsson/Uni/DSP/current/Wearables-Merged/services/backend/extraction-service/tests/data/example_dot.txt"
     )
-    envs = get_env_values(s)
 
-    return envs
+    client = DbLordApi()
 
-def test_build_path_complex(builder):
-    fhir_yaml, dot_graphs = builder
-    graph_dict = parse_file(dot_graphs)
+    b = FhirParser(fhir_yaml, CATEGORY_NAME, VERSION, nodes)
 
-    nodes = graph_dict[CATEGORY_NAME].nodes
+    return b
 
-    b = FhirParser(fhir_yaml, CATEGORY_NAME, nodes)
+def test_build_path_complex():
+    fhir_dict: dict[str, Any] = {}
 
-    b.build_path("a.b[0].c", 123)
+    build_path(fhir_dict, "a.b[0].c", 123)
 
-    assert b.fhir_dict == {"a": {"b": [{"c": 123}]}}
+    assert fhir_dict == {"a": {"b": [{"c": 123}]}}
 
-def test_build_path_full(builder):
-    fhir_yaml, dot_graphs = builder
-    graph_dict = parse_file(dot_graphs)
+def test_build_path_full():
 
-    nodes = graph_dict[CATEGORY_NAME].nodes
+    fhir_dict: dict[str, Any] = {}
 
-    b = FhirParser(fhir_yaml, CATEGORY_NAME, nodes)
+    build_path(fhir_dict, "a.b[0].c", 123)
+    build_path(fhir_dict, "a.b[0].d", "xgsd")
+    build_path(fhir_dict, "a.b[0].e.f", True)
+    build_path(fhir_dict, "a.b[0].e.g[0]", "gfasdg0")
+    build_path(fhir_dict, "a.b[0].e.g[1]", "ggdsga1")
+    build_path(fhir_dict, "a.b[1].c", 456)
+    build_path(fhir_dict, "a.b[1].h", None)
+    build_path(fhir_dict, "a.b[1].e.g[0]", "gdfga")
 
-    b.build_path("a.b[0].c", 123)
-    b.build_path("a.b[0].d", "xgsd")
-    b.build_path("a.b[0].e.f", True)
-    b.build_path("a.b[0].e.g[0]", "gfasdg0")
-    b.build_path("a.b[0].e.g[1]", "ggdsga1")
-    b.build_path("a.b[1].c", 456)
-    b.build_path("a.b[1].h", None)
-    b.build_path("a.b[1].e.g[0]", "gdfga")
-
-    assert b.fhir_dict == {
+    assert fhir_dict == {
         "a": {
             "b": [
                 {
@@ -81,3 +86,11 @@ def test_build_path_full(builder):
             ]
         }
     }
+
+def test_deduct_full_fhir(builder):
+
+    with open("/Users/linusgustafsson/Uni/DSP/current/Wearables-Merged/services/backend/extraction-service/tests/data/lp.txt", "r") as stream:
+        graphs_string = stream.read()
+
+    for line in graphs_string.splitlines():
+        builder.build_fhir(line)

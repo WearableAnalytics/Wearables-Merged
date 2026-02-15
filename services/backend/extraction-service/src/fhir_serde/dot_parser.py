@@ -8,7 +8,7 @@ class Node:
         self.predecessor: list[Node] = []
 
 class Graph:
-    def __init__(self, name: str, nodes: list[Node]):
+    def __init__(self, name: str, nodes: dict[str, Node]):
         self.name = name
         self.nodes = nodes
 
@@ -42,31 +42,36 @@ def get_category_name(g: str) -> str | None:
 
 def parse_string(raw_graph: str, category_name: str) -> Graph:
 
-    node_names = get_nodes(raw_graph)
+    start = raw_graph.index("{")
+    end = raw_graph.index("}")
+    formatted = raw_graph[start+1:end]
 
-    nodes = build_nodes(node_names, raw_graph)
+    node_names = get_nodes(formatted)
+
+    nodes = build_dependencies(node_names, formatted)
 
     return Graph(category_name, nodes)
 
 
-def get_nodes(raw_graph: str) -> list[str]:
-    nodes = []
+def get_nodes(raw_graph: str) -> dict[str, Node]:
+    nodes: dict[str, Node] = {}
 
     lines = raw_graph.splitlines()
     for line in lines:
-        if line.find("->") == -1 and line.find("{") == -1 and line.find("}") == -1 and line.find("#") == -1:
+        if line.find("->") == -1 and len(line.strip()) > 0:
             line = line.strip().removesuffix(";")
-            nodes.append(line)
+            new_node = Node(line)
+            nodes[line] = new_node
+            # print(f"appended line to nodes: {line}")
         else:
             continue
 
     return nodes
 
 
-def build_nodes(node_names: list[str], raw_graph: str) -> list[Node]:
+def build_dependencies(nodes: dict[str, Node], raw_graph: str) -> dict[str, Node]:
 
     lines = raw_graph.splitlines()
-    built_nodes: list[Node] = []
 
     for line in lines:
         if line.find("->") != -1:
@@ -77,24 +82,16 @@ def build_nodes(node_names: list[str], raw_graph: str) -> list[Node]:
             pre = dependency[0].strip()
             post = dependency[1].strip().removesuffix(";")
 
-            print(node_names)
-
-            if pre not in node_names or post not in node_names:
+            if nodes[pre] is None or nodes[post] is None:
                 raise RuntimeError(f"there is a dependency with a non-existent node; '{pre}' or '{post}' are not in {node_names}")
 
-            pre_node = get_node_from_list(built_nodes, pre)
-            post_node = get_node_from_list(built_nodes, post)
-
-            if pre_node is None:
-                pre_node = Node(pre)
-
-            if post_node is None:
-                post_node = Node(post)
+            pre_node = nodes[pre]
+            post_node = nodes[post]
 
             pre_node.successor.append(post_node)
             post_node.predecessor.append(pre_node)
 
-    return built_nodes
+    return nodes
 
 
 def get_node_from_list(node_list: list[Node], name: str) -> Node | None:

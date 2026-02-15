@@ -44,3 +44,16 @@ class DbLordApi:
         r = await self._client.get("/telemetry/", params=params)
         r.raise_for_status()
         return TelemetryPageResponse.model_validate(r.json())
+
+    async def read_yaml_for_version(self, version: str) -> str:
+
+        params = dict[str, Any] = {
+            "some_param": "some_value"
+        }
+
+        r = await self._client.get("some_adress", params=params)
+
+        #TODO format the response so its just the string
+
+        return r.json()
+
