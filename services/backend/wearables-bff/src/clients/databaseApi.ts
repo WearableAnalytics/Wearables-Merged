@@ -2,7 +2,8 @@ import config from '../config.js';
 
 export interface Patient {
   id: string;
-  hospital_id: string;
+  charite_id?: string; // db_lord field
+  hospital_id?: string; // legacy alias
   name: string;
   sex?: string;
   dob?: string; // ISO date string from db_lord
@@ -10,8 +11,9 @@ export interface Patient {
   height?: number;
 }
 
+/** Payload for creating a patient. db_lord expects charite_id (UUID). */
 export interface PatientBase {
-  hospital_id: string;
+  charite_id: string; // UUID string, required by db_lord
   name: string;
   sex?: string;
   dob?: string; // ISO date string

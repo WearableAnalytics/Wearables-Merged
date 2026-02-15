@@ -151,7 +151,7 @@ class CaseService {
       } else {
         // 3. Create patient if not found
         const newPatient = await databaseApiClient.createPatient({
-          hospital_id: hospitalCase.uuid, // Using UUID as hospital_id
+            charite_id: hospitalCase.uuid,
           name: `${hospitalCase.firstName} ${hospitalCase.lastName}`,
           sex: 'other',
           dob: hospitalCase.birthDate.toISOString().split('T')[0], // Convert to ISO date string

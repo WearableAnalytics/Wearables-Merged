@@ -13,7 +13,7 @@ env:
   PORT: "3001"
   API_PREFIX: "/api"
   USE_MOCK_DATA: "false"
-  NODE_ENV: "development"
+  NODE_ENV: "production"
 
 frontendOrigins: "http://localhost:8080,http://localhost:8081"
 

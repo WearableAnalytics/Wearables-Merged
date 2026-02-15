@@ -14,9 +14,9 @@ secretRef: "db-lord-secrets"
 env:
   POSTGRES_SERVER: "prod-postgres.prod-postgres.svc.cluster.local"
   POSTGRES_PORT: "5432"
-  POSTGRES_DB: "lakefs"
-  POSTGRES_USER: "lakefs"
-  POSTGRES_PASSWORD: "lakefs_password"
+  POSTGRES_DB: "dblord"
+  POSTGRES_USER: "dblord"
+  POSTGRES_PASSWORD: "password"
 
   INFLUX_URL: "http://influxdb-service.influx.svc.cluster.local:8086"
   INFLUX_ORG: "wearables-project"
