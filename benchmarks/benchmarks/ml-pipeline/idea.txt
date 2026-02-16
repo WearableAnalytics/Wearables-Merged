@@ -1,0 +1,4 @@
+-> Publish to Kafka Topic
+-> Observe Bucket when the data arrived in Influx with Insight
+
+1. Components: Kafka Publisher, Influx-Observer

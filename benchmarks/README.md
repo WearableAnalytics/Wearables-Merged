@@ -23,7 +23,7 @@ Steps already taken and implemented
 ---
 ### Next Steps (so I don't forget)
 - [ ] Mapper: Processing Time with different Sampling Configs (0,1%, 1%, 10%, 100%)
-- [ ] End-to-End: Processing Time different Message-Sizes
+- [x] End-to-End: Processing Time different Message-Sizes
 - [ ] End-to-End: Throughput
   - [ ] Test 10k msg/sec á 100KB
 
