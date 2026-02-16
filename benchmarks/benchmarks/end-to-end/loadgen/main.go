@@ -4,7 +4,9 @@ import (
 	"context"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	lg "github.com/luccadibe/go-loadgen"
@@ -16,6 +18,7 @@ var (
 	influxToken      string
 	influxOrg        string
 	influxBucket     string
+	jwtToken         string
 	messageSize      int
 	rampUpDuration   int
 	duration         int // seconds
@@ -29,6 +32,7 @@ func init() {
 	influxToken = mustGetEnvString("INFLUX_TOKEN")
 	influxOrg = mustGetEnvString("INFLUX_ORG")
 	influxBucket = mustGetEnvString("INFLUX_BUCKET")
+	jwtToken = mustGetEnvString("JWT_TOKEN")
 	messageSize = mustGetEnvInt("MESSAGE_SIZE")
 	rampUpDuration = mustGetEnvInt("RAMP_UP_DURATION")
 	duration = mustGetEnvInt("DURATION")
@@ -37,8 +41,19 @@ func init() {
 }
 
 func main() {
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		<-sigs
+		cancel()
+	}()
+
 	provider := NewProvider(messageSize)
-	client := NewClient(serviceURL)
+	client := NewClient(serviceURL, jwtToken)
 	collector := NewCollector()
 	conf := &InfluxObserverConfig{
 		Addr:       influxURL,
@@ -97,7 +112,7 @@ func main() {
 	}
 	go ew.Run()
 
-	obs.ObserveAndLog(context.Background())
+	obs.ObserveAndLog(ctx)
 }
 
 func mustGetEnvString(key string) string {

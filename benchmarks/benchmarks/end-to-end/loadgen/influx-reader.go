@@ -14,6 +14,11 @@ type InfluxObserver struct {
 	Client influxdb2.Client
 }
 
+type Record struct {
+	tProduced time.Time
+	tObserved time.Time
+}
+
 type InfluxObserverConfig struct {
 	Addr   string
 	Token  string
@@ -39,16 +44,28 @@ func (obs *InfluxObserver) ObserveAndLog(ctx context.Context) {
 	defer ticker.Stop()
 
 	lastObserved := obs.Config.T0
+	observeMap := make(map[string]Record)
 
 	for {
 		select {
 		case <-ctx.Done():
+			for msgID, rec := range observeMap {
+				log.Printf("%s,%d,%d",
+					msgID,
+					rec.tProduced.UnixMilli(),
+					rec.tObserved.UnixMilli(),
+				)
+			}
 			return
+
 		case <-ticker.C:
 			query := fmt.Sprintf(`
 from(bucket: "%s")
   |> range(start: time(v: "%s"))
-  |> filter(fn: (r) => r._measurement == "heart-rate")`, obs.Config.Bucket, lastObserved.Format(time.RFC3339Nano))
+  |> filter(fn: (r) => r._measurement == "heart-rate")`,
+				obs.Config.Bucket,
+				lastObserved.Format(time.RFC3339Nano),
+			)
 
 			res, err := queryAPI.Query(ctx, query)
 			if err != nil {
@@ -60,25 +77,24 @@ from(bucket: "%s")
 
 			for res.Next() {
 				rec := res.Record()
-
 				tProduced := rec.Time()
-				messageId := fmt.Sprintf("%s-%.0f", rec.ValueByKey("device-id-reference"), rec.Value())
 
-				if rec.Time().After(lastObserved) {
-					log.Printf("%s,%d,%d", messageId, tObserved.UnixMilli(), tProduced.UnixMilli())
+				messageId := fmt.Sprintf("%s-%.0f",
+					rec.ValueByKey("device-id-reference"),
+					rec.Value(),
+				)
 
-					if tProduced.After(maxTime) {
-						maxTime = tProduced
-					}
+				observeMap[messageId] = Record{
+					tProduced: tProduced,
+					tObserved: tObserved,
+				}
+
+				if tProduced.After(maxTime) {
+					maxTime = tProduced
 				}
 			}
 
-			if res.Err() != nil {
-				log.Printf("result error: %v", res.Err())
-			}
-
 			res.Close()
-
 			lastObserved = maxTime
 		}
 	}
