@@ -38,11 +38,7 @@ To change API endpoints, rebuild the Docker image:
 ```bash
 cd services/web
 
-docker build -f ../../services/web/Dockerfile \
-  -t gmsdaniil/wearables-web:custom \
-  --build-arg VITE_API_BASE_URL="https://api.example.com" \
-  --build-arg VITE_GRAFANA_PROXY_URL="/grafana/" \
-  ../..
+docker build ` -t gmsdaniil/wearables-web:latest `  --build-arg VITE_API_BASE_URL="http://localhost:3001/api" `  --build-arg VITE_BACKEND_URL="http://localhost:3001" `  --build-arg VITE_GRAFANA_PROXY_URL="http://localhost:3002/grafana-proxy" `  .
 
 docker push gmsdaniil/wearables-web:custom
 ```

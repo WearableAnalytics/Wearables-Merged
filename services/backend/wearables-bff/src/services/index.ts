@@ -109,11 +109,15 @@ class CaseService {
 
     try {
       const caseData = await databaseApiClient.getCase(caseId);
+      const caseToken = tokenService.generateCaseToken(
+        caseData.id,
+        caseData.patient_id,
+      );
       return {
         caseId: caseData.id,
         patientId: caseData.patient_id,
         status: caseData.status,
-        caseToken: null, // Individual case fetch doesn't include token
+        caseToken,
       };
     } catch (error) {
       logger.error(`Error fetching case ${caseId}`, error as Error);

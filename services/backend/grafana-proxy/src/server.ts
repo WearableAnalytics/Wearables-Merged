@@ -1,4 +1,5 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { createJwtProxy } from './jwtProxy.js';
 import { config } from './config.js';
 
@@ -62,6 +63,39 @@ const toGrafanaTimeValue = (value: unknown, fallback: string): string => {
   return fallback;
 };
 
+type CaseTokenPayload = {
+  caseId: string;
+  patientId: string;
+  type: 'case-verification';
+};
+
+const resolveDeviceIdFromToken = (rawDeviceId: string | null): string | null => {
+  if (!rawDeviceId) return null;
+  if (!config.appJwtSecret) return rawDeviceId;
+
+  try {
+    const decoded = jwt.verify(rawDeviceId, config.appJwtSecret, {
+      issuer: 'registration-service',
+    }) as CaseTokenPayload;
+
+    if (decoded.type !== 'case-verification') {
+      return rawDeviceId;
+    }
+
+    const resolved = decoded.patientId || rawDeviceId;
+    console.log(
+      '[Grafana proxy] resolved deviceId from case token',
+      JSON.stringify({
+        tokenSubject: decoded.caseId,
+        patientId: resolved,
+      }),
+    );
+    return resolved;
+  } catch {
+    return rawDeviceId;
+  }
+};
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
@@ -75,8 +109,8 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
   );
 
   app.get(embedPath, (req, res) => {
-    const deviceId = queryValue(req.query.deviceId);
-    if (!deviceId) {
+    const rawDeviceId = queryValue(req.query.deviceId);
+    if (!rawDeviceId) {
       res.status(400).json({ error: 'Missing required query parameter: deviceId' });
       return;
     }
@@ -86,6 +120,8 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
       });
       return;
     }
+
+    const deviceId = resolveDeviceIdFromToken(rawDeviceId);
 
     let from = toGrafanaTimeValue(req.query.from, DEFAULT_FROM);
     const to = toGrafanaTimeValue(req.query.to, DEFAULT_TO);

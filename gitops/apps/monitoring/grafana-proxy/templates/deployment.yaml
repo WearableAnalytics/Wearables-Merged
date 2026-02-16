@@ -14,22 +14,10 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
-      initContainers:
-        - name: install-deps
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          command: ["npm", "install", "--omit=dev"]
-          workingDir: /app
-          volumeMounts:
-            - name: node-modules
-              mountPath: /app/node_modules
-            - name: code
-              mountPath: /app/package.json
-              subPath: package.json
       containers:
         - name: {{ .Release.Name }}
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          command: ["node", "server.mjs"]
-          workingDir: /app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.proxy.port }}
               name: http
@@ -40,10 +28,20 @@ spec:
               value: {{ .Values.proxy.prefix | quote }}
             - name: SESSION_COOKIE_NAME
               value: {{ .Values.session.cookieName | quote }}
+            - name: APP_JWT_SECRET
+              value: {{ .Values.session.jwtSecret | quote }}
             - name: GRAFANA_BASE_URL
               value: {{ .Values.grafana.baseUrl | quote }}
             - name: GRAFANA_PATH_PREFIX
               value: {{ .Values.grafana.pathPrefix | quote }}
+            - name: GRAFANA_TLS_SKIP_VERIFY
+              value: {{ .Values.grafana.tlsSkipVerify | quote }}
+            - name: GRAFANA_ALLOWED_DASHBOARD_IDS
+              value: {{ .Values.grafana.allowedDashboardIds | quote }}
+            - name: GRAFANA_DASHBOARD_DATASOURCE
+              value: {{ .Values.grafana.dashboardDatasource | quote }}
+            - name: GRAFANA_ORG_ID
+              value: {{ .Values.grafana.orgId | quote }}
             - name: GRAFANA_JWT_HEADER
               value: {{ .Values.grafana.jwtHeader | quote }}
             - name: GRAFANA_JWT_KEY_ID
@@ -56,25 +54,30 @@ spec:
               value: {{ .Values.grafana.jwtTtlSeconds | quote }}
             - name: GRAFANA_DEFAULT_ROLE
               value: {{ .Values.grafana.defaultRole | quote }}
+            - name: GRAFANA_JWT_IAT_SKEW_SECONDS
+              value: {{ .Values.grafana.jwtIatSkewSeconds | quote }}
+            - name: GRAFANA_JWT_SUBJECT
+              value: {{ .Values.grafana.jwtSubject | quote }}
+            - name: GRAFANA_JWT_EMAIL
+              value: {{ .Values.grafana.jwtEmail | quote }}
+            - name: GRAFANA_JWT_NAME
+              value: {{ .Values.grafana.jwtName | quote }}
+            - name: GRAFANA_JWT_ROLE
+              value: {{ .Values.grafana.jwtRole | quote }}
+            - name: GRAFANA_JWT_PRIVATE_KEY_PATH
+              value: "/secrets/grafana-jwt-private.pem"
           envFrom:
             - secretRef:
                 name: {{ .Release.Name }}-secrets
           volumeMounts:
-            - name: code
-              mountPath: /app/server.mjs
-              subPath: server.mjs
-            - name: node-modules
-              mountPath: /app/node_modules
-          resources:
-            requests:
-              cpu: {{ .Values.resources.requests.cpu }}
-              memory: {{ .Values.resources.requests.memory }}
-            limits:
-              cpu: {{ .Values.resources.limits.cpu }}
-              memory: {{ .Values.resources.limits.memory }}
+            - name: grafana-jwt-key
+              mountPath: /secrets/grafana-jwt-private.pem
+              subPath: grafana-jwt-private.pem
+              readOnly: true
       volumes:
-        - name: code
-          configMap:
-            name: {{ .Release.Name }}-code
-        - name: node-modules
-          emptyDir: {}
+        - name: grafana-jwt-key
+          secret:
+            secretName: {{ .Release.Name }}-secrets
+            items:
+              - key: GRAFANA_JWT_PRIVATE_KEY
+                path: grafana-jwt-private.pem
