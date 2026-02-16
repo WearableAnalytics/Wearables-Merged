@@ -90,7 +90,7 @@ func CreateBenchmarkMessage(now time.Time, size int) Payload {
 		DeviceInfo: DeviceInfo{
 			Platform:           "android",
 			DeviceId:           "benchmark-device",
-			AuthorizationToken: "v4z1hnhocqfbn580bncß8qb",
+			AuthorizationToken: "",
 		},
 		BatchInfo: BatchInfo{
 			CollectionStart: now.Add(-10 * time.Minute).Format(layout),

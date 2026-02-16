@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -12,10 +13,16 @@ import (
 
 type Client struct {
 	ServiceUrl string
+	AuthToken  string
+	Client     *http.Client
 }
 
-func NewClient(serviceUrl string) *Client {
-	return &Client{ServiceUrl: serviceUrl}
+func NewClient(serviceUrl, token string) *Client {
+	return &Client{
+		ServiceUrl: serviceUrl,
+		Client:     &http.Client{},
+		AuthToken:  token,
+	}
 }
 
 func (c Client) CallEndpoint(ctx context.Context, req Payload) Result {
@@ -35,8 +42,16 @@ func (c Client) CallEndpoint(ctx context.Context, req Payload) Result {
 		}
 	}
 
+	request, err := http.NewRequest("POST", c.ServiceUrl, bytes.NewBuffer(body))
+	if err != nil {
+		return Result{}
+	}
+
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.AuthToken))
+	request.Header.Set("Content-Type", "application/json")
+
 	sendTimestamp := time.Now()
-	resp, err := http.Post(c.ServiceUrl, "application/json", bytes.NewBuffer(body))
+	resp, err := c.Client.Do(request)
 	if err != nil {
 		log.Printf("not able to send request to service: %v", err)
 		return Result{

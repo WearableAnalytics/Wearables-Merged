@@ -11,6 +11,7 @@ import (
 
 var (
 	serviceURL       string
+	jwtToken         string
 	messageSize      int
 	rampUpDuration   int
 	duration         int // seconds
@@ -21,6 +22,7 @@ var (
 func init() {
 	// Konfiguration laden
 	serviceURL = mustGetEnvString("SERVICE_URL")
+	jwtToken = mustGetEnvString("JWT_TOKEN")
 	messageSize = mustGetEnvInt("MESSAGE_SIZE")
 	rampUpDuration = mustGetEnvInt("RAMP_UP_DURATION")
 	duration = mustGetEnvInt("DURATION")
@@ -31,7 +33,7 @@ func init() {
 func main() {
 	collector := NewCollector()
 	provider := NewProvider(messageSize)
-	client := NewClient(serviceURL)
+	client := NewClient(serviceURL, jwtToken)
 
 	maxDuration := rampUpDuration + duration + rampDownDuration
 

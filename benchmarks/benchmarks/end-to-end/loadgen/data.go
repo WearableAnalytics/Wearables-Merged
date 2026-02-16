@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync/atomic"
 	"time"
 )
@@ -80,8 +79,8 @@ func (p *Provider) CreateBenchmarkMessage() Payload {
 	payload := Payload{
 		DeviceInfo: DeviceInfo{
 			Platform:           "android",
-			DeviceId:           fmt.Sprintf("%d", p.MessageCounter.Add(1)),
-			AuthorizationToken: "v4z1hnhocqfbn580bncß8qb",
+			DeviceId:           "",
+			AuthorizationToken: "",
 		},
 		BatchInfo: BatchInfo{
 			CollectionStart: now.Format(p.TimestampLayout),
@@ -99,10 +98,12 @@ func (p *Provider) CreateBenchmarkMessage() Payload {
 		Timestamp:       now.Format(p.TimestampLayout),
 	}
 
+	base := p.MessageCounter.Add(1)
+
 	for {
 		instant := InstantMeasurement{
 			Type:      "heart-rate",
-			Value:     72,
+			Value:     float32(base),
 			Unit:      "BEATS_PER_MINUTE",
 			Timestamp: now.Format(p.TimestampLayout),
 		}
