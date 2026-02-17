@@ -135,4 +135,4 @@ kubectl exec -it kafka-dual-role-0  -n kafka  -- bin/kafka-console-consumer.sh \
   --topic {wearables-lp|wearables-fhir|wearables-lp} \
   --property print.value=true
 ```
- to watch the message travel through the system.
+to watch the message travel through the system.

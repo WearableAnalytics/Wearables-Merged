@@ -5,8 +5,9 @@ build-push tag log-level:
     docker buildx build \
       --platform linux/amd64 \
       --build-arg LOG_LEVEL={{log-level}} \
-      -t lndocker3s/mapper-validator:{{tag}} \
+      -t wearables42/mapper-validator:{{tag}} \
       --push .
 
 set-testing-env:
     export MAPPING_YAML_PATH="config/json-tp-fhir-new.yaml"
+git s
