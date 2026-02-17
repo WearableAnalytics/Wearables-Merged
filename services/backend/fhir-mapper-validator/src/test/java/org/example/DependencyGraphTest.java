@@ -22,7 +22,7 @@ public class DependencyGraphTest {
     public void testCalculateBasis() {
 
         //TODO potentially load a few different ones here to test behaviour
-        MappingYaml yaml = ConfigLoader.loadConfig("./config/test.yaml", MappingYaml.class);
+        MappingYaml yaml = ConfigLoader.loadConfig("./config/mapping-2026-01-28.yaml", MappingYaml.class);
 
         DependencyGraph g = new DependencyGraph(yaml);
 

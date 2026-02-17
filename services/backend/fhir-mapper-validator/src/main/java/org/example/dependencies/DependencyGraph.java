@@ -297,9 +297,9 @@ public class DependencyGraph {
         //TODO: I dont know if this is the best way to determine that we use the same tags when possible
         found.forEach((key, value) -> {
             FieldConfig optimalBase = value.stream()
-                    .filter(y -> y.getTransform() != null)
-                    .filter(y -> y.getTransform().stream()
-                            .allMatch(transform -> isInjective(key, y, transform)))
+                    .filter(y -> y.getTransform() == null
+                            || y.getTransform().stream()
+                            .allMatch(t -> isInjective(key, y, t)))
                     .min(Comparator.comparingInt(x -> x.getName().length()))
                     .orElse(null);
 
