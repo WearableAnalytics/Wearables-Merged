@@ -10,7 +10,7 @@ import {
 } from '@/lib/adminApprovalsEvents';
 import { useAuth } from '@/context/AuthContext';
 import { LOGOUT_REASON_SUCCESS, getLogoutPath } from '@/lib/authSession';
-import { canAccessPractitionerPages, isAdminUser } from '@/lib/userAccess';
+import { canAccessPractitionerPages, canAccessResearcherPages, isAdminUser } from '@/lib/userAccess';
 
 import { NavButton, NavButtonMobile } from './navButtons';
 
@@ -35,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isAuthenticated = !!user;
   const isAdmin = isAdminUser(user);
   const hasPractitionerAccess = canAccessPractitionerPages(user);
+  const hasResearcherAccess = canAccessResearcherPages(user);
 
   const activePatientNavLabel =
     patient && patient.lastName
@@ -144,17 +145,24 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Logo />
 
           {/* Desktop Navigation */}
-          {isAuthenticated && hasPractitionerAccess ? (
+          {isAuthenticated && (hasPractitionerAccess || hasResearcherAccess) ? (
             <div className="hidden md:flex items-center space-x-6">
-              <NavButton path="/overview">Overview</NavButton>
-              {isCasePage && activeCase && activePatientNavLabel ? (
+              {hasPractitionerAccess ? (
+                <NavButton path="/overview">Overview</NavButton>
+              ) : null}
+              {hasPractitionerAccess && isCasePage && activeCase && activePatientNavLabel ? (
                 <NavButton path={`/cases/${activeCase.caseId}`}>
                   <span className="max-w-[180px] truncate" title={activePatientName ?? undefined}>
                     {activePatientNavLabel}
                   </span>
                 </NavButton>
               ) : null}
-              <NavButton path="/add-case">Add Case</NavButton>
+              {hasPractitionerAccess ? (
+                <NavButton path="/add-case">Add Case</NavButton>
+              ) : null}
+              {hasResearcherAccess ? (
+                <NavButton path="/researcher/api-access">API Access</NavButton>
+              ) : null}
             </div>
           ) : (
             <div className="hidden md:flex items-center space-x-6" />
@@ -242,6 +250,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     Account
                   </NavButtonMobile>
+                  {hasResearcherAccess ? (
+                    <NavButtonMobile
+                      path="/researcher/api-access"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      API Access
+                    </NavButtonMobile>
+                  ) : null}
                   {isAdmin ? (
                     <NavButtonMobile
                       path="/admin/approvals"

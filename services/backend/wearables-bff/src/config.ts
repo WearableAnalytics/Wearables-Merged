@@ -25,6 +25,9 @@ const adminEmails = (process.env.ADMIN_EMAILS ?? '')
   .split(',')
   .map((email) => email.trim())
   .filter(Boolean);
+const researcherApiAccessToken =
+  (process.env.RESEARCHER_API_ACCESS_TOKEN ?? 'dummy-researcher-api-token').trim() ||
+  'dummy-researcher-api-token';
 
 export const config = {
   port: Number(process.env.PORT) || 3001,
@@ -41,6 +44,7 @@ export const config = {
   
   jwtSecret,
   adminEmails,
+  researcherApiAccessToken,
   
   databaseApi: {
     baseUrl: process.env.DATABASE_API_URL || 'http://localhost:8000',

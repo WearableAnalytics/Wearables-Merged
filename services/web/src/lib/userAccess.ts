@@ -32,6 +32,9 @@ export const hasRole = (user: AuthUserLike | null | undefined, role: NonAdminRol
 export const canAccessPractitionerPages = (user: AuthUserLike | null | undefined): boolean =>
   isAdminUser(user) || hasRole(user, 'practitioner');
 
+export const canAccessResearcherPages = (user: AuthUserLike | null | undefined): boolean =>
+  isAdminUser(user) || hasRole(user, 'researcher');
+
 export const getDefaultAuthenticatedPath = (user: AuthUserLike | null | undefined): string =>
   canAccessPractitionerPages(user) ? '/overview' : '/account';
 
