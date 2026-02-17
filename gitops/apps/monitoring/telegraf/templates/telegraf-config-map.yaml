@@ -7,25 +7,22 @@ data:
     [global_tags]
 
     [agent]
-      interval = "10s"
-      round_interval = true
-      metric_batch_size = 1000
-      metric_buffer_limit = 10000
-      collection_jitter = "1s"
-      flush_interval = "5s"
+      interval = "500ms"
+      metric_batch_size = 10000
+      metric_buffer_limit = 500000
+      flush_interval = "500ms"
       flush_jitter = "0s"
-      precision = ""
-      debug = true
-      quiet = false
-      logfile = ""
-      hostname = ""
+      buffer_strategy = "memory"
+      debug = false
+      quiet = true
       omit_hostname = false
 
     [[inputs.kafka_consumer]]
       brokers = ["{{ .Values.config.kafkaConsumer.name }}-kafka-bootstrap.{{ .Values.config.kafkaConsumer.namespace }}.svc.cluster.local:9092"]
       topics = [{{ range $i, $t := .Values.config.kafkaConsumer.topics }}{{ if $i }}, {{ end }}"{{ $t }}"{{ end }}]
-      max_message_len = 1000000
-      consumer_fetch_default = "1MB"
+      consumer_group = "metrics"
+      max_message_len = 5000000
+      consumer_fetch_default = "10MB"
       version = "{{ .Values.config.kafkaConsumer.version }}"
       data_format = "influx"
 

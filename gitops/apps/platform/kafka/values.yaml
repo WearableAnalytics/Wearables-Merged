@@ -47,9 +47,9 @@ topics:
     retentionMs: 7200000 #2 hours, should be tweaked as needed
     segmentBytes: 1073741824 # 1 GiB
   - name: wearables-lp
-    partitions: 1
-    replicas: 1
-    retentionMs: 7200000
+    partitions: 9
+    replicas: 3
+    retentionMs: 43200000
     segmentBytes: 1073741824
   - name: wearables-raw
     partitions: 30
