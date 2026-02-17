@@ -3,15 +3,17 @@ import jwt from 'jsonwebtoken';
 import config from './config.js';
 import { logger } from './logger.js';
 import { getUserByEmail } from './services/userStore.js';
-import type { AdminRequestStatus, UserRole, UserStatus } from './services/userStore.js';
+import type { AccessRequestStatus, NonAdminRole, UserStatus } from './services/userStore.js';
 
 export interface JwtPayload {
   userId: string;
   email: string;
   name?: string;
-  role?: UserRole;
+  isAdmin?: boolean;
+  roles?: NonAdminRole[];
   status?: UserStatus;
-  adminRequestStatus?: AdminRequestStatus;
+  adminRequestStatus?: AccessRequestStatus;
+  roleRequestStatuses?: Record<NonAdminRole, AccessRequestStatus>;
 }
 
 declare global {
@@ -58,9 +60,11 @@ export const getUserFromRequest = (req: Request): JwtPayload | undefined => {
       userId: userRecord.id,
       email: userRecord.email,
       name: userRecord.name,
-      role: userRecord.role,
+      isAdmin: userRecord.isAdmin,
+      roles: userRecord.roles,
       status: userRecord.status,
       adminRequestStatus: userRecord.adminRequestStatus,
+      roleRequestStatuses: userRecord.roleRequestStatuses,
     };
   } catch (err) {
     return undefined;
@@ -108,7 +112,7 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction): void => 
     return;
   }
 
-  if (req.user.role !== 'admin') {
+  if (!req.user.isAdmin) {
     res.status(403).json({
       error: 'Admin access required',
       message: 'You do not have permission to access this resource.',
@@ -120,8 +124,27 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction): void => 
   next();
 };
 
+const requirePractitionerOrAdmin = (req: Request, res: Response, next: NextFunction): void => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  if (req.user.isAdmin || req.user.roles?.includes('practitioner')) {
+    next();
+    return;
+  }
+
+  res.status(403).json({
+    error: 'Practitioner access required',
+    message: 'You do not have permission to access this resource.',
+    code: 'PRACTITIONER_REQUIRED',
+  });
+};
+
 export const auth = {
   required: authenticate,
+  practitionerOrAdmin: requirePractitionerOrAdmin,
   adminOnly: [authenticate, requireAdmin],
 };
 

@@ -33,6 +33,7 @@ app.get(route('/health'), (_req, res) => {
 });
 
 app.use(config.apiPrefix, auth.required);
+app.use(config.apiPrefix, auth.practitionerOrAdmin);
 
 app.get(route('/hospital/cases/:hospitalCaseId'), async (req, res) => {
   try {

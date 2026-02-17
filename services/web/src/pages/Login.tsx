@@ -1,10 +1,11 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
 import { AuthEmailFormPage } from '@/components/custom/AuthEmailFormPage';
 import { getTrimmedOrNull } from '@/lib/input';
+import { getDefaultAuthenticatedPath } from '@/lib/userAccess';
 import { useLoadingToast, useMessageToast } from '@/lib/toast';
 
 export function LoginPage() {
@@ -14,7 +15,7 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useMessageToast('error', 'login-error', error);
-  useLoadingToast('login-loading', isSubmitting, 'Sending login link…');
+  useLoadingToast('login-loading', isSubmitting, 'Signing you in…');
 
   const resetFeedback = () => {
     setError(null);
@@ -22,7 +23,7 @@ export function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      navigate('/overview', { replace: true });
+      navigate(getDefaultAuthenticatedPath(user), { replace: true });
     }
   }, [user, authLoading, navigate]);
 
@@ -73,6 +74,15 @@ export function LoginPage() {
       onSubmit={handleLogin}
       inputId="login-email"
       submitLabel="Send login link"
+      footer={
+        <p className="m-0 text-sm text-muted-foreground">
+          Need access?{' '}
+          <Link to="/register" className="font-semibold text-foreground underline-offset-2 hover:underline">
+            Register here
+          </Link>
+          .
+        </p>
+      }
     />
   );
 }

@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react';
+import type { ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { SearchForm } from '@/components/custom/SearchForm';
@@ -11,6 +12,7 @@ type AuthEmailFormPageProps = {
   loading: boolean;
   inputId: string;
   submitLabel: string;
+  footer?: ReactNode;
   onEmailChange: (value: string) => void;
   onFocusReset: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -24,6 +26,7 @@ export function AuthEmailFormPage({
   loading,
   inputId,
   submitLabel,
+  footer,
   onEmailChange,
   onFocusReset,
   onSubmit,
@@ -49,6 +52,7 @@ export function AuthEmailFormPage({
             submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
             submitLabel={submitLabel}
           />
+          {footer ? <div className="mt-4">{footer}</div> : null}
         </div>
       </div>
     </>

@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveCase } from '@/lib/activeCase';
 import { useAuth } from '@/context/AuthContext';
 import { LOGOUT_REASON_SUCCESS, getLogoutPath } from '@/lib/authSession';
+import { canAccessPractitionerPages, isAdminUser } from '@/lib/userAccess';
 
 import { NavButton, NavButtonMobile } from './navButtons';
 
@@ -28,7 +29,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isCasePage = location.pathname.startsWith('/cases/');
   const activePatientName = patient ? `${patient.firstName} ${patient.lastName}` : null;
   const isAuthenticated = !!user;
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isAdminUser(user);
+  const hasPractitionerAccess = canAccessPractitionerPages(user);
 
   const activePatientNavLabel =
     patient && patient.lastName
@@ -73,7 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Logo alwaysGuestRoutes={alwaysGuestRoutes} navigate={navigate} location={location} />
 
           {/* Desktop Navigation */}
-          {isAuthenticated ? (
+          {isAuthenticated && hasPractitionerAccess ? (
             <div className="hidden md:flex items-center space-x-6">
               <NavButton path="/overview">Overview</NavButton>
               {isCasePage && activeCase && activePatientNavLabel ? (
@@ -119,8 +121,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             ) : (
               <>
-                <NavButton path="/access" invertedColors={true}>
-                  Access
+                <NavButton path="/login" invertedColors={true}>
+                  Login
+                </NavButton>
+                <NavButton path="/register" invertedColors={true}>
+                  Register
                 </NavButton>
               </>
             )}
@@ -145,13 +150,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="px-4 py-3 space-y-2">
               {isAuthenticated ? (
                 <>
-                  <NavButtonMobile
-                    path="/overview"
-                    className="w-full justify-start text-left"
-                    onClick={handleMobileLinkClick}
-                  >
-                    Overview
-                  </NavButtonMobile>
+                  {hasPractitionerAccess ? (
+                    <NavButtonMobile
+                      path="/overview"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      Overview
+                    </NavButtonMobile>
+                  ) : null}
                   <NavButtonMobile
                     path="/account"
                     className="w-full justify-start text-left"
@@ -168,7 +175,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       Admin
                     </NavButtonMobile>
                   ) : null}
-                  {isCasePage && activeCase && activePatientMobileLabel ? (
+                  {hasPractitionerAccess && isCasePage && activeCase && activePatientMobileLabel ? (
                     <NavButtonMobile
                       path={`/cases/${activeCase.caseId}`}
                       className="w-full justify-start text-left"
@@ -179,9 +186,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </span>
                     </NavButtonMobile>
                   ) : null}
-                  <NavButtonMobile path="/add-case" className="w-full justify-start text-left" onClick={handleMobileLinkClick}>
-                    Add Case
-                  </NavButtonMobile>
+                  {hasPractitionerAccess ? (
+                    <NavButtonMobile path="/add-case" className="w-full justify-start text-left" onClick={handleMobileLinkClick}>
+                      Add Case
+                    </NavButtonMobile>
+                  ) : null}
                 </>
               ) : null}
               <div className="pt-2 border-t border-muted">
@@ -201,11 +210,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="flex flex-col gap-2">
                     <NavButtonMobile
                       invertedColors={true}
-                      path="/access"
+                      path="/login"
                       className="w-full justify-start text-left"
                       onClick={handleMobileLinkClick}
                     >
-                      Access
+                      Login
+                    </NavButtonMobile>
+                    <NavButtonMobile
+                      invertedColors={true}
+                      path="/register"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      Register
                     </NavButtonMobile>
                   </div>
                 )}

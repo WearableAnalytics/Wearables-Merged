@@ -1,7 +1,25 @@
 import { Inbox } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AdminApprovalsEmptyState } from './AdminApprovalsEmptyState';
-import type { AdminUser, UserDraft, UserDraftEdits, UserRole, UserStatus } from './types';
+import type { AccessProfile, AdminUser, UserDraft, UserDraftEdits, UserStatus } from './types';
+
+const ACCESS_PROFILE_OPTIONS: Array<{ value: AccessProfile; label: string }> = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'practitioner', label: 'Practitioner' },
+  { value: 'researcher', label: 'Researcher' },
+  { value: 'practitioner_researcher', label: 'Practitioner + Researcher' },
+];
+
+const toAccessProfile = (entry: AdminUser): AccessProfile => {
+  if (entry.isAdmin) return 'admin';
+  const roles = new Set(entry.roles ?? []);
+  const hasPractitioner = roles.has('practitioner');
+  const hasResearcher = roles.has('researcher');
+
+  if (hasPractitioner && hasResearcher) return 'practitioner_researcher';
+  if (hasResearcher) return 'researcher';
+  return 'practitioner';
+};
 
 type AdminApprovalsUsersTableProps = {
   users: AdminUser[];
@@ -33,7 +51,7 @@ export function AdminApprovalsUsersTable({
           <thead className="table-head">
             <tr className="table-row">
               <th className="px-3 py-3">Email</th>
-              <th className="px-3 py-3">Role</th>
+              <th className="px-3 py-3">Access profile</th>
               <th className="px-3 py-3">Access</th>
               <th className="px-3 py-3 text-right">Action</th>
             </tr>
@@ -41,10 +59,10 @@ export function AdminApprovalsUsersTable({
           <tbody>
             {users.map((entry) => {
               const isSelf = currentUserId === entry.id;
-              const currentRole = (entry.role ?? 'practitioner') as UserRole;
+              const currentAccessProfile = toAccessProfile(entry);
               const currentStatus = (entry.status ?? 'approved') as UserStatus;
-              const draft = draftEdits[entry.id] ?? { role: currentRole, status: currentStatus };
-              const isDirty = draft.role !== currentRole || draft.status !== currentStatus;
+              const draft = draftEdits[entry.id] ?? { accessProfile: currentAccessProfile, status: currentStatus };
+              const isDirty = draft.accessProfile !== currentAccessProfile || draft.status !== currentStatus;
               const isBusy = actionUserId === entry.id;
 
               return (
@@ -52,13 +70,16 @@ export function AdminApprovalsUsersTable({
                   <td className="px-3 py-3 font-medium text-foreground">{entry.email}</td>
                   <td className="px-3 py-3">
                     <select
-                      value={draft.role}
-                      onChange={(event) => onDraftUpdate(entry, { role: event.target.value as UserRole })}
+                      value={draft.accessProfile}
+                      onChange={(event) => onDraftUpdate(entry, { accessProfile: event.target.value as AccessProfile })}
                       disabled={isSelf || isBusy}
-                      className="field-input w-full min-w-[120px] rounded-md bg-card px-2 py-1"
+                      className="field-input w-full min-w-[200px] rounded-md bg-card px-2 py-1"
                     >
-                      <option value="admin">Admin</option>
-                      <option value="practitioner">Practitioner</option>
+                      {ACCESS_PROFILE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   <td className="px-3 py-3">

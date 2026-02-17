@@ -7,9 +7,11 @@ export interface User {
   id: string;
   email: string;
   name?: string;
-  role?: 'admin' | 'practitioner';
+  isAdmin?: boolean;
+  roles?: Array<'practitioner' | 'researcher'>;
   status?: 'pending' | 'approved' | 'denied';
   adminRequestStatus?: 'none' | 'pending' | 'approved' | 'denied';
+  roleRequestStatuses?: Partial<Record<'practitioner' | 'researcher', 'none' | 'pending' | 'approved' | 'denied'>>;
 }
 
 interface AuthContextType {
