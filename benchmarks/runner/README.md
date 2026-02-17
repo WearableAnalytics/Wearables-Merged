@@ -59,6 +59,26 @@ paths:
 timeout: "5m"
 ```
 
+Please make sure that only the Benchmark-Client runs on the Node
+```shell
+kubectl taint node <node-name> <key1>=<value1>:NoSchedule
+```
+In the Config:
+
+```yaml
+spec:
+  template:
+    spec:
+      tolerations:
+        - key: "key1"
+          operator: "Equal"
+          value: "value1"
+          effect: "NoSchedule"
+```
+
+
+
+
 ##### 3. Run
 Working-Directory should be `runner/`:
 ```shell
