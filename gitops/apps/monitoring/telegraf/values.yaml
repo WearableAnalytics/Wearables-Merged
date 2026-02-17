@@ -14,9 +14,9 @@ config:
     topics:
     - wearables-lp
   influxProducer:
-    name: influxdb #name of influx (without service or deployment) 
-    namespace: influx #namespace influx is deployed in
-    port: 8086 #open influx port
+    name: influxdb      #name of influx (without service or deployment) 
+    namespace: influx   #namespace influx is deployed in
+    port: 8086          #open influx port
     org: ""
     bucket: ""
     token: ""
