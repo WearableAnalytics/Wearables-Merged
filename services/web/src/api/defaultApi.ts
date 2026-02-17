@@ -334,7 +334,7 @@ export class DefaultApi {
 
   updateUser = async (
     userId: string,
-    updates: { role?: 'admin' | 'user'; status?: 'approved' | 'pending' | 'denied' },
+    updates: { role?: 'admin' | 'practitioner'; status?: 'approved' | 'pending' | 'denied' },
   ) => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}`, {
       method: 'PATCH',

@@ -7,7 +7,7 @@ export interface User {
   id: string;
   email: string;
   name?: string;
-  role?: 'admin' | 'user';
+  role?: 'admin' | 'practitioner';
   status?: 'pending' | 'approved' | 'denied';
   adminRequestStatus?: 'none' | 'pending' | 'approved' | 'denied';
 }

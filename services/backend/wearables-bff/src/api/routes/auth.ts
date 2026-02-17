@@ -240,7 +240,7 @@ router.post('/register', async (req: Request, res: Response) => {
       return;
     }
 
-    const user = createUser(normalizedEmail, { status: 'pending', role: 'user' });
+    const user = createUser(normalizedEmail, { status: 'pending', role: 'practitioner' });
     res.status(201).json({
       _id: user.id,
       status: user.status,
@@ -567,7 +567,7 @@ router.patch('/admin/users/:userId', ...auth.adminOnly, async (req: Request, res
     return;
   }
 
-  const isValidRole = !role || role === 'admin' || role === 'user';
+  const isValidRole = !role || role === 'admin' || role === 'practitioner';
   const isValidStatus = !status || status === 'approved' || status === 'pending' || status === 'denied';
   if (!isValidRole || !isValidStatus) {
     res.status(400).json({ error: 'Invalid role or status' });

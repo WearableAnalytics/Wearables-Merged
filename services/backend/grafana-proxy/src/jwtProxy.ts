@@ -203,6 +203,7 @@ const toGrafanaRole = (role?: string): string | undefined => {
       return 'GrafanaAdmin';
     case 'viewer':
     case 'user':
+    case 'practitioner':
       return 'Viewer';
     default:
       return undefined;

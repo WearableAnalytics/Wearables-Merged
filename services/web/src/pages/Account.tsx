@@ -19,7 +19,7 @@ export function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const adminRequestStatus = user?.adminRequestStatus ?? 'none';
-  const userRole = user?.role ?? 'user';
+  const userRole = user?.role ?? 'practitioner';
   const pendingAdminToastMessage =
     user && adminRequestStatus === 'pending' ? 'Your admin request is pending review.' : null;
   useMessageToast('error', 'account-error', error);
@@ -62,15 +62,7 @@ export function AccountPage() {
           <p className="text-sm text-muted-foreground">Email</p>
           <p className="text-lg font-semibold text-foreground">{user.email}</p>
           <p className="text-sm text-muted-foreground">Role</p>
-          <p className="text-base font-semibold capitalize text-foreground">{user.role ?? 'user'}</p>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          {userRole === 'admin' ? null : adminRequestStatus === 'pending' ? null : (
-            <Button onClick={handleRequestAdmin} disabled={!canRequestAdmin || isSubmitting}>
-              {isSubmitting ? 'Submitting…' : 'Request admin access'}
-            </Button>
-          )}
+          <p className="text-base font-semibold capitalize text-foreground">{user.role ?? 'practitioner'}</p>
         </div>
       </section>
 
@@ -96,6 +88,15 @@ export function AccountPage() {
               );
             })}
           </div>
+
+          {userRole === 'admin' ? null : adminRequestStatus === 'pending' ? null : (
+            <div className="flex flex-col gap-2 pt-2">
+              <p className="m-0 text-sm font-semibold text-foreground">Admin access</p>
+              <Button className="self-start" onClick={handleRequestAdmin} disabled={!canRequestAdmin || isSubmitting}>
+                {isSubmitting ? 'Submitting…' : 'Request admin access'}
+              </Button>
+            </div>
+          )}
         </div>
       </section>
     </>

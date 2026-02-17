@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import config from '../config.js';
 
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'admin' | 'practitioner';
 export type UserStatus = 'pending' | 'approved' | 'denied';
 export type AdminRequestStatus = 'none' | 'pending' | 'approved' | 'denied';
 
@@ -56,7 +56,7 @@ export const createUser = (
     return existing;
   }
 
-  const role: UserRole = options.role ?? (isAdminEmail(normalizedEmail) ? 'admin' : 'user');
+  const role: UserRole = options.role ?? (isAdminEmail(normalizedEmail) ? 'admin' : 'practitioner');
   const status: UserStatus = options.status ?? (role === 'admin' ? 'approved' : 'pending');
   const now = new Date();
   const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');

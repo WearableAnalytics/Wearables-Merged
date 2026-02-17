@@ -73,7 +73,7 @@ export function AdminApprovalsPage() {
   const updateDraft = (entry: AdminUser, updates: Partial<UserDraft>) => {
     setDraftEdits((current) => {
       const existing = current[entry.id] ?? {
-        role: (entry.role ?? 'user') as UserRole,
+        role: (entry.role ?? 'practitioner') as UserRole,
         status: (entry.status ?? 'approved') as UserStatus,
       };
       return {
@@ -177,7 +177,7 @@ export function AdminApprovalsPage() {
   };
 
   const handleUpdateUser = async (entry: AdminUser) => {
-    const currentRole = (entry.role ?? 'user') as UserRole;
+    const currentRole = (entry.role ?? 'practitioner') as UserRole;
     const currentStatus = (entry.status ?? 'approved') as UserStatus;
     const draft = draftEdits[entry.id] ?? { role: currentRole, status: currentStatus };
     const updates: Partial<{ role: UserRole; status: UserStatus }> = {};

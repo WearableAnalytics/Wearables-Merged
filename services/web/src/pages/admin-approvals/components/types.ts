@@ -11,7 +11,7 @@ export type AdminUser = {
 };
 
 export type ViewMode = 'users' | 'requests' | 'denied';
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'admin' | 'practitioner';
 export type UserStatus = 'approved' | 'pending' | 'denied';
 
 export type UserDraft = {

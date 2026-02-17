@@ -41,7 +41,7 @@ export function AdminApprovalsUsersTable({
           <tbody>
             {users.map((entry) => {
               const isSelf = currentUserId === entry.id;
-              const currentRole = (entry.role ?? 'user') as UserRole;
+              const currentRole = (entry.role ?? 'practitioner') as UserRole;
               const currentStatus = (entry.status ?? 'approved') as UserStatus;
               const draft = draftEdits[entry.id] ?? { role: currentRole, status: currentStatus };
               const isDirty = draft.role !== currentRole || draft.status !== currentStatus;
@@ -58,7 +58,7 @@ export function AdminApprovalsUsersTable({
                       className="field-input w-full min-w-[120px] rounded-md bg-card px-2 py-1"
                     >
                       <option value="admin">Admin</option>
-                      <option value="user">User</option>
+                      <option value="practitioner">Practitioner</option>
                     </select>
                   </td>
                   <td className="px-3 py-3">
