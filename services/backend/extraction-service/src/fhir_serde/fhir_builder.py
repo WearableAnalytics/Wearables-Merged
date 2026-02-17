@@ -3,7 +3,7 @@ import json
 
 from .api_client import ApiClient
 from .dot_parser import Graph
-from .transformations import to_lower_case, substring, append, prepend, replace
+from .transformations import to_lower_case, substring, append, prepend, replace, reverse_append, reverse_prepend
 from datetime import datetime, timezone
 from typing import Any
 
@@ -223,18 +223,27 @@ class FhirParser:
 
         build_path(fhir_dict, field.target, field_value)
 
-        for succ in node.successor:
-            self.recursively_deduct_fhir(fhir_dict, node, field_value)
+        self.recursively_deduct_fhir(fhir_dict, node, field_value)
 
     def recursively_deduct_fhir(self, fhir_dict: dict[str, Any], node: Node, field_value: str | int | float):
 
         for succ in node.successor:
-            s_field = self.all_fields.get(succ.name)
-            if s_field.transform is not None:
-                transformed_value = self.apply_transformations(s_field, field_value)
+
+            succ_field = self.all_fields.get(succ.name)
+            curr_field = self.all_fields.get(node.name)
+
+            if succ_field.rawSource is not None and curr_field.rawSource is not None and succ_field.rawSource == curr_field.rawSource:
+                if curr_field.transform is not None:
+                    field_value = self.reverse_transformation(curr_field, field_value)
+                    logger.debug(f"reversed value from {node.name} for application to {succ.name} and now has value {field_value}")
+
+
+            if succ_field.transform is not None:
+                transformed_value = self.apply_transformations(succ_field, field_value)
             else:
                 transformed_value = field_value
-            build_path(fhir_dict, s_field.target, transformed_value)
+            build_path(fhir_dict, succ_field.target, transformed_value)
+
             self.recursively_deduct_fhir(fhir_dict, succ, transformed_value)
 
     def apply_transformations(self, field: FieldDef, initial_value: str | int | float) -> str | float | int:
@@ -265,6 +274,37 @@ class FhirParser:
 
                 case "substring":
                     value = substring(value, t.params)
+                case _:
+                    raise RuntimeError(f"transformation {t} is not implemented")
+
+        return value
+
+    def reverse_transformation(self, field: FieldDef, initial_value: str | int | float) -> str | float | int:
+
+        value = initial_value
+
+        for t in field.transform:
+            match t.type:
+                case "replace":
+                    value = replace(value, list(reversed(t.params)))
+                case "append":
+                    value = reverse_append(value, t.params)
+                case "prepend":
+                    value = reverse_prepend(value, t.params)
+                case "map":
+                    req_map = self.all_maps.get(field.name)
+                    if req_map is None:
+                        raise RuntimeError(f"no map found for field {field.name} even map transformation was set")
+                    found = False
+                    for m in req_map.map:
+                        if m.value == value:
+                            found = True
+                            value = m.key
+                    if not found:
+                        raise RuntimeError(f"no matching key found for field {field.name} in map for current value {value}")
+
+                case "substring", "toLowerCase":
+                    raise RuntimeError(f"transformation {t.type} is not injective and cant be reversed")
                 case _:
                     raise RuntimeError(f"transformation {t} is not implemented")
 
