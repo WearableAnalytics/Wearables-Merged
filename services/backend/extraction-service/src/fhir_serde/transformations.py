@@ -1,5 +1,7 @@
 import re
+import logging
 
+logger = logging.getLogger(__name__)
 
 def to_lower_case(value: str | int | float) -> str:
     return str(value).lower()
@@ -31,12 +33,48 @@ def append(value: str | int | float, params: list[str]):
 
     return value_as_string
 
+def reverse_append(value: str | int | float, params: list[str]):
+    value_as_string = str(value)
+
+    suffix = ""
+
+    for p in params:
+        suffix += p
+
+    value_as_string = value_as_string.removesuffix(suffix)
+
+    if value_as_string.isdigit() and type(value) is int:
+        return int(value_as_string)
+    elif value_as_string.isdecimal() and type(value) is float:
+        return float(value_as_string)
+
+    return value_as_string
+
 
 def prepend(value: str | int | float, params: list[str]):
     value_as_string = str(value)
 
     for p in params:
         value_as_string = p + value_as_string
+
+    if value_as_string.isdigit() and type(value) is int:
+        return int(value_as_string)
+    elif value_as_string.isdecimal() and type(value) is float:
+        return float(value_as_string)
+
+    return value_as_string
+
+def reverse_prepend(value: str | int | float, params: list[str]):
+    value_as_string = str(value)
+
+    prefix = ""
+
+    for p in params:
+        prefix += p
+
+    logger.debug(f"prefix is {prefix}")
+
+    value_as_string = value_as_string.removeprefix(prefix)
 
     if value_as_string.isdigit() and type(value) is int:
         return int(value_as_string)
