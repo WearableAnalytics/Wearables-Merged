@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { AddCasePage } from './pages/add-case/AddCase';
 import { OverviewPage } from './pages/Overview';
 import { LogoutPage } from './pages/Logout';
@@ -11,6 +11,8 @@ import { AdminApprovalsPage } from './pages/AdminApprovals';
 import { AccountPage } from './pages/Account';
 import { AuthRequestSentPage } from './pages/AuthRequestSent';
 import { AccessPage } from './pages/Access';
+import { LoginPage } from './pages/Login';
+import { RegisterPage } from './pages/Register';
 
 export function Routing() {
   return (
@@ -19,7 +21,7 @@ export function Routing() {
       <Route
         path="/overview"
         element={
-          <PrivateRoute>
+          <PrivateRoute requirePractitionerOrAdmin>
             <OverviewPage />
           </PrivateRoute>
         }
@@ -27,7 +29,7 @@ export function Routing() {
       <Route
         path="/cases/:caseId"
         element={
-          <PrivateRoute>
+          <PrivateRoute requirePractitionerOrAdmin>
             <CasePage />
           </PrivateRoute>
         }
@@ -35,7 +37,7 @@ export function Routing() {
       <Route
         path="/add-case"
         element={
-          <PrivateRoute>
+          <PrivateRoute requirePractitionerOrAdmin>
             <AddCasePage />
           </PrivateRoute>
         }
@@ -55,15 +57,15 @@ export function Routing() {
       <Route
         path="/admin/approvals"
         element={
-          <PrivateRoute>
+          <PrivateRoute requireAdmin>
             <AdminApprovalsPage />
           </PrivateRoute>
         }
       />
       <Route path="/request-sent" element={<AuthRequestSentPage />} />
       <Route path="/access" element={<AccessPage />} />
-      <Route path="/login" element={<Navigate to="/access" replace />} />
-      <Route path="/register" element={<Navigate to="/access" replace />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/error-magic_link" element={<ErrorMagicLinkPage />} />
       <Route
         path="*"

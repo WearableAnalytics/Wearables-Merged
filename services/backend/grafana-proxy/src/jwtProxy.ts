@@ -29,6 +29,8 @@ type SessionJwtPayload = jwt.JwtPayload & {
   email?: string;
   name?: string;
   role?: string;
+  isAdmin?: boolean;
+  roles?: string[];
   status?: string;
 };
 type SessionUser = {
@@ -181,11 +183,12 @@ const parseSessionUser = (cookieHeader: string | undefined, config: JwtProxyConf
     if (!decoded.email && !decoded.userId) {
       return null;
     }
+    const derivedRole = decoded.role ?? (decoded.isAdmin ? 'admin' : decoded.roles?.[0]);
     return {
       userId: decoded.userId,
       email: decoded.email,
       name: decoded.name,
-      role: decoded.role,
+      role: derivedRole,
     };
   } catch {
     return null;
@@ -203,6 +206,8 @@ const toGrafanaRole = (role?: string): string | undefined => {
       return 'GrafanaAdmin';
     case 'viewer':
     case 'user':
+    case 'practitioner':
+    case 'researcher':
       return 'Viewer';
     default:
       return undefined;

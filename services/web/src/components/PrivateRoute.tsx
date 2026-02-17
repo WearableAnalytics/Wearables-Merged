@@ -1,8 +1,19 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { canAccessPractitionerPages, isAdminUser } from '@/lib/userAccess';
 
-export const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+type PrivateRouteProps = {
+  children: React.ReactElement;
+  requireAdmin?: boolean;
+  requirePractitionerOrAdmin?: boolean;
+};
+
+export const PrivateRoute: React.FC<PrivateRouteProps> = ({
+  children,
+  requireAdmin = false,
+  requirePractitionerOrAdmin = false,
+}) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -15,7 +26,7 @@ export const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ child
   }
 
   if (!user) {
-    return <Navigate to="/access" state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (user.status && user.status !== 'approved') {
@@ -28,6 +39,14 @@ export const PrivateRoute: React.FC<{ children: React.ReactElement }> = ({ child
         {message}
       </div>
     );
+  }
+
+  if (requireAdmin && !isAdminUser(user)) {
+    return <Navigate to="/account" replace />;
+  }
+
+  if (requirePractitionerOrAdmin && !canAccessPractitionerPages(user)) {
+    return <Navigate to="/account" replace />;
   }
 
   return children;

@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { BrandLogo } from '@/components/branding/BrandLogo';
 import { useAuth } from '@/context/AuthContext';
+import { getDefaultAuthenticatedPath } from '@/lib/userAccess';
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -10,12 +11,16 @@ export function LandingPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      navigate('/overview', { replace: true });
+      navigate(getDefaultAuthenticatedPath(user), { replace: true });
     }
   }, [user, loading, navigate]);
 
-  const handleAccessClick = () => {
-    void navigate('/access');
+  const handleLoginClick = () => {
+    void navigate('/login');
+  };
+
+  const handleRegisterClick = () => {
+    void navigate('/register');
   };
 
   return (
@@ -50,7 +55,8 @@ export function LandingPage() {
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
-            <Button type="button" onClick={handleAccessClick}>Access</Button>
+            <Button type="button" onClick={handleLoginClick}>Login</Button>
+            <Button type="button" variant="outline" onClick={handleRegisterClick}>Register</Button>
           </div>
         </div>
       </div>

@@ -16,7 +16,7 @@ export function LogoutPage() {
       return {
         title: 'Session expired',
         description: 'Your session expired. Please log in again to continue.',
-        cardMessage: 'Please sign in again from the access page.',
+        cardMessage: 'Please sign in again from the login page.',
       };
     }
 
@@ -24,14 +24,14 @@ export function LogoutPage() {
       return {
         title: 'You have been logged out',
         description: 'You logged out successfully.',
-        cardMessage: 'Use the access page when you want to sign back in.',
+        cardMessage: 'Use the login page when you want to sign back in.',
       };
     }
 
     return {
       title: 'You have been logged out',
       description: 'Your session has ended. Please log in again.',
-      cardMessage: 'Use the access page to sign back in.',
+      cardMessage: 'Use the login page to sign back in.',
     };
   }, [reason]);
 

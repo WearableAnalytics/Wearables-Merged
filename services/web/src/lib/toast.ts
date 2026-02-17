@@ -32,9 +32,14 @@ export function useLoadingToast(id: string, isLoading: boolean, loadingMessage: 
   useEffect(() => {
     if (isLoading) {
       toast.loading(loadingMessage, { id });
-      return;
+      return () => {
+        toast.dismiss(id);
+      };
     }
 
     toast.dismiss(id);
+    return () => {
+      toast.dismiss(id);
+    };
   }, [id, isLoading, loadingMessage]);
 }

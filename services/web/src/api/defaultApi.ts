@@ -25,6 +25,9 @@ const normalizeApiBasePath = (rawBasePath: string) => {
 // Shared configuration for all generated API classes.
 export const API_BASE_PATH = normalizeApiBasePath(import.meta.env.VITE_API_BASE_URL ?? '/api');
 
+export type NonAdminRole = 'practitioner' | 'researcher';
+export type AccessRequestType = 'admin' | NonAdminRole;
+
 export const isDirectAuthResponse = (data: unknown): boolean =>
   Boolean(
     data &&
@@ -98,12 +101,12 @@ export class DefaultApi {
     return data;
   };
 
-  register = async (email: string) => {
+  register = async (email: string, role: NonAdminRole) => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, role }),
     });
     const data = await response.json().catch(() => ({} as Record<string, unknown>));
 
@@ -179,6 +182,25 @@ export class DefaultApi {
     return data;
   };
 
+  requestRoleAccess = async (role: NonAdminRole) => {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/request-role`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ role }),
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to request role access.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
   listPendingUsers = async () => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/pending-users`, {
       method: 'GET',
@@ -230,15 +252,15 @@ export class DefaultApi {
     return data;
   };
 
-  listPendingAdminRequests = async () => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/pending-admin-requests`, {
+  listPendingAccessRequests = async () => {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/pending-access-requests`, {
       method: 'GET',
       credentials: 'include',
     });
     const data = await response.json().catch(() => ({} as Record<string, unknown>));
 
     if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to load admin requests.';
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to load access requests.';
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
@@ -298,32 +320,21 @@ export class DefaultApi {
     return data;
   };
 
-  approveAdminRequest = async (userId: string) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/approve-admin`, {
+  reviewAccessRequest = async (
+    userId: string,
+    requestType: AccessRequestType,
+    decision: 'approved' | 'denied',
+  ) => {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/review-request`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
+      body: JSON.stringify({ requestType, decision }),
     });
     const data = await response.json().catch(() => ({} as Record<string, unknown>));
 
     if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to approve admin request.';
-      const error = new Error(message) as Error & { status?: number };
-      error.status = response.status;
-      throw error;
-    }
-
-    return data;
-  };
-
-  denyAdminRequest = async (userId: string) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/deny-admin`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
-
-    if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to deny admin request.';
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to review request.';
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
@@ -334,7 +345,11 @@ export class DefaultApi {
 
   updateUser = async (
     userId: string,
-    updates: { role?: 'admin' | 'user'; status?: 'approved' | 'pending' | 'denied' },
+    updates: {
+      isAdmin?: boolean;
+      roles?: NonAdminRole[];
+      status?: 'approved' | 'pending' | 'denied';
+    },
   ) => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}`, {
       method: 'PATCH',
