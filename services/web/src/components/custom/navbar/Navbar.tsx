@@ -17,13 +17,11 @@ import { NavButton, NavButtonMobile } from './navButtons';
 import { Logo } from './logo';
 
 interface NavbarProps {
-  alwaysGuestRoutes: string[];
   navigate: ReturnType<typeof useNavigate>;
   location: ReturnType<typeof useLocation>;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  alwaysGuestRoutes,
   navigate,
   location,
 }) => {
@@ -143,7 +141,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             isMobileMenuOpen ? 'bg-background border-b border-border' : ''
           }`}
         >
-          <Logo alwaysGuestRoutes={alwaysGuestRoutes} navigate={navigate} location={location} />
+          <Logo />
 
           {/* Desktop Navigation */}
           {isAuthenticated && hasPractitionerAccess ? (

@@ -7,7 +7,6 @@ import { useAuth } from './context/AuthContext';
 import { useTheme } from './context/ThemeContext';
 import {
   AUTH_SESSION_EXPIRED_EVENT,
-  GUEST_ROUTE_PATHS,
   LOGOUT_REASON_EXPIRED,
   getLogoutPath,
   isGuestRoute,
@@ -81,7 +80,7 @@ function App() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SessionMonitor />
-      <Navbar alwaysGuestRoutes={GUEST_ROUTE_PATHS} navigate={navigate} location={location} />
+      <Navbar navigate={navigate} location={location} />
       <Toaster position="top-right" richColors closeButton theme={isDark ? 'dark' : 'light'} />
 
       <main className="pt-24 pb-[72px] px-[clamp(16px,4vw,48px)]">

@@ -1,18 +1,12 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { BrandLogo } from '@/components/branding/BrandLogo';
 import { getDefaultAuthenticatedPath } from '@/lib/userAccess';
 
-interface LogoProps {
-  userType?: 'Retiree' | 'Startup'; // undefined ⇒ guest / not authenticated
-  alwaysGuestRoutes: string[]; // if true, always navigate to home
-  navigate: ReturnType<typeof useNavigate>;
-  location: ReturnType<typeof useLocation>;
-}
-
-export const Logo: React.FC<LogoProps> = ({ userType, alwaysGuestRoutes, navigate, location }) => {
+export const Logo: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const handleClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -21,13 +15,7 @@ export const Logo: React.FC<LogoProps> = ({ userType, alwaysGuestRoutes, navigat
       return;
     }
 
-    if (!userType || alwaysGuestRoutes.includes(location.pathname)) {
-      void navigate('/'); // guest → home
-    } else if (userType === 'Retiree') {
-      void navigate('/retiree/browse-jobs');
-    } else {
-      void navigate('/startup/browse-retirees');
-    }
+    void navigate('/');
   };
 
   return (
