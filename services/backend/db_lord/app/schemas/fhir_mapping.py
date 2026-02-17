@@ -52,7 +52,7 @@ class FHIRMappingResponse(FHIRMappingBase):
     id: UUID
 
 
-class FHIRMappingTreeBase(TunedBase):
+class DotDependencyFileBase(TunedBase):
     version: str = Field(
         ...,
         min_length=1,
@@ -70,10 +70,10 @@ class FHIRMappingTreeBase(TunedBase):
         description="The category of data that this mapping applies to.",
         examples=["continuous", "incremental"],
     )
-    map_tree: dict[str, Any] = Field(
+    digraph: dict[str, Any] = Field(
         ...,
-        title="Mapping Tree",
-        description="The mapping tree that defines how this category of telemetry data should "
+        title="Digraph",
+        description="The digraph that defines how this category of telemetry data should be mapped to FHIR."
         "be transformed into FHIR resources.",
     )
     mapping_id: UUID = Field(
@@ -83,11 +83,11 @@ class FHIRMappingTreeBase(TunedBase):
     )
 
 
-class FHIRMappingTreeCreate(FHIRMappingTreeBase):
+class DotDependencyFileCreate(DotDependencyFileBase):
     pass
 
 
-class FHIRMappingTreeUpdate(TunedBase):
+class DotDependencyFileUpdate(TunedBase):
     version: str | None = Field(
         None,
         min_length=1,
@@ -105,10 +105,10 @@ class FHIRMappingTreeUpdate(TunedBase):
         description="The category of data that this mapping applies to.",
         examples=["continuous", "incremental"],
     )
-    map_tree: dict[str, Any] | None = Field(
-        None,
-        title="Mapping Tree",
-        description="The mapping tree that defines how this category of telemetry data should "
+    digraph: dict[str, Any] = Field(
+        ...,
+        title="Digraph",
+        description="The digraph that defines how this category of telemetry data should be mapped to FHIR."
         "be transformed into FHIR resources.",
     )
     mapping_id: UUID | None = Field(
@@ -118,5 +118,5 @@ class FHIRMappingTreeUpdate(TunedBase):
     )
 
 
-class FHIRMappingTreeResponse(FHIRMappingTreeBase):
+class DotDependencyFileResponse(DotDependencyFileBase):
     id: UUID

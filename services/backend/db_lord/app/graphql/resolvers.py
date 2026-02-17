@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Iterable
+from asyncio import Semaphore
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 import strawberry
 import strawberry.relay as relay
 from sqlalchemy import literal, select, union_all
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from strawberry.types.cast import cast as strawberry_cast
 from strawberry.types.maybe import Some
 
@@ -38,10 +39,21 @@ if TYPE_CHECKING:
     from app.db.influx.repos.telemetry_repo import TelemetryRepo
 
 
+def _session_context(info: strawberry.Info) -> tuple[async_sessionmaker[AsyncSession], Semaphore]:
+    return info.context["session_factory"], info.context["db_semaphore"]
+
+
+async def _with_db[TDbResult](info: strawberry.Info, fn: Callable[[AsyncSession], Awaitable[TDbResult]]) -> TDbResult:
+    session_factory, db_semaphore = _session_context(info)
+    async with db_semaphore, session_factory() as db:
+        return await fn(db)
+
+
 def _keyset_source[TGraphQL](
-    db: AsyncSession, model: type[Any], graphql_type: type[TGraphQL], filter_input: FilterInput | None
+    info: strawberry.Info, model: type[Any], graphql_type: type[TGraphQL], filter_input: FilterInput | None
 ) -> KeysetSource[TGraphQL]:
-    return KeysetSource(db, model, graphql_type, apply_filter(model, filter_input))
+    session_factory, db_semaphore = _session_context(info)
+    return KeysetSource(session_factory, db_semaphore, model, graphql_type, apply_filter(model, filter_input))
 
 
 async def _get_entity[TGraphQL](
@@ -204,80 +216,73 @@ async def _prepare_telemetry_filters(
 class Query:
     @relay.connection(KeysetConnection[Patient], description="Query patients with filtering.")
     async def patients(self, info: strawberry.Info, filter: FilterInput | None = None) -> Iterable[Patient]:
-        db: AsyncSession = info.context["db"]
-        return _keyset_source(db, PatientModel, Patient, filter)
+        return _keyset_source(info, PatientModel, Patient, filter)
 
     @strawberry.field(description="Get a single patient by ID.")
     async def patient(self, info: strawberry.Info, id: UUID) -> Patient | None:
-        db: AsyncSession = info.context["db"]
-        return await _get_entity(db, PatientModel, Patient, id)
+        return await _with_db(info, lambda db: _get_entity(db, PatientModel, Patient, id))
 
     @relay.connection(KeysetConnection[Case], description="Query cases with filtering.")
     async def cases(self, info: strawberry.Info, filter: FilterInput | None = None) -> Iterable[Case]:
-        db: AsyncSession = info.context["db"]
-        return _keyset_source(db, CaseModel, Case, filter)
+        return _keyset_source(info, CaseModel, Case, filter)
 
     @strawberry.field(description="Get a single case by ID.")
     async def case(self, info: strawberry.Info, id: UUID) -> Case | None:
-        db: AsyncSession = info.context["db"]
-        return await _get_entity(db, CaseModel, Case, id)
+        return await _with_db(info, lambda db: _get_entity(db, CaseModel, Case, id))
 
     @relay.connection(KeysetConnection[Device], description="Query devices with filtering.")
     async def devices(self, info: strawberry.Info, filter: FilterInput | None = None) -> Iterable[Device]:
-        db: AsyncSession = info.context["db"]
-        return _keyset_source(db, DeviceModel, Device, filter)
+        return _keyset_source(info, DeviceModel, Device, filter)
 
     @strawberry.field(description="Get a single device by ID.")
     async def device(self, info: strawberry.Info, id: UUID) -> Device | None:
-        db: AsyncSession = info.context["db"]
-        return await _get_entity(db, DeviceModel, Device, id)
+        return await _with_db(info, lambda db: _get_entity(db, DeviceModel, Device, id))
 
     @relay.connection(KeysetConnection[Wearable], description="Query wearables with filtering.")
     async def wearables(self, info: strawberry.Info, filter: FilterInput | None = None) -> Iterable[Wearable]:
-        db: AsyncSession = info.context["db"]
-        return _keyset_source(db, WearableModel, Wearable, filter)
+        return _keyset_source(info, WearableModel, Wearable, filter)
 
     @strawberry.field(description="Get a single wearable by ID.")
     async def wearable(self, info: strawberry.Info, id: UUID) -> Wearable | None:
-        db: AsyncSession = info.context["db"]
-        return await _get_entity(db, WearableModel, Wearable, id)
+        return await _with_db(info, lambda db: _get_entity(db, WearableModel, Wearable, id))
 
     @relay.connection(KeysetConnection[Context], description="Query contexts with filtering.")
     async def contexts(self, info: strawberry.Info, filter: FilterInput | None = None) -> Iterable[Context]:
-        db: AsyncSession = info.context["db"]
-        return _keyset_source(db, ContextModel, Context, filter)
+        return _keyset_source(info, ContextModel, Context, filter)
 
     @strawberry.field(description="Get a single context by ID.")
     async def context(self, info: strawberry.Info, id: UUID) -> Context | None:
-        db: AsyncSession = info.context["db"]
-        return await _get_entity(db, ContextModel, Context, id)
+        return await _with_db(info, lambda db: _get_entity(db, ContextModel, Context, id))
 
     @strawberry.field(description="Query telemetry data from InfluxDB.")
     async def telemetry(self, info: strawberry.Info, query: TelemetryQueryInput) -> TelemetryPage:
-        db: AsyncSession = info.context["db"]
         telemetry_repo: TelemetryRepo = info.context["telemetry_repo"]
 
-        tags, ids_by_key, has_results = await _prepare_telemetry_filters(db, query)
-        if not has_results:
+        async def _resolve_with_db(db: AsyncSession) -> TelemetryPage:
+            tags, ids_by_key, has_results = await _prepare_telemetry_filters(db, query)
+            if not has_results:
+                resolved_metadata = (
+                    await _build_resolved_metadata(db, ids_by_key) if query.include_resolved_metadata else None
+                )
+                return TelemetryPage(items=[], next_cursor=None, resolved=resolved_metadata)
+
+            result = await telemetry_repo.get_points(
+                measurement=query.measurement,
+                start=query.start,
+                end=query.end,
+                tags=tags or None,
+                fields=query.fields,
+                page_size=query.page_size,
+                cursor=query.cursor,
+            )
+
+            items = [_telemetry_point_from_item(item) for item in result.items]
             resolved_metadata = (
                 await _build_resolved_metadata(db, ids_by_key) if query.include_resolved_metadata else None
             )
-            return TelemetryPage(items=[], next_cursor=None, resolved=resolved_metadata)
+            return TelemetryPage(items=items, next_cursor=result.next_cursor, resolved=resolved_metadata)
 
-        result = await telemetry_repo.get_points(
-            measurement=query.measurement,
-            start=query.start,
-            end=query.end,
-            tags=tags or None,
-            fields=query.fields,
-            page_size=query.page_size,
-            cursor=query.cursor,
-        )
-
-        items = [_telemetry_point_from_item(item) for item in result.items]
-
-        resolved_metadata = await _build_resolved_metadata(db, ids_by_key) if query.include_resolved_metadata else None
-        return TelemetryPage(items=items, next_cursor=result.next_cursor, resolved=resolved_metadata)
+        return await _with_db(info, _resolve_with_db)
 
 
 @strawberry.type
@@ -286,10 +291,9 @@ class Subscription:
     async def telemetry_stream(
         self, info: strawberry.Info, query: TelemetryQueryInput
     ) -> AsyncGenerator[TelemetryPoint]:
-        db: AsyncSession = info.context["db"]
         telemetry_repo: TelemetryRepo = info.context["telemetry_repo"]
 
-        tags, _, has_results = await _prepare_telemetry_filters(db, query)
+        tags, _, has_results = await _with_db(info, lambda db: _prepare_telemetry_filters(db, query))
         if not has_results:
             return
 

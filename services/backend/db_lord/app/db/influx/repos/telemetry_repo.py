@@ -141,6 +141,8 @@ class TelemetryRepo:
 
         if pivot:
             flux_parts.append('|> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")')
+        else:  # when not pivoting we need to convert to string in case meassurements have mixed type fields
+            flux_parts.append("|> toString()")
 
         # Collapse tag-grouped tables so sort/limit apply globally
         # required for stable cursor pagination

@@ -6,8 +6,8 @@ from .orm import (
     CaseWearable,
     Context,
     Device,
+    DotDependencyFile,
     FHIRMapping,
-    FHIRMappingTree,
     Patient,
     Wearable,
 )
@@ -24,6 +24,6 @@ __all__ = [
     "CaseContext",
     "CaseDevice",
     "CaseWearable",
-    "FHIRMappingTree",
+    "DotDependencyFile",
     "FHIRMapping",
 ]

@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
 from fastapi_filters import FilterSet, SortingValues
@@ -44,18 +44,32 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
         return result.scalars().all()
 
     async def stream_all(
-        self, filters: FilterSet | None = None, sorting: SortingValues | None = None, batch_size: int = 500
-    ) -> AsyncIterator[ModelType]:
-        """Stream all matching records using server side cursors."""
+        self,
+        filters: FilterSet | None = None,
+        sorting: SortingValues | None = None,
+        batch_size: int = 500,
+        as_mapping: bool = False,
+    ) -> AsyncIterator[ModelType | Mapping[str, Any]]:
+        """Stream matching records using server-side cursors.
+
+        `as_mapping=True` yields SQLAlchemy RowMapping objects projected from table columns,
+        which avoids ORM entity construction for read-only streaming paths.
+        """
         query = select(self.model)
         if sorting is None:
             sorting = GLOBAL_SORT_VALUES
 
         query = apply_filters_and_sorting(query, filters, sorting) if filters else apply_sorting(query, sorting)
+        if as_mapping:
+            query = query.with_only_columns(*self.model.__table__.c, maintain_column_froms=True)
 
         result = await self.db.stream(query)
-        async for row in result.scalars().yield_per(batch_size):
-            yield row
+        if as_mapping:
+            async for row in result.mappings().yield_per(batch_size):
+                yield row
+        else:
+            async for row in result.scalars().yield_per(batch_size):
+                yield row
 
     async def create(self, obj_in: CreateSchemaType) -> ModelType:
         obj_data = obj_in.model_dump(exclude_unset=True)

@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,7 +10,7 @@ from app.model_constants import (
 )
 
 
-class HardwareStatus(str, Enum):
+class HardwareStatus(StrEnum):
     AVAILABLE = "AVAILABLE"
     ASSIGNED = "ASSIGNED"
     BROKEN = "BROKEN"

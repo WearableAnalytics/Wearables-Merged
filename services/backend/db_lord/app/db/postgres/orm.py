@@ -4,9 +4,9 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import JSON, TIMESTAMP, CheckConstraint, Date, ForeignKey, Index, MetaData, Numeric, String, Uuid, text
+from sqlalchemy import TIMESTAMP, CheckConstraint, Date, ForeignKey, Index, MetaData, Numeric, String, Uuid, text
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import ExcludeConstraint
+from sqlalchemy.dialects.postgresql import JSONB, ExcludeConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.model_constants import (
@@ -45,7 +45,7 @@ hardware_status_db = SAEnum(HardwareStatus, name="hardware_status_enum", native_
 
 
 class Base(DeclarativeBase):
-    """Base clas for all ORM models."""
+    """Base class for all ORM models."""
 
     metadata = MetaData(naming_convention=_naming_convention)
     type_annotation_map = {
@@ -273,25 +273,25 @@ class FHIRMapping(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, server_default=text("uuidv7()"))
 
     version: Mapped[str] = mapped_column(String(FHIR_VERSION_MAX_LEN), unique=True, index=True, nullable=False)
-    full_mapping: Mapped[dict] = mapped_column(JSON, nullable=False)
+    full_mapping: Mapped[dict] = mapped_column(JSONB, nullable=False)
     # Relationships
-    trees: Mapped[list[FHIRMappingTree]] = relationship(
+    dot_dependency_files: Mapped[list[DotDependencyFile]] = relationship(
         back_populates="mapping", lazy="raise", cascade="all, delete-orphan", passive_deletes=True
     )
 
 
-class FHIRMappingTree(Base):
-    __tablename__ = "fhir_mapping_trees"
+class DotDependencyFile(Base):
+    __tablename__ = "dot_dependency_files"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, server_default=text("uuidv7()"))
 
     version: Mapped[str] = mapped_column(String(FHIR_VERSION_MAX_LEN), nullable=False)
     category: Mapped[str] = mapped_column(String(FHIR_CATEGORY_MAX_LEN), index=True, nullable=False)
-    map_tree: Mapped[dict] = mapped_column(JSON, nullable=False)
+    digraph: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
     mapping_id: Mapped[UUID] = mapped_column(ForeignKey("fhir_mappings.id", ondelete="CASCADE"), nullable=False)
 
     # Relationships
-    mapping: Mapped[FHIRMapping] = relationship(back_populates="trees", lazy="raise")
+    mapping: Mapped[FHIRMapping] = relationship(back_populates="dot_dependency_files", lazy="raise")
 
-    __table_args__ = (Index("ix_fhir_mapping_tree_version_category", "version", "category"),)
+    __table_args__ = (Index("ix_dot_dependency_files_version_category", "version", "category"),)

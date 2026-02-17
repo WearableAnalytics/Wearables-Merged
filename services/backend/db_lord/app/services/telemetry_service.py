@@ -16,9 +16,7 @@ class TelemetryService:
         await self.repo.write_point(point)
 
     async def record_batch(self, items_in: Iterable[TelemetryCreate]) -> None:
-        points = [self._create_to_dict(item) for item in items_in]
-        if points:
-            await self.repo.write_batch(points)
+        await self.repo.write_batch(self._create_to_dict(item) for item in items_in)
 
     async def read_telemetry(
         self,

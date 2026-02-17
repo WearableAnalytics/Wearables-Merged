@@ -1,8 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.postgres.orm import FHIRMapping, FHIRMappingTree
+from app.db.postgres.orm import DotDependencyFile, FHIRMapping
 from app.db.postgres.repos.base import BaseRepo
-from app.schemas.fhir_mapping import FHIRMappingCreate, FHIRMappingTreeBase, FHIRMappingTreeCreate, FHIRMappingUpdate
+from app.schemas.fhir_mapping import (
+    DotDependencyFileBase,
+    DotDependencyFileCreate,
+    FHIRMappingCreate,
+    FHIRMappingUpdate,
+)
 
 
 class FHIRMappingRepo(BaseRepo[FHIRMapping, FHIRMappingCreate, FHIRMappingUpdate]):
@@ -10,6 +15,6 @@ class FHIRMappingRepo(BaseRepo[FHIRMapping, FHIRMappingCreate, FHIRMappingUpdate
         super().__init__(FHIRMapping, db)
 
 
-class FHIRMappingTreeRepo(BaseRepo[FHIRMappingTree, FHIRMappingTreeCreate, FHIRMappingTreeBase]):
+class DotDependencyFileRepo(BaseRepo[DotDependencyFile, DotDependencyFileCreate, DotDependencyFileBase]):
     def __init__(self, db: AsyncSession):
-        super().__init__(FHIRMappingTree, db)
+        super().__init__(DotDependencyFile, db)

@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from uuid import UUID
 
 from fastapi_filters import FilterSet, SortingValues
@@ -40,9 +40,13 @@ class BaseService[
         return await self.repo.list_paginated(filters, sorting)
 
     def stream_all(
-        self, filters: FilterSet | None = None, sorting: SortingValues | None = None, batch_size: int = 500
-    ) -> AsyncIterator[ModelType]:
-        return self.repo.stream_all(filters=filters, sorting=sorting, batch_size=batch_size)
+        self,
+        filters: FilterSet | None = None,
+        sorting: SortingValues | None = None,
+        batch_size: int = 500,
+        as_mapping: bool = False,
+    ) -> AsyncIterator[ModelType | Mapping[str, object]]:
+        return self.repo.stream_all(filters=filters, sorting=sorting, batch_size=batch_size, as_mapping=as_mapping)
 
     async def create(self, obj_in: CreateSchemaType) -> ModelType:
         try:

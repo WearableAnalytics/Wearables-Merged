@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+from asyncio import Semaphore
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
@@ -10,7 +11,7 @@ from uuid import UUID
 import strawberry
 import strawberry.relay as relay
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql.elements import ColumnElement
 from strawberry.relay.utils import from_base64, to_base64
 from strawberry.types.base import StrawberryContainer, get_object_definition
@@ -49,7 +50,8 @@ def _resolve_edge_type(connection_type: type[relay.Connection[Any]]) -> type[rel
 
 @dataclass(frozen=True)
 class KeysetSource[NodeType](Iterable[NodeType]):
-    db: AsyncSession
+    session_factory: async_sessionmaker[AsyncSession]
+    db_semaphore: Semaphore
     model: type[Any]
     graphql_type: type[NodeType]
     where_clause: ColumnElement[bool] | None = None
@@ -125,8 +127,9 @@ class KeysetConnection[NodeType](relay.ListConnection[NodeType]):
         order_by = nodes.model.id.asc() if fetch_backward else nodes.model.id.desc()
         query = query.order_by(order_by).limit(fetch_limit)
 
-        result = await nodes.db.execute(query)
-        entities = list(result.scalars().all())
+        async with nodes.db_semaphore, nodes.session_factory() as db:
+            result = await db.execute(query)
+            entities = list(result.scalars().all())
 
         if page_size == 0:
             has_extra = bool(entities)

@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     DB_POOL_TIMEOUT: int = 30
     DB_POOL_RECYCLE: int = 1800
     DB_POOL_PRE_PING: bool = True
+    GRAPHQL_DB_MAX_CONCURRENCY: int = 8
+
+    ERRORS_INCLUDE_TECHNICAL_DETAILS: bool = False
 
     @property
     def POSTGRES_URL(self) -> URL:

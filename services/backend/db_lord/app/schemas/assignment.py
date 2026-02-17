@@ -6,6 +6,8 @@ from pydantic import AwareDatetime, field_validator
 from .common import TunedBase, TunedUpdateBase
 
 
+# TODO: current hack for sqllite test suite since it doesn't support timezone-aware datetimes.
+# should proably just change the test suite instead of adding this hack to the main codebase.
 class _AssignmentDateTimeMixin(TunedBase):
     @field_validator("assigned_from", "assigned_to", mode="before", check_fields=False)
     @classmethod

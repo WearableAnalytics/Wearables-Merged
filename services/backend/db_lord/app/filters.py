@@ -2,7 +2,7 @@ from fastapi_filters.ext.sqlalchemy import create_filters_from_orm, create_sorti
 from fastapi_filters.filters import alias_generator_config
 from fastapi_filters.types import AbstractFilterOperator, SortingValues
 
-from app.db.postgres.orm import Case, Context, Device, Patient, Wearable
+from app.db.postgres.orm import Case, Context, Device, DotDependencyFile, FHIRMapping, Patient, Wearable
 
 GLOBAL_SORT_STR = "-id"
 GLOBAL_SORT_VALUES: SortingValues = [("id", "desc", None)]
@@ -48,3 +48,13 @@ WearableSorting = create_sorting_from_orm(
 
 ContextFilters = create_filters_from_orm(Context, include=["id", "group_name", "coordinator"])
 ContextSorting = create_sorting_from_orm(Context, default=GLOBAL_SORT_STR, include=["id", "group_name", "coordinator"])
+
+FHIRMappingFilters = create_filters_from_orm(FHIRMapping, include=["id", "version"])
+FHIRMappingSorting = create_sorting_from_orm(FHIRMapping, default=GLOBAL_SORT_STR, include=["id", "version"])
+
+DotDependencyFileFilters = create_filters_from_orm(
+    DotDependencyFile, include=["id", "version", "category", "mapping_id"], include_fk=True
+)
+DotDependencyFileSorting = create_sorting_from_orm(
+    DotDependencyFile, default=GLOBAL_SORT_STR, include=["id", "version", "category", "mapping_id"], include_fk=True
+)

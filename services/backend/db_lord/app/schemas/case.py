@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from .common import TunedBase, TunedUpdateBase
 from .context import ContextResponse
@@ -10,12 +10,19 @@ from .patient import PatientResponse
 from .wearable import WearableResponse
 
 
-class CaseStatus(str, Enum):
+class CaseStatus(StrEnum):
     PLANNED = "PLANNED"
     ONGOING = "ONGOING"
     COMPLETED = "COMPLETED"
     ARCHIVED = "ARCHIVED"
     OTHER = "OTHER"
+
+
+class CaseExpandableFields(StrEnum):
+    DEVICES = "devices"
+    WEARABLES = "wearables"
+    CONTEXTS = "contexts"
+    PATIENT = "patient"
 
 
 class CaseBase(TunedBase):
@@ -36,8 +43,21 @@ class CaseResponse(CaseBase):
     id: UUID
 
 
+# Expanded response shape
+class CaseDeviceAssignmentExpandedResponse(TunedBase):
+    assigned_from: AwareDatetime
+    assigned_to: AwareDatetime | None
+    device: DeviceResponse
+
+
+class CaseWearableAssignmentExpandedResponse(TunedBase):
+    assigned_from: AwareDatetime
+    assigned_to: AwareDatetime | None
+    wearable: WearableResponse
+
+
 class CaseExpanded(CaseResponse):
-    devices: list[DeviceResponse] = Field(default_factory=list)
-    wearables: list[WearableResponse] = Field(default_factory=list)
+    devices: list[CaseDeviceAssignmentExpandedResponse] = Field(default_factory=list)
+    wearables: list[CaseWearableAssignmentExpandedResponse] = Field(default_factory=list)
     contexts: list[ContextResponse] = Field(default_factory=list)
     patient: PatientResponse | None = None
