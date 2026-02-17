@@ -101,6 +101,19 @@ export const CaseVerifiedSchema = registry.register(
     .strict(),
 );
 
+export const ResearcherApiAccessTokenSchema = registry.register(
+  'ResearcherApiAccessToken',
+  z
+    .object({
+      apiAccessToken: z
+        .string()
+        .describe('Environment-backed API access token shown to researchers/admins')
+        .openapi({ example: 'dummy-researcher-api-token' }),
+    })
+    .describe('Researcher API access token payload')
+    .strict(),
+);
+
 export const ErrorSchema = registry.register(
   'Error',
   z
@@ -304,6 +317,29 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: 'get',
+  path: '/researcher/api-access-token',
+  tags: ['Researcher'],
+  summary: 'Get researcher API access token',
+  description:
+    'Returns the configured API access token for authenticated users with researcher role or admin access.',
+  responses: {
+    200: {
+      description: 'API access token returned successfully',
+      content: { 'application/json': { schema: ResearcherApiAccessTokenSchema } },
+    },
+    401: {
+      description: 'Authentication required',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    403: {
+      description: 'Researcher or admin access required',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+  },
+});
+
+registry.registerPath({
   method: 'post',
   path: '/cases/verify-token',
   tags: ['Cases'],
@@ -364,6 +400,7 @@ export function generateOpenApiDocument() {
       { name: 'Hospital Cases', description: 'Read-only external Hospital cases' },
       { name: 'Patients', description: 'Internal patient management' },
       { name: 'Cases', description: 'Internal case management' },
+      { name: 'Researcher', description: 'Researcher-only API access' },
     ],
   });
 }

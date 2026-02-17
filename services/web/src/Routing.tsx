@@ -13,6 +13,7 @@ import { AuthRequestSentPage } from './pages/AuthRequestSent';
 import { AccessPage } from './pages/Access';
 import { LoginPage } from './pages/Login';
 import { RegisterPage } from './pages/Register';
+import { ResearcherApiAccessPage } from './pages/ResearcherApiAccess';
 
 export function Routing() {
   return (
@@ -59,6 +60,14 @@ export function Routing() {
         element={
           <PrivateRoute requireAdmin>
             <AdminApprovalsPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/researcher/api-access"
+        element={
+          <PrivateRoute requireResearcherOrAdmin>
+            <ResearcherApiAccessPage />
           </PrivateRoute>
         }
       />

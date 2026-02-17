@@ -142,9 +142,28 @@ const requirePractitionerOrAdmin = (req: Request, res: Response, next: NextFunct
   });
 };
 
+const requireResearcherOrAdmin = (req: Request, res: Response, next: NextFunction): void => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  if (req.user.isAdmin || req.user.roles?.includes('researcher')) {
+    next();
+    return;
+  }
+
+  res.status(403).json({
+    error: 'Researcher access required',
+    message: 'You do not have permission to access this resource.',
+    code: 'RESEARCHER_REQUIRED',
+  });
+};
+
 export const auth = {
   required: authenticate,
   practitionerOrAdmin: requirePractitionerOrAdmin,
+  researcherOrAdmin: requireResearcherOrAdmin,
   adminOnly: [authenticate, requireAdmin],
 };
 

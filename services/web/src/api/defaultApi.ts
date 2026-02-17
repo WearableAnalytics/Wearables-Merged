@@ -201,6 +201,28 @@ export class DefaultApi {
     return data;
   };
 
+  getResearcherApiAccessToken = async () => {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/researcher/api-access-token`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const message = (data && (data.message ?? data.error)) ?? 'Unable to load API access token.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    const apiAccessToken = (data as { apiAccessToken?: unknown }).apiAccessToken;
+    if (typeof apiAccessToken !== 'string' || !apiAccessToken) {
+      throw new Error('Invalid API access token response.');
+    }
+
+    return { apiAccessToken };
+  };
+
   listPendingUsers = async () => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/pending-users`, {
       method: 'GET',

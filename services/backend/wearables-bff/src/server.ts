@@ -33,6 +33,13 @@ app.get(route('/health'), (_req, res) => {
 });
 
 app.use(config.apiPrefix, auth.required);
+
+app.get(route('/researcher/api-access-token'), auth.researcherOrAdmin, (_req, res) => {
+  return res.json({
+    apiAccessToken: config.researcherApiAccessToken,
+  });
+});
+
 app.use(config.apiPrefix, auth.practitionerOrAdmin);
 
 app.get(route('/hospital/cases/:hospitalCaseId'), async (req, res) => {

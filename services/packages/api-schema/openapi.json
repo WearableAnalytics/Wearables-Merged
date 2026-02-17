@@ -26,6 +26,10 @@
     {
       "name": "Cases",
       "description": "Internal case management"
+    },
+    {
+      "name": "Researcher",
+      "description": "Researcher-only API access"
     }
   ],
   "components": {
@@ -190,6 +194,20 @@
           "caseId",
           "patientVerifier",
           "status"
+        ],
+        "additionalProperties": false
+      },
+      "ResearcherApiAccessToken": {
+        "type": "object",
+        "properties": {
+          "apiAccessToken": {
+            "type": "string",
+            "description": "Environment-backed API access token shown to researchers/admins",
+            "example": "dummy-researcher-api-token"
+          }
+        },
+        "required": [
+          "apiAccessToken"
         ],
         "additionalProperties": false
       },
@@ -504,6 +522,47 @@
           },
           "404": {
             "description": "Hospital case not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/researcher/api-access-token": {
+      "get": {
+        "tags": [
+          "Researcher"
+        ],
+        "summary": "Get researcher API access token",
+        "description": "Returns the configured API access token for authenticated users with researcher role or admin access.",
+        "responses": {
+          "200": {
+            "description": "API access token returned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearcherApiAccessToken"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Researcher or admin access required",
             "content": {
               "application/json": {
                 "schema": {

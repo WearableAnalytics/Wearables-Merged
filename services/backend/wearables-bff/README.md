@@ -47,6 +47,7 @@ From `.env.example` plus runtime behavior in `src/config.ts` and `src/api/routes
 - `FRONTEND_URL` (comma-separated allowed origins for CORS + frontend redirects)
 - `BACKEND_URL` (base URL for generated magic links)
 - `JWT_SECRET` (required for stable token behavior)
+- `RESEARCHER_API_ACCESS_TOKEN` (token returned by researcher/admin token endpoint)
 - `ADMIN_EMAILS` (comma-separated bootstrap admin emails)
 - `DATABASE_API_URL` (external patient/case API)
 - `DATABASE_API_TIMEOUT` (ms)
@@ -74,6 +75,7 @@ Authenticated:
 
 - `GET {API_PREFIX}/me`
 - `POST {API_PREFIX}/request-admin`
+- `GET {API_PREFIX}/researcher/api-access-token` (researcher or admin only)
 - `GET {API_PREFIX}/hospital/cases/:hospitalCaseId`
 - `GET {API_PREFIX}/patients`
 - `GET {API_PREFIX}/patients/:patientId`
