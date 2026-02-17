@@ -8,6 +8,7 @@ import { useActiveCase } from '@/lib/activeCase';
 import { useTheme } from '@/context/ThemeContext';
 import { formatDateDayMonthYear } from '@/lib/date';
 import { useMessageToast } from '@/lib/toast';
+import { appRuntimeConfig } from '@/config/runtimeConfig';
 import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
 import { CaseDataPanel, type CaseDisplayItem } from './components/CaseDataPanel';
@@ -17,7 +18,7 @@ import {
   type QuickRangeOption,
 } from './components/CaseMonitoringPanel';
 
-const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL;
+const GRAFANA_PROXY_URL = appRuntimeConfig.grafanaProxyUrl;
 const GENERAL_GRAFANA_UID = 'wearables-health-real';
 const MEDICAL_USE_CASE_GRAFANA_UID = 'wearables-six-min';
 const ONE_MINUTE_MS = 60 * 1000;

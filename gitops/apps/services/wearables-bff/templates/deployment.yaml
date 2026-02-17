@@ -1,3 +1,5 @@
+{{- $configMapName := default (printf "%s-config" .Release.Name) .Values.configMap.name -}}
+{{- $secretName := default (printf "%s-secrets" .Release.Name) .Values.secret.name -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,15 +23,10 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
-          env:
-            - name: PORT
-              value: {{ .Values.env.PORT | quote }}
-            - name: API_PREFIX
-              value: {{ .Values.env.API_PREFIX | quote }}
-            - name: USE_MOCK_DATA
-              value: {{ .Values.env.USE_MOCK_DATA | quote }}
-            - name: NODE_ENV
-              value: {{ .Values.env.NODE_ENV | quote }}
           envFrom:
+            - configMapRef:
+                name: {{ $configMapName }}
+            {{- if .Values.secret.enabled }}
             - secretRef:
-                name: {{ .Values.secretRef }}
+                name: {{ $secretName }}
+            {{- end }}

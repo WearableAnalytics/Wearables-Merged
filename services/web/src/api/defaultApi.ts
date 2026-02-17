@@ -1,6 +1,7 @@
 import { Configuration, CasesApi, HospitalCasesApi, PatientsApi } from './openapi-client';
 import type { Middleware } from './openapi-client';
 import { dispatchSessionExpiredEvent } from '@/lib/authSession';
+import { appRuntimeConfig } from '@/config/runtimeConfig';
 
 const normalizeApiBasePath = (rawBasePath: string) => {
   const trimmed = rawBasePath.replace(/\/$/, '') || '/api';
@@ -23,7 +24,7 @@ const normalizeApiBasePath = (rawBasePath: string) => {
 };
 
 // Shared configuration for all generated API classes.
-export const API_BASE_PATH = normalizeApiBasePath(import.meta.env.VITE_API_BASE_URL ?? '/api');
+export const API_BASE_PATH = normalizeApiBasePath(appRuntimeConfig.apiBaseUrl);
 
 export type NonAdminRole = 'practitioner' | 'researcher';
 export type AccessRequestType = 'admin' | NonAdminRole;

@@ -4,7 +4,8 @@ This Helm chart deploys the Vite + React web frontend for the Wearables Analytic
 
 ## Service Details
 
-**Important**: Environment variables like `VITE_API_BASE_URL` are **baked into the build** and cannot be changed at runtime without rebuilding the image.
+This chart injects frontend runtime config via a mounted `runtime-config.js` ConfigMap.
+You can reuse the same image across environments and only change Helm values.
 
 ## Installation
 
@@ -13,34 +14,29 @@ This Helm chart deploys the Vite + React web frontend for the Wearables Analytic
 Deploy the web frontend to your cluster:
 
 ```bash
-helm upgrade --install wearables-web ./wearables-web \
-  --values ./wearables-web/values.yaml \
-  --namespace wearables-web \
+helm upgrade --install wearables-web ./gitops/apps/web \
+  --values ./gitops/apps/web/values.yaml \
+  --namespace web \
   --create-namespace
 ```
 
 ## Configuration
 
-### Build-Time Environment Variables
+### Runtime frontend configuration
 
-The frontend uses Vite environment variables that must be set during the Docker build:
+The chart writes these runtime values into `window.__APP_CONFIG__`:
 
-- **`VITE_API_BASE_URL`**: API endpoint for backend communication
-  - Relative path: `/api` (routed via Ingress)
-  - Absolute URL: `http://backend.example.com/api`
-- **`VITE_BACKEND_URL`**: Optional backend base URL
-- **`VITE_GRAFANA_PROXY_URL`**: Path to Grafana proxy (default: `/grafana/`)
+- **`apiBaseUrl`**: API endpoint for backend communication (default `/api`)
+- **`grafanaProxyUrl`**: Path to Grafana proxy (default `/grafana-proxy`)
+- **`socketUrl`**: Optional Socket.IO endpoint
 
-### Rebuilding with Custom Environment Variables
+### Example values
 
-To change API endpoints, rebuild the Docker image:
-
-```bash
-cd services/web
-
-docker build ` -t gmsdaniil/wearables-web:latest `  --build-arg VITE_API_BASE_URL="http://localhost:3001/api" `  --build-arg VITE_BACKEND_URL="http://localhost:3001" `  --build-arg VITE_GRAFANA_PROXY_URL="http://localhost:3002/grafana-proxy" `  .
-
-docker push gmsdaniil/wearables-web:custom
+```yaml
+runtimeConfig:
+  apiBaseUrl: "/api"
+  grafanaProxyUrl: "/grafana-proxy"
+  socketUrl: ""
 ```
 
 ## Accessing the Frontend

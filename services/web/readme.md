@@ -8,14 +8,15 @@
 - Run only backend: `npm run dev:backend`
 
 ## Environment variables
-- Frontend variables prefixed with `VITE_` are bundled into client code and visible in the browser.
-- Never place private keys, service credentials, or secrets in `VITE_*` variables.
+- Production runtime config is loaded from `/runtime-config.js` (`window.__APP_CONFIG__`) and can be injected by Kubernetes at runtime.
+- `VITE_*` variables are still supported as local/dev fallbacks, but are bundled into client code.
+- Never place private keys, service credentials, or secrets in frontend config.
 
 ### Variables used by this service
 1. `VITE_API_BASE_URL`
 - Used by API clients in `src/api/defaultApi.ts` and `src/api/index.ts`.
 - Default: `/api` (or `http://localhost:3001/api` in local Docker usage).
-- Build-time variable for production bundles.
+- Dev fallback when runtime config is not present.
 2. `VITE_GRAFANA_PROXY_URL`
 - Used by `src/pages/case/CasePage.tsx` to build Grafana iframe URLs.
 - Example: `http://localhost:3002/grafana`.
@@ -32,15 +33,15 @@
 - From the repo root: `cd services/web`
 - With logs in the foreground: `docker compose up --build web`
 - Detached (no logs in the terminal): `docker compose up --build -d web`
-- Env: set `VITE_API_BASE_URL` and `VITE_GRAFANA_PROXY_URL` in a `.env` next to `docker-compose.yml`. Compose passes both as build args.
+- Env: set `VITE_API_BASE_URL` and `VITE_GRAFANA_PROXY_URL` in `.env` for local development fallback.
 
 ## Build a single image (for Kubernetes or manual runs)
-- Build from repo root: `docker build -f services/web/Dockerfile -t wearables-web --build-arg VITE_API_BASE_URL=https://api.example.com .`
+- Build from repo root: `docker build -f services/web/Dockerfile -t wearables-web .`
 - Run: `docker run -p 8080:80 wearables-web`
 
 ## API URL notes
-- `VITE_API_BASE_URL` is baked into the frontend at build time; runtime env vars are not read by the image.
-- For Kubernetes, route `/api` to the backend and rebuild with the backend URL you want baked in (or add a runtime config layer if needed later).
+- Frontend runtime URLs are read from `/runtime-config.js`, so you can reuse the same Docker image across environments.
+- For Kubernetes, mount `/usr/share/nginx/html/runtime-config.js` from a `ConfigMap`.
 
 ## Branding logos
 - Logo files should be managed under `services/web/src/assets/branding/logos`.

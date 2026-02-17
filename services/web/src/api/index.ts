@@ -1,8 +1,9 @@
 import { Configuration, CasesApi, HospitalCasesApi, PatientsApi } from './openapi-client';
 import { defaultApi, DefaultApi } from './defaultApi';
+import { appRuntimeConfig } from '@/config/runtimeConfig';
 
 const config = new Configuration({
-  basePath: import.meta.env.VITE_API_BASE_URL ?? '/api',
+  basePath: appRuntimeConfig.apiBaseUrl,
   credentials: 'include',
 });
 

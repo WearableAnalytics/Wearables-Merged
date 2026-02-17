@@ -6,6 +6,17 @@ image:
   pullPolicy: Always
   tag: "latest"
 
+configMap:
+  create: true
+  name: ""
+
+secret:
+  create: false
+  name: ""
+  data:
+    APP_JWT_SECRET: "change-me"
+    GRAFANA_JWT_PRIVATE_KEY: ""
+
 proxy:
   # Internal proxy HTTP port
   port: 3002
@@ -15,7 +26,6 @@ proxy:
 
 session:
   cookieName: "jwt"
-  jwtSecret: "dev-secret"
 
 grafana:
   # Matches .env.example default (external Grafana URL)

@@ -1,3 +1,5 @@
+{{- $configMapName := default (printf "%s-config" .Release.Name) .Values.configMap.name -}}
+{{- $secretName := default (printf "%s-secrets" .Release.Name) .Values.secret.name -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,54 +23,11 @@ spec:
           ports:
             - containerPort: {{ .Values.proxy.port }}
               name: http
-          env:
-            - name: PORT
-              value: {{ .Values.proxy.port | quote }}
-            - name: PROXY_PREFIX
-              value: {{ .Values.proxy.prefix | quote }}
-            - name: SESSION_COOKIE_NAME
-              value: {{ .Values.session.cookieName | quote }}
-            - name: APP_JWT_SECRET
-              value: {{ .Values.session.jwtSecret | quote }}
-            - name: GRAFANA_BASE_URL
-              value: {{ .Values.grafana.baseUrl | quote }}
-            - name: GRAFANA_PATH_PREFIX
-              value: {{ .Values.grafana.pathPrefix | quote }}
-            - name: GRAFANA_TLS_SKIP_VERIFY
-              value: {{ .Values.grafana.tlsSkipVerify | quote }}
-            - name: GRAFANA_ALLOWED_DASHBOARD_IDS
-              value: {{ .Values.grafana.allowedDashboardIds | quote }}
-            - name: GRAFANA_DASHBOARD_DATASOURCE
-              value: {{ .Values.grafana.dashboardDatasource | quote }}
-            - name: GRAFANA_ORG_ID
-              value: {{ .Values.grafana.orgId | quote }}
-            - name: GRAFANA_JWT_HEADER
-              value: {{ .Values.grafana.jwtHeader | quote }}
-            - name: GRAFANA_JWT_KEY_ID
-              value: {{ .Values.grafana.jwtKeyId | quote }}
-            - name: GRAFANA_JWT_ISSUER
-              value: {{ .Values.grafana.jwtIssuer | quote }}
-            - name: GRAFANA_JWT_AUDIENCE
-              value: {{ .Values.grafana.jwtAudience | quote }}
-            - name: GRAFANA_JWT_TTL_SECONDS
-              value: {{ .Values.grafana.jwtTtlSeconds | quote }}
-            - name: GRAFANA_DEFAULT_ROLE
-              value: {{ .Values.grafana.defaultRole | quote }}
-            - name: GRAFANA_JWT_IAT_SKEW_SECONDS
-              value: {{ .Values.grafana.jwtIatSkewSeconds | quote }}
-            - name: GRAFANA_JWT_SUBJECT
-              value: {{ .Values.grafana.jwtSubject | quote }}
-            - name: GRAFANA_JWT_EMAIL
-              value: {{ .Values.grafana.jwtEmail | quote }}
-            - name: GRAFANA_JWT_NAME
-              value: {{ .Values.grafana.jwtName | quote }}
-            - name: GRAFANA_JWT_ROLE
-              value: {{ .Values.grafana.jwtRole | quote }}
-            - name: GRAFANA_JWT_PRIVATE_KEY_PATH
-              value: "/secrets/grafana-jwt-private.pem"
           envFrom:
+            - configMapRef:
+                name: {{ $configMapName }}
             - secretRef:
-                name: {{ .Release.Name }}-secrets
+                name: {{ $secretName }}
           volumeMounts:
             - name: grafana-jwt-key
               mountPath: /secrets/grafana-jwt-private.pem
@@ -77,7 +36,7 @@ spec:
       volumes:
         - name: grafana-jwt-key
           secret:
-            secretName: {{ .Release.Name }}-secrets
+            secretName: {{ $secretName }}
             items:
               - key: GRAFANA_JWT_PRIVATE_KEY
                 path: grafana-jwt-private.pem

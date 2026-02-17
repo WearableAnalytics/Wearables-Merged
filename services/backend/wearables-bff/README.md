@@ -25,7 +25,7 @@ Important: in-memory stores are reset on process restart.
 ## Run locally
 
 ```bash
-cd services/backend/registration-service-node
+cd services/backend/wearables-bff
 npm install
 cp .env.example .env
 npm run dev
@@ -36,6 +36,13 @@ Frontend should point to this backend, for example:
 ```bash
 VITE_API_BASE_URL=http://localhost:3001
 ```
+
+## Kubernetes vs local `.env`
+
+- Local `npm run dev`: uses `.env` in this folder.
+- Kubernetes deployment: does not use this `.env` file.
+- In Kubernetes, set runtime values in `gitops/apps/services/wearables-bff/values.yaml` and set secrets via `scripts/bootstrap-runtime-secrets.sh`.
+- See `docs/deploy-runtime-config.md` for the full deploy flow.
 
 ## Environment variables
 

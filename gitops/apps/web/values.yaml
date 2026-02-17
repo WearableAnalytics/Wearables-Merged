@@ -9,12 +9,14 @@ service:
   type: ClusterIP
   port: 80
 
-# Build-time environment variables (baked into the image)
-# To change these, rebuild the image with new values
-buildArgs:
-  VITE_API_BASE_URL: "http://registration-service-node.registration-service-node.svc.cluster.local:3001/api"
-  VITE_BACKEND_URL: ""
-  VITE_GRAFANA_PROXY_URL: "/grafana-proxy"
+runtimeConfigMap:
+  create: true
+  name: ""
+
+runtimeConfig:
+  apiBaseUrl: "/api"
+  grafanaProxyUrl: "/grafana-proxy"
+  socketUrl: ""
 
 ingress:
   enabled: false
