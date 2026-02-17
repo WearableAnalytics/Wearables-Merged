@@ -3,6 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Menu, Shield, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveCase } from '@/lib/activeCase';
+import { defaultApi } from '@/api/defaultApi';
+import {
+  ADMIN_APPROVALS_UPDATED_EVENT,
+  type AdminApprovalsUpdatedDetail,
+} from '@/lib/adminApprovalsEvents';
 import { useAuth } from '@/context/AuthContext';
 import { LOGOUT_REASON_SUCCESS, getLogoutPath } from '@/lib/authSession';
 import { canAccessPractitionerPages, isAdminUser } from '@/lib/userAccess';
@@ -24,6 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [openApprovalsCount, setOpenApprovalsCount] = useState(0);
   const { activeCase, patient } = useActiveCase();
   const { user, logout } = useAuth();
   const isCasePage = location.pathname.startsWith('/cases/');
@@ -47,6 +53,71 @@ export const Navbar: React.FC<NavbarProps> = ({
       document.body.classList.remove('mobile-menu-open');
     }
   }, [isMobileMenuOpen]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isAdmin) {
+      setOpenApprovalsCount(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadOpenApprovalsCount = async () => {
+      try {
+        const [pendingUsersData, pendingAccessRequestsData] = await Promise.all([
+          defaultApi.listPendingUsers(),
+          defaultApi.listPendingAccessRequests(),
+        ]);
+        if (cancelled) {
+          return;
+        }
+
+        const pendingUsers = (pendingUsersData as { users?: unknown[] }).users ?? [];
+        const pendingAccessRequests = (pendingAccessRequestsData as { users?: unknown[] }).users ?? [];
+        setOpenApprovalsCount(pendingUsers.length + pendingAccessRequests.length);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load open approvals count:', error);
+          setOpenApprovalsCount(0);
+        }
+      }
+    };
+
+    void loadOpenApprovalsCount();
+    const refreshId = window.setInterval(() => {
+      void loadOpenApprovalsCount();
+    }, 30_000);
+
+    const handleApprovalsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<AdminApprovalsUpdatedDetail>;
+      const nextCount = customEvent.detail?.openRequestsCount;
+      if (typeof nextCount === 'number') {
+        setOpenApprovalsCount(nextCount);
+        return;
+      }
+      void loadOpenApprovalsCount();
+    };
+    const handleWindowFocus = () => {
+      void loadOpenApprovalsCount();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void loadOpenApprovalsCount();
+      }
+    };
+
+    window.addEventListener(ADMIN_APPROVALS_UPDATED_EVENT, handleApprovalsUpdated);
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshId);
+      window.removeEventListener(ADMIN_APPROVALS_UPDATED_EVENT, handleApprovalsUpdated);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAdmin, isAuthenticated, location.pathname]);
 
   const handleMobileLinkClick = () => {
     setIsMobileMenuOpen(false);
@@ -100,10 +171,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                     path="/admin/approvals"
                     invertedColors={true}
                     iconOnly
-                    className="ui-control-square p-0 flex items-center justify-center"
+                    className="ui-control-square relative p-0 flex items-center justify-center"
                   >
                     <Shield className="h-5 w-5" aria-hidden />
-                    <span className="sr-only">Admin</span>
+                    {openApprovalsCount > 0 ? (
+                      <span className="pointer-events-none absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-background bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
+                        {openApprovalsCount > 99 ? '99+' : openApprovalsCount}
+                      </span>
+                    ) : null}
+                    <span className="sr-only">
+                      Admin approvals{openApprovalsCount > 0 ? `, ${openApprovalsCount} open requests` : ''}
+                    </span>
                   </NavButton>
                 ) : null}
                 <NavButton
@@ -172,7 +250,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="w-full justify-start text-left"
                       onClick={handleMobileLinkClick}
                     >
-                      Admin
+                      <span className="inline-flex items-center gap-2">
+                        <span>Admin</span>
+                        {openApprovalsCount > 0 ? (
+                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-background bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
+                            {openApprovalsCount > 99 ? '99+' : openApprovalsCount}
+                          </span>
+                        ) : null}
+                      </span>
                     </NavButtonMobile>
                   ) : null}
                   {hasPractitionerAccess && isCasePage && activeCase && activePatientMobileLabel ? (

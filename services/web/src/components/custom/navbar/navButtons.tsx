@@ -58,8 +58,8 @@ export const NavButton: React.FC<NavButtonProps> = ({
       size={iconOnly ? 'icon' : 'default'}
       variant={isActive ? 'default' : 'outline'}
       className={cn(
-        'rounded-full font-medium transition-transform duration-200 ease-out',
-        !isDisabled ? 'hover:scale-[1.03]' : '',
+        'border border-transparent rounded-full font-medium transition-transform duration-200 ease-out',
+        !isDisabled && !iconOnly ? 'hover:scale-[1.03]' : '',
         !iconOnly ? 'px-5 text-sm' : 'p-0',
         isActive ? 'border-primary shadow-md hover:shadow-md' : desktopInactiveClass,
         className,

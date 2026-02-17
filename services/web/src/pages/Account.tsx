@@ -11,7 +11,6 @@ import {
   getRoleRequestStatus,
   isAdminUser,
 } from '@/lib/userAccess';
-import { useMessageToast } from '@/lib/toast';
 
 const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
   { value: 'system', label: 'System theme' },
@@ -34,18 +33,6 @@ export function AccountPage() {
   const missingRole = getMissingNonAdminRole(user);
   const missingRoleRequestStatus = missingRole ? getRoleRequestStatus(user, missingRole) : 'none';
   const accessLabel = useMemo(() => formatAccessLabel(user), [user]);
-
-  const pendingAdminToastMessage =
-    user && adminRequestStatus === 'pending' ? 'Your admin request is pending review.' : null;
-  const pendingRoleToastMessage =
-    user && missingRole && missingRoleRequestStatus === 'pending'
-      ? `Your ${roleLabel(missingRole).toLowerCase()} request is pending review.`
-      : null;
-
-  useMessageToast('error', 'account-error', error);
-  useMessageToast('info', 'account-message', message);
-  useMessageToast('info', 'account-pending-admin', pendingAdminToastMessage);
-  useMessageToast('info', 'account-pending-role', pendingRoleToastMessage);
 
   const handleRequestAdmin = async () => {
     setIsSubmittingAdmin(true);
@@ -126,6 +113,17 @@ export function AccountPage() {
       <section className="surface-card mt-6 p-4 md:p-5">
         <h2 className="text-section-title">Settings</h2>
         <div className="mt-4 flex flex-col gap-4">
+          {error ? (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+          {message ? (
+            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">
+              {message}
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <p className="m-0 text-sm font-semibold text-foreground">Theme</p>
             <div className="inline-flex w-full flex-wrap gap-2 rounded-xl border border-border bg-muted/40 p-1">

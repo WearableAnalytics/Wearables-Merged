@@ -3,8 +3,8 @@ import type { AccessRequestType, NonAdminRole } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
+import { dispatchAdminApprovalsUpdatedEvent } from '@/lib/adminApprovalsEvents';
 import { isAdminUser } from '@/lib/userAccess';
-import { useMessageToast } from '@/lib/toast';
 import { AdminApprovalsDeniedTable } from './admin-approvals/components/AdminApprovalsDeniedTable';
 import { AdminApprovalsRequestsView } from './admin-approvals/components/AdminApprovalsRequestsView';
 import { AdminApprovalsUsersTable } from './admin-approvals/components/AdminApprovalsUsersTable';
@@ -51,16 +51,11 @@ export function AdminApprovalsPage() {
   const [pendingAccessRequests, setPendingAccessRequests] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('requests');
   const [search, setSearch] = useState('');
   const [draftEdits, setDraftEdits] = useState<UserDraftEdits>({});
   const permissionMessage = user && !isAdminUser(user) ? 'You do not have permission to view this page.' : null;
-
-  useMessageToast('error', 'admin-approvals-error', error);
-  useMessageToast('info', 'admin-approvals-message', message);
-  useMessageToast('error', 'admin-approvals-permission', permissionMessage);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -73,9 +68,14 @@ export function AdminApprovalsPage() {
         defaultApi.listPendingAccessRequests(),
       ]);
       setApprovedUsers((approved as { users?: AdminUser[] }).users ?? []);
-      setPendingUsers((pending as { users?: AdminUser[] }).users ?? []);
+      const nextPendingUsers = (pending as { users?: AdminUser[] }).users ?? [];
+      setPendingUsers(nextPendingUsers);
       setDeniedUsers((denied as { users?: AdminUser[] }).users ?? []);
-      setPendingAccessRequests((accessRequests as { users?: AdminUser[] }).users ?? []);
+      const nextPendingAccessRequests = (accessRequests as { users?: AdminUser[] }).users ?? [];
+      setPendingAccessRequests(nextPendingAccessRequests);
+      dispatchAdminApprovalsUpdatedEvent({
+        openRequestsCount: nextPendingUsers.length + nextPendingAccessRequests.length,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load admin data.');
     } finally {
@@ -129,14 +129,11 @@ export function AdminApprovalsPage() {
   const handleDecision = async (userId: string, decision: 'approve' | 'deny') => {
     setActionUserId(userId);
     setError(null);
-    setMessage(null);
     try {
       if (decision === 'approve') {
         await defaultApi.approveUser(userId);
-        setMessage('User approved. An approval email has been sent.');
       } else {
         await defaultApi.denyUser(userId);
-        setMessage('User denied.');
       }
       await loadData();
     } catch (err) {
@@ -149,10 +146,8 @@ export function AdminApprovalsPage() {
   const handleUnblock = async (userId: string) => {
     setActionUserId(userId);
     setError(null);
-    setMessage(null);
     try {
       await defaultApi.unblockUser(userId);
-      setMessage('User unblocked and returned to pending approvals.');
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to unblock user.');
@@ -168,14 +163,12 @@ export function AdminApprovalsPage() {
   ) => {
     setActionUserId(userId);
     setError(null);
-    setMessage(null);
     try {
       await defaultApi.reviewAccessRequest(
         userId,
         requestType,
         decision === 'approve' ? 'approved' : 'denied',
       );
-      setMessage(`${requestType.charAt(0).toUpperCase() + requestType.slice(1)} request ${decision}d.`);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update access request.');
@@ -203,14 +196,12 @@ export function AdminApprovalsPage() {
 
     setActionUserId(entry.id);
     setError(null);
-    setMessage(null);
     try {
       await defaultApi.updateUser(entry.id, {
         isAdmin: profilePayload.isAdmin,
         roles: profilePayload.roles,
         status: statusDirty ? draft.status : undefined,
       });
-      setMessage('User updated.');
       clearDraft(entry.id);
       await loadData();
     } catch (err) {
@@ -228,7 +219,11 @@ export function AdminApprovalsPage() {
           title="User access"
           description="Admin access is required to manage access requests."
         />
-        <div className="mt-6" />
+        {permissionMessage ? (
+          <div className="surface-card mt-6 p-4 text-sm text-destructive">{permissionMessage}</div>
+        ) : (
+          <div className="mt-6" />
+        )}
       </>
     );
   }
@@ -242,6 +237,12 @@ export function AdminApprovalsPage() {
       />
 
       <section className="surface-card mt-6 p-4 md:p-5">
+        {error ? (
+          <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+
         <AdminApprovalsViewControls
           loading={loading}
           approvedUsersCount={approvedUsers.length}

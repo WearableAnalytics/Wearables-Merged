@@ -26,15 +26,15 @@ export function AdminApprovalsViewControls({
           <p className="m-0 text-muted-foreground">{loading ? 'Loading data…' : `${approvedUsersCount} users`}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant={view === 'users' ? 'default' : 'outline'} onClick={() => onViewChange('users')}>
-            Current users
-          </Button>
           <Button
             size="sm"
             variant={view === 'requests' ? 'default' : 'outline'}
             onClick={() => onViewChange('requests')}
           >
             Requests
+          </Button>
+          <Button size="sm" variant={view === 'users' ? 'default' : 'outline'} onClick={() => onViewChange('users')}>
+            Current users
           </Button>
           <Button
             size="sm"
