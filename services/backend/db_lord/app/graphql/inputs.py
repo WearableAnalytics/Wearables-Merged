@@ -148,4 +148,4 @@ class TelemetryQueryInput:
     codes: list[str] | None = strawberry.field(default=None, description="Telemetry code tags (OR logic).")
     fields: list[str] | None = strawberry.field(default=None, description="Specific fields to return (None = all).")
     page_size: int = strawberry.field(default=100, description="Number of points to return (max 10000).")
-    cursor: str | None = strawberry.field(default=None, description="Timestamp cursor for pagination.")
+    cursor: str | None = strawberry.field(default=None, description="Opaque telemetry cursor for pagination.")

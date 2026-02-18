@@ -3,3 +3,9 @@ DBV5.sql
 .gitignore
 .dockerignore
 .idea
+**/.venv
+**/.git
+**/__pycache__
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache

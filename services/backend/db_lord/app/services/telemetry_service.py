@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator, Iterable
-from datetime import UTC, datetime
+from datetime import datetime
 
 from fastapi_pagination.types import Cursor
 
@@ -12,11 +12,10 @@ class TelemetryService:
         self.repo = repo
 
     async def record_telemetry(self, item_in: TelemetryCreate) -> None:
-        point = self._create_to_dict(item_in)
-        await self.repo.write_point(point)
+        await self.repo.write_point(item_in)
 
     async def record_batch(self, items_in: Iterable[TelemetryCreate]) -> None:
-        await self.repo.write_batch(self._create_to_dict(item) for item in items_in)
+        await self.repo.write_batch(items_in)
 
     async def read_telemetry(
         self,
@@ -65,27 +64,3 @@ class TelemetryService:
         cursor: Cursor | None = None,
     ) -> AsyncIterator[dict[str, object]]:
         return self.repo.stream_points_raw(measurement, start, end, tags, fields, page_size, cursor)
-
-    # TODO: finally remove this cause why tf did i even create this in the first place
-    def _create_to_dict(self, item: TelemetryCreate) -> dict[str, object]:
-        timestamp = item.timestamp or datetime.now(UTC)
-
-        tags = {
-            "patient_id": item.patient_id,
-            "case_id": item.case_id,
-            "device_id": item.device_id,
-            "wearable_id": item.wearable_id,
-            "mapping_id": item.mapping_id,
-            "code": item.code,
-        }
-        if item.context_id:
-            tags["context_id"] = item.context_id
-        if item.other_tags:
-            tags.update(item.other_tags)
-
-        return {
-            "measurement": item.measurement,
-            "timestamp": timestamp,
-            "tags": tags,
-            "fields": item.fields or {},
-        }

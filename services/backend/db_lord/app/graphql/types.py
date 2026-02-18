@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated
+from uuid import UUID
 
 import strawberry
 from strawberry.experimental.pydantic import type as pydantic_type
@@ -57,7 +57,7 @@ class Context:
 
 @strawberry.type
 class FHIRMapping:
-    id: uuid.UUID
+    id: UUID
     version: str
     full_mapping: strawberry.scalars.JSON
 

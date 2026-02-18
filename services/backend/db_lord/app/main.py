@@ -22,6 +22,7 @@ from app.api.errors import (
 from app.api.routers import cases, contexts, devices, fhir_mapping, graphql, patients, telemetry, wearables
 from app.core.exceptions import BadRequestError, ConflictError, DuplicateEntityError, EntityNotFoundError
 from app.db.influx.client import create_influx_client
+from app.db.influx.repos.telemetry_repo import TelemetryRepo
 from app.db.postgres.engine import engine as pg_engine
 
 
@@ -36,12 +37,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         await influx_client.close()
         raise ConnectionError("Failed to ping to InfluxDB during startup.")
     app.state.influx_client = influx_client
+    app.state.telemetry_repo = TelemetryRepo(influx_client)
     try:
         yield
     finally:
         # Shutdown InfluxDB client
         with suppress(Exception):
             await app.state.influx_client.close()
+        with suppress(Exception):
+            del app.state.telemetry_repo
         # Dispose Postgres engine
         with suppress(Exception):
             await pg_engine.dispose()

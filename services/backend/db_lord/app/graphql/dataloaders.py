@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from asyncio import Semaphore
 from collections import defaultdict
 from collections.abc import Awaitable, Callable

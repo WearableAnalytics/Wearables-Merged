@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import inspect
 from asyncio import Semaphore
 from collections.abc import Iterable, Iterator

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import strawberry
 from pydantic import AwareDatetime
 from strawberry.extensions import MaxAliasesLimiter, MaxTokensLimiter, QueryDepthLimiter

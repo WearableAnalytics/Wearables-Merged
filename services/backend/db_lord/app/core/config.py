@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     INFLUX_ENABLE_GZIP: bool = True
     INFLUX_TIMEOUT_MS: int | None = None
     INFLUX_CONNECTION_POOL_MAXSIZE: int | None = None
+    INFLUX_SCHEMA_CACHE_TTL_SECONDS: int = 300
+    INFLUX_SCHEMA_CACHE_MAX_MEASUREMENTS: int = 1000
+    INFLUX_SCHEMA_LOOKBACK: int = 0
 
     # SQLAlchemy pool tuning
     DB_ECHO: bool = False
@@ -31,6 +34,8 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE: int = 1800
     DB_POOL_PRE_PING: bool = True
     GRAPHQL_DB_MAX_CONCURRENCY: int = 8
+    TELEMETRY_MAX_IDS_PER_TAG: int = 5000
+    TELEMETRY_MAX_TOTAL_IDS: int = 20000
 
     ERRORS_INCLUDE_TECHNICAL_DETAILS: bool = False
 

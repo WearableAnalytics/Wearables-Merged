@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from asyncio import Semaphore
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
 from typing import TYPE_CHECKING, Any
@@ -12,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from strawberry.types.cast import cast as strawberry_cast
 from strawberry.types.maybe import Some
 
+from app.core.config import settings
 from app.db.postgres.orm import Case as CaseModel
 from app.db.postgres.orm import Context as ContextModel
 from app.db.postgres.orm import Device as DeviceModel
@@ -73,6 +72,31 @@ def _merge_tag_filter(tags: dict[str, str | list[str]], key: str, incoming: str 
     existing_values = existing if isinstance(existing, list) else [existing]
     incoming_values = incoming if isinstance(incoming, list) else [incoming]
     tags[key] = list(dict.fromkeys([*existing_values, *incoming_values]))
+
+
+def _enforce_telemetry_fanout_limits(ids_by_key: dict[str, list[str]]) -> dict[str, list[str]]:
+    max_per_tag = max(1, settings.TELEMETRY_MAX_IDS_PER_TAG)
+    max_total = max(1, settings.TELEMETRY_MAX_TOTAL_IDS)
+
+    normalized: dict[str, list[str]] = {}
+    total = 0
+    for tag_key, entity_ids in ids_by_key.items():
+        deduped = list(dict.fromkeys(entity_ids))
+        count = len(deduped)
+        if count > max_per_tag:
+            raise ValueError(
+                f"Telemetry filter '{tag_key}' resolved to {count} IDs, "
+                f"which exceeds TELEMETRY_MAX_IDS_PER_TAG={max_per_tag}."
+            )
+        total += count
+        normalized[tag_key] = deduped
+
+    if total > max_total:
+        raise ValueError(
+            f"Telemetry filters resolved to {total} IDs in total, which exceeds TELEMETRY_MAX_TOTAL_IDS={max_total}."
+        )
+
+    return normalized
 
 
 async def _resolve_entity_ids_bulk(
@@ -198,7 +222,7 @@ async def _prepare_telemetry_filters(
         (tag_key, model, filter_input) for tag_key, model, filter_input in tag_filter_specs if filter_input is not None
     ]
 
-    ids_by_key = await _resolve_entity_ids_bulk(db, active_tag_filter_specs)
+    ids_by_key = _enforce_telemetry_fanout_limits(await _resolve_entity_ids_bulk(db, active_tag_filter_specs))
     for tag_key, _, _ in active_tag_filter_specs:
         ids = ids_by_key.get(tag_key, [])
         if not ids:
@@ -258,31 +282,31 @@ class Query:
     async def telemetry(self, info: strawberry.Info, query: TelemetryQueryInput) -> TelemetryPage:
         telemetry_repo: TelemetryRepo = info.context["telemetry_repo"]
 
-        async def _resolve_with_db(db: AsyncSession) -> TelemetryPage:
+        async def _resolve_inputs(
+            db: AsyncSession,
+        ) -> tuple[dict[str, str | list[str]], bool, TelemetryResolvedMetadata | None]:
             tags, ids_by_key, has_results = await _prepare_telemetry_filters(db, query)
-            if not has_results:
-                resolved_metadata = (
-                    await _build_resolved_metadata(db, ids_by_key) if query.include_resolved_metadata else None
-                )
-                return TelemetryPage(items=[], next_cursor=None, resolved=resolved_metadata)
-
-            result = await telemetry_repo.get_points(
-                measurement=query.measurement,
-                start=query.start,
-                end=query.end,
-                tags=tags or None,
-                fields=query.fields,
-                page_size=query.page_size,
-                cursor=query.cursor,
-            )
-
-            items = [_telemetry_point_from_item(item) for item in result.items]
             resolved_metadata = (
                 await _build_resolved_metadata(db, ids_by_key) if query.include_resolved_metadata else None
             )
-            return TelemetryPage(items=items, next_cursor=result.next_cursor, resolved=resolved_metadata)
+            return tags, has_results, resolved_metadata
 
-        return await _with_db(info, _resolve_with_db)
+        tags, has_results, resolved_metadata = await _with_db(info, _resolve_inputs)
+        if not has_results:
+            return TelemetryPage(items=[], next_cursor=None, resolved=resolved_metadata)
+
+        result = await telemetry_repo.get_points(
+            measurement=query.measurement,
+            start=query.start,
+            end=query.end,
+            tags=tags or None,
+            fields=query.fields,
+            page_size=query.page_size,
+            cursor=query.cursor,
+        )
+
+        items = [_telemetry_point_from_item(item) for item in result.items]
+        return TelemetryPage(items=items, next_cursor=result.next_cursor, resolved=resolved_metadata)
 
 
 @strawberry.type

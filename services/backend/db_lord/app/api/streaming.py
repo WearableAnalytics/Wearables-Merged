@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from functools import lru_cache
 from typing import Any

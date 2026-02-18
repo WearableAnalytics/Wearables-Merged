@@ -2,8 +2,6 @@
 Filter builder for converting GraphQL FilterInput to SQLAlchemy expressions.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from sqlalchemy import ColumnElement, and_, not_, or_

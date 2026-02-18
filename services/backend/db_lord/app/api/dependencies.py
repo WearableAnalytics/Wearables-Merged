@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from typing import Annotated, Any
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 from fastapi_filters.filter_set import FilterSet
 from fastapi_filters.types import SortingValues
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
@@ -62,7 +62,6 @@ def get_influx_client(request: Request) -> InfluxDBClientAsync:
 
 
 PgSessionDep = Annotated[AsyncSession, Depends(get_db)]
-InfluxClientDep = Annotated[InfluxDBClientAsync, Depends(get_influx_client)]
 
 
 # Repository Dependencies
@@ -90,8 +89,12 @@ def get_assignment_repo(db: PgSessionDep) -> AssignmentRepo:
     return AssignmentRepo(db)
 
 
-def get_telemetry_repo(client: InfluxClientDep) -> TelemetryRepo:
-    return TelemetryRepo(client)
+def get_telemetry_repo(request: Request) -> TelemetryRepo:
+    repo = getattr(request.app.state, "telemetry_repo", None)
+    if repo is None:
+        repo = TelemetryRepo(request.app.state.influx_client)
+        request.app.state.telemetry_repo = repo
+    return repo
 
 
 def get_fhir_mapping_repo(db: PgSessionDep) -> FHIRMappingRepo:
@@ -195,65 +198,3 @@ FHIRMappingFiltersDep = Annotated[FilterSet, Depends(FHIRMappingFilters)]
 FHIRMappingSortingDep = Annotated[SortingValues, Depends(FHIRMappingSorting)]
 DotDependencyFileFiltersDep = Annotated[FilterSet, Depends(DotDependencyFileFilters)]
 DotDependencyFileSortingDep = Annotated[SortingValues, Depends(DotDependencyFileSorting)]
-# TODO: Prob move this
-ALLOWED_TELEMETRY_QUERY_KEYS = frozenset(
-    {
-        "measurement",
-        "start",
-        "end",
-        "field",
-        "fields",
-        "patient_id",
-        "device_id",
-        "wearable_id",
-        "case_id",
-        "context_id",
-        "mapping_id",
-        "code",
-        "size",
-        "cursor",
-    }
-)
-
-
-def validate_fixed_telemetry_query_params(request: Request) -> None:
-    unknown = sorted({key for key in request.query_params if key not in ALLOWED_TELEMETRY_QUERY_KEYS})
-    if unknown:
-        unsupported = ", ".join(unknown)
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"Unsupported query params: {unsupported}. "
-                "Use POST /telemetry/search or POST /telemetry/raw/search for arbitrary tags."
-            ),
-        )
-
-
-def get_fixed_telemetry_tags(
-    patient_id: str | None = None,
-    device_id: str | None = None,
-    wearable_id: str | None = None,
-    case_id: str | None = None,
-    context_id: str | None = None,
-    mapping_id: str | None = None,
-    code: str | None = None,
-) -> dict[str, str | list[str]] | None:
-    tags: dict[str, str | list[str]] = {}
-    if patient_id:
-        tags["patient_id"] = patient_id
-    if device_id:
-        tags["device_id"] = device_id
-    if wearable_id:
-        tags["wearable_id"] = wearable_id
-    if case_id:
-        tags["case_id"] = case_id
-    if context_id:
-        tags["context_id"] = context_id
-    if mapping_id:
-        tags["mapping_id"] = mapping_id
-    if code:
-        tags["code"] = code
-    return tags or None
-
-
-FixedTelemetryTagsDep = Annotated[dict[str, str | list[str]] | None, Depends(get_fixed_telemetry_tags)]

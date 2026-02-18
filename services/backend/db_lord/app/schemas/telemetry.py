@@ -51,13 +51,3 @@ class TelemetryRawPointResponse(TunedBase):
 
 TelemetryPageResponse = CursorPageNoTotal[TelemetryPointResponse]
 TelemetryRawPageResponse = CursorPageNoTotal[TelemetryRawPointResponse]
-
-
-class TelemetrySearchRequest(TunedBase):
-    measurement: str
-    start: AwareDatetime | None = None
-    end: AwareDatetime | None = None
-    tags: dict[str, str | list[str]] = Field(default_factory=dict)
-    fields: list[str] | None = None
-    cursor: str | None = None
-    size: int = Field(default=50, ge=1, le=10000)
