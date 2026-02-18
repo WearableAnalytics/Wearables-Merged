@@ -57,11 +57,19 @@ async def get_db() -> AsyncGenerator[AsyncSession]:
                 await session.rollback()
 
 
+def _require_app_state[T](request: Request, attr: str, label: str) -> T:
+    value = getattr(request.app.state, attr, None)
+    if value is None:
+        raise RuntimeError(f"{label} is not initialized on app.state. Ensure application startup has completed.")
+    return value
+
+
 def get_influx_client(request: Request) -> InfluxDBClientAsync:
-    return request.app.state.influx_client
+    return _require_app_state(request, "influx_client", "InfluxDB client")
 
 
 PgSessionDep = Annotated[AsyncSession, Depends(get_db)]
+InfluxClientDep = Annotated[InfluxDBClientAsync, Depends(get_influx_client)]
 
 
 # Repository Dependencies
@@ -90,11 +98,7 @@ def get_assignment_repo(db: PgSessionDep) -> AssignmentRepo:
 
 
 def get_telemetry_repo(request: Request) -> TelemetryRepo:
-    repo = getattr(request.app.state, "telemetry_repo", None)
-    if repo is None:
-        repo = TelemetryRepo(request.app.state.influx_client)
-        request.app.state.telemetry_repo = repo
-    return repo
+    return _require_app_state(request, "telemetry_repo", "Telemetry repository")
 
 
 def get_fhir_mapping_repo(db: PgSessionDep) -> FHIRMappingRepo:

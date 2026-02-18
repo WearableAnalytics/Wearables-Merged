@@ -1,7 +1,6 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
-from fastapi_pagination.cursor import encode_cursor
 from pydantic import AwareDatetime
 
 from app.api.dependencies import TelemetryServiceDep
@@ -23,18 +22,6 @@ FieldsQuery = Annotated[
 ]
 
 
-def _cursor_page_payload(
-    items: list[dict[str, object]],
-    next_cursor: str | None,
-    *,
-    quoted_cursor: bool,
-) -> dict[str, object]:
-    return {
-        "items": items,
-        "next_page": encode_cursor(next_cursor, quoted=quoted_cursor),
-    }
-
-
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def record_telemetry(item_in: TelemetryCreate, service: TelemetryServiceDep):
     await service.record_telemetry(item_in)
@@ -51,8 +38,9 @@ async def record_telemetry_batch(items_in: list[TelemetryCreate], service: Telem
 )
 async def read_telemetry(
     service: TelemetryServiceDep,
-    measurement: str,
     params: Annotated[CursorParamsNoTotal, Depends(CursorParamsNoTotal)],
+    measurement: str | None = None,
+    bucket: str | None = None,
     tags: TelemetryTagsDep = None,
     fields: FieldsQuery = None,
     start: AwareDatetime | None = None,
@@ -61,9 +49,16 @@ async def read_telemetry(
     raw_params = params.to_raw_params()
 
     result = await service.read_telemetry(
-        measurement, start, end, tags, fields, raw_params.size, raw_params.cursor
+        measurement,
+        start,
+        end,
+        tags,
+        fields,
+        raw_params.size,
+        raw_params.cursor,
+        bucket=bucket,
     )
-    return _cursor_page_payload(result.items, result.next_cursor, quoted_cursor=params.quoted_cursor)
+    return TelemetryPageResponse.create(result.items, params=params, next_=result.next_cursor)
 
 
 @router.get(
@@ -72,8 +67,9 @@ async def read_telemetry(
 )
 async def read_telemetry_raw(
     service: TelemetryServiceDep,
-    measurement: str,
     params: Annotated[CursorParamsNoTotal, Depends(CursorParamsNoTotal)],
+    measurement: str | None = None,
+    bucket: str | None = None,
     tags: TelemetryTagsDep = None,
     fields: FieldsQuery = None,
     start: AwareDatetime | None = None,
@@ -82,9 +78,16 @@ async def read_telemetry_raw(
     raw_params = params.to_raw_params()
 
     result = await service.read_telemetry_raw(
-        measurement, start, end, tags, fields, raw_params.size, raw_params.cursor
+        measurement,
+        start,
+        end,
+        tags,
+        fields,
+        raw_params.size,
+        raw_params.cursor,
+        bucket=bucket,
     )
-    return _cursor_page_payload(result.items, result.next_cursor, quoted_cursor=params.quoted_cursor)
+    return TelemetryRawPageResponse.create(result.items, params=params, next_=result.next_cursor)
 
 
 @router.get(
@@ -92,8 +95,9 @@ async def read_telemetry_raw(
 )
 async def stream_telemetry(
     service: TelemetryServiceDep,
-    measurement: str,
     params: Annotated[CursorParamsNoTotal, Depends(CursorParamsNoTotal)],
+    measurement: str | None = None,
+    bucket: str | None = None,
     tags: TelemetryTagsDep = None,
     fields: FieldsQuery = None,
     start: AwareDatetime | None = None,
@@ -101,7 +105,16 @@ async def stream_telemetry(
 ):
     raw_params = params.to_raw_params()
     return stream_as_ndjson(
-        service.stream_telemetry(measurement, start, end, tags, fields, raw_params.size, raw_params.cursor),
+        service.stream_telemetry(
+            measurement,
+            start,
+            end,
+            tags,
+            fields,
+            raw_params.size,
+            raw_params.cursor,
+            bucket=bucket,
+        ),
         schema=TelemetryPointResponse,
     )
 
@@ -111,8 +124,9 @@ async def stream_telemetry(
 )
 async def stream_telemetry_raw(
     service: TelemetryServiceDep,
-    measurement: str,
     params: Annotated[CursorParamsNoTotal, Depends(CursorParamsNoTotal)],
+    measurement: str | None = None,
+    bucket: str | None = None,
     tags: TelemetryTagsDep = None,
     fields: FieldsQuery = None,
     start: AwareDatetime | None = None,
@@ -120,6 +134,15 @@ async def stream_telemetry_raw(
 ):
     raw_params = params.to_raw_params()
     return stream_as_ndjson(
-        service.stream_telemetry_raw(measurement, start, end, tags, fields, raw_params.size, raw_params.cursor),
+        service.stream_telemetry_raw(
+            measurement,
+            start,
+            end,
+            tags,
+            fields,
+            raw_params.size,
+            raw_params.cursor,
+            bucket=bucket,
+        ),
         schema=TelemetryRawPointResponse,
     )

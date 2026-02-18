@@ -19,48 +19,52 @@ class TelemetryService:
 
     async def read_telemetry(
         self,
-        measurement: str,
+        measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
         tags: dict[str, str | list[str]] | None = None,
         fields: list[str] | None = None,
         page_size: int = 100,
         cursor: Cursor | None = None,
+        bucket: str | None = None,
     ) -> TelemetryPage:
-        return await self.repo.get_points(measurement, start, end, tags, fields, page_size, cursor)
+        return await self.repo.get_points(measurement, start, end, tags, fields, page_size, cursor, bucket=bucket)
 
     async def read_telemetry_raw(
         self,
-        measurement: str,
+        measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
         tags: dict[str, str | list[str]] | None = None,
         fields: list[str] | None = None,
         page_size: int = 100,
         cursor: Cursor | None = None,
+        bucket: str | None = None,
     ) -> TelemetryPage:
-        return await self.repo.get_points_raw(measurement, start, end, tags, fields, page_size, cursor)
+        return await self.repo.get_points_raw(measurement, start, end, tags, fields, page_size, cursor, bucket=bucket)
 
     def stream_telemetry(
         self,
-        measurement: str,
+        measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
         tags: dict[str, str | list[str]] | None = None,
         fields: list[str] | None = None,
         page_size: int = 100,
         cursor: Cursor | None = None,
+        bucket: str | None = None,
     ) -> AsyncIterator[dict[str, object]]:
-        return self.repo.stream_points(measurement, start, end, tags, fields, page_size, cursor)
+        return self.repo.stream_points(measurement, start, end, tags, fields, page_size, cursor, bucket=bucket)
 
     def stream_telemetry_raw(
         self,
-        measurement: str,
+        measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
         tags: dict[str, str | list[str]] | None = None,
         fields: list[str] | None = None,
         page_size: int = 100,
         cursor: Cursor | None = None,
+        bucket: str | None = None,
     ) -> AsyncIterator[dict[str, object]]:
-        return self.repo.stream_points_raw(measurement, start, end, tags, fields, page_size, cursor)
+        return self.repo.stream_points_raw(measurement, start, end, tags, fields, page_size, cursor, bucket=bucket)

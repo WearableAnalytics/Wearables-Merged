@@ -1,4 +1,3 @@
-import inspect
 from asyncio import Semaphore
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
@@ -74,19 +73,7 @@ class KeysetConnection[NodeType](relay.ListConnection[NodeType]):
         **kwargs: Any,
     ) -> relay.Connection[NodeType]:
         if not isinstance(nodes, KeysetSource):
-            resolved = super().resolve_connection(
-                nodes,
-                info=info,
-                before=before,
-                after=after,
-                first=first,
-                last=last,
-                max_results=max_results,
-                **kwargs,
-            )
-            if inspect.isawaitable(resolved):
-                return await resolved
-            return resolved
+            raise TypeError("KeysetConnection requires KeysetSource nodes.")
 
         max_allowed = max_results if max_results is not None else info.schema.config.relay_max_results
         if first is not None and last is not None:

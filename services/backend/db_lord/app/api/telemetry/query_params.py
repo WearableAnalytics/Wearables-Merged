@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, Request
 TELEMETRY_NON_TAG_QUERY_KEYS = frozenset(
     {
         "measurement",
+        "bucket",
         "start",
         "end",
         "field",

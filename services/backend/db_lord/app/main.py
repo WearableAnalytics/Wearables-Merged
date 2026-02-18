@@ -1,14 +1,14 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 from fastapi_pagination import add_pagination
 from influxdb_client.rest import ApiException as InfluxApiException
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, InvalidRequestError, OperationalError
 
-from app.api.dependencies import PgSessionDep
+from app.api.dependencies import InfluxClientDep, PgSessionDep
 from app.api.errors import (
     bad_request_handler,
     conflict_error_handler,
@@ -59,7 +59,7 @@ app = FastAPI(
 
 
 @app.get("/health", tags=["health"])
-async def health_check(request: Request, db: PgSessionDep) -> ORJSONResponse:
+async def health_check(db: PgSessionDep, influx_client: InfluxClientDep) -> ORJSONResponse:
     health_status = {
         "status": "healthy",
         "postgres": False,
@@ -73,7 +73,6 @@ async def health_check(request: Request, db: PgSessionDep) -> ORJSONResponse:
         health_status["status"] = "unhealthy"
     # Check InfluxDB
     try:
-        influx_client = request.app.state.influx_client
         if await influx_client.ping():
             health_status["influx"] = True
         else:

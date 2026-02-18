@@ -34,14 +34,27 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
         self.pk_col = getattr(model, pk)
 
     async def get(self, id: Any) -> ModelType | None:
-        query = select(self.model).where(self.pk_col == id)
-        result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        return await self.db.get(self.model, id)
 
     async def get_all(self, limit: int = 1000) -> Sequence[ModelType]:
         query = select(self.model).limit(min(limit, 1000))
         result = await self.db.execute(query)
         return result.scalars().all()
+
+    @staticmethod
+    def _effective_sorting(sorting: SortingValues | None) -> SortingValues:
+        return sorting if sorting is not None else GLOBAL_SORT_VALUES
+
+    def _build_filtered_query(
+        self,
+        filters: FilterSet | None = None,
+        sorting: SortingValues | None = None,
+    ):
+        query = select(self.model)
+        effective_sorting = self._effective_sorting(sorting)
+        if filters:
+            return apply_filters_and_sorting(query, filters, effective_sorting), effective_sorting
+        return apply_sorting(query, effective_sorting), effective_sorting
 
     async def stream_all(
         self,
@@ -55,11 +68,7 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
         `as_mapping=True` yields SQLAlchemy RowMapping objects projected from table columns,
         which avoids ORM entity construction for read-only streaming paths.
         """
-        query = select(self.model)
-        if sorting is None:
-            sorting = GLOBAL_SORT_VALUES
-
-        query = apply_filters_and_sorting(query, filters, sorting) if filters else apply_sorting(query, sorting)
+        query, _ = self._build_filtered_query(filters, sorting)
         if as_mapping:
             query = query.with_only_columns(*self.model.__table__.c, maintain_column_froms=True)
 
@@ -76,7 +85,6 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
         obj = self.model(**obj_data)
         self.db.add(obj)
         await self.db.flush()
-        await self.db.refresh(obj)
         return obj
 
     async def update(self, id: Any, obj_in: UpdateSchemaType) -> ModelType | None:
@@ -121,14 +129,10 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
         """
         List records with filtering, sorting, and cursor pagination.
         """
-        query = select(self.model)
-        if sorting is None:
-            sorting = GLOBAL_SORT_VALUES
-
-        query = apply_filters_and_sorting(query, filters, sorting) if filters else apply_sorting(query, sorting)
+        query, effective_sorting = self._build_filtered_query(filters, sorting)
 
         # deterministic ordering for keyset pagination explicitly includes the primary key in sort fields
-        if not any(sort and sort[0] == self.pk_col.key for sort in sorting):
+        if not any(sort and sort[0] == self.pk_col.key for sort in effective_sorting):
             query = query.order_by(self.pk_col.desc())
 
         return await apaginate(self.db, query)

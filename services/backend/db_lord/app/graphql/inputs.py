@@ -64,7 +64,7 @@ class FilterCondition:
     )
 
 
-@strawberry.input
+@strawberry.input(one_of=True)
 class FilterInput:
     """
     Recursive filter input supporting AND/OR/NOT boolean logic.
@@ -79,16 +79,14 @@ class FilterInput:
         Nested: { and: [{ condition: ... }, { or: [{ condition: ... }, { not: { condition: ... } }] }] }
     """
 
-    condition: FilterCondition | None = strawberry.field(
-        default=None, description="A single filter condition (leaf node)."
+    condition: strawberry.Maybe[FilterCondition] = strawberry.field(
+        description="A single filter condition (leaf node)."
     )
-    and_: list[FilterInput] | None = strawberry.field(
-        default=None, name="and", description="All conditions must match."
+    and_: strawberry.Maybe[list[FilterInput]] = strawberry.field(name="and", description="All conditions must match.")
+    or_: strawberry.Maybe[list[FilterInput]] = strawberry.field(
+        name="or", description="At least one condition must match."
     )
-    or_: list[FilterInput] | None = strawberry.field(
-        default=None, name="or", description="At least one condition must match."
-    )
-    not_: FilterInput | None = strawberry.field(default=None, name="not", description="Negate the nested condition.")
+    not_: strawberry.Maybe[FilterInput] = strawberry.field(name="not", description="Negate the nested condition.")
 
 
 @strawberry.input(one_of=True)
@@ -111,7 +109,8 @@ class TelemetryTagInput:
 class TelemetryQueryInput:
     """Input for direct telemetry (InfluxDB) queries."""
 
-    measurement: str = strawberry.field(description="InfluxDB measurement name.")
+    measurement: str | None = strawberry.field(default=None, description="Optional InfluxDB measurement name.")
+    bucket: str | None = strawberry.field(default=None, description="Optional InfluxDB bucket override.")
     start: datetime | None = strawberry.field(default=None, description="Start of time range.")
     end: datetime | None = strawberry.field(default=None, description="End of time range.")
     tags: list[TelemetryTagInput] | None = strawberry.field(

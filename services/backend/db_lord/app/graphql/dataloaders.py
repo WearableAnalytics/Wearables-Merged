@@ -76,45 +76,67 @@ class Loaders:
     def _loader[K, T](self, load_fn: Callable[[list[K]], Awaitable[list[T]]]) -> DataLoader[K, T]:
         return DataLoader(load_fn, self.MAX_BATCH_SIZE)
 
+    async def _load_by_id[TModel, TGraphQL](
+        self,
+        ids: list[UUID],
+        model: type[TModel],
+        graphql_type: type[TGraphQL],
+    ) -> list[TGraphQL | None]:
+        if not ids:
+            return []
+
+        async with self._db_semaphore, self._session_factory() as db:
+            result = await db.execute(select(model).where(model.id.in_(ids)))
+            entities = {entity.id: strawberry_cast(graphql_type, entity) for entity in result.scalars()}
+        return [entities.get(id) for id in ids]
+
     async def _load_patients_by_id(self, ids: list[UUID]) -> list[PatientModel | None]:
         from app.graphql.types import Patient
 
-        async with self._db_semaphore, self._session_factory() as db:
-            result = await db.execute(select(PatientModel).where(PatientModel.id.in_(ids)))
-            patients = {p.id: strawberry_cast(Patient, p) for p in result.scalars()}
-        return [patients.get(id) for id in ids]
+        return await self._load_by_id(ids, PatientModel, Patient)
 
     async def _load_cases_by_id(self, ids: list[UUID]) -> list[CaseModel | None]:
         from app.graphql.types import Case
 
-        async with self._db_semaphore, self._session_factory() as db:
-            result = await db.execute(select(CaseModel).where(CaseModel.id.in_(ids)))
-            cases = {c.id: strawberry_cast(Case, c) for c in result.scalars()}
-        return [cases.get(id) for id in ids]
+        return await self._load_by_id(ids, CaseModel, Case)
 
     async def _load_devices_by_id(self, ids: list[UUID]) -> list[DeviceModel | None]:
         from app.graphql.types import Device
 
-        async with self._db_semaphore, self._session_factory() as db:
-            result = await db.execute(select(DeviceModel).where(DeviceModel.id.in_(ids)))
-            devices = {d.id: strawberry_cast(Device, d) for d in result.scalars()}
-        return [devices.get(id) for id in ids]
+        return await self._load_by_id(ids, DeviceModel, Device)
 
     async def _load_wearables_by_id(self, ids: list[UUID]) -> list[WearableModel | None]:
         from app.graphql.types import Wearable
 
-        async with self._db_semaphore, self._session_factory() as db:
-            result = await db.execute(select(WearableModel).where(WearableModel.id.in_(ids)))
-            wearables = {w.id: strawberry_cast(Wearable, w) for w in result.scalars()}
-        return [wearables.get(id) for id in ids]
+        return await self._load_by_id(ids, WearableModel, Wearable)
 
     async def _load_contexts_by_id(self, ids: list[UUID]) -> list[ContextModel | None]:
         from app.graphql.types import Context
 
+        return await self._load_by_id(ids, ContextModel, Context)
+
+    async def _load_assignments[TAssignment, TGraphQL](
+        self,
+        *,
+        ids: list[UUID],
+        model: type[TAssignment],
+        group_attr: str,
+        graphql_type: type[TGraphQL],
+    ) -> list[list[TGraphQL]]:
+        if not ids:
+            return []
+
+        grouped: dict[UUID, list[TGraphQL]] = defaultdict(list)
+        group_column = getattr(model, group_attr)
+
         async with self._db_semaphore, self._session_factory() as db:
-            result = await db.execute(select(ContextModel).where(ContextModel.id.in_(ids)))
-            contexts = {c.id: strawberry_cast(Context, c) for c in result.scalars()}
-        return [contexts.get(id) for id in ids]
+            result = await db.execute(
+                select(model).where(group_column.in_(ids)).order_by(group_column, model.assigned_from.desc())
+            )
+            for assignment in result.scalars():
+                grouped[getattr(assignment, group_attr)].append(strawberry_cast(graphql_type, assignment))
+
+        return [grouped.get(entity_id, []) for entity_id in ids]
 
     async def _load_cases_by_patient(self, patient_ids: list[UUID]) -> list[list[CaseModel]]:
         from app.graphql.types import Case
@@ -149,78 +171,42 @@ class Loaders:
     async def _load_device_assignments_by_case(self, case_ids: list[UUID]) -> list[list[CaseDevice]]:
         from app.graphql.types import DeviceAssignment
 
-        grouped: dict[UUID, list[CaseDevice]] = defaultdict(list)
-
-        if not case_ids:
-            return []
-
-        async with self._db_semaphore, self._session_factory() as db:
-            result = await db.execute(
-                select(CaseDevice)
-                .where(CaseDevice.case_id.in_(case_ids))
-                .order_by(CaseDevice.case_id, CaseDevice.assigned_from.desc())
-            )
-            for assignment in result.scalars():
-                grouped[assignment.case_id].append(strawberry_cast(DeviceAssignment, assignment))
-
-        return [grouped.get(cid, []) for cid in case_ids]
+        return await self._load_assignments(
+            ids=case_ids,
+            model=CaseDevice,
+            group_attr="case_id",
+            graphql_type=DeviceAssignment,
+        )
 
     async def _load_device_assignments_by_device(self, device_ids: list[UUID]) -> list[list[CaseDevice]]:
         from app.graphql.types import DeviceAssignment
 
-        grouped: dict[UUID, list[CaseDevice]] = defaultdict(list)
-
-        if not device_ids:
-            return []
-
-        async with self._db_semaphore, self._session_factory() as db:
-            result = await db.execute(
-                select(CaseDevice)
-                .where(CaseDevice.device_id.in_(device_ids))
-                .order_by(CaseDevice.device_id, CaseDevice.assigned_from.desc())
-            )
-            for assignment in result.scalars():
-                grouped[assignment.device_id].append(strawberry_cast(DeviceAssignment, assignment))
-
-        return [grouped.get(did, []) for did in device_ids]
+        return await self._load_assignments(
+            ids=device_ids,
+            model=CaseDevice,
+            group_attr="device_id",
+            graphql_type=DeviceAssignment,
+        )
 
     async def _load_wearable_assignments_by_case(self, case_ids: list[UUID]) -> list[list[CaseWearable]]:
         from app.graphql.types import WearableAssignment
 
-        grouped: dict[UUID, list[CaseWearable]] = defaultdict(list)
-
-        if not case_ids:
-            return []
-
-        async with self._db_semaphore, self._session_factory() as db:
-            result = await db.execute(
-                select(CaseWearable)
-                .where(CaseWearable.case_id.in_(case_ids))
-                .order_by(CaseWearable.case_id, CaseWearable.assigned_from.desc())
-            )
-            for assignment in result.scalars():
-                grouped[assignment.case_id].append(strawberry_cast(WearableAssignment, assignment))
-
-        return [grouped.get(cid, []) for cid in case_ids]
+        return await self._load_assignments(
+            ids=case_ids,
+            model=CaseWearable,
+            group_attr="case_id",
+            graphql_type=WearableAssignment,
+        )
 
     async def _load_wearable_assignments_by_wearable(self, wearable_ids: list[UUID]) -> list[list[CaseWearable]]:
         from app.graphql.types import WearableAssignment
 
-        grouped: dict[UUID, list[CaseWearable]] = defaultdict(list)
-
-        if not wearable_ids:
-            return []
-
-        async with self._db_semaphore, self._session_factory() as db:
-            result = await db.execute(
-                select(CaseWearable)
-                .where(CaseWearable.wearable_id.in_(wearable_ids))
-                .order_by(CaseWearable.wearable_id, CaseWearable.assigned_from.desc())
-            )
-            for assignment in result.scalars():
-                grouped[assignment.wearable_id].append(strawberry_cast(WearableAssignment, assignment))
-
-        return [grouped.get(wid, []) for wid in wearable_ids]
+        return await self._load_assignments(
+            ids=wearable_ids,
+            model=CaseWearable,
+            group_attr="wearable_id",
+            graphql_type=WearableAssignment,
+        )
 
     async def _load_contexts_by_case(self, case_ids: list[UUID]) -> list[list[ContextModel]]:
         from app.graphql.types import Context

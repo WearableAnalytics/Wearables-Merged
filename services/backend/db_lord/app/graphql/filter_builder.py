@@ -11,30 +11,26 @@ from strawberry.types.maybe import Some
 
 from app.graphql.inputs import FilterCondition, FilterInput, FilterOperator, FilterValue
 
+_FILTER_VALUE_FIELDS = (
+    "string",
+    "integer",
+    "float_val",
+    "boolean",
+    "uuid",
+    "date",
+    "datetime",
+    "decimal",
+    "string_list",
+    "integer_list",
+    "uuid_list",
+)
+
 
 def _extract_filter_value(value: FilterValue) -> object:
-    if isinstance(value.string, Some):
-        return value.string.value
-    if isinstance(value.integer, Some):
-        return value.integer.value
-    if isinstance(value.float_val, Some):
-        return value.float_val.value
-    if isinstance(value.boolean, Some):
-        return value.boolean.value
-    if isinstance(value.uuid, Some):
-        return value.uuid.value
-    if isinstance(value.date, Some):
-        return value.date.value
-    if isinstance(value.datetime, Some):
-        return value.datetime.value
-    if isinstance(value.decimal, Some):
-        return value.decimal.value
-    if isinstance(value.string_list, Some):
-        return value.string_list.value
-    if isinstance(value.integer_list, Some):
-        return value.integer_list.value
-    if isinstance(value.uuid_list, Some):
-        return value.uuid_list.value
+    for field_name in _FILTER_VALUE_FIELDS:
+        maybe_value = getattr(value, field_name)
+        if isinstance(maybe_value, Some):
+            return maybe_value.value
 
     raise ValueError("FilterValue must specify exactly one value")
 
@@ -60,34 +56,21 @@ class FilterBuilder:
         return self._build_node(filter_input)
 
     def _build_node(self, node: FilterInput) -> ColumnElement[bool]:
-        """Recursively build filter expression from FilterInput node."""
-        branch_count = sum(
-            [
-                node.condition is not None,
-                node.and_ is not None,
-                node.or_ is not None,
-                node.not_ is not None,
-            ]
-        )
-        if branch_count != 1:
-            raise ValueError("FilterInput must include exactly one of: condition, and, or, not")
-        if node.condition is not None:
-            return self._build_condition(node.condition)
-        if node.and_ is not None:
-            if not node.and_:
+        """Recursively build a filter expression from a FilterInput node."""
+        if isinstance(node.condition, Some):
+            return self._build_condition(node.condition.value)
+        if isinstance(node.and_, Some):
+            if not node.and_.value:
                 raise ValueError("FilterInput and must contain at least one nested filter")
-            clauses = [self._build_node(child) for child in node.and_]
-            return and_(*clauses) if clauses else and_(True)
-        if node.or_ is not None:
-            if not node.or_:
+            return and_(*(self._build_node(child) for child in node.and_.value))
+        if isinstance(node.or_, Some):
+            if not node.or_.value:
                 raise ValueError("FilterInput or must contain at least one nested filter")
-            clauses = [self._build_node(child) for child in node.or_]
-            return or_(*clauses) if clauses else or_(False)
-        if node.not_ is not None:
-            return not_(self._build_node(node.not_))
+            return or_(*(self._build_node(child) for child in node.or_.value))
+        if isinstance(node.not_, Some):
+            return not_(self._build_node(node.not_.value))
 
-        # Empty node -> return true (no filtering)
-        return and_(True)
+        raise ValueError("FilterInput must include exactly one of: condition, and, or, not")
 
     def _build_condition(self, cond: FilterCondition) -> ColumnElement[bool]:
         """Build a single condition expression."""
