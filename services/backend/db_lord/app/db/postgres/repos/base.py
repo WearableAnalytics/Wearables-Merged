@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
 from fastapi_filters import FilterSet, SortingValues
@@ -8,6 +8,7 @@ from fastapi_pagination.ext.sqlalchemy import apaginate
 from pydantic import BaseModel
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 
@@ -62,7 +63,7 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
         sorting: SortingValues | None = None,
         batch_size: int = 500,
         as_mapping: bool = False,
-    ) -> AsyncIterator[ModelType | Mapping[str, Any]]:
+    ) -> AsyncIterator[ModelType | RowMapping]:
         """Stream matching records using server-side cursors.
 
         `as_mapping=True` yields SQLAlchemy RowMapping objects projected from table columns,
@@ -75,10 +76,12 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
         result = await self.db.stream(query)
         if as_mapping:
             async for row in result.mappings().yield_per(batch_size):
-                yield row
+                row_mapping: RowMapping = row
+                yield row_mapping
         else:
             async for row in result.scalars().yield_per(batch_size):
-                yield row
+                entity: ModelType = row
+                yield entity
 
     async def create(self, obj_in: CreateSchemaType) -> ModelType:
         obj_data = obj_in.model_dump(exclude_unset=True)

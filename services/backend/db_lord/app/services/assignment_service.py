@@ -31,6 +31,18 @@ class AssignmentService:
         self.case_repo = case_repo
         self.assignment_repo = assignment_repo
 
+    @staticmethod
+    def _device_assignment_response(assignment: CaseDevice) -> DeviceAssignmentResponse:
+        return DeviceAssignmentResponse.model_validate(assignment)
+
+    @staticmethod
+    def _wearable_assignment_response(assignment: CaseWearable) -> WearableAssignmentResponse:
+        return WearableAssignmentResponse.model_validate(assignment)
+
+    @staticmethod
+    def _context_assignment_response(case_id: UUID, context_id: UUID) -> ContextAssignmentResponse:
+        return ContextAssignmentResponse(case_id=case_id, context_id=context_id)
+
     # Read helpers (used by GraphQL dataloaders)
     async def list_device_assignments_by_case_ids(self, case_ids: list[UUID]) -> list[CaseDevice]:
         return await self.assignment_repo.list_device_assignments_by_case_ids(case_ids)
@@ -82,8 +94,10 @@ class AssignmentService:
                 raise BadRequestError(f"Device is not available (Current status: {current_device.status})")
 
             assignment = await self.assignment_repo.assign_device(case_id, device_id, effective_start_time, end_time)
+            if not assignment:
+                raise EntityNotFoundError("DeviceAssignment", f"{case_id}/{device_id}")
             await self.db.commit()
-            return assignment
+            return self._device_assignment_response(assignment)
 
         except Exception:
             await self.db.rollback()
@@ -104,7 +118,7 @@ class AssignmentService:
             await self.device_repo.update_status(device_id, HardwareStatus.AVAILABLE.value)
 
             await self.db.commit()
-            return assignment
+            return self._device_assignment_response(assignment)
         except Exception:
             await self.db.rollback()
             raise
@@ -121,7 +135,7 @@ class AssignmentService:
             await self.device_repo.update_status(assignment.device_id, HardwareStatus.AVAILABLE.value)
 
             await self.db.commit()
-            return assignment
+            return self._device_assignment_response(assignment)
         except Exception:
             await self.db.rollback()
             raise
@@ -139,7 +153,7 @@ class AssignmentService:
                     await self.device_repo.update_status(device_id, HardwareStatus.AVAILABLE.value)
 
                 await self.db.commit()
-                return assignment
+                return self._device_assignment_response(assignment)
 
             # If None-> Not Found (or Ambiguous)
             return None
@@ -174,8 +188,10 @@ class AssignmentService:
             assignment = await self.assignment_repo.assign_wearable(
                 case_id, wearable_id, effective_start_time, end_time
             )
+            if not assignment:
+                raise EntityNotFoundError("WearableAssignment", f"{case_id}/{wearable_id}")
             await self.db.commit()
-            return assignment
+            return self._wearable_assignment_response(assignment)
         except Exception:
             await self.db.rollback()
             raise
@@ -192,7 +208,7 @@ class AssignmentService:
 
             await self.wearable_repo.update_status(wearable_id, HardwareStatus.AVAILABLE.value)
             await self.db.commit()
-            return assignment
+            return self._wearable_assignment_response(assignment)
         except Exception:
             await self.db.rollback()
             raise
@@ -209,7 +225,7 @@ class AssignmentService:
 
             await self.wearable_repo.update_status(assignment.wearable_id, HardwareStatus.AVAILABLE.value)
             await self.db.commit()
-            return assignment
+            return self._wearable_assignment_response(assignment)
         except Exception:
             await self.db.rollback()
             raise
@@ -224,7 +240,7 @@ class AssignmentService:
                 if assignment.assigned_to is None:
                     await self.wearable_repo.update_status(wearable_id, HardwareStatus.AVAILABLE.value)
                 await self.db.commit()
-                return assignment
+                return self._wearable_assignment_response(assignment)
             return None
         except Exception:
             await self.db.rollback()
@@ -235,11 +251,9 @@ class AssignmentService:
         try:
             result = await self.assignment_repo.link_context(case_id, context_id)
             await self.db.commit()
-
-            # TODO: allign with other repos
             if not result:
-                return ContextAssignmentResponse(case_id=case_id, context_id=context_id)
-            return result
+                return self._context_assignment_response(case_id, context_id)
+            return self._context_assignment_response(result.case_id, result.context_id)
         except Exception:
             await self.db.rollback()
             raise
@@ -251,7 +265,7 @@ class AssignmentService:
                 raise EntityNotFoundError("ContextAssignment", f"{case_id}/{context_id}")
 
             await self.db.commit()
-            return result
+            return self._context_assignment_response(result.case_id, result.context_id)
         except Exception:
             await self.db.rollback()
             raise

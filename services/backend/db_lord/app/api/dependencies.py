@@ -57,7 +57,7 @@ async def get_db() -> AsyncGenerator[AsyncSession]:
                 await session.rollback()
 
 
-def _require_app_state[T](request: Request, attr: str, label: str) -> T:
+def _require_app_state(request: Request, attr: str, label: str) -> object:
     value = getattr(request.app.state, attr, None)
     if value is None:
         raise RuntimeError(f"{label} is not initialized on app.state. Ensure application startup has completed.")
@@ -65,7 +65,10 @@ def _require_app_state[T](request: Request, attr: str, label: str) -> T:
 
 
 def get_influx_client(request: Request) -> InfluxDBClientAsync:
-    return _require_app_state(request, "influx_client", "InfluxDB client")
+    value = _require_app_state(request, "influx_client", "InfluxDB client")
+    if not isinstance(value, InfluxDBClientAsync):
+        raise RuntimeError("app.state.influx_client is not an InfluxDBClientAsync instance.")
+    return value
 
 
 PgSessionDep = Annotated[AsyncSession, Depends(get_db)]
@@ -98,7 +101,10 @@ def get_assignment_repo(db: PgSessionDep) -> AssignmentRepo:
 
 
 def get_telemetry_repo(request: Request) -> TelemetryRepo:
-    return _require_app_state(request, "telemetry_repo", "Telemetry repository")
+    value = _require_app_state(request, "telemetry_repo", "Telemetry repository")
+    if not isinstance(value, TelemetryRepo):
+        raise RuntimeError("app.state.telemetry_repo is not a TelemetryRepo instance.")
+    return value
 
 
 def get_fhir_mapping_repo(db: PgSessionDep) -> FHIRMappingRepo:

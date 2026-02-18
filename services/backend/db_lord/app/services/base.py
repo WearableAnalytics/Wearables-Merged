@@ -1,9 +1,11 @@
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Sequence
+from typing import Any
 from uuid import UUID
 
 from fastapi_filters import FilterSet, SortingValues
 from fastapi_pagination.cursor import CursorPage
 from pydantic import BaseModel
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase
@@ -16,7 +18,7 @@ class BaseService[
     ModelType: DeclarativeBase,
     CreateSchemaType: BaseModel,
     UpdateSchemaType: BaseModel,
-    RepoType: BaseRepo,
+    RepoType: BaseRepo[Any, Any, Any],
 ]:
     """Base service with CRUD operations using ORM models."""
 
@@ -45,7 +47,7 @@ class BaseService[
         sorting: SortingValues | None = None,
         batch_size: int = 500,
         as_mapping: bool = False,
-    ) -> AsyncIterator[ModelType | Mapping[str, object]]:
+    ) -> AsyncIterator[ModelType | RowMapping]:
         return self.repo.stream_all(filters=filters, sorting=sorting, batch_size=batch_size, as_mapping=as_mapping)
 
     async def create(self, obj_in: CreateSchemaType) -> ModelType:

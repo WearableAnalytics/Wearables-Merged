@@ -28,25 +28,32 @@ class CaseService(BaseService[Case, CaseCreate, CaseUpdate, CaseRepo]):
             raise EntityNotFoundError("Case", id)
 
         base = CaseResponse.model_validate(res)
-        extra = {}
+        devices = (
+            [CaseDeviceAssignmentExpandedResponse.model_validate(d_a) for d_a in res.device_assignments]
+            if CaseExpandableFields.DEVICES in expand
+            else []
+        )
+        wearables = (
+            [CaseWearableAssignmentExpandedResponse.model_validate(w_a) for w_a in res.wearable_assignments]
+            if CaseExpandableFields.WEARABLES in expand
+            else []
+        )
+        contexts = (
+            [ContextResponse.model_validate(c) for c in res.contexts] if CaseExpandableFields.CONTEXTS in expand else []
+        )
+        patient = (
+            PatientResponse.model_validate(res.patient)
+            if CaseExpandableFields.PATIENT in expand and res.patient
+            else None
+        )
 
-        if CaseExpandableFields.DEVICES in expand:
-            extra["devices"] = [
-                CaseDeviceAssignmentExpandedResponse.model_validate(d_a) for d_a in res.device_assignments
-            ]
-
-        if CaseExpandableFields.WEARABLES in expand:
-            extra["wearables"] = [
-                CaseWearableAssignmentExpandedResponse.model_validate(w_a) for w_a in res.wearable_assignments
-            ]
-
-        if CaseExpandableFields.CONTEXTS in expand:
-            extra["contexts"] = [ContextResponse.model_validate(c) for c in res.contexts]
-
-        if CaseExpandableFields.PATIENT in expand:
-            extra["patient"] = PatientResponse.model_validate(res.patient) if res.patient else None
-
-        return CaseExpanded(**base.model_dump(), **extra)
+        return CaseExpanded(
+            **base.model_dump(),
+            devices=devices,
+            wearables=wearables,
+            contexts=contexts,
+            patient=patient,
+        )
 
     async def get_by_patient_id(self, patient_id: UUID) -> Sequence[Case]:
         """Get all cases for a specific patient"""

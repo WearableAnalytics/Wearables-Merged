@@ -53,7 +53,7 @@ class AssignmentRepo:
             .order_by(CaseDevice.case_id, CaseDevice.assigned_from.desc())
         )
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def list_device_assignments_by_device_ids(self, device_ids: list[UUID]) -> list[CaseDevice]:
         if not device_ids:
@@ -64,7 +64,7 @@ class AssignmentRepo:
             .order_by(CaseDevice.device_id, CaseDevice.assigned_from.desc())
         )
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def list_active_device_assignments_by_case_ids(
         self, case_ids: list[UUID], now_ts: datetime | None = None
@@ -78,7 +78,7 @@ class AssignmentRepo:
             .order_by(CaseDevice.case_id, CaseDevice.assigned_from.desc())
         )
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def assign_device(
         self, case_id: UUID, device_id: UUID, start_time: datetime | None = None, end_time: datetime | None = None
@@ -212,7 +212,7 @@ class AssignmentRepo:
             .order_by(CaseWearable.case_id, CaseWearable.assigned_from.desc())
         )
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def list_wearable_assignments_by_wearable_ids(self, wearable_ids: list[UUID]) -> list[CaseWearable]:
         if not wearable_ids:
@@ -223,7 +223,7 @@ class AssignmentRepo:
             .order_by(CaseWearable.wearable_id, CaseWearable.assigned_from.desc())
         )
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def list_active_wearable_assignments_by_case_ids(
         self, case_ids: list[UUID], now_ts: datetime | None = None
@@ -237,7 +237,7 @@ class AssignmentRepo:
             .order_by(CaseWearable.case_id, CaseWearable.assigned_from.desc())
         )
         result = await self.db.execute(query)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def assign_wearable(
         self, case_id: UUID, wearable_id: UUID, start_time: datetime | None = None, end_time: datetime | None = None

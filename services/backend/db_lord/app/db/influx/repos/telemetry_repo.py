@@ -14,10 +14,12 @@ from influxdb_client.client.write.point import Point
 from app.core.config import settings
 from app.schemas.telemetry import TelemetryCreate
 
-SYSTEM_COLUMNS = frozenset(
+SYSTEM_COLUMNS: frozenset[str] = frozenset(
     ("result", "table", "_start", "_stop", "_time", "_measurement", "_field", "_value", "_cursor_key")
 )
-CORE_TAG_KEYS = frozenset(("patient_id", "device_id", "wearable_id", "case_id", "context_id", "mapping_id", "code"))
+CORE_TAG_KEYS: frozenset[str] = frozenset(
+    ("patient_id", "device_id", "wearable_id", "case_id", "context_id", "mapping_id", "code")
+)
 CURSOR_VERSION = 1
 CURSOR_SEPARATOR = "|"
 

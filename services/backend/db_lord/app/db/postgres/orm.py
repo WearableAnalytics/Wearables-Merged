@@ -271,7 +271,7 @@ class FHIRMapping(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, server_default=text("uuidv7()"))
 
     version: Mapped[str] = mapped_column(String(FHIR_VERSION_MAX_LEN), unique=True, index=True, nullable=False)
-    full_mapping: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    full_mapping: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
     # Relationships
     dot_dependency_files: Mapped[list[DotDependencyFile]] = relationship(
         back_populates="mapping", lazy="raise", cascade="all, delete-orphan", passive_deletes=True
@@ -285,7 +285,7 @@ class DotDependencyFile(Base):
 
     version: Mapped[str] = mapped_column(String(FHIR_VERSION_MAX_LEN), nullable=False)
     category: Mapped[str] = mapped_column(String(FHIR_CATEGORY_MAX_LEN), index=True, nullable=False)
-    digraph: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    digraph: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
 
     mapping_id: Mapped[UUID] = mapped_column(ForeignKey("fhir_mappings.id", ondelete="CASCADE"), nullable=False)
 
