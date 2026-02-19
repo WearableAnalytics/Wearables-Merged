@@ -1,4 +1,5 @@
 port: 8125
+replicas: 3
 
 image:
   repository: telegraf
@@ -9,14 +10,13 @@ config:
   kafkaConsumer: 
     name: kafka
     namespace: kafka
-    port:
-    version: 4.0.0
+    version: 4.1.0
     topics:
     - wearables-lp
   influxProducer:
-    name: influxdb #name of influx (without service or deployment) 
-    namespace: influx #namespace influx is deployed in
-    port: 8086 #open influx port
+    name: influxdb      #name of influx (without service or deployment) 
+    namespace: influx   #namespace influx is deployed in
+    port: 8086          #open influx port
     org: ""
     bucket: ""
     token: ""
