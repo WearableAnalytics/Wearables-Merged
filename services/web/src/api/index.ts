@@ -1,4 +1,4 @@
-import { Configuration, CasesApi, CharitCasesApi, PatientsApi } from './openapi-client';
+import { Configuration, CasesApi, HospitalCasesApi, PatientsApi } from './openapi-client';
 import { defaultApi, DefaultApi } from './defaultApi';
 
 const config = new Configuration({
@@ -7,7 +7,7 @@ const config = new Configuration({
 });
 
 export const casesApi = new CasesApi(config);
-export const charitCasesApi = new CharitCasesApi(config);
+export const hospitalCasesApi = new HospitalCasesApi(config);
 export const patientsApi = new PatientsApi(config);
 
 export { Configuration, defaultApi, DefaultApi };

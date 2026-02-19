@@ -1,33 +1,41 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { defaultApi } from '@/api/defaultApi';
-import { PageHeader } from '@/components/custom/PageHeader';
-import { SearchForm } from '@/components/custom/SearchForm';
-import { ArrowRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { defaultApi, isDirectAuthResponse, type NonAdminRole } from '@/api/defaultApi';
+import { useAuth } from '@/context/AuthContext';
+import { AuthEmailFormPage } from '@/components/custom/AuthEmailFormPage';
+import { Button } from '@/components/ui/button';
+import { getTrimmedOrNull } from '@/lib/input';
+import { getDefaultAuthenticatedPath } from '@/lib/userAccess';
+import { useMessageToast } from '@/lib/toast';
+
+const ROLE_OPTIONS: Array<{ value: NonAdminRole; label: string; description: string }> = [
+  {
+    value: 'practitioner',
+    label: 'Practitioner',
+    description: 'Access patient and case workflows.',
+  },
+  {
+    value: 'researcher',
+    label: 'Researcher',
+    description: 'Start with account-only access.',
+  },
+];
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const { user, loading: authLoading, refreshUser } = useAuth();
   const [email, setEmail] = useState('');
+  const [requestedRole, setRequestedRole] = useState<NonAdminRole>('practitioner');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useMessageToast('error', 'register-error', error);
 
   useEffect(() => {
-    if (error) {
-      toast.error(error, { id: 'register-error' });
-    } else {
-      toast.dismiss('register-error');
+    if (!authLoading && user) {
+      navigate(getDefaultAuthenticatedPath(user), { replace: true });
     }
-  }, [error]);
-
-  useEffect(() => {
-    if (loading) {
-      toast.loading('Submitting access request…', { id: 'register-loading' });
-    } else {
-      toast.dismiss('register-loading');
-    }
-  }, [loading]);
+  }, [authLoading, navigate, user]);
 
   const resetFeedback = () => {
     setError(null);
@@ -35,7 +43,7 @@ export function RegisterPage() {
 
   const handleRegister = async (event: FormEvent) => {
     event.preventDefault();
-    const trimmedEmail = email.trim();
+    const trimmedEmail = getTrimmedOrNull(email);
 
     if (!trimmedEmail) {
       setError('Please enter your email address.');
@@ -46,7 +54,12 @@ export function RegisterPage() {
     setError(null);
 
     try {
-      const data = await defaultApi.register(trimmedEmail);
+      const data = await defaultApi.register(trimmedEmail, requestedRole);
+      if (isDirectAuthResponse(data)) {
+        await refreshUser();
+        navigate('/overview', { replace: true });
+        return;
+      }
       const successMessage =
         (data as { message?: string }).message ?? 'Your account is awaiting admin approval.';
       navigate('/request-sent', {
@@ -65,32 +78,53 @@ export function RegisterPage() {
   };
 
   return (
-    <>
-      <PageHeader
-        label="Register"
-        title="Request access"
-        description="Enter your email to request access. You will be notified after approval."
-      />
+    <AuthEmailFormPage
+      headerLabel="Register"
+      headerTitle="Request access"
+      headerDescription="Enter your email and choose your initial role. Admin access must be requested after approval."
+      email={email}
+      loading={loading}
+      onEmailChange={setEmail}
+      onFocusReset={resetFeedback}
+      onSubmit={handleRegister}
+      inputId="register-email"
+      submitLabel="Request access"
+      footer={
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <p className="m-0 text-sm font-semibold text-foreground">Initial role</p>
+            <div className="flex flex-wrap gap-2 rounded-xl border border-border bg-muted/40 p-1">
+              {ROLE_OPTIONS.map((option) => {
+                const isActive = requestedRole === option.value;
+                return (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={isActive ? 'default' : 'ghost'}
+                    className="px-3"
+                    aria-pressed={isActive}
+                    onClick={() => setRequestedRole(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                );
+              })}
+            </div>
+            <p className="m-0 text-sm text-muted-foreground">
+              {ROLE_OPTIONS.find((option) => option.value === requestedRole)?.description}
+            </p>
+          </div>
 
-      <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">
-        <div className="w-full max-w-3xl px-4">
-          <SearchForm
-            value={email}
-            loading={loading}
-            onChange={(value) => setEmail(value)}
-            onFocusReset={resetFeedback}
-            onSubmit={handleRegister}
-            inputId="register-email"
-            inputLabel="Email address"
-            inputType="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="Enter your email address"
-            submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
-            submitLabel="Request access"
-          />
+          <p className="m-0 text-sm text-muted-foreground">
+            Already registered?{' '}
+            <Link to="/login" className="font-semibold text-foreground underline-offset-2 hover:underline">
+              Go to login
+            </Link>
+            .
+          </p>
         </div>
-      </div>
-    </>
+      }
+    />
   );
 }

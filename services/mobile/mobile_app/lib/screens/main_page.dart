@@ -342,7 +342,7 @@ class _MainPageState extends State<MainPage> {
                                                   ),
                                                   color: Theme.of(context)
                                                       .colorScheme
-                                                      .surfaceVariant
+                                                      .surfaceContainerHighest
                                                       .withOpacity(0.3),
                                                 ),
                                                 child: Row(

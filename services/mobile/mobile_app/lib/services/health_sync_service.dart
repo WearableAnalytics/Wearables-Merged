@@ -322,6 +322,7 @@ class HealthSyncService {
     try {
       final request = await client.postUrl(Uri.parse(_endpoint));
       request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $deviceId');
       request.add(utf8.encode(jsonEncode(payload)));
       final response = await request.close().timeout(
         const Duration(seconds: 30),

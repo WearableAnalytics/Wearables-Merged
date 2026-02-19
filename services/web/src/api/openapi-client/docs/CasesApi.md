@@ -5,7 +5,7 @@ All URIs are relative to *https://api.example.com/v1*
 | Method | HTTP request | Description |
 |------------- | ------------- | -------------|
 | [**casesCaseIdGet**](CasesApi.md#casescaseidget) | **GET** /cases/{caseId} | Get a single case |
-| [**casesFromChariteCasePost**](CasesApi.md#casesfromcharitecasepostoperation) | **POST** /cases/from-charite-case | Create internal case from Charité case |
+| [**casesFromHospitalCasePost**](CasesApi.md#casesfromhospitalcasepostoperation) | **POST** /cases/from-hospital-case | Create internal case from Hospital case |
 | [**casesGet**](CasesApi.md#casesget) | **GET** /cases | List all internal cases |
 | [**casesVerifyTokenPost**](CasesApi.md#casesverifytokenpostoperation) | **POST** /cases/verify-token | Verify a case token |
 
@@ -79,13 +79,13 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
-## casesFromChariteCasePost
+## casesFromHospitalCasePost
 
-> CaseCreated casesFromChariteCasePost(casesFromChariteCasePostRequest)
+> CaseCreated casesFromHospitalCasePost(casesFromHospitalCasePostRequest)
 
-Create internal case from Charité case
+Create internal case from Hospital case
 
-Creates an internal case from an external Charité case with the specified conflict-resolution rules.
+Creates an internal case from an external Hospital case with the specified conflict-resolution rules.
 
 ### Example
 
@@ -94,19 +94,19 @@ import {
   Configuration,
   CasesApi,
 } from '';
-import type { CasesFromChariteCasePostOperationRequest } from '';
+import type { CasesFromHospitalCasePostOperationRequest } from '';
 
 async function example() {
   console.log("🚀 Testing  SDK...");
   const api = new CasesApi();
 
   const body = {
-    // CasesFromChariteCasePostRequest
-    casesFromChariteCasePostRequest: ...,
-  } satisfies CasesFromChariteCasePostOperationRequest;
+    // CasesFromHospitalCasePostRequest
+    casesFromHospitalCasePostRequest: ...,
+  } satisfies CasesFromHospitalCasePostOperationRequest;
 
   try {
-    const data = await api.casesFromChariteCasePost(body);
+    const data = await api.casesFromHospitalCasePost(body);
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -122,7 +122,7 @@ example().catch(console.error);
 
 | Name | Type | Description  | Notes |
 |------------- | ------------- | ------------- | -------------|
-| **casesFromChariteCasePostRequest** | [CasesFromChariteCasePostRequest](CasesFromChariteCasePostRequest.md) |  | |
+| **casesFromHospitalCasePostRequest** | [CasesFromHospitalCasePostRequest](CasesFromHospitalCasePostRequest.md) |  | |
 
 ### Return type
 
@@ -144,7 +144,7 @@ No authorization required
 | **200** | Case already exists |  -  |
 | **201** | Case created successfully |  -  |
 | **400** | Invalid input |  -  |
-| **404** | Charité case not found |  -  |
+| **404** | Hospital case not found |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 

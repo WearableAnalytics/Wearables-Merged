@@ -8,7 +8,7 @@ Name | Type
 ------------ | -------------
 `caseId` | string
 `patientId` | string
-`cCaseId` | string
+`hospitalCaseId` | string
 `status` | string
 `caseToken` | string
 
@@ -21,7 +21,7 @@ import type { Case } from ''
 const example = {
   "caseId": IC-54321,
   "patientId": P-98765,
-  "cCaseId": C-123456,
+  "hospitalCaseId": C-123456,
   "status": active,
   "caseToken": eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...,
 } satisfies Case

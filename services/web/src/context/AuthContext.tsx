@@ -1,14 +1,17 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { defaultApi } from '@/api/defaultApi';
+import { AUTH_SESSION_EXPIRED_EVENT } from '@/lib/authSession';
 
 export interface User {
   id: string;
   email: string;
   name?: string;
-  role?: 'admin' | 'user';
+  isAdmin?: boolean;
+  roles?: Array<'practitioner' | 'researcher'>;
   status?: 'pending' | 'approved' | 'denied';
   adminRequestStatus?: 'none' | 'pending' | 'approved' | 'denied';
+  roleRequestStatuses?: Partial<Record<'practitioner' | 'researcher', 'none' | 'pending' | 'approved' | 'denied'>>;
 }
 
 interface AuthContextType {
@@ -16,6 +19,7 @@ interface AuthContextType {
   loading: boolean;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  checkSessionLazily: () => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,16 +31,34 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const userRef = useRef<User | null>(null);
 
-  const fetchUser = useCallback(async (): Promise<void> => {
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const fetchUser = useCallback(async (options?: { silent?: boolean }): Promise<User | null> => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
+
     try {
       const currentUser = await defaultApi.me();
-      setUser(currentUser as User | null);
+      const normalizedUser = currentUser as User | null;
+      setUser(normalizedUser);
+      return normalizedUser;
     } catch (error) {
       console.error('Auth error:', error);
-      setUser(null);
+      const status = (error as { status?: number }).status;
+      if (status === 401) {
+        setUser(null);
+        return null;
+      }
+      return userRef.current;
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -47,13 +69,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
-      window.dispatchEvent(new Event('auth-change'));
     }
   }, []);
 
   const refreshUser = useCallback(async (): Promise<void> => {
-    setLoading(true);
     await fetchUser();
+  }, [fetchUser]);
+
+  const checkSessionLazily = useCallback(async (): Promise<User | null> => {
+    return fetchUser({ silent: true });
   }, [fetchUser]);
 
   useEffect(() => {
@@ -65,16 +89,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [fetchUser]);
 
   useEffect(() => {
-    const handleAuthChange = () => void refreshUser();
-    window.addEventListener('auth-change', handleAuthChange);
-    return () => window.removeEventListener('auth-change', handleAuthChange);
-  }, [refreshUser]);
+    const handleSessionExpired = () => {
+      setUser(null);
+      setLoading(false);
+    };
+
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, []);
 
   const value: AuthContextType = {
     user,
     loading,
     logout,
     refreshUser,
+    checkSessionLazily,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

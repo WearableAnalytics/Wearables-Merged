@@ -1,0 +1,42 @@
+replicaCount: 1
+
+image:
+  # Docker image for the grafana-proxy-node service
+  repository: gmsdaniil/wearables-grafana-proxy
+  pullPolicy: Always
+  tag: "latest"
+
+proxy:
+  # Internal proxy HTTP port
+  port: 3002
+  # Public path prefix where the proxy is exposed
+  # This should match the ingress.prefix below
+  prefix: "/grafana-proxy"
+
+session:
+  cookieName: "jwt"
+  jwtSecret: "dev-secret"
+
+grafana:
+  # Matches .env.example default (external Grafana URL)
+  baseUrl: "http://grafana.grafana.svc.cluster.local:3000"
+  pathPrefix: ""
+
+  # JWT header configuration
+  jwtHeader: "X-JWT-Assertion"
+  jwtKeyId: "grafana-proxy"
+  jwtIssuer: "wearables-grafana-proxy"
+  jwtAudience: "grafana"
+  jwtTtlSeconds: "300"
+  defaultRole: "Viewer"
+  tlsSkipVerify: "false"
+  jwtIatSkewSeconds: "120"
+  jwtSubject: "wearables-proxy"
+  jwtEmail: "admin@localhost"
+  jwtName: ""
+  jwtRole: "Viewer"
+
+  # Dashboard configuration for the /embed endpoint
+  allowedDashboardIds: "wearables-health-real,wearables-six-min"
+  dashboardDatasource: "dfa4opgnfgg00e"
+  orgId: "1"

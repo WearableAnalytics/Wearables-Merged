@@ -3,31 +3,39 @@ import { Button } from '@/components/ui/button';
 import { Menu, Shield, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveCase } from '@/lib/activeCase';
+import { defaultApi } from '@/api/defaultApi';
+import {
+  ADMIN_APPROVALS_UPDATED_EVENT,
+  type AdminApprovalsUpdatedDetail,
+} from '@/lib/adminApprovalsEvents';
 import { useAuth } from '@/context/AuthContext';
+import { LOGOUT_REASON_SUCCESS, getLogoutPath } from '@/lib/authSession';
+import { canAccessPractitionerPages, canAccessResearcherPages, isAdminUser } from '@/lib/userAccess';
 
 import { NavButton, NavButtonMobile } from './navButtons';
 
 import { Logo } from './logo';
 
 interface NavbarProps {
-  alwaysGuestRoutes: string[];
   navigate: ReturnType<typeof useNavigate>;
   location: ReturnType<typeof useLocation>;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  alwaysGuestRoutes,
   navigate,
   location,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [openApprovalsCount, setOpenApprovalsCount] = useState(0);
   const { activeCase, patient } = useActiveCase();
   const { user, logout } = useAuth();
   const isCasePage = location.pathname.startsWith('/cases/');
   const activePatientName = patient ? `${patient.firstName} ${patient.lastName}` : null;
   const isAuthenticated = !!user;
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isAdminUser(user);
+  const hasPractitionerAccess = canAccessPractitionerPages(user);
+  const hasResearcherAccess = canAccessResearcherPages(user);
 
   const activePatientNavLabel =
     patient && patient.lastName
@@ -45,6 +53,71 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   }, [isMobileMenuOpen]);
 
+  useEffect(() => {
+    if (!isAuthenticated || !isAdmin) {
+      setOpenApprovalsCount(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadOpenApprovalsCount = async () => {
+      try {
+        const [pendingUsersData, pendingAccessRequestsData] = await Promise.all([
+          defaultApi.listPendingUsers(),
+          defaultApi.listPendingAccessRequests(),
+        ]);
+        if (cancelled) {
+          return;
+        }
+
+        const pendingUsers = (pendingUsersData as { users?: unknown[] }).users ?? [];
+        const pendingAccessRequests = (pendingAccessRequestsData as { users?: unknown[] }).users ?? [];
+        setOpenApprovalsCount(pendingUsers.length + pendingAccessRequests.length);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load open approvals count:', error);
+          setOpenApprovalsCount(0);
+        }
+      }
+    };
+
+    void loadOpenApprovalsCount();
+    const refreshId = window.setInterval(() => {
+      void loadOpenApprovalsCount();
+    }, 30_000);
+
+    const handleApprovalsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<AdminApprovalsUpdatedDetail>;
+      const nextCount = customEvent.detail?.openRequestsCount;
+      if (typeof nextCount === 'number') {
+        setOpenApprovalsCount(nextCount);
+        return;
+      }
+      void loadOpenApprovalsCount();
+    };
+    const handleWindowFocus = () => {
+      void loadOpenApprovalsCount();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void loadOpenApprovalsCount();
+      }
+    };
+
+    window.addEventListener(ADMIN_APPROVALS_UPDATED_EVENT, handleApprovalsUpdated);
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshId);
+      window.removeEventListener(ADMIN_APPROVALS_UPDATED_EVENT, handleApprovalsUpdated);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAdmin, isAuthenticated, location.pathname]);
+
   const handleMobileLinkClick = () => {
     setIsMobileMenuOpen(false);
   };
@@ -57,30 +130,38 @@ export const Navbar: React.FC<NavbarProps> = ({
       console.error('Logout failed:', err);
     } finally {
       setIsLoggingOut(false);
-      void navigate('/access');
+      void navigate(getLogoutPath(LOGOUT_REASON_SUCCESS), { replace: true });
     }
   };
 
   return (
     <nav className="w-full fixed top-0 left-0 right-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <Logo alwaysGuestRoutes={alwaysGuestRoutes} navigate={navigate} location={location} />
+        <div
+          className={`flex items-center justify-between h-16 ${
+            isMobileMenuOpen ? 'bg-background border-b border-border' : ''
+          }`}
+        >
+          <Logo />
 
           {/* Desktop Navigation */}
-          {isAuthenticated ? (
+          {isAuthenticated && (hasPractitionerAccess || hasResearcherAccess) ? (
             <div className="hidden md:flex items-center space-x-6">
-              <NavButton path="/overview">Overview</NavButton>
-              {isCasePage && activeCase && activePatientNavLabel ? (
+              {hasPractitionerAccess ? (
+                <NavButton path="/overview">Overview</NavButton>
+              ) : null}
+              {hasPractitionerAccess && isCasePage && activeCase && activePatientNavLabel ? (
                 <NavButton path={`/cases/${activeCase.caseId}`}>
                   <span className="max-w-[180px] truncate" title={activePatientName ?? undefined}>
                     {activePatientNavLabel}
                   </span>
                 </NavButton>
               ) : null}
-              <NavButton path="/add-case">Add Case</NavButton>
-              {activeCase ? (
-                <NavButton path={`/monitoring/${activeCase.caseId}`}>Monitoring</NavButton>
+              {hasPractitionerAccess ? (
+                <NavButton path="/add-case">Add Case</NavButton>
+              ) : null}
+              {hasResearcherAccess ? (
+                <NavButton path="/researcher/api-access">API Access</NavButton>
               ) : null}
             </div>
           ) : (
@@ -96,17 +177,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                     path="/admin/approvals"
                     invertedColors={true}
                     iconOnly
-                    className="h-10 w-10 p-0 flex items-center justify-center"
+                    className="ui-control-square relative p-0 flex items-center justify-center"
                   >
                     <Shield className="h-5 w-5" aria-hidden />
-                    <span className="sr-only">Admin</span>
+                    {openApprovalsCount > 0 ? (
+                      <span className="pointer-events-none absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-background bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
+                        {openApprovalsCount > 99 ? '99+' : openApprovalsCount}
+                      </span>
+                    ) : null}
+                    <span className="sr-only">
+                      Admin approvals{openApprovalsCount > 0 ? `, ${openApprovalsCount} open requests` : ''}
+                    </span>
                   </NavButton>
                 ) : null}
                 <NavButton
                   path="/account"
                   invertedColors={true}
                   iconOnly
-                  className="h-10 w-10 p-0 flex items-center justify-center"
+                  className="ui-control-square p-0 flex items-center justify-center"
                 >
                   <User className="h-5 w-5" aria-hidden />
                   <span className="sr-only">Account</span>
@@ -117,8 +205,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             ) : (
               <>
-                <NavButton path="/access" invertedColors={true}>
-                  Access
+                <NavButton path="/login" invertedColors={true}>
+                  Login
+                </NavButton>
+                <NavButton path="/register" invertedColors={true}>
+                  Register
                 </NavButton>
               </>
             )}
@@ -127,10 +218,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Mobile menu button */}
           <div className="md:hidden">
             <Button
-              variant="ghost"
-              size="sm"
+              variant="outline"
+              size="icon"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 hover:bg-primary group"
+              className="group rounded-full border-border/70 bg-card/40 bg-clip-padding shadow-[var(--shadow-card)] backdrop-blur-lg hover:bg-primary"
             >
               <Menu className="h-5 w-5 text-foreground group-hover:text-primary-foreground" />
             </Button>
@@ -143,13 +234,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="px-4 py-3 space-y-2">
               {isAuthenticated ? (
                 <>
-                  <NavButtonMobile
-                    path="/overview"
-                    className="w-full justify-start text-left"
-                    onClick={handleMobileLinkClick}
-                  >
-                    Overview
-                  </NavButtonMobile>
+                  {hasPractitionerAccess ? (
+                    <NavButtonMobile
+                      path="/overview"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      Overview
+                    </NavButtonMobile>
+                  ) : null}
                   <NavButtonMobile
                     path="/account"
                     className="w-full justify-start text-left"
@@ -157,16 +250,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     Account
                   </NavButtonMobile>
+                  {hasResearcherAccess ? (
+                    <NavButtonMobile
+                      path="/researcher/api-access"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      API Access
+                    </NavButtonMobile>
+                  ) : null}
                   {isAdmin ? (
                     <NavButtonMobile
                       path="/admin/approvals"
                       className="w-full justify-start text-left"
                       onClick={handleMobileLinkClick}
                     >
-                      Admin
+                      <span className="inline-flex items-center gap-2">
+                        <span>Admin</span>
+                        {openApprovalsCount > 0 ? (
+                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-background bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
+                            {openApprovalsCount > 99 ? '99+' : openApprovalsCount}
+                          </span>
+                        ) : null}
+                      </span>
                     </NavButtonMobile>
                   ) : null}
-                  {isCasePage && activeCase && activePatientMobileLabel ? (
+                  {hasPractitionerAccess && isCasePage && activeCase && activePatientMobileLabel ? (
                     <NavButtonMobile
                       path={`/cases/${activeCase.caseId}`}
                       className="w-full justify-start text-left"
@@ -177,16 +286,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </span>
                     </NavButtonMobile>
                   ) : null}
-                  <NavButtonMobile path="/add-case" className="w-full justify-start text-left" onClick={handleMobileLinkClick}>
-                    Add Case
-                  </NavButtonMobile>
-                  {activeCase ? (
-                    <NavButtonMobile
-                      path={`/monitoring/${activeCase.caseId}`}
-                      className="w-full justify-start text-left"
-                      onClick={handleMobileLinkClick}
-                    >
-                      Monitoring
+                  {hasPractitionerAccess ? (
+                    <NavButtonMobile path="/add-case" className="w-full justify-start text-left" onClick={handleMobileLinkClick}>
+                      Add Case
                     </NavButtonMobile>
                   ) : null}
                 </>
@@ -208,11 +310,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="flex flex-col gap-2">
                     <NavButtonMobile
                       invertedColors={true}
-                      path="/access"
+                      path="/login"
                       className="w-full justify-start text-left"
                       onClick={handleMobileLinkClick}
                     >
-                      Access
+                      Login
+                    </NavButtonMobile>
+                    <NavButtonMobile
+                      invertedColors={true}
+                      path="/register"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
+                      Register
                     </NavButtonMobile>
                   </div>
                 )}

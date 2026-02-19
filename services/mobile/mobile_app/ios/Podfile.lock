@@ -34,7 +34,7 @@ PODS:
   - GoogleUtilitiesComponents (1.1.0):
     - GoogleUtilities/Logger
   - GTMSessionFetcher/Core (3.5.0)
-  - health (1.0.4):
+  - health (13.2.1):
     - Flutter
   - MLImage (1.0.0-beta5)
   - MLKitBarcodeScanning (5.0.0):
@@ -110,8 +110,8 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   background_fetch: 7457cb2c7be3086b37d87207866f30bed2f9fb58
-  device_info_plus: 71ffc6ab7634ade6267c7a93088ed7e4f74e5896
-  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  device_info_plus: 21fcca2080fbcd348be798aa36c3e5ed849eefbe
+  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   flutter_local_notifications: ad39620c743ea4c15127860f4b5641649a988100
   GoogleDataTransport: 6c09b596d841063d76d4288cc2d2f42cc36e1e2a
   GoogleMLKit: 97ac7af399057e99182ee8edfa8249e3226a4065
@@ -119,7 +119,7 @@ SPEC CHECKSUMS:
   GoogleUtilities: ea963c370a38a8069cc5f7ba4ca849a60b6d7d15
   GoogleUtilitiesComponents: 679b2c881db3b615a2777504623df6122dd20afe
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
-  health: a38a2b7480871e575ef403a8746cb2c08d20f1a4
+  health: e310387222e199d4b3261337490a67aaff6d18eb
   MLImage: 1824212150da33ef225fbd3dc49f184cf611046c
   MLKitBarcodeScanning: 10ca0845a6d15f2f6e911f682a1998b68b973e8b
   MLKitCommon: afec63980417d29ffbb4790529a1b0a2291699e1

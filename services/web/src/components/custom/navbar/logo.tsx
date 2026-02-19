@@ -1,40 +1,30 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import wearablesLogo from '@/assets/Wearables.png';
+import { BrandLogo } from '@/components/branding/BrandLogo';
+import { getDefaultAuthenticatedPath } from '@/lib/userAccess';
 
-interface LogoProps {
-  userType?: 'Retiree' | 'Startup'; // undefined ⇒ guest / not authenticated
-  alwaysGuestRoutes: string[]; // if true, always navigate to home
-  navigate: ReturnType<typeof useNavigate>;
-  location: ReturnType<typeof useLocation>;
-}
-
-export const Logo: React.FC<LogoProps> = ({ userType, alwaysGuestRoutes, navigate, location }) => {
+export const Logo: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const handleClick = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (user) {
-      void navigate('/overview');
+      void navigate(getDefaultAuthenticatedPath(user));
       return;
     }
 
-    if (!userType || alwaysGuestRoutes.includes(location.pathname)) {
-      void navigate('/'); // guest → home
-    } else if (userType === 'Retiree') {
-      void navigate('/retiree/browse-jobs');
-    } else {
-      void navigate('/startup/browse-retirees');
-    }
+    void navigate('/');
   };
 
   return (
     <div className="flex items-center cursor-pointer" onClick={handleClick}>
-      <img
-        src={wearablesLogo}
+      <BrandLogo
+        logoType="horizontal"
         alt="Wearables Logo"
-        className="h-10 w-auto text-sm px-4 py-0 rounded-full border transition-shadow transition-colors cursor-pointer font-medium border border-[rgba(255,255,255,0.3)] text-foreground bg-white/40 bg-clip-padding backdrop-filter backdrop-blur-lg shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:text-primary hover:shadow-lg transform transition-transform duration-200 hover:scale-[1.05] group'"
+        className="h-10 w-auto"
+        containerClassName="rounded-full border border-border/70 bg-card/40 px-4 py-0 shadow-[var(--shadow-card)] transition-shadow transition-transform duration-200 backdrop-blur-lg hover:shadow-lg hover:scale-[1.05]"
       />
     </div>
   );

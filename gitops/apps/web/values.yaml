@@ -14,10 +14,10 @@ service:
 buildArgs:
   VITE_API_BASE_URL: "http://registration-service-node.registration-service-node.svc.cluster.local:3001/api"
   VITE_BACKEND_URL: ""
-  VITE_GRAFANA_PROXY_URL: "/grafana/"
+  VITE_GRAFANA_PROXY_URL: "/grafana-proxy"
 
 ingress:
-  enabled: true
+  enabled: false
   host: "wearables.charite.de"
   
 certificate:

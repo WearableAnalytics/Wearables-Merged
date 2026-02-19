@@ -26,6 +26,10 @@ spec:
               value: "{{ .Values.env.KAFKA_BOOTSTRAP_SERVERS }}"
             - name: KAFKA_TOPIC
               value: "{{ .Values.env.KAFKA_TOPIC }}"
+            - name: JWT_SECRET
+              value: "{{ .Values.env.JWT_SECRET }}"
+            - name: JWT_ISSUER
+              value: "{{ .Values.env.JWT_ISSUER }}"
           livenessProbe:
             httpGet:
               path: "{{ .Values.livenessProbe.path }}"

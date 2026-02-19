@@ -1,77 +1,81 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Inbox } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { AccessRequestType, NonAdminRole } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
+import { dispatchAdminApprovalsUpdatedEvent } from '@/lib/adminApprovalsEvents';
+import { isAdminUser } from '@/lib/userAccess';
+import { AdminApprovalsDeniedTable } from './admin-approvals/components/AdminApprovalsDeniedTable';
+import { AdminApprovalsRequestsView } from './admin-approvals/components/AdminApprovalsRequestsView';
+import { AdminApprovalsUsersTable } from './admin-approvals/components/AdminApprovalsUsersTable';
+import { AdminApprovalsViewControls } from './admin-approvals/components/AdminApprovalsViewControls';
+import type {
+  AccessProfile,
+  AdminUser,
+  UserDraft,
+  UserDraftEdits,
+  UserStatus,
+  ViewMode,
+} from './admin-approvals/components/types';
 
-type AdminUser = {
-  id: string;
-  email: string;
-  name?: string;
-  role?: string;
-  status?: string;
-  adminRequestStatus?: string;
-  createdAt?: string;
-  deniedAt?: string;
-  adminRequestedAt?: string;
+const toAccessProfile = (entry: AdminUser): AccessProfile => {
+  if (entry.isAdmin) return 'admin';
+  const roles = new Set(entry.roles ?? []);
+  const hasPractitioner = roles.has('practitioner');
+  const hasResearcher = roles.has('researcher');
+
+  if (hasPractitioner && hasResearcher) return 'practitioner_researcher';
+  if (hasResearcher) return 'researcher';
+  return 'practitioner';
 };
 
-type ViewMode = 'users' | 'requests' | 'denied';
-type UserRole = 'admin' | 'user';
-type UserStatus = 'approved' | 'pending' | 'denied';
-
-type EmptyStateProps = {
-  title: string;
-  description?: string;
-  icon?: ReactNode;
+const toProfilePayload = (profile: AccessProfile): { isAdmin: boolean; roles: NonAdminRole[] } => {
+  switch (profile) {
+    case 'admin':
+      return { isAdmin: true, roles: [] };
+    case 'researcher':
+      return { isAdmin: false, roles: ['researcher'] };
+    case 'practitioner_researcher':
+      return { isAdmin: false, roles: ['practitioner', 'researcher'] };
+    case 'practitioner':
+    default:
+      return { isAdmin: false, roles: ['practitioner'] };
+  }
 };
-
-function EmptyState({ title, description, icon }: EmptyStateProps) {
-  return (
-    <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-600">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 rounded-full bg-white p-1 text-slate-400 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]">
-          {icon}
-        </div>
-        <div>
-          <p className="font-medium text-slate-700">{title}</p>
-          {description ? <p className="mt-1 text-slate-500">{description}</p> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function AdminApprovalsPage() {
   const { user } = useAuth();
   const [approvedUsers, setApprovedUsers] = useState<AdminUser[]>([]);
   const [pendingUsers, setPendingUsers] = useState<AdminUser[]>([]);
   const [deniedUsers, setDeniedUsers] = useState<AdminUser[]>([]);
-  const [pendingAdminRequests, setPendingAdminRequests] = useState<AdminUser[]>([]);
+  const [pendingAccessRequests, setPendingAccessRequests] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('requests');
   const [search, setSearch] = useState('');
-  const [draftEdits, setDraftEdits] = useState<Record<string, { role: UserRole; status: UserStatus }>>({});
+  const [draftEdits, setDraftEdits] = useState<UserDraftEdits>({});
+  const permissionMessage = user && !isAdminUser(user) ? 'You do not have permission to view this page.' : null;
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [approved, pending, denied, adminRequests] = await Promise.all([
+      const [approved, pending, denied, accessRequests] = await Promise.all([
         defaultApi.listApprovedUsers(),
         defaultApi.listPendingUsers(),
         defaultApi.listDeniedUsers(),
-        defaultApi.listPendingAdminRequests(),
+        defaultApi.listPendingAccessRequests(),
       ]);
       setApprovedUsers((approved as { users?: AdminUser[] }).users ?? []);
-      setPendingUsers((pending as { users?: AdminUser[] }).users ?? []);
+      const nextPendingUsers = (pending as { users?: AdminUser[] }).users ?? [];
+      setPendingUsers(nextPendingUsers);
       setDeniedUsers((denied as { users?: AdminUser[] }).users ?? []);
-      setPendingAdminRequests((adminRequests as { users?: AdminUser[] }).users ?? []);
+      const nextPendingAccessRequests = (accessRequests as { users?: AdminUser[] }).users ?? [];
+      setPendingAccessRequests(nextPendingAccessRequests);
+      dispatchAdminApprovalsUpdatedEvent({
+        openRequestsCount: nextPendingUsers.length + nextPendingAccessRequests.length,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load admin data.');
     } finally {
@@ -83,30 +87,6 @@ export function AdminApprovalsPage() {
     void loadData();
   }, [loadData]);
 
-  useEffect(() => {
-    if (error) {
-      toast.error(error, { id: 'admin-approvals-error' });
-    } else {
-      toast.dismiss('admin-approvals-error');
-    }
-  }, [error]);
-
-  useEffect(() => {
-    if (message) {
-      toast.info(message, { id: 'admin-approvals-message' });
-    } else {
-      toast.dismiss('admin-approvals-message');
-    }
-  }, [message]);
-
-  useEffect(() => {
-    if (user && user.role !== 'admin') {
-      toast.error('You do not have permission to view this page.', { id: 'admin-approvals-permission' });
-    } else {
-      toast.dismiss('admin-approvals-permission');
-    }
-  }, [user]);
-
   const filterUsers = useCallback(
     (users: AdminUser[]) =>
       users.filter((entry) => {
@@ -114,35 +94,20 @@ export function AdminApprovalsPage() {
         const query = search.trim().toLowerCase();
         const email = entry.email ?? '';
         const name = entry.name ?? '';
-        return (
-          email.toLowerCase().includes(query) ||
-          name.toLowerCase().includes(query)
-        );
+        return email.toLowerCase().includes(query) || name.toLowerCase().includes(query);
       }),
     [search],
   );
 
-  const filteredApprovedUsers = useMemo(
-    () => filterUsers(approvedUsers),
-    [approvedUsers, filterUsers],
-  );
-  const filteredPendingUsers = useMemo(
-    () => filterUsers(pendingUsers),
-    [pendingUsers, filterUsers],
-  );
-  const filteredDeniedUsers = useMemo(
-    () => filterUsers(deniedUsers),
-    [deniedUsers, filterUsers],
-  );
-  const filteredAdminRequests = useMemo(
-    () => filterUsers(pendingAdminRequests),
-    [pendingAdminRequests, filterUsers],
-  );
+  const filteredApprovedUsers = useMemo(() => filterUsers(approvedUsers), [approvedUsers, filterUsers]);
+  const filteredPendingUsers = useMemo(() => filterUsers(pendingUsers), [pendingUsers, filterUsers]);
+  const filteredDeniedUsers = useMemo(() => filterUsers(deniedUsers), [deniedUsers, filterUsers]);
+  const filteredAccessRequests = useMemo(() => filterUsers(pendingAccessRequests), [pendingAccessRequests, filterUsers]);
 
-  const updateDraft = (entry: AdminUser, updates: Partial<{ role: UserRole; status: UserStatus }>) => {
+  const updateDraft = (entry: AdminUser, updates: Partial<UserDraft>) => {
     setDraftEdits((current) => {
       const existing = current[entry.id] ?? {
-        role: (entry.role ?? 'user') as UserRole,
+        accessProfile: toAccessProfile(entry),
         status: (entry.status ?? 'approved') as UserStatus,
       };
       return {
@@ -164,25 +129,13 @@ export function AdminApprovalsPage() {
   const handleDecision = async (userId: string, decision: 'approve' | 'deny') => {
     setActionUserId(userId);
     setError(null);
-    setMessage(null);
     try {
       if (decision === 'approve') {
         await defaultApi.approveUser(userId);
-        setMessage('User approved. An approval email has been sent.');
-        const approvedUser = pendingUsers.find((entry) => entry.id === userId);
-        setPendingUsers((current) => current.filter((entry) => entry.id !== userId));
-        if (approvedUser) {
-          setApprovedUsers((current) => [{ ...approvedUser, status: 'approved' }, ...current]);
-        }
       } else {
         await defaultApi.denyUser(userId);
-        setMessage('User denied.');
-        const deniedUser = pendingUsers.find((entry) => entry.id === userId);
-        setPendingUsers((current) => current.filter((entry) => entry.id !== userId));
-        if (deniedUser) {
-          setDeniedUsers((current) => [{ ...deniedUser, status: 'denied' }, ...current]);
-        }
       }
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update user status.');
     } finally {
@@ -193,15 +146,9 @@ export function AdminApprovalsPage() {
   const handleUnblock = async (userId: string) => {
     setActionUserId(userId);
     setError(null);
-    setMessage(null);
     try {
       await defaultApi.unblockUser(userId);
-      setMessage('User unblocked and returned to pending approvals.');
-      const unblockedUser = deniedUsers.find((entry) => entry.id === userId);
-      setDeniedUsers((current) => current.filter((entry) => entry.id !== userId));
-      if (unblockedUser) {
-        setPendingUsers((current) => [{ ...unblockedUser, status: 'pending' }, ...current]);
-      }
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to unblock user.');
     } finally {
@@ -209,67 +156,52 @@ export function AdminApprovalsPage() {
     }
   };
 
-  const handleAdminRequest = async (userId: string, decision: 'approve' | 'deny') => {
+  const handleAccessRequest = async (
+    userId: string,
+    requestType: AccessRequestType,
+    decision: 'approve' | 'deny',
+  ) => {
     setActionUserId(userId);
     setError(null);
-    setMessage(null);
     try {
-      if (decision === 'approve') {
-        await defaultApi.approveAdminRequest(userId);
-        setMessage('Admin request approved.');
-        const updatedUser = pendingAdminRequests.find((entry) => entry.id === userId);
-        setPendingAdminRequests((current) => current.filter((entry) => entry.id !== userId));
-        if (updatedUser) {
-          setApprovedUsers((current) => {
-            const exists = current.some((entry) => entry.id === userId);
-            if (!exists) {
-              return [{ ...updatedUser, role: 'admin', adminRequestStatus: 'approved' }, ...current];
-            }
-            return current.map((entry) =>
-              entry.id === userId ? { ...entry, role: 'admin', adminRequestStatus: 'approved' } : entry,
-            );
-          });
-        }
-      } else {
-        await defaultApi.denyAdminRequest(userId);
-        setMessage('Admin request denied.');
-        setPendingAdminRequests((current) => current.filter((entry) => entry.id !== userId));
-        setApprovedUsers((current) =>
-          current.map((entry) =>
-            entry.id === userId ? { ...entry, adminRequestStatus: 'denied' } : entry,
-          ),
-        );
-      }
+      await defaultApi.reviewAccessRequest(
+        userId,
+        requestType,
+        decision === 'approve' ? 'approved' : 'denied',
+      );
+      await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to update admin request.');
+      setError(err instanceof Error ? err.message : 'Unable to update access request.');
     } finally {
       setActionUserId(null);
     }
   };
 
   const handleUpdateUser = async (entry: AdminUser) => {
-    const currentRole = (entry.role ?? 'user') as UserRole;
+    const currentAccessProfile = toAccessProfile(entry);
     const currentStatus = (entry.status ?? 'approved') as UserStatus;
-    const draft = draftEdits[entry.id] ?? { role: currentRole, status: currentStatus };
-    const updates: Partial<{ role: UserRole; status: UserStatus }> = {};
+    const draft = draftEdits[entry.id] ?? { accessProfile: currentAccessProfile, status: currentStatus };
 
-    if (draft.role !== currentRole) {
-      updates.role = draft.role;
-    }
-    if (draft.status !== currentStatus) {
-      updates.status = draft.status;
-    }
-    if (Object.keys(updates).length === 0) {
+    const profilePayload = toProfilePayload(draft.accessProfile);
+    const currentProfilePayload = toProfilePayload(currentAccessProfile);
+    const rolesDirty =
+      profilePayload.isAdmin !== currentProfilePayload.isAdmin ||
+      profilePayload.roles.join('|') !== currentProfilePayload.roles.join('|');
+    const statusDirty = draft.status !== currentStatus;
+
+    if (!rolesDirty && !statusDirty) {
       clearDraft(entry.id);
       return;
     }
 
     setActionUserId(entry.id);
     setError(null);
-    setMessage(null);
     try {
-      await defaultApi.updateUser(entry.id, updates);
-      setMessage('User updated.');
+      await defaultApi.updateUser(entry.id, {
+        isAdmin: profilePayload.isAdmin,
+        roles: profilePayload.roles,
+        status: statusDirty ? draft.status : undefined,
+      });
       clearDraft(entry.id);
       await loadData();
     } catch (err) {
@@ -279,7 +211,7 @@ export function AdminApprovalsPage() {
     }
   };
 
-  if (user?.role !== 'admin') {
+  if (!isAdminUser(user)) {
     return (
       <>
         <PageHeader
@@ -287,7 +219,11 @@ export function AdminApprovalsPage() {
           title="User access"
           description="Admin access is required to manage access requests."
         />
-        <div className="mt-6" />
+        {permissionMessage ? (
+          <div className="surface-card mt-6 p-4 text-sm text-destructive">{permissionMessage}</div>
+        ) : (
+          <div className="mt-6" />
+        )}
       </>
     );
   }
@@ -300,274 +236,57 @@ export function AdminApprovalsPage() {
         description="Manage users, access requests, and denied accounts."
       />
 
-      <section className="mt-6 bg-white border border-slate-200 shadow-[0_12px_30px_rgba(15,23,42,0.06)] rounded-2xl p-4 md:p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
-          <div>
-            <h2 className="m-0 text-[22px] font-semibold">Admin console</h2>
-            <p className="m-0 text-slate-500">
-              {loading ? 'Loading data…' : `${approvedUsers.length} users`}
-            </p>
+      <section className="surface-card mt-6 p-4 md:p-5">
+        {error ? (
+          <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant={view === 'users' ? 'default' : 'outline'} onClick={() => setView('users')}>
-              Current users
-            </Button>
-            <Button size="sm" variant={view === 'requests' ? 'default' : 'outline'} onClick={() => setView('requests')}>
-              Requests
-            </Button>
-            <Button size="sm" variant={view === 'denied' ? 'default' : 'outline'} onClick={() => setView('denied')}>
-              Denied users
-            </Button>
-          </div>
-        </div>
+        ) : null}
 
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <input
-            type="search"
-            placeholder="Search by email or name"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-full md:max-w-xs rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-          />
-        </div>
+        <AdminApprovalsViewControls
+          loading={loading}
+          approvedUsersCount={approvedUsers.length}
+          view={view}
+          onViewChange={setView}
+          search={search}
+          onSearchChange={setSearch}
+        />
 
         <div className="mt-4" />
 
         {loading ? (
-          <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 font-semibold text-slate-900">
-            Loading data…
-          </div>
+          <div className="surface-subtle mt-4 px-3 py-3 font-semibold text-foreground">Loading data…</div>
         ) : view === 'users' ? (
-          <div className="mt-4 overflow-auto">
-            {filteredApprovedUsers.length === 0 ? (
-              <EmptyState
-                title="No users match this search."
-                description="Try a different name or email to see results."
-                icon={<Inbox className="h-4 w-4" />}
-              />
-            ) : (
-              <table className="w-full border-collapse text-[15px]">
-                <thead className="bg-slate-50 text-left text-slate-600 font-bold">
-                  <tr className="border-b border-slate-200">
-                    <th className="px-3 py-3">Email</th>
-                    <th className="px-3 py-3">Role</th>
-                    <th className="px-3 py-3">Access</th>
-                    <th className="px-3 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredApprovedUsers.map((entry) => {
-                    const isSelf = user?.id === entry.id;
-                    const currentRole = (entry.role ?? 'user') as UserRole;
-                    const currentStatus = (entry.status ?? 'approved') as UserStatus;
-                    const draft = draftEdits[entry.id] ?? { role: currentRole, status: currentStatus };
-                    const isDirty = draft.role !== currentRole || draft.status !== currentStatus;
-                    const isBusy = actionUserId === entry.id;
-
-                    return (
-                      <tr key={entry.id} className="border-b last:border-b-0 border-slate-200">
-                        <td className="px-3 py-3 font-medium text-slate-900">{entry.email}</td>
-                        <td className="px-3 py-3">
-                          <select
-                            value={draft.role}
-                            onChange={(event) => updateDraft(entry, { role: event.target.value as UserRole })}
-                            disabled={isSelf || isBusy}
-                            className="w-full min-w-[120px] rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 focus:border-slate-400 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                          >
-                            <option value="admin">Admin</option>
-                            <option value="user">User</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-3">
-                          <select
-                            value={draft.status}
-                            onChange={(event) => updateDraft(entry, { status: event.target.value as UserStatus })}
-                            disabled={isSelf || isBusy}
-                            className="w-full min-w-[140px] rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 focus:border-slate-400 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                          >
-                            <option value="approved">Approved</option>
-                            <option value="pending">Pending</option>
-                            <option value="denied">Denied</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-3 text-right space-x-2">
-                          {isSelf ? (
-                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Signed in</span>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant={isDirty ? 'default' : 'outline'}
-                              disabled={!isDirty || isBusy}
-                              onClick={() => handleUpdateUser(entry)}
-                            >
-                              Update
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
+          <AdminApprovalsUsersTable
+            users={filteredApprovedUsers}
+            currentUserId={user?.id}
+            actionUserId={actionUserId}
+            draftEdits={draftEdits}
+            onDraftUpdate={updateDraft}
+            onUpdate={(entry) => {
+              void handleUpdateUser(entry);
+            }}
+          />
         ) : view === 'requests' ? (
-          <div className="mt-4 space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Pending access approvals</h3>
-              {filteredPendingUsers.length === 0 ? (
-                <EmptyState
-                  title="No pending access requests."
-                  description="New access requests will appear here as they come in."
-                  icon={<Inbox className="h-4 w-4" />}
-                />
-              ) : (
-                <div className="mt-3 overflow-auto">
-                  <table className="w-full border-collapse text-[15px]">
-                    <thead className="bg-slate-50 text-left text-slate-600 font-bold">
-                      <tr className="border-b border-slate-200">
-                        <th className="px-3 py-3">Email</th>
-                        <th className="px-3 py-3">Requested</th>
-                        <th className="px-3 py-3 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredPendingUsers.map((pendingUser) => {
-                        const createdAt = pendingUser.createdAt
-                          ? new Date(pendingUser.createdAt).toLocaleDateString()
-                          : '—';
-                        const isBusy = actionUserId === pendingUser.id;
-
-                        return (
-                          <tr key={pendingUser.id} className="border-b last:border-b-0 border-slate-200">
-                            <td className="px-3 py-3 font-medium text-slate-900">{pendingUser.email}</td>
-                            <td className="px-3 py-3 text-slate-600">{createdAt}</td>
-                            <td className="px-3 py-3 text-right space-x-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleDecision(pendingUser.id, 'approve')}
-                                disabled={isBusy}
-                              >
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleDecision(pendingUser.id, 'deny')}
-                                disabled={isBusy}
-                              >
-                                Deny
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Pending admin requests</h3>
-              {filteredAdminRequests.length === 0 ? (
-                <EmptyState
-                  title="No pending admin requests."
-                  description="Admin requests will surface here for review."
-                  icon={<Inbox className="h-4 w-4" />}
-                />
-              ) : (
-                <div className="mt-3 overflow-auto">
-                  <table className="w-full border-collapse text-[15px]">
-                    <thead className="bg-slate-50 text-left text-slate-600 font-bold">
-                      <tr className="border-b border-slate-200">
-                        <th className="px-3 py-3">Email</th>
-                        <th className="px-3 py-3">Requested</th>
-                        <th className="px-3 py-3 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAdminRequests.map((pendingUser) => {
-                        const requestedAt = pendingUser.adminRequestedAt
-                          ? new Date(pendingUser.adminRequestedAt).toLocaleDateString()
-                          : '—';
-                        const isBusy = actionUserId === pendingUser.id;
-
-                        return (
-                          <tr key={pendingUser.id} className="border-b last:border-b-0 border-slate-200">
-                            <td className="px-3 py-3 font-medium text-slate-900">{pendingUser.email}</td>
-                            <td className="px-3 py-3 text-slate-600">{requestedAt}</td>
-                            <td className="px-3 py-3 text-right space-x-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleAdminRequest(pendingUser.id, 'approve')}
-                                disabled={isBusy}
-                              >
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleAdminRequest(pendingUser.id, 'deny')}
-                                disabled={isBusy}
-                              >
-                                Deny
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
+          <AdminApprovalsRequestsView
+            pendingUsers={filteredPendingUsers}
+            pendingAccessRequests={filteredAccessRequests}
+            actionUserId={actionUserId}
+            onDecision={(userId, decision) => {
+              void handleDecision(userId, decision);
+            }}
+            onAccessRequest={(userId, requestType, decision) => {
+              void handleAccessRequest(userId, requestType, decision);
+            }}
+          />
         ) : (
-          <div className="mt-4 overflow-auto">
-            {filteredDeniedUsers.length === 0 ? (
-              <EmptyState
-                title="No denied users."
-                description="Denied accounts will be listed here."
-                icon={<Inbox className="h-4 w-4" />}
-              />
-            ) : (
-              <table className="w-full border-collapse text-[15px]">
-                <thead className="bg-slate-50 text-left text-slate-600 font-bold">
-                  <tr className="border-b border-slate-200">
-                    <th className="px-3 py-3">Email</th>
-                    <th className="px-3 py-3">Denied</th>
-                    <th className="px-3 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDeniedUsers.map((entry) => {
-                    const deniedAt = entry.deniedAt
-                      ? new Date(entry.deniedAt).toLocaleDateString()
-                      : '—';
-                    const isBusy = actionUserId === entry.id;
-
-                    return (
-                      <tr key={entry.id} className="border-b last:border-b-0 border-slate-200">
-                        <td className="px-3 py-3 font-medium text-slate-900">{entry.email}</td>
-                        <td className="px-3 py-3 text-slate-600">{deniedAt}</td>
-                        <td className="px-3 py-3 text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleUnblock(entry.id)}
-                            disabled={isBusy}
-                          >
-                            Unblock
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
+          <AdminApprovalsDeniedTable
+            users={filteredDeniedUsers}
+            actionUserId={actionUserId}
+            onUnblock={(userId) => {
+              void handleUnblock(userId);
+            }}
+          />
         )}
       </section>
     </>
