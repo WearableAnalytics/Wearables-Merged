@@ -1,6 +1,7 @@
 replicaCount: 1
 
 image:
+  # TODO: Move this image to the team/org repository later.
   repository: gmsdaniil/wearables-bff
   pullPolicy: Always
   tag: "latest"
@@ -18,13 +19,17 @@ env:
   API_PREFIX: "/api"
   USE_MOCK_DATA: "true"
   NODE_ENV: "development"
-  FRONTEND_URL: "http://localhost:8080,http://localhost:8081"
+  FRONTEND_ORIGINS: "http://localhost:8080,http://localhost:8081"
+  FRONTEND_REDIRECT_URL: "http://localhost:8080"
   ADMIN_EMAILS: "test@test.de"
-  BACKEND_URL: ""
+  BACKEND_URL: "http://wearables-bff.wearables-bff.svc.cluster.local:3001"
+  AUTH_SESSION_EXPIRY_SECONDS: "604800"
+  MAGIC_LINK_EXPIRY_SECONDS: "900"
+  CASE_TOKEN_EXPIRY_SECONDS: "691200"
+  TOKEN_ISSUER: "wearables-bff"
   DATABASE_API_URL: "http://db-lord.db-lord.svc.cluster.local:8080"
   DATABASE_API_TIMEOUT: "30000"
   LOG_LEVEL: "info"
-  MAILER_ENABLED: "false"
   MAILER_FROM_NAME: "Wearables Platform"
   MAILER_FROM_EMAIL: "email@example.com"
   COOKIE_SECURE: ""
@@ -36,4 +41,4 @@ secret:
   data:
     JWT_SECRET: "change-me"
     BREVO_API_KEY: ""
-    RESEARCHER_API_ACCESS_TOKEN: ""
+    RESEARCHER_API_ACCESS_TOKEN: "change-me"

@@ -3,7 +3,7 @@ import config from '../config.js';
 export interface Patient {
   id: string;
   charite_id?: string; // db_lord field
-  hospital_id?: string; // legacy alias
+  hospital_id?: string; // optional alias used by some db_lord deployments
   name: string;
   sex?: string;
   dob?: string; // ISO date string from db_lord

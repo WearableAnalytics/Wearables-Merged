@@ -174,7 +174,7 @@ app.use((_req, res) => {
 });
 
 app.listen(config.port, () => {
-  logger.info(`Registration service listening on http://localhost:${config.port}${config.apiPrefix}`);
+  logger.info(`Wearables BFF listening on http://localhost:${config.port}${config.apiPrefix}`);
   logger.info(`Using ${config.useMockData ? 'MOCK' : 'REAL'} data`);
   if (!config.useMockData) {
     logger.debug(`Database API URL: ${config.databaseApi.baseUrl}`);

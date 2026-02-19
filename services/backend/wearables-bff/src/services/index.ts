@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { databaseApiClient } from '../clients/databaseApi.js';
 import * as mockData from '../mockData.js';
-import type { Patient } from '../api/openapi-client/models/index.js';
+import type { CaseStatusEnum, Patient } from '../api/openapi-client/models/index.js';
 import { tokenService } from './tokenService.js';
 import { logger } from '../logger.js';
 
@@ -11,7 +11,7 @@ export interface CaseCreationResult {
     caseId: string;
     patientId: string;
     hospitalCaseId?: string;
-    status: string;
+    status: CaseStatusEnum;
     caseToken?: string | null;
   };
   patient: Patient | null;
@@ -22,6 +22,51 @@ export interface CaseCreationResult {
     birthDate: Date;
   };
 }
+
+const activeCaseStatuses = new Set([
+  'active',
+  'ongoing',
+  'planned',
+  'in_progress',
+  'in-progress',
+  'open',
+  'pending',
+]);
+
+const inactiveCaseStatuses = new Set([
+  'inactive',
+  'closed',
+  'completed',
+  'done',
+  'cancelled',
+  'canceled',
+  'archived',
+  'resolved',
+]);
+
+const normalizeCaseStatus = (status?: string): CaseStatusEnum => {
+  const normalizedStatus = (status ?? '').trim().toLowerCase();
+
+  if (activeCaseStatuses.has(normalizedStatus)) {
+    return 'active';
+  }
+
+  if (inactiveCaseStatuses.has(normalizedStatus)) {
+    return 'inactive';
+  }
+
+  if (normalizedStatus.includes('active')) {
+    return normalizedStatus.startsWith('in') ? 'inactive' : 'active';
+  }
+
+  logger.warn('Unknown case status from database, defaulting to inactive', {
+    status,
+  });
+  return 'inactive';
+};
+
+const isActiveCaseStatus = (status?: string): boolean =>
+  normalizeCaseStatus(status) === 'active';
 
 class PatientService {
   async listPatients(): Promise<Patient[]> {
@@ -72,7 +117,7 @@ class PatientService {
       return cases.map(c => ({
         caseId: c.id,
         patientId: c.patient_id,
-        status: c.status,
+        status: normalizeCaseStatus(c.status),
         caseToken: null,
       }));
     } catch (error) {
@@ -93,8 +138,8 @@ class CaseService {
       return cases.map(c => ({
         caseId: c.id,
         patientId: c.patient_id,
-        status: c.status,
-        caseToken: null, // Cases list doesn't include tokens
+        status: normalizeCaseStatus(c.status),
+        caseToken: null,
       }));
     } catch (error) {
       logger.error('Error fetching cases from API', error as Error);
@@ -116,7 +161,7 @@ class CaseService {
       return {
         caseId: caseData.id,
         patientId: caseData.patient_id,
-        status: caseData.status,
+        status: normalizeCaseStatus(caseData.status),
         caseToken,
       };
     } catch (error) {
@@ -144,7 +189,6 @@ class CaseService {
       let patient: Patient;
       
       if (searchResult.length > 0) {
-        // Patient found - use the first match
         const dbPatient = searchResult[0];
         patient = {
           patientId: dbPatient.id,
@@ -153,12 +197,11 @@ class CaseService {
           birthDate: dbPatient.dob ? new Date(dbPatient.dob) : new Date(),
         };
       } else {
-        // 3. Create patient if not found
         const newPatient = await databaseApiClient.createPatient({
             charite_id: hospitalCase.uuid,
           name: `${hospitalCase.firstName} ${hospitalCase.lastName}`,
           sex: 'other',
-          dob: hospitalCase.birthDate.toISOString().split('T')[0], // Convert to ISO date string
+          dob: hospitalCase.birthDate.toISOString().split('T')[0],
         });
         patient = {
           patientId: newPatient.id,
@@ -168,14 +211,10 @@ class CaseService {
         };
       }
 
-      // 4. Check if case already exists with this hospitalCaseId
       const patientCases = await databaseApiClient.getPatientCases(patient.patientId);
-      const existingCase = patientCases.find((c) => {
-        return c.status === 'ONGOING';
-      });
+      const existingCase = patientCases.find((c) => isActiveCaseStatus(c.status));
 
       if (existingCase) {
-        // Generate a new token for the existing case
         const caseToken = tokenService.generateCaseToken(
           existingCase.id,
           existingCase.patient_id
@@ -187,7 +226,7 @@ class CaseService {
             caseId: existingCase.id,
             patientId: existingCase.patient_id,
             hospitalCaseId,
-            status: existingCase.status,
+            status: normalizeCaseStatus(existingCase.status),
             caseToken,
           },
           patient,
@@ -195,7 +234,6 @@ class CaseService {
         };
       }
 
-      // 5. Create new case
       const newCase = await databaseApiClient.createCase({
         status: 'PLANNED',
         patient_id: patient.patientId,
@@ -204,7 +242,6 @@ class CaseService {
         contexts: [],
       });
 
-      // Generate secure case token
       const caseToken = tokenService.generateCaseToken(
         newCase.id,
         newCase.patient_id
@@ -216,7 +253,7 @@ class CaseService {
           caseId: newCase.id,
           patientId: newCase.patient_id,
           hospitalCaseId,
-          status: newCase.status,
+          status: normalizeCaseStatus(newCase.status),
           caseToken,
         },
         patient,
@@ -234,25 +271,21 @@ class CaseService {
     }
 
     try {
-      // Verify and decode the token
       const tokenPayload = tokenService.verifyCaseToken(caseToken);
       if (!tokenPayload) {
         return undefined;
       }
       
-      // Fetch the case using the caseId from token
       const caseRecord = await databaseApiClient.getCase(tokenPayload.caseId);
       if (!caseRecord) {
         return undefined;
       }
 
-      // Fetch the patient
       const dbPatient = await databaseApiClient.getPatient(caseRecord.patient_id);
       if (!dbPatient) {
         return undefined;
       }
 
-      // Build patient verifier using same logic as mock
       const patientVerifier = mockData.buildPatientVerifier({
         patientId: dbPatient.id,
         firstName: dbPatient.name.split(' ')[0] || '',
@@ -264,7 +297,7 @@ class CaseService {
         caseRecord: {
           caseId: caseRecord.id,
           patientId: caseRecord.patient_id,
-          status: caseRecord.status,
+          status: normalizeCaseStatus(caseRecord.status),
           caseToken,
         },
         patientVerifier,
@@ -278,7 +311,6 @@ class CaseService {
 
 class HospitalCaseService {
   async findHospitalCase(hospitalCaseId: string) {
-    // Using mock data for both modes until a Hospital API is available
     return mockData.findHospitalCase(hospitalCaseId);
   }
 }

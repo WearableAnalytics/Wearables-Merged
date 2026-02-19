@@ -27,7 +27,7 @@ Environment variables:
   GRAFANA_SECRET_NAME                 (default: grafana-auth-secrets)
   GRAFANA_JWT_PRIVATE_KEY_PATH        (default: ./secrets/grafana-jwt-private.pem)
   BREVO_API_KEY                       (optional)
-  RESEARCHER_API_ACCESS_TOKEN         (optional)
+  RESEARCHER_API_ACCESS_TOKEN         (required)
   SHARED_APP_JWT_SECRET               (optional; overrides auto-discovery/generation)
   ROTATE_SHARED_APP_JWT_SECRET        (default: false; set true to force new random value)
 
@@ -58,6 +58,12 @@ fi
 
 if [[ ! -f "${GRAFANA_JWT_PRIVATE_KEY_PATH}" ]]; then
   echo "Error: Grafana private key file not found: ${GRAFANA_JWT_PRIVATE_KEY_PATH}" >&2
+  exit 1
+fi
+
+if [[ -z "${RESEARCHER_API_ACCESS_TOKEN}" ]]; then
+  echo "Error: RESEARCHER_API_ACCESS_TOKEN is required." >&2
+  echo "Set it in the environment before running this script." >&2
   exit 1
 fi
 
