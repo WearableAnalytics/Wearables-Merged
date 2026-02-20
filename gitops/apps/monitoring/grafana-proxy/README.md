@@ -30,6 +30,7 @@ Recommended bootstrap:
 - `APP_JWT_SECRET` must match BFF `JWT_SECRET`.
 - `session.jwtIssuer` must match BFF `TOKEN_ISSUER`.
 - `grafana.allowedDashboardIds` must include all dashboard UIDs used by the frontend.
+- Current default includes `AI_PLACEHOLDER_TODO` for the upcoming AI Insights dashboard UID.
 
 ## Important Notes
 

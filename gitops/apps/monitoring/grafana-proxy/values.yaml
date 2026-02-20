@@ -42,6 +42,7 @@ grafana:
   jwtIatSkewSeconds: "120"
 
   # Dashboard configuration for the /embed endpoint
-  allowedDashboardIds: "wearables-health-real,wearables-six-min"
+  # AI_PLACEHOLDER_TODO: replace with the final AI Insights dashboard UID when available.
+  allowedDashboardIds: "wearables-health-real,wearables-six-min,AI_PLACEHOLDER_TODO"
   dashboardDatasource: "dfa4opgnfgg00e"
   orgId: "1"
