@@ -8,7 +8,7 @@ data:
 
     [agent]
       interval = "100ms"
-      metric_batch_size = 5000
+      metric_batch_size = 50
       metric_buffer_limit = 500000
       flush_interval = "1s"
       flush_jitter = "0s"
@@ -32,10 +32,10 @@ data:
       organization = "{{ .Values.config.influxProducer.org }}"
       bucket = "{{ .Values.config.influxProducer.bucket }}"
 
-    [[processors.starlark]]
-      source = '''
-    load("time.star", "time")
-    def apply(metric):
-        metric.fields["t_ingested"] = time.now().unix_nano
-        return metric
-      '''
+    #[[processors.starlark]]
+    #  source = '''
+    #load("time.star", "time")
+    #def apply(metric):
+    # metric.fields["t_ingested"] = time.now().unix_nano
+    # return metric
+    # '''
