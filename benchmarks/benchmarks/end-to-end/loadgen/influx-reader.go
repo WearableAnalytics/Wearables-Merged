@@ -41,7 +41,7 @@ func (obs *InfluxObserver) ObserveBenchmark(ctx context.Context) {
 
 	query := fmt.Sprintf(`
 from(bucket: "%s")
-  |> range(start: "-2m")
+  |> range(start: -2m)
   |> filter(fn: (r) => r._measurement == "heart-rate")`,
 		obs.Config.Bucket,
 		//obs.Config.T0.Format(time.RFC3339Nano),
@@ -51,17 +51,18 @@ from(bucket: "%s")
 
 	res, err := queryApi.Query(ctx, query)
 	if err != nil {
-		log.Fatalf("error occurred when executing query: %v", err)
+		log.Printf("error occurred when executing query: %v", err)
+		return
 	}
 
 	for res.Next() {
 		rec := res.Record()
 
-		tIngestedNs := rec.ValueByKey("t_ingested").(int64)
-		tIngestedTime := time.Unix(0, tIngestedNs)
+		//tIngestedNs := rec.ValueByKey("t_ingested").(int64)
+		//tIngestedTime := time.Unix(0, tIngestedNs)
 
 		value := rec.ValueByKey("value").(float64)
 
-		log.Printf("%v, %v, %v", rec.Values(), tIngestedTime, value)
+		log.Printf("%v, %v", rec.Values(), value)
 	}
 }
