@@ -13,7 +13,7 @@ data:
       flush_interval = "1s"
       flush_jitter = "0s"
       buffer_strategy = "memory"
-      debug = false
+      debug = true
       quiet = false
       omit_hostname = false
 
