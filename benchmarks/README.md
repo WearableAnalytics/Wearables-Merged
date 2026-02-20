@@ -122,18 +122,18 @@ docker buildx build \
 
 ## Runner Configuration
 
-| Field | Description |
-|---|---|
-| `ssh.user` | SSH username for the jump host |
-| `ssh.host` | Hostname or IP of the jump host |
-| `ssh.keyPath` | Path to the SSH private key (`~` is expanded) |
-| `job.name` | Must match `metadata.name` in the Job YAML |
-| `job.namespace` | Kubernetes namespace to deploy the Job into |
-| `paths.localConfig` | Local path to the Job YAML |
-| `paths.remoteConfig` | Remote path where the YAML will be uploaded |
-| `paths.localOutput` | Local file for `stdout` output (or `"stdout"`) |
-| `paths.localLogs` | Local file for `stderr` logs (or `"stderr"`) |
-| `timeout` | Maximum wait time for Job completion (e.g., `"5m"`) |
+| Field                | Description                                         |
+|----------------------|-----------------------------------------------------|
+| `ssh.user`           | SSH username for the jump host                      |
+| `ssh.host`           | Hostname or IP of the jump host                     |
+| `ssh.keyPath`        | Path to the SSH private key (`~` is expanded)       |
+| `job.name`           | Must match `metadata.name` in the Job YAML          |
+| `job.namespace`      | Kubernetes namespace to deploy the Job into         |
+| `paths.localConfig`  | Local path to the Job YAML                          |
+| `paths.remoteConfig` | Remote path where the YAML will be uploaded         |
+| `paths.localOutput`  | Local file for `stdout` output (or `"stdout"`)      |
+| `paths.localLogs`    | Local file for `stderr` logs (or `"stderr"`)        |
+| `timeout`            | Maximum wait time for Job completion (e.g., `"5m"`) |
 
 ---
 

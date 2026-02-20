@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"log"
 	"time"
 
@@ -15,8 +16,9 @@ type InfluxObserver struct {
 }
 
 type Record struct {
-	tProduced time.Time
-	tObserved time.Time
+	tProduced    time.Time
+	tObserved    time.Time
+	LineProtocol string
 }
 
 type InfluxObserverConfig struct {
@@ -44,16 +46,20 @@ func (obs *InfluxObserver) ObserveAndLog(ctx context.Context) {
 	defer ticker.Stop()
 
 	lastObserved := obs.Config.T0
-	observeMap := make(map[string]Record)
+	observeMap := make(map[uint64]Record)
+
+	hash := fnv.New64a()
 
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("hash,t_produced,t_observed,line-protocol")
 			for msgID, rec := range observeMap {
-				log.Printf("%s,%d,%d",
+				log.Printf("%d,%d,%d,%s",
 					msgID,
 					rec.tProduced.UnixMilli(),
 					rec.tObserved.UnixMilli(),
+					rec.LineProtocol,
 				)
 			}
 			return
@@ -67,6 +73,8 @@ from(bucket: "%s")
 				lastObserved.Format(time.RFC3339Nano),
 			)
 
+			hash.Reset()
+
 			res, err := queryAPI.Query(ctx, query)
 			if err != nil {
 				continue
@@ -79,14 +87,17 @@ from(bucket: "%s")
 				rec := res.Record()
 				tProduced := rec.Time()
 
-				messageId := fmt.Sprintf("%s-%.0f",
-					rec.ValueByKey("device-id-reference"),
-					rec.Value(),
-				)
+				_, err := hash.Write([]byte(rec.String()))
+				if err != nil {
+					continue
+				}
 
-				observeMap[messageId] = Record{
-					tProduced: tProduced,
-					tObserved: tObserved,
+				key := hash.Sum64()
+
+				observeMap[key] = Record{
+					tProduced:    tProduced,
+					tObserved:    tObserved,
+					LineProtocol: rec.String(),
 				}
 
 				if tProduced.After(maxTime) {
