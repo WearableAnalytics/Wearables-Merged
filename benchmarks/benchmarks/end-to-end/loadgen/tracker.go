@@ -59,3 +59,26 @@ func (t *Tracker) AddIngestTime(id int64, tIngested time.Time) bool {
 	log.Printf("[observer] record with id: %d does not exist", id)
 	return false
 }
+
+func (t *Tracker) PrintAsCsv() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	log.Println("message-id,t_produced,t_response,t_ingested,error")
+	for id, rec := range t.Records {
+
+		var tIn int64 = 0
+
+		if !rec.tIngested.IsZero() {
+			tIn = rec.tIngested.UnixMilli()
+		}
+
+		log.Printf("%d,%d,%d,%d,%s",
+			id,
+			rec.tProduced.UnixMilli(),
+			rec.tResponse.UnixMilli(),
+			tIn,
+			rec.Error,
+		)
+	}
+}

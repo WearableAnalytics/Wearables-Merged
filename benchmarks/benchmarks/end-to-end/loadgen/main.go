@@ -115,7 +115,7 @@ func main() {
 	}
 	ew.Run()
 
-	time.Sleep(30 * time.Second)
+	time.Sleep(60 * time.Second)
 	obs.ObserveBenchmark(ctx)
 }
 

@@ -58,12 +58,9 @@ func (c Client) CallEndpoint(ctx context.Context, req Payload) Result {
 		log.Fatalf("error sending req (%v): %s", request, resp.Status)
 	}
 
-	r := Result{
+	return Result{
 		req.Measurements.Instantaneous,
 		time.Now(),
 		"",
 	}
-
-	log.Printf("res: %v", r)
-	return r
 }
