@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { StatusCallout, type StatusTone } from '@/components/custom/StatusCallout';
 import { useAuth } from '@/context/AuthContext';
 import { canAccessPractitionerPages, canAccessResearcherPages, isAdminUser } from '@/lib/userAccess';
 
@@ -32,13 +33,17 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
   }
 
   if (user.status && user.status !== 'approved') {
+    let tone: StatusTone = 'warning';
     const message =
       user.status === 'pending'
         ? 'Your account is awaiting admin approval.'
         : 'Unable to access the application. Please contact support.';
+    if (user.status !== 'pending') {
+      tone = 'error';
+    }
     return (
-      <div className="flex min-h-[50vh] items-center justify-center text-destructive">
-        {message}
+      <div className="flex min-h-[50vh] w-full items-center justify-center px-4">
+        <StatusCallout tone={tone} message={message} className="w-full max-w-2xl" />
       </div>
     );
   }
