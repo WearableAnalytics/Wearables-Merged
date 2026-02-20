@@ -21,7 +21,7 @@ env:
   NODE_ENV: "development"
   FRONTEND_ORIGINS: "http://localhost:8080,http://localhost:8081"
   FRONTEND_REDIRECT_URL: "http://localhost:8080"
-  ADMIN_EMAILS: "test@test.de"
+  ADMIN_EMAILS: "j.moehler@posteo.de"
   BACKEND_URL: "http://wearables-bff.wearables-bff.svc.cluster.local:3001"
   AUTH_SESSION_EXPIRY_SECONDS: "604800"
   MAGIC_LINK_EXPIRY_SECONDS: "900"
