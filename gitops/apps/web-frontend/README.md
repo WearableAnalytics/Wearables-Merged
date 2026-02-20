@@ -14,7 +14,7 @@ This README documents chart behavior only.
 ## Chart Selection
 
 - Use this chart as the default frontend GitOps chart when deploying ingress.
-- Compared with `gitops/apps/web`, this chart has one IngressRoute template and avoids duplicate resource naming.
+- This chart has a single IngressRoute template and avoids duplicate resource naming.
 
 ## Runtime Config Injection
 

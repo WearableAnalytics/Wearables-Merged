@@ -8,7 +8,7 @@ If you only deploy one component, start with that chart README:
 - Frontend source/runtime behavior: `services/web/readme.md`
 - `gitops/apps/services/wearables-bff/README.md`
 - `gitops/apps/monitoring/grafana-proxy/README.md`
-- `gitops/apps/web-frontend/README.md` (preferred) or `gitops/apps/web/README.md`
+- `gitops/apps/web-frontend/README.md`
 
 ## Do I still need `.env` files?
 
@@ -35,7 +35,7 @@ For local development without Kubernetes: yes.
 - BFF/Grafana shared JWT and API keys: `./scripts/bootstrap-runtime-secrets.sh`
 - Grafana proxy runtime settings: `gitops/apps/monitoring/grafana-proxy/values.yaml`
 - Grafana proxy public path: keep `gitops/apps/monitoring/grafana-proxy/values.yaml` `proxy.prefix` aligned with frontend `runtimeConfig.grafanaProxyUrl` and your external route
-- Frontend API/proxy URLs: `gitops/apps/web/values.yaml` or `gitops/apps/web-frontend/values.yaml` (`runtimeConfig.*`)
+- Frontend API/proxy URLs: `gitops/apps/web-frontend/values.yaml` (`runtimeConfig.*`)
 
 ## 1. Bootstrap runtime secrets
 
@@ -86,22 +86,7 @@ Notes:
 
 ## 4. Deploy frontend
 
-Choose one frontend chart (`web` or `web-frontend`).
-
-Chart differences:
-
-- `gitops/apps/web-frontend`: single IngressRoute template; `ingress.enabled=true` by default.
-- `gitops/apps/web`: `ingress.enabled=false` by default; when enabled, two templates render the same IngressRoute name (`<release>-https`).
-
-`web`:
-
-```bash
-helm upgrade --install wearables-web ./gitops/apps/web \
-  -n web --create-namespace \
-  -f ./gitops/apps/web/values.yaml
-```
-
-`web-frontend`:
+Use the `web-frontend` chart:
 
 ```bash
 helm upgrade --install web-frontend ./gitops/apps/web-frontend \
@@ -109,7 +94,7 @@ helm upgrade --install web-frontend ./gitops/apps/web-frontend \
   -f ./gitops/apps/web-frontend/values.yaml
 ```
 
-Both charts mount `runtime-config.js` from a ConfigMap at runtime.
+This chart mounts `runtime-config.js` from a ConfigMap at runtime.
 
 Important API routing note:
 
