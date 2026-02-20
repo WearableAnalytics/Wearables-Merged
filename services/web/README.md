@@ -20,14 +20,20 @@ Runtime values are resolved in this order (`src/config/runtimeConfig.ts`):
 
 1. `window.__APP_CONFIG__` from `/runtime-config.js`
 2. `VITE_*` values from Vite env files
-3. Internal defaults
 
 `index.html` loads `/runtime-config.js` before the app bundle, so `window.__APP_CONFIG__` is available at startup.
+
+Required runtime keys:
+
+- `API_BASE_URL`
+- `GRAFANA_PROXY_URL`
+
+If required values are missing, the app throws a startup error.
 
 For variable descriptions and examples, use:
 
 - `services/web/.env.example`
-- `services/web/public/runtime-config.js`
+- `gitops/apps/web-frontend/values.yaml`
 
 ## Local Development
 

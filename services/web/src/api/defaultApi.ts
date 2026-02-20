@@ -4,7 +4,7 @@ import { dispatchSessionExpiredEvent } from '@/lib/authSession';
 import { appRuntimeConfig } from '@/config/runtimeConfig';
 
 const normalizeApiBasePath = (rawBasePath: string) => {
-  const trimmed = rawBasePath.replace(/\/$/, '') || '/api';
+  const trimmed = rawBasePath.replace(/\/$/, '') || '/';
 
   if (!import.meta.env.DEV) {
     return trimmed;
@@ -14,7 +14,7 @@ const normalizeApiBasePath = (rawBasePath: string) => {
     const url = new URL(trimmed);
     const isLocalHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
     if (isLocalHost) {
-      return url.pathname.replace(/\/$/, '') || '/api';
+      return url.pathname.replace(/\/$/, '') || '/';
     }
   } catch {
     return trimmed;
