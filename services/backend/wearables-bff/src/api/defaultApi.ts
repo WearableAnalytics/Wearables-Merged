@@ -1,11 +1,8 @@
 import { CasesApi, HospitalCasesApi, Configuration, PatientsApi } from './openapi-client';
+import config from '../config.js';
 
 const sharedConfig = new Configuration({
-  basePath:
-    process.env.API_BASE_URL ??
-    process.env.VITE_API_BASE_URL ??
-    process.env.API_PREFIX ??
-    '/api',
+  basePath: config.apiPrefix,
   credentials: 'include',
 });
 

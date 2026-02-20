@@ -1,12 +1,13 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { createJwtProxy } from './jwtProxy.js';
+import { createJwtProxy, getSessionUserFromCookie } from './jwtProxy.js';
 import { config } from './config.js';
 
 const app = express();
 const port = config.port;
 const DEFAULT_FROM = 'now-24h';
 const DEFAULT_TO = 'now';
+const MAX_DEVICE_ID_LENGTH = 1024;
 
 const toPath = (prefix: string, suffix: string): string => `${prefix}${suffix}` || '/';
 const acceptsHtml = (value: string | string[] | undefined): boolean => {
@@ -27,12 +28,6 @@ const queryValue = (value: unknown): string | null => {
   return null;
 };
 
-const toGrafanaPanelValue = (value: unknown): string | null => {
-  const candidate = queryValue(value);
-  if (!candidate) return null;
-  return /^[A-Za-z0-9_-]+$/.test(candidate) ? candidate : null;
-};
-
 const toGrafanaDashboardIdValue = (value: unknown): string | null => {
   const candidate = queryValue(value);
   if (!candidate) return null;
@@ -44,9 +39,9 @@ const toGrafanaThemeValue = (value: unknown): 'light' | 'dark' => {
   return candidate === 'dark' ? 'dark' : 'light';
 };
 
-const toGrafanaTimeValue = (value: unknown, fallback: string): string => {
+const toGrafanaTimeValue = (value: unknown, defaultValue: string): string => {
   const candidate = queryValue(value);
-  if (!candidate) return fallback;
+  if (!candidate) return defaultValue;
 
   if (/^\d{10,13}$/.test(candidate)) {
     return candidate;
@@ -60,7 +55,7 @@ const toGrafanaTimeValue = (value: unknown, fallback: string): string => {
     return String(parsed);
   }
 
-  return fallback;
+  return defaultValue;
 };
 
 type CaseTokenPayload = {
@@ -69,20 +64,29 @@ type CaseTokenPayload = {
   type: 'case-verification';
 };
 
-const resolveDeviceIdFromToken = (rawDeviceId: string | null): string | null => {
-  if (!rawDeviceId) return null;
-  if (!config.appJwtSecret) return rawDeviceId;
+const normalizeOpaqueDeviceId = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > MAX_DEVICE_ID_LENGTH) return null;
+  if (/\s/.test(trimmed)) return null;
+  return trimmed;
+};
 
+const resolveDeviceId = (rawDeviceId: string): string | null => {
   try {
     const decoded = jwt.verify(rawDeviceId, config.appJwtSecret, {
-      issuer: 'registration-service',
-    }) as CaseTokenPayload;
+      algorithms: ['HS256'],
+      issuer: config.appJwtIssuer,
+    }) as unknown as CaseTokenPayload;
 
     if (decoded.type !== 'case-verification') {
-      return rawDeviceId;
+      return null;
     }
 
-    const resolved = decoded.patientId || rawDeviceId;
+    const resolved = decoded.patientId?.trim();
+    if (!resolved) {
+      return null;
+    }
     console.log(
       '[Grafana proxy] resolved deviceId from case token',
       JSON.stringify({
@@ -92,23 +96,37 @@ const resolveDeviceIdFromToken = (rawDeviceId: string | null): string | null => 
     );
     return resolved;
   } catch {
-    return rawDeviceId;
+    // Fallback for deployments where case/device identifiers are opaque strings.
   }
+
+  const opaqueDeviceId = normalizeOpaqueDeviceId(rawDeviceId);
+  if (!opaqueDeviceId) return null;
+  console.log(
+    '[Grafana proxy] using raw deviceId from embed parameter',
+    JSON.stringify({ length: opaqueDeviceId.length }),
+  );
+  return opaqueDeviceId;
 };
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSubject || config.appJwtSecret)) {
+if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && config.appJwtSecret) {
   const jwtProxy = createJwtProxy(config);
-  const mountPath = config.proxyPrefix || '/grafana';
+  const mountPath = config.proxyPrefix || '/grafana-proxy';
   const embedPath = toPath(mountPath, '/embed');
   const allowedDashboardIds = new Set(
     config.grafanaAllowedDashboardIds.filter((dashboardId) => /^[A-Za-z0-9_-]+$/.test(dashboardId)),
   );
 
   app.get(embedPath, (req, res) => {
+    const sessionUser = getSessionUserFromCookie(req.headers.cookie, config);
+    if (!sessionUser) {
+      res.status(401).json({ error: 'Missing or invalid session' });
+      return;
+    }
+
     const rawDeviceId = queryValue(req.query.deviceId);
     if (!rawDeviceId) {
       res.status(400).json({ error: 'Missing required query parameter: deviceId' });
@@ -121,11 +139,14 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
       return;
     }
 
-    const deviceId = resolveDeviceIdFromToken(rawDeviceId);
+    const resolvedDeviceId = resolveDeviceId(rawDeviceId);
+    if (!resolvedDeviceId) {
+      res.status(400).json({ error: 'deviceId must be a non-empty identifier without whitespace' });
+      return;
+    }
 
     let from = toGrafanaTimeValue(req.query.from, DEFAULT_FROM);
     const to = toGrafanaTimeValue(req.query.to, DEFAULT_TO);
-    const viewPanel = toGrafanaPanelValue(req.query.viewPanel);
     const theme = toGrafanaThemeValue(req.query.theme);
     const dashboardId = toGrafanaDashboardIdValue(req.query.dashboardUid);
     if (!dashboardId) {
@@ -149,16 +170,11 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
       theme,
       timezone: 'browser',
       'var-DS_INFLUXDB': config.grafanaDashboardDatasource,
-      'var-deviceId': deviceId,
+      'var-deviceId': resolvedDeviceId,
       '_dash.hideTimePicker': 'true',
       '_dash.hideVariables': 'true',
       '_dash.hideLinks': 'true',
     });
-    if (viewPanel) {
-      params.set('viewPanel', viewPanel);
-      params.set('__feature.dashboardSceneSolo', 'true');
-    }
-
     const dashboardPath = toPath(
       mountPath,
       `/d/${encodeURIComponent(dashboardId)}/${encodeURIComponent(dashboardId)}`,
@@ -170,6 +186,14 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
     res.redirect(302, redirectUrl);
   });
 
+  app.use(mountPath, (req, res, next) => {
+    const sessionUser = getSessionUserFromCookie(req.headers.cookie, config);
+    if (!sessionUser) {
+      res.status(401).json({ error: 'Missing or invalid session' });
+      return;
+    }
+    next();
+  });
   app.use(mountPath, (req, _res, next) => {
     // eslint-disable-next-line no-console
     console.log(`[Grafana proxy] incoming ${req.method} ${req.originalUrl}`);
@@ -205,13 +229,11 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && (config.grafanaJwtSu
   // eslint-disable-next-line no-console
   console.log(`Grafana JWT header: ${config.grafanaJwtHeader}`);
   // eslint-disable-next-line no-console
-  console.log(`Grafana JWT subject: ${config.grafanaJwtSubject}`);
-  // eslint-disable-next-line no-console
   console.log(`Grafana embed endpoint: ${embedPath}`);
 } else {
   // eslint-disable-next-line no-console
   console.warn(
-    'Missing GRAFANA_BASE_URL, GRAFANA_JWT_PRIVATE_KEY, and/or both GRAFANA_JWT_SUBJECT + APP_JWT_SECRET; proxy is not mounted.',
+    'Missing GRAFANA_BASE_URL, GRAFANA_JWT_PRIVATE_KEY, and/or APP_JWT_SECRET; proxy is not mounted.',
   );
 }
 

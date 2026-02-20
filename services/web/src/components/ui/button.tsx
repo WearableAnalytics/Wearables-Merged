@@ -19,6 +19,14 @@ const buttonVariants = cva(
           "border border-input bg-background text-foreground shadow-sm hover:bg-muted/40 hover:shadow-md",
         ghost:
           "text-foreground hover:bg-black/[0.04] dark:hover:bg-accent dark:hover:text-accent-foreground",
+        aiTab:
+          "border-2 border-transparent text-foreground [background-origin:border-box] [background-clip:padding-box,border-box] " +
+          "bg-[linear-gradient(120deg,rgba(124,58,237,0.18),rgba(217,70,239,0.14),rgba(239,68,68,0.16)),linear-gradient(120deg,rgba(124,58,237,0.58),rgba(217,70,239,0.54),rgba(239,68,68,0.52))] " +
+          "shadow-[0_3px_12px_rgba(124,58,237,0.16)] " +
+          "hover:bg-[linear-gradient(120deg,rgba(124,58,237,0.28),rgba(217,70,239,0.22),rgba(239,68,68,0.24)),linear-gradient(120deg,rgba(124,58,237,0.78),rgba(217,70,239,0.74),rgba(239,68,68,0.72))] " +
+          "aria-[pressed=true]:text-[hsl(var(--slate-000))] " +
+          "aria-[pressed=true]:bg-[linear-gradient(120deg,#7c3aed_0%,#d946ef_45%,#ef4444_100%),linear-gradient(120deg,#c4b5fd_0%,#f5d0fe_45%,#fecaca_100%)] " +
+          "aria-[pressed=true]:shadow-[0_10px_24px_rgba(217,70,239,0.35),0_4px_12px_rgba(239,68,68,0.25)]",
         destructive:
           "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         // Compatibility aliases kept for a gradual cleanup in callsites.
@@ -32,6 +40,7 @@ const buttonVariants = cva(
       size: {
         default: "ui-control-h px-4",
         sm: "ui-control-h px-3 text-xs",
+        tabGroup: "h-[calc(var(--ui-control-height)+0.5rem+2px)] px-3 text-xs",
         // Compatibility alias; prefer `default`.
         lg: "ui-control-h px-4",
         icon: "ui-control-square",

@@ -1,5 +1,6 @@
 import { io } from 'socket.io-client';
+import { appRuntimeConfig } from './config/runtimeConfig';
 
-export const socket = io(import.meta.env.VITE_SOCKET_URL as string, {
+export const socket = io(appRuntimeConfig.socketUrl || undefined, {
   withCredentials: true,
 });

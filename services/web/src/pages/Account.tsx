@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { NonAdminRole } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
+import { StatusCallout } from '@/components/custom/StatusCallout';
 import { Button } from '@/components/ui/button';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
@@ -113,16 +114,8 @@ export function AccountPage() {
       <section className="surface-card mt-6 p-4 md:p-5">
         <h2 className="text-section-title">Settings</h2>
         <div className="mt-4 flex flex-col gap-4">
-          {error ? (
-            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </div>
-          ) : null}
-          {message ? (
-            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">
-              {message}
-            </div>
-          ) : null}
+          {error ? <StatusCallout tone="error" message={error} /> : null}
+          {message ? <StatusCallout tone="success" message={message} /> : null}
 
           <div className="space-y-2">
             <p className="m-0 text-sm font-semibold text-foreground">Theme</p>

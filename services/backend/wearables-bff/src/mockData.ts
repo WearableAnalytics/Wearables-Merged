@@ -126,11 +126,12 @@ export function casesForPatient(patientId: string) {
 }
 
 function ensurePatientForHospitalCase(hospitalCase: HospitalCaseWithUUID): Patient {
+  const targetBirthDate = hospitalCase.birthDate.toISOString().slice(0, 10);
   const existing = patients.find(
     (patient) =>
       patient.firstName === hospitalCase.firstName &&
       patient.lastName === hospitalCase.lastName &&
-      patient.birthDate === hospitalCase.birthDate,
+      patient.birthDate.toISOString().slice(0, 10) === targetBirthDate,
   );
 
   if (existing) {

@@ -3,11 +3,14 @@ image:
   tag: "latest"
   pullPolicy: Always
 
-# Environment variables for the frontend build
-env:
-  backendUrl: "https://wearables.charite.de"
-  apiBasePath: "/api"
-  grafanaIframeUrl: "https://wearables.charite.de/grafana-proxy"
+runtimeConfigMap:
+  create: true
+  name: ""
+
+runtimeConfig:
+  apiBaseUrl: "/api"
+  grafanaProxyUrl: "http://localhost:3002/grafana-proxy"
+  socketUrl: ""
 
 # Service configuration
 service:
