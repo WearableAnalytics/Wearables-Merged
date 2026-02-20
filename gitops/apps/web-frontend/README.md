@@ -1,12 +1,12 @@
 # Web Frontend Helm Chart
 
-Helm chart for deploying the `web-frontend` service.
+Helm chart for deploying the `web` frontend service.
 
 ## Scope
 
 This README documents chart behavior only.
 
-- Frontend runtime/source behavior: `services/web/readme.md`
+- Frontend runtime/source behavior: `services/web/README.md`
 - BFF chart/runtime config: `gitops/apps/services/wearables-bff/README.md`
 - Grafana proxy chart setup: `gitops/apps/monitoring/grafana-proxy/README.md`
 - Shared runtime deploy flow: `docs/deploy-runtime-config.md`
@@ -49,8 +49,8 @@ Values mapping:
 ## Deploy
 
 ```bash
-helm upgrade --install web-frontend ./gitops/apps/web-frontend \
-  -n web-frontend \
+helm upgrade --install web ./gitops/apps/web-frontend \
+  -n web \
   --create-namespace \
   -f ./gitops/apps/web-frontend/values.yaml
 ```

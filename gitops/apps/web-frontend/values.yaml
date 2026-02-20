@@ -9,7 +9,7 @@ runtimeConfigMap:
 
 runtimeConfig:
   apiBaseUrl: "/api"
-  grafanaProxyUrl: "/grafana-proxy"
+  grafanaProxyUrl: "http://localhost:3002/grafana-proxy"
   socketUrl: ""
 
 # Service configuration

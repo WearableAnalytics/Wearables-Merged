@@ -5,7 +5,7 @@ This repo is configured so `wearables-bff`, `grafana-proxy`, and frontend apps a
 Use this guide when deploying multiple components together.
 If you only deploy one component, start with that chart README:
 
-- Frontend source/runtime behavior: `services/web/readme.md`
+- Frontend source/runtime behavior: `services/web/README.md`
 - `gitops/apps/services/wearables-bff/README.md`
 - `gitops/apps/monitoring/grafana-proxy/README.md`
 - `gitops/apps/web-frontend/README.md`
@@ -89,8 +89,8 @@ Notes:
 Use the `web-frontend` chart:
 
 ```bash
-helm upgrade --install web-frontend ./gitops/apps/web-frontend \
-  -n web-frontend --create-namespace \
+helm upgrade --install web ./gitops/apps/web-frontend \
+  -n web --create-namespace \
   -f ./gitops/apps/web-frontend/values.yaml
 ```
 

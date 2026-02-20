@@ -7,7 +7,7 @@ This chart deploys the `wearables-bff` service and injects runtime config via Ku
 This README documents Helm/Kubernetes behavior only.
 
 - API behavior and endpoint list: `services/backend/wearables-bff/README.md`
-- Frontend runtime config consuming this API: `services/web/readme.md`
+- Frontend runtime config consuming this API: `services/web/README.md`
 - Runtime deploy flow (BFF + other services): `docs/deploy-runtime-config.md`
 
 ## Runtime Configuration
