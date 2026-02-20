@@ -7,10 +7,10 @@ data:
     [global_tags]
 
     [agent]
-      interval = "1ms"
-      metric_batch_size = 10000
+      interval = "100ms"
+      metric_batch_size = 5000
       metric_buffer_limit = 500000
-      flush_interval = "1ms"
+      flush_interval = "1s"
       flush_jitter = "0s"
       buffer_strategy = "memory"
       debug = false
