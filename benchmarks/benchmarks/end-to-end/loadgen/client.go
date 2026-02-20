@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 )
 
 type Client struct {
@@ -14,8 +15,6 @@ type Client struct {
 	AuthToken string
 	Client    *http.Client
 }
-
-type Result struct{}
 
 func NewClient(serverUrl string, authToken string) *Client {
 	return &Client{
@@ -48,12 +47,23 @@ func (c Client) CallEndpoint(ctx context.Context, req Payload) Result {
 
 	resp, err := c.Client.Do(request)
 	if err != nil {
-		return Result{}
+		return Result{
+			req.Measurements.Instantaneous,
+			time.Now(),
+			err.Error(),
+		}
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		log.Fatalf("error sending req (%v): %s", request, resp.Status)
 	}
 
-	return Result{}
+	r := Result{
+		req.Measurements.Instantaneous,
+		time.Now(),
+		"",
+	}
+
+	log.Printf("res: %v", r)
+	return r
 }

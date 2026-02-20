@@ -1,0 +1,6 @@
+This works because of following behavior:
+
+A point is uniquely identified by the measurement name, tag set, and timestamp.
+If you submit line protocol with the same measurement, tag set, and timestamp,
+but with a different field set, the field set becomes the union of the old field set and the new field set,
+where any conflicts favor the new field set

@@ -41,7 +41,7 @@ func init() {
 }
 
 func main() {
-
+	startTime := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sigs := make(chan os.Signal, 1)
@@ -52,19 +52,22 @@ func main() {
 		cancel()
 	}()
 
-	provider := NewProvider(messageSize)
+	tracker := NewTracker()
+
+	provider := NewProvider(messageSize, tracker)
 	client := NewClient(serviceURL, jwtToken)
-	collector := NewCollector()
+	collector := Collector{tracker: tracker}
+
 	conf := &InfluxObserverConfig{
 		Addr:       influxURL,
 		Token:      influxToken,
 		Org:        influxOrg,
 		Bucket:     influxBucket,
 		WindowSize: 10 * time.Millisecond,
-		T0:         time.Now(),
+		T0:         startTime,
 	}
 
-	obs := NewInfluxObserver(conf)
+	obs := NewInfluxObserver(conf, tracker)
 
 	maxDuration := rampUpDuration + duration + rampDownDuration
 
@@ -110,9 +113,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("not able to start endpoint-workload: %v", err)
 	}
-	go ew.Run()
+	ew.Run()
 
-	obs.ObserveAndLog(ctx)
+	time.Sleep(30 * time.Second)
+	obs.ObserveBenchmark(ctx)
 }
 
 func mustGetEnvString(key string) string {

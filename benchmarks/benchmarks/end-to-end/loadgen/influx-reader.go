@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"log"
 	"time"
 
@@ -11,14 +10,9 @@ import (
 )
 
 type InfluxObserver struct {
-	Config *InfluxObserverConfig
-	Client influxdb2.Client
-}
-
-type Record struct {
-	tProduced    time.Time
-	tObserved    time.Time
-	LineProtocol string
+	Config  *InfluxObserverConfig
+	Client  influxdb2.Client
+	tracker *Tracker
 }
 
 type InfluxObserverConfig struct {
@@ -31,82 +25,43 @@ type InfluxObserverConfig struct {
 	T0         time.Time
 }
 
-func NewInfluxObserver(conf *InfluxObserverConfig) *InfluxObserver {
+func NewInfluxObserver(conf *InfluxObserverConfig, tracker *Tracker) *InfluxObserver {
 	var observer InfluxObserver
 	observer.Config = conf
 
 	observer.Client = influxdb2.NewClient(conf.Addr, conf.Token)
+	observer.tracker = tracker
 
 	return &observer
 }
 
-func (obs *InfluxObserver) ObserveAndLog(ctx context.Context) {
-	queryAPI := obs.Client.QueryAPI(obs.Config.Org)
-	ticker := time.NewTicker(obs.Config.WindowSize)
-	defer ticker.Stop()
+func (obs *InfluxObserver) ObserveBenchmark(ctx context.Context) {
+	log.Println("starting to execute observer")
+	queryApi := obs.Client.QueryAPI(obs.Config.Org)
 
-	lastObserved := obs.Config.T0
-	observeMap := make(map[uint64]Record)
-
-	hash := fnv.New64a()
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("hash,t_produced,t_observed,line-protocol")
-			for msgID, rec := range observeMap {
-				log.Printf("%d,%d,%d,%s",
-					msgID,
-					rec.tProduced.UnixMilli(),
-					rec.tObserved.UnixMilli(),
-					rec.LineProtocol,
-				)
-			}
-			return
-
-		case <-ticker.C:
-			query := fmt.Sprintf(`
+	query := fmt.Sprintf(`
 from(bucket: "%s")
-  |> range(start: time(v: "%s"))
+  |> range(start: "-2m")
   |> filter(fn: (r) => r._measurement == "heart-rate")`,
-				obs.Config.Bucket,
-				lastObserved.Format(time.RFC3339Nano),
-			)
+		obs.Config.Bucket,
+		//obs.Config.T0.Format(time.RFC3339Nano),
+	)
 
-			hash.Reset()
+	log.Println("now executing query: ", query)
 
-			res, err := queryAPI.Query(ctx, query)
-			if err != nil {
-				continue
-			}
+	res, err := queryApi.Query(ctx, query)
+	if err != nil {
+		log.Fatalf("error occurred when executing query: %v", err)
+	}
 
-			maxTime := lastObserved
-			tObserved := time.Now()
+	for res.Next() {
+		rec := res.Record()
 
-			for res.Next() {
-				rec := res.Record()
-				tProduced := rec.Time()
+		tIngestedNs := rec.ValueByKey("t_ingested").(int64)
+		tIngestedTime := time.Unix(0, tIngestedNs)
 
-				_, err := hash.Write([]byte(rec.String()))
-				if err != nil {
-					continue
-				}
+		value := rec.ValueByKey("value").(float64)
 
-				key := hash.Sum64()
-
-				observeMap[key] = Record{
-					tProduced:    tProduced,
-					tObserved:    tObserved,
-					LineProtocol: rec.String(),
-				}
-
-				if tProduced.After(maxTime) {
-					maxTime = tProduced
-				}
-			}
-
-			res.Close()
-			lastObserved = maxTime
-		}
+		log.Printf("%v, %v, %v", rec.Values(), tIngestedTime, value)
 	}
 }

@@ -2,25 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"sync/atomic"
 	"time"
 )
 
 type Provider struct {
 	MessageSize     int
-	MessageCounter  atomic.Uint32
 	TimestampLayout string
+	tracker         *Tracker
 }
-
-type Collector struct{}
-
-func NewCollector() *Collector {
-	return &Collector{}
-}
-
-func (c Collector) Collect(result Result) {}
-
-func (c Collector) Close() {}
 
 type Payload struct {
 	DeviceInfo      DeviceInfo   `json:"deviceInfo"`
@@ -98,7 +87,7 @@ func (p *Provider) CreateBenchmarkMessage() Payload {
 		Timestamp:       now.Format(p.TimestampLayout),
 	}
 
-	base := p.MessageCounter.Add(1)
+	base := p.tracker.MessageCounter.Add(1)
 
 	for {
 		instant := InstantMeasurement{
@@ -123,10 +112,11 @@ func (p *Provider) GetData() Payload {
 	return p.CreateBenchmarkMessage()
 }
 
-func NewProvider(msgSize int) *Provider {
+func NewProvider(msgSize int, tracker *Tracker) *Provider {
 	layout := "2006-01-02T15:04:05.000"
 	return &Provider{
 		MessageSize:     msgSize,
 		TimestampLayout: layout,
+		tracker:         tracker,
 	}
 }
