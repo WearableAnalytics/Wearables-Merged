@@ -1,61 +1,69 @@
-# Wearables Web Frontend Helm Chart
+# Wearables Web Helm Chart
 
-This Helm chart deploys the Vite + React web frontend for the Wearables Analytics platform.
+Helm chart for deploying the `wearables-web` frontend.
 
-## Service Details
+## Scope
 
-This chart injects frontend runtime config via a mounted `runtime-config.js` ConfigMap.
-You can reuse the same image across environments and only change Helm values.
+This README documents chart behavior only.
 
-## Installation
+- Frontend runtime/source behavior: `services/web/readme.md`
+- BFF chart/runtime config: `gitops/apps/services/wearables-bff/README.md`
+- Grafana proxy chart setup: `gitops/apps/monitoring/grafana-proxy/README.md`
+- Shared runtime deploy flow: `docs/deploy-runtime-config.md`
 
-### Basic Installation
+## Chart Status
 
-Deploy the web frontend to your cluster:
+- This chart is still usable for runtime-config mounting and Service deployment.
+- If you need Ingress, prefer `gitops/apps/web-frontend` until the duplicate IngressRoute template naming in this chart is resolved.
+
+## Runtime Config Injection
+
+This chart mounts `runtime-config.js` into the nginx web root:
+
+- File path in container: `/usr/share/nginx/html/runtime-config.js`
+- Source template: `templates/runtime-configmap.yaml`
+- Mounted by: `templates/deployment.yaml`
+
+Values mapping:
+
+- `runtimeConfig.apiBaseUrl` -> `window.__APP_CONFIG__.API_BASE_URL`
+- `runtimeConfig.grafanaProxyUrl` -> `window.__APP_CONFIG__.GRAFANA_PROXY_URL`
+- `runtimeConfig.socketUrl` -> `window.__APP_CONFIG__.SOCKET_URL`
+
+## Important Chart Behavior
+
+- `runtimeConfigMap.create=true`: chart creates `<release-name>-runtime-config` unless `runtimeConfigMap.name` is set.
+- `runtimeConfigMap.create=false`: deployment still mounts a ConfigMap; you must provide it (usually via `runtimeConfigMap.name`).
+- `replicaCount` is used by the deployment template.
+- `runtimeConfig.grafanaProxyUrl` must match Grafana proxy path (`gitops/apps/monitoring/grafana-proxy/values.yaml` -> `proxy.prefix`) and your external route path.
+- No Secret object is managed by this chart for runtime config (frontend config is public by design).
+
+Ingress notes:
+
+- Ingress rendering is gated by `ingress.enabled`.
+- This chart currently has two IngressRoute templates (`ingressroute.yaml` and `ingressroute-secure.yaml`) with the same resource name when enabled.
+
+API routing dependency:
+
+- Default frontend runtime config is `runtimeConfig.apiBaseUrl=/api`.
+- In the default frontend image, nginx proxies `/api` to `wearables-bff.wearables-bff.svc.cluster.local:3001` (`services/web/nginx.conf`).
+- If your BFF DNS/namespace/port is different, either set `runtimeConfig.apiBaseUrl` to your externally routed API URL/path or use an image with adjusted nginx upstream config.
+
+## Deploy
 
 ```bash
 helm upgrade --install wearables-web ./gitops/apps/web \
-  --values ./gitops/apps/web/values.yaml \
   --namespace web \
-  --create-namespace
+  --create-namespace \
+  -f ./gitops/apps/web/values.yaml
 ```
 
-## Configuration
+## Default Values
 
-### Runtime frontend configuration
+`values.yaml` defaults:
 
-The chart writes these runtime values into `window.__APP_CONFIG__`:
-
-- **`apiBaseUrl`**: API endpoint for backend communication (default `/api`)
-- **`grafanaProxyUrl`**: Path to Grafana proxy (default `/grafana-proxy`)
-- **`socketUrl`**: Optional Socket.IO endpoint
-
-### Example values
-
-```yaml
-runtimeConfig:
-  apiBaseUrl: "/api"
-  grafanaProxyUrl: "/grafana-proxy"
-  socketUrl: ""
-```
-
-## Accessing the Frontend
-To access the frontend from your machine, first set up port-forwarding from the jumphost
-to your local machine.
-
-**Important**: You need to setup TWO port-forwards: 8080->8080 and 3001->3001
-
-Then log in to the jumphost and run:
-
-```bash
-kubectl port-forward -n web svc/wearables-web 8080:80
-```
-
-Now open the frontend in your browser:
-
-```
-http://localhost:8080
-```
-
-After you enter your email it will say that approval is pending. Please contact me or
-anyone who already has access to approve your account.
+- service: `ClusterIP` on port `80`
+- runtime config:
+  - `apiBaseUrl: "/api"`
+  - `grafanaProxyUrl: "/grafana-proxy"`
+  - `socketUrl: ""`

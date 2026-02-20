@@ -8,18 +8,12 @@ type JwtProxyConfig = {
   grafanaPathPrefix: string;
   grafanaTlsSkipVerify: boolean;
   grafanaJwtHeader: string;
-  grafanaJwtHeaderValuePrefix: string;
   grafanaJwtIssuer: string;
   grafanaJwtAudience: string;
   grafanaJwtTtlSeconds: number;
   grafanaJwtPrivateKey: string;
-  grafanaJwtSubject: string;
-  grafanaJwtEmail: string;
-  grafanaJwtName: string;
-  grafanaJwtRole: string;
   grafanaOrgId: string;
   grafanaJwtIatSkewSeconds: number;
-  sessionCookieName: string;
   appJwtSecret: string;
 };
 
@@ -39,6 +33,7 @@ type SessionUser = {
   name?: string;
   role?: string;
 };
+type SessionConfig = Pick<JwtProxyConfig, 'appJwtSecret'>;
 
 const stripHeader = (headers: Record<string, string | string[] | undefined>, headerName: string): void => {
   for (const key of Object.keys(headers)) {
@@ -129,12 +124,8 @@ const getRequestPath = (req: IncomingMessage): string => {
   return request.originalUrl ?? request.url ?? '/';
 };
 
-const formatJwtHeaderValue = (token: string, config: JwtProxyConfig): string => {
-  const explicitPrefix = config.grafanaJwtHeaderValuePrefix.trim();
-  const implicitPrefix = config.grafanaJwtHeader.toLowerCase() === 'authorization' ? 'Bearer' : '';
-  const prefix = explicitPrefix || implicitPrefix;
-  return prefix ? `${prefix} ${token}` : token;
-};
+const formatJwtHeaderValue = (token: string, headerName: string): string =>
+  headerName.toLowerCase() === 'authorization' ? `Bearer ${token}` : token;
 
 const rewriteOriginHeaders = (
   proxyReq: {
@@ -163,16 +154,22 @@ const parseCookies = (cookieHeader?: string): Record<string, string> => {
     if (!rawName || rest.length === 0) return acc;
     const name = rawName.trim();
     if (!name) return acc;
-    acc[name] = decodeURIComponent(rest.join('='));
+    const value = rest.join('=');
+    try {
+      acc[name] = decodeURIComponent(value);
+    } catch {
+      // Keep parsing other cookies when one value is malformed.
+      acc[name] = value;
+    }
     return acc;
   }, {});
 };
 
-const parseSessionUser = (cookieHeader: string | undefined, config: JwtProxyConfig): SessionUser | null => {
+const parseSessionUser = (cookieHeader: string | undefined, config: SessionConfig): SessionUser | null => {
   if (!config.appJwtSecret) return null;
 
   const cookies = parseCookies(cookieHeader);
-  const token = cookies[config.sessionCookieName];
+  const token = cookies.jwt;
   if (!token) return null;
 
   try {
@@ -195,6 +192,8 @@ const parseSessionUser = (cookieHeader: string | undefined, config: JwtProxyConf
   }
 };
 
+export const getSessionUserFromCookie = parseSessionUser;
+
 const toGrafanaRole = (role?: string): string | undefined => {
   if (!role) return undefined;
   switch (role.toLowerCase()) {
@@ -214,31 +213,31 @@ const toGrafanaRole = (role?: string): string | undefined => {
   }
 };
 
-const buildJwtPayload = (config: JwtProxyConfig, sessionUser: SessionUser | null): jwt.JwtPayload => {
+const buildJwtPayload = (config: JwtProxyConfig, sessionUser: SessionUser): jwt.JwtPayload => {
   const nowSeconds = Math.floor(Date.now() / 1000);
   const skewSeconds = config.grafanaJwtIatSkewSeconds || 0;
-  const subject = sessionUser?.email || sessionUser?.userId || config.grafanaJwtSubject;
+  const subject = sessionUser.email || sessionUser.userId;
   if (!subject) {
-    throw new Error('No Grafana JWT subject available from session or GRAFANA_JWT_SUBJECT');
+    throw new Error('No Grafana JWT subject available from session');
   }
-  const roleFromSession = toGrafanaRole(sessionUser?.role);
+  const roleFromSession = toGrafanaRole(sessionUser.role);
   const payload: jwt.JwtPayload = {
     sub: subject,
     iat: nowSeconds - skewSeconds,
   };
-  if (sessionUser?.email || config.grafanaJwtEmail) {
-    payload.email = sessionUser?.email || config.grafanaJwtEmail;
+  if (sessionUser.email) {
+    payload.email = sessionUser.email;
   }
-  if (sessionUser?.name || config.grafanaJwtName) {
-    payload.name = sessionUser?.name || config.grafanaJwtName;
+  if (sessionUser.name) {
+    payload.name = sessionUser.name;
   }
-  if (roleFromSession || config.grafanaJwtRole) {
-    payload.role = roleFromSession || config.grafanaJwtRole;
+  if (roleFromSession) {
+    payload.role = roleFromSession;
   }
   return payload;
 };
 
-const signJwt = (config: JwtProxyConfig, sessionUser: SessionUser | null): string => {
+const signJwt = (config: JwtProxyConfig, sessionUser: SessionUser): string => {
   const payload = buildJwtPayload(config, sessionUser);
   return jwt.sign(payload, config.grafanaJwtPrivateKey, {
     algorithm: 'RS256',
@@ -258,8 +257,11 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
     on: {
       proxyReq: (proxyReq, req) => {
         const sessionUser = parseSessionUser(req.headers.cookie, config);
+        if (!sessionUser) {
+          throw new Error('Missing or invalid session cookie');
+        }
         const token = signJwt(config, sessionUser);
-        const jwtHeaderValue = formatJwtHeaderValue(token, config);
+        const jwtHeaderValue = formatJwtHeaderValue(token, config.grafanaJwtHeader);
         proxyReq.removeHeader('authorization');
         proxyReq.removeHeader('cookie');
         proxyReq.setHeader(config.grafanaJwtHeader, jwtHeaderValue);
@@ -278,16 +280,18 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
         );
         const bodyBytes = proxyReq.getHeader('content-length');
         const bodyInfo = bodyBytes ? ` bodyBytes=${bodyBytes}` : '';
-        const authSource = sessionUser ? 'session-cookie' : 'static-config';
         // eslint-disable-next-line no-console
         console.log(
-          `[Grafana proxy] OUT ${req.method} ${targetUrl}${bodyInfo} authSource=${authSource} headers=${JSON.stringify(headers)}`,
+          `[Grafana proxy] OUT ${req.method} ${targetUrl}${bodyInfo} authSource=session-cookie headers=${JSON.stringify(headers)}`,
         );
       },
       proxyReqWs: (proxyReq, req) => {
         const sessionUser = parseSessionUser(req.headers.cookie, config);
+        if (!sessionUser) {
+          throw new Error('Missing or invalid session cookie');
+        }
         const token = signJwt(config, sessionUser);
-        const jwtHeaderValue = formatJwtHeaderValue(token, config);
+        const jwtHeaderValue = formatJwtHeaderValue(token, config.grafanaJwtHeader);
         proxyReq.removeHeader('authorization');
         proxyReq.removeHeader('cookie');
         proxyReq.setHeader(config.grafanaJwtHeader, jwtHeaderValue);
@@ -304,17 +308,14 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
           proxyReq.getHeaders() as Record<string, HeaderValue>,
           [config.grafanaJwtHeader, 'x-grafana-org-id'],
         );
-        const authSource = sessionUser ? 'session-cookie' : 'static-config';
         // eslint-disable-next-line no-console
         console.log(
-          `[Grafana proxy] OUT-WS ${req.method} ${targetUrl} authSource=${authSource} headers=${JSON.stringify(headers)}`,
+          `[Grafana proxy] OUT-WS ${req.method} ${targetUrl} authSource=session-cookie headers=${JSON.stringify(headers)}`,
         );
       },
       proxyRes: (proxyRes, req) => {
         stripHeader(proxyRes.headers as Record<string, string | string[] | undefined>, 'x-frame-options');
         removeFrameAncestors(proxyRes.headers as Record<string, string | string[] | undefined>);
-        proxyRes.headers['x-grafana-proxy'] = 'true';
-        proxyRes.headers['x-grafana-proxy-target'] = config.grafanaBaseUrl;
         const targetPath = buildProxyPath(getRequestPath(req), config);
         const targetUrl = resolveTargetUrl(targetPath, config.grafanaBaseUrl);
         const headers = sanitizeHeaders(

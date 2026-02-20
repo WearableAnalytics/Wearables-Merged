@@ -9,7 +9,7 @@ metadata:
 data:
   PORT: {{ .Values.proxy.port | quote }}
   PROXY_PREFIX: {{ .Values.proxy.prefix | quote }}
-  SESSION_COOKIE_NAME: {{ .Values.session.cookieName | quote }}
+  APP_JWT_ISSUER: {{ .Values.session.jwtIssuer | quote }}
   GRAFANA_BASE_URL: {{ .Values.grafana.baseUrl | quote }}
   GRAFANA_PATH_PREFIX: {{ .Values.grafana.pathPrefix | quote }}
   GRAFANA_TLS_SKIP_VERIFY: {{ .Values.grafana.tlsSkipVerify | quote }}
@@ -17,15 +17,9 @@ data:
   GRAFANA_DASHBOARD_DATASOURCE: {{ .Values.grafana.dashboardDatasource | quote }}
   GRAFANA_ORG_ID: {{ .Values.grafana.orgId | quote }}
   GRAFANA_JWT_HEADER: {{ .Values.grafana.jwtHeader | quote }}
-  GRAFANA_JWT_KEY_ID: {{ .Values.grafana.jwtKeyId | quote }}
   GRAFANA_JWT_ISSUER: {{ .Values.grafana.jwtIssuer | quote }}
   GRAFANA_JWT_AUDIENCE: {{ .Values.grafana.jwtAudience | quote }}
   GRAFANA_JWT_TTL_SECONDS: {{ .Values.grafana.jwtTtlSeconds | quote }}
-  GRAFANA_DEFAULT_ROLE: {{ .Values.grafana.defaultRole | quote }}
   GRAFANA_JWT_IAT_SKEW_SECONDS: {{ .Values.grafana.jwtIatSkewSeconds | quote }}
-  GRAFANA_JWT_SUBJECT: {{ .Values.grafana.jwtSubject | quote }}
-  GRAFANA_JWT_EMAIL: {{ .Values.grafana.jwtEmail | quote }}
-  GRAFANA_JWT_NAME: {{ .Values.grafana.jwtName | quote }}
-  GRAFANA_JWT_ROLE: {{ .Values.grafana.jwtRole | quote }}
   GRAFANA_JWT_PRIVATE_KEY_PATH: "/secrets/grafana-jwt-private.pem"
 {{- end }}

@@ -1,8 +1,8 @@
 # API Schema
 
-`src/schemas.ts` is the single source of truth (Zod + zod-to-openapi). Generate OpenAPI output from it when needed.
+`src/schemas.ts` is the single source of truth (Zod + `zod-to-openapi`).
 
-## Generate OpenAPI schema
+## Generate OpenAPI Schema
 
 From this package directory:
 
@@ -10,124 +10,35 @@ From this package directory:
 npm run generate:api-schema
 ```
 
-This writes `openapi.json` (update the script if you prefer YAML). Commit the generated file only if something downstream consumes it from git; otherwise keep it ignored and regenerate on demand.
+This generates `openapi.json`.
 
+## Scope
 
+This package describes the patient/case API contract used by `wearables-bff`.
+It currently includes:
 
-# Patient & Case API
+- `GET /hospital/cases/{hospitalCaseId}`
+- `GET /patients`
+- `GET /patients/{patientId}`
+- `GET /patients/{patientId}/cases`
+- `GET /cases`
+- `GET /cases/{caseId}`
+- `POST /cases/from-hospital-case`
+- `POST /cases/verify-token`
+- `GET /researcher/api-access-token`
 
-Endpoints for fetching read-only Hospital cases and managing internal patients/cases.
+This package does not currently model all auth/admin routes exposed by the backend
+(for example `/login`, `/register`, `/admin/...`).
 
----
+Case status note:
 
-## External Case (read-only)
+- `src/schemas.ts` models case status as `active | inactive`.
+- `wearables-bff` normalizes non-mock database status values to this contract before returning responses.
 
-**GET `/hospital/cases/{hospitalCaseId}`** — returns a Hospital case.
+For full backend runtime and route documentation, see:
 
-```json
-{
-  "hospitalCaseId": "C-123456",
-  "firstName": "Max",
-  "lastName": "Mustermann",
-  "birthDate": "1980-01-01",
-  ... other case details ...
-}
-```
+- `services/backend/wearables-bff/README.md`
 
----
+For Kubernetes deployment/configuration of `wearables-bff`, see:
 
-## Patients
-
-**POST `/patients`** — 
-
-**GET `/patients`** — list internal patients.  
-**GET `/patients/{patientId}`** — fetch a single internal patient.
-**GET `/patients/{patientId}/cases`** — list cases linked to a patient.  
-
-
----
-
-## Cases (internal)
-
-**POST /cases/from-hospital-case** create an internal case from an external case. 
- -  If the patient already exists but not the case: 
-    - creates new case
-    - links to existing patient
--  If the patient does not exist:
-    - creates new patient
-    - creates new case
-- If both patient and case exist: 
-    - return existing case
-- Else: return error
-
-Request
-
-```json
-{
-  "hospitalCaseId": "C-123456"
-}
-```
-
-Response
-
-```json
-{
-  "patientId": "P-98765",
-  "caseId": "IC-54321",
-  "caseToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-  }
-```
-
-**GET `/cases`** — list all internal cases.  
-**GET `/cases/{caseId}`** — fetch a single internal case.
-
-**POST `/cases/verify-token`** — verify a case token and return the linked case.
-Request
-
-```json
-{
-  "caseToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-``` 
-Response
-
-```json
-{
-  "caseId": "IC-54321",
-  "patientVerifier": "M0212B",
-  "status": "active"
-}
-``` 
-
-the patient verifier is build in the following way: 
-assuming we have a patient called Max Bauer with birthdate 02.12.2000, the patient verifier would be "M0212B".
-
-status can either be "active" or "inactive".
-
----
-
-## Frontend Flow
-
-### New Patient Creation from Hospital Case
-1. Enter a Hospital case ID (`hospitalCaseId`).
-2. Fetch and display the external Hospital case.
-3. User clicks "Create Case" to create an internal case.
-4. Show that patient/case was created and store the `caseId`.
-5. Display the case token as qr code for scanning in the Hospital app.
-
-
-### Existing Patient Access
-
-1. Fetch all internal patients/cases (to be decided yet).
-2. User selects a patient/case to view details.
-    If from patient list: Display their internal cases.
-    Let user select a case to view details.
-3. Display case details. Show case token as qr code for scanning in the Hospital app.
-
-
-## App Flow
-
-1. Receive a caseToken scanned from Hospital app.
-2. Fetch the internal case using `POST /cases/verify-token` with the caseToken.
-3. Display some case details.
-4. Allow user to proceed with further actions (out of scope).
+- `gitops/apps/services/wearables-bff/README.md`

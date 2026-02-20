@@ -21,30 +21,25 @@ proxy:
   # Internal proxy HTTP port
   port: 3002
   # Public path prefix where the proxy is exposed
-  # This should match the ingress.prefix below
+  # Keep this aligned with frontend runtimeConfig.grafanaProxyUrl and your external route
   prefix: "/grafana-proxy"
 
 session:
-  cookieName: "jwt"
+  # Expected issuer of wearables-bff case tokens used as /embed deviceId
+  jwtIssuer: "wearables-bff"
 
 grafana:
-  # Matches .env.example default (external Grafana URL)
+  # In-cluster Grafana URL (adjust release/namespace as needed)
   baseUrl: "http://grafana.grafana.svc.cluster.local:3000"
   pathPrefix: ""
 
   # JWT header configuration
   jwtHeader: "X-JWT-Assertion"
-  jwtKeyId: "grafana-proxy"
   jwtIssuer: "wearables-grafana-proxy"
   jwtAudience: "grafana"
   jwtTtlSeconds: "300"
-  defaultRole: "Viewer"
   tlsSkipVerify: "false"
   jwtIatSkewSeconds: "120"
-  jwtSubject: "wearables-proxy"
-  jwtEmail: "admin@localhost"
-  jwtName: ""
-  jwtRole: "Viewer"
 
   # Dashboard configuration for the /embed endpoint
   allowedDashboardIds: "wearables-health-real,wearables-six-min"

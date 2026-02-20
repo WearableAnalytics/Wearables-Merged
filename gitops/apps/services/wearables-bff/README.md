@@ -29,7 +29,7 @@ Important env detail:
 - `env.FRONTEND_ORIGINS` is a comma-separated list used for CORS allow-origins.
 - `env.FRONTEND_REDIRECT_URL` is a single URL used for magic-link redirects and approval/login email links.
 - `env.BACKEND_URL` is required and used to build magic-link verification URLs.
-- Optional token/auth timing and issuer envs are `env.AUTH_SESSION_EXPIRY_SECONDS`, `env.MAGIC_LINK_EXPIRY_SECONDS`, `env.CASE_TOKEN_EXPIRY_SECONDS`, and `env.TOKEN_ISSUER` (defaults are applied by the backend config if omitted).
+- Token/auth timing and issuer envs are required: `env.AUTH_SESSION_EXPIRY_SECONDS`, `env.MAGIC_LINK_EXPIRY_SECONDS`, `env.CASE_TOKEN_EXPIRY_SECONDS`, and `env.TOKEN_ISSUER`.
 
 Important chart behavior:
 
@@ -52,13 +52,17 @@ Common setup is:
 - `secret.create: false`
 - `secret.name: "wearables-bff-secrets"`
 
-When using Grafana proxy session-derived identity/case-token compatibility, keep BFF `JWT_SECRET` equal to proxy `APP_JWT_SECRET` (bootstrap script does this automatically).
+When using Grafana proxy session-derived identity/case-token compatibility:
+
+- keep BFF `JWT_SECRET` equal to proxy `APP_JWT_SECRET` (bootstrap script does this automatically)
+- keep BFF `env.TOKEN_ISSUER` equal to proxy `session.jwtIssuer` / runtime `APP_JWT_ISSUER` (default `wearables-bff`)
 
 ## Setup Checklist
 
 1. Edit non-sensitive runtime env in `values.yaml` (`env.*`).
-2. Ensure a Secret exists with required `JWT_SECRET` and `RESEARCHER_API_ACCESS_TOKEN` (plus `BREVO_API_KEY` when `env.NODE_ENV=production`).
-3. Deploy the chart (command below).
+2. Ensure `values.yaml` explicitly sets required runtime envs (`FRONTEND_ORIGINS`, `FRONTEND_REDIRECT_URL`, `BACKEND_URL`, `AUTH_SESSION_EXPIRY_SECONDS`, `MAGIC_LINK_EXPIRY_SECONDS`, `CASE_TOKEN_EXPIRY_SECONDS`, `TOKEN_ISSUER`).
+3. Ensure a Secret exists with required `JWT_SECRET` and `RESEARCHER_API_ACCESS_TOKEN` (plus `BREVO_API_KEY` when `env.NODE_ENV=production`).
+4. Deploy the chart (command below).
 
 If you deploy BFF together with Grafana proxy/frontend, use `docs/deploy-runtime-config.md` for the end-to-end sequence.
 

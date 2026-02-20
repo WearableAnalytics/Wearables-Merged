@@ -60,15 +60,46 @@ const requirePositiveIntEnv = (name: string): number => {
   return parsed;
 };
 
-const optionalPositiveIntEnv = (name: string): number | undefined => {
-  const value = optionalEnv(name);
-  if (value === undefined) return undefined;
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`Invalid configuration: ${name} must be a positive integer.`);
-  }
-  return parsed;
-};
+const requiredEnvVars = [
+  'PORT',
+  'NODE_ENV',
+  'API_PREFIX',
+  'USE_MOCK_DATA',
+  'LOG_LEVEL',
+  'BACKEND_URL',
+  'FRONTEND_REDIRECT_URL',
+  'FRONTEND_ORIGINS',
+  'DATABASE_API_URL',
+  'DATABASE_API_TIMEOUT',
+  'RESEARCHER_API_ACCESS_TOKEN',
+  'AUTH_SESSION_EXPIRY_SECONDS',
+  'MAGIC_LINK_EXPIRY_SECONDS',
+  'CASE_TOKEN_EXPIRY_SECONDS',
+  'TOKEN_ISSUER',
+  'JWT_SECRET',
+] as const;
+
+const productionOnlyRequiredEnvVars = [
+  'MAILER_FROM_NAME',
+  'MAILER_FROM_EMAIL',
+  'BREVO_API_KEY',
+] as const;
+
+const nodeEnvRaw = optionalEnv('NODE_ENV');
+const missingRequiredEnvVars = requiredEnvVars.filter((name) => optionalEnv(name) === undefined);
+const missingProductionOnlyEnvVars =
+  nodeEnvRaw === 'production'
+    ? productionOnlyRequiredEnvVars.filter((name) => optionalEnv(name) === undefined)
+    : [];
+
+const allMissingRequiredEnvVars = [...missingRequiredEnvVars, ...missingProductionOnlyEnvVars];
+if (allMissingRequiredEnvVars.length > 0) {
+  throw new Error(
+    `Invalid configuration: missing required environment variables: ${allMissingRequiredEnvVars.join(
+      ', ',
+    )}.`,
+  );
+}
 
 const nodeEnv = requireOneOfEnv<NodeEnv>('NODE_ENV', ['development', 'production']);
 const isProduction = nodeEnv === 'production';
@@ -96,24 +127,16 @@ const databaseApiUrl = requireUrlEnv('DATABASE_API_URL');
 const databaseApiTimeout = requirePositiveIntEnv('DATABASE_API_TIMEOUT');
 const researcherApiAccessToken = requireEnv('RESEARCHER_API_ACCESS_TOKEN');
 
-// Optional tuning envs with safe defaults.
-const authSessionExpirySeconds = optionalPositiveIntEnv('AUTH_SESSION_EXPIRY_SECONDS') ?? 604800;
-const magicLinkExpirySeconds = optionalPositiveIntEnv('MAGIC_LINK_EXPIRY_SECONDS') ?? 900;
-const caseTokenExpirySeconds = optionalPositiveIntEnv('CASE_TOKEN_EXPIRY_SECONDS') ?? 691200;
-const tokenIssuer = optionalEnv('TOKEN_ISSUER') ?? 'wearables-bff';
+// Strict env-driven auth/token configuration.
+const authSessionExpirySeconds = requirePositiveIntEnv('AUTH_SESSION_EXPIRY_SECONDS');
+const magicLinkExpirySeconds = requirePositiveIntEnv('MAGIC_LINK_EXPIRY_SECONDS');
+const caseTokenExpirySeconds = requirePositiveIntEnv('CASE_TOKEN_EXPIRY_SECONDS');
+const tokenIssuer = requireEnv('TOKEN_ISSUER');
 
-const jwtSecretRaw = optionalEnv('JWT_SECRET');
-if (!jwtSecretRaw && (isProduction || !useMockData)) {
-  throw new Error(
-    'Invalid configuration: JWT_SECRET is required when NODE_ENV=production or USE_MOCK_DATA=false.',
-  );
-}
-
-if (isProduction && jwtSecretRaw === 'dev-secret') {
+const jwtSecret = requireEnv('JWT_SECRET');
+if (isProduction && jwtSecret === 'dev-secret') {
   throw new Error('Invalid configuration: JWT_SECRET cannot be "dev-secret" in production.');
 }
-
-const jwtSecret = jwtSecretRaw ?? 'dev-secret';
 
 const parseCsv = (value: string): string[] =>
   value
