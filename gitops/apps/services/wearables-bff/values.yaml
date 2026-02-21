@@ -17,12 +17,12 @@ configMap:
 env:
   PORT: "3001"
   API_PREFIX: "/api"
-  USE_MOCK_DATA: "true"
-  NODE_ENV: "development"
+  USE_MOCK_DATA: "false"
+  NODE_ENV: "production"
   FRONTEND_ORIGINS: "http://localhost:8080,http://localhost:8081"
   FRONTEND_REDIRECT_URL: "http://localhost:8080"
-  ADMIN_EMAILS: "j.moehler@posteo.de"
-  BACKEND_URL: "http://wearables-bff.wearables-bff.svc.cluster.local:3001"
+  ADMIN_EMAILS: "linus.gustafsson@tu-berlin.de,j.moehler@posteo.de,admin@lukaszsztukiewicz.com,gmsdaniilplay@gmail.com"
+  BACKEND_URL: "http://localhost:3001"
   AUTH_SESSION_EXPIRY_SECONDS: "604800"
   MAGIC_LINK_EXPIRY_SECONDS: "900"
   CASE_TOKEN_EXPIRY_SECONDS: "691200"
@@ -31,14 +31,14 @@ env:
   DATABASE_API_TIMEOUT: "30000"
   LOG_LEVEL: "info"
   MAILER_FROM_NAME: "Wearables Platform"
-  MAILER_FROM_EMAIL: "email@example.com"
+  MAILER_FROM_EMAIL: "jmm123@posteo.de"
   COOKIE_SECURE: ""
 
 secret:
   enabled: true
-  create: false
+  create: true
   name: ""
   data:
-    JWT_SECRET: "change-me"
-    BREVO_API_KEY: ""
-    RESEARCHER_API_ACCESS_TOKEN: "change-me"
+    JWT_SECRET: "dev-secret"
+    BREVO_API_KEY: "key"
+    RESEARCHER_API_ACCESS_TOKEN: "dev-secret"

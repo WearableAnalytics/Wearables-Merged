@@ -43,6 +43,8 @@ Important chart behavior:
 Recommended bootstrap command (shared JWT handling for BFF + Grafana proxy):
 
 ```bash
+chmod +x scripts/bootstrap-runtime-secrets.sh
+
 ./scripts/bootstrap-runtime-secrets.sh
 ```
 

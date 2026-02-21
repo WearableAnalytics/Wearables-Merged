@@ -8,9 +8,9 @@ runtimeConfigMap:
   name: ""
 
 runtimeConfig:
-  apiBaseUrl: "/api"
+  apiBaseUrl: "http://localhost:3001/api"
   grafanaProxyUrl: "http://localhost:3002/grafana-proxy"
-  socketUrl: ""
+  socketUrl: "http://localhost:3001"
 
 # Service configuration
 service:
@@ -19,7 +19,7 @@ service:
 
 # Ingress configuration
 ingress:
-  enabled: true
+  enabled: false
   host: "wearables.charite.de"
   path: "/"
   certificateSecretName: "wearables-tls"
