@@ -47,32 +47,66 @@ from(bucket: "%s")
 		//obs.Config.T0.Format(time.RFC3339Nano),
 	)
 
+	log.Printf("executing query: %s", query)
+
+	timeBeforeQuery := time.Now()
 	res, err := queryApi.Query(ctx, query)
 	if err != nil {
 		log.Printf("error occurred when executing query: %v", err)
 		return
 	}
+	log.Printf("query took: %vms to execute", time.Since(timeBeforeQuery).Milliseconds())
 
 	for res.Next() {
 		rec := res.Record()
+		log.Printf("Raw record: %s", rec.String())
 
 		values := rec.Values()
+		log.Printf("Values map: %#v", values)
 
 		var value int64
-		if v, ok := values["value"]; ok {
-			if i, ok := v.(float64); ok {
-				value = int64(i)
-			}
+		v, ok := values["value"]
+		if !ok {
+			log.Printf("ERROR: missing field 'value'")
+			continue
+		}
+
+		switch val := v.(type) {
+		case float64:
+			value = int64(val)
+		case int64:
+			value = val
+		default:
+			log.Printf("ERROR: unexpected type for 'value': %T (%v)", v, v)
+			continue
 		}
 
 		var tIngested time.Time
-		if t, ok := values["t_ingested"]; ok {
-			if i, ok := t.(int64); ok {
-				tIngested = time.Unix(0, i)
-			}
+		t, ok := values["t_ingested"]
+		if !ok {
+			log.Printf("ERROR: missing field 't_ingested'")
+			continue
 		}
 
-		obs.tracker.AddIngestTime(value, tIngested)
+		switch ts := t.(type) {
+		case int64:
+			tIngested = time.Unix(0, ts)
+		case time.Time:
+			tIngested = ts
+		default:
+			log.Printf("ERROR: unexpected type for 't_ingested': %T (%v)", t, t)
+			continue
+		}
+
+		log.Printf("Parsed value=%d, t_ingested=%v", value, tIngested)
+
+		if !obs.tracker.AddIngestTime(value, tIngested) {
+			log.Printf("ERROR: AddIngestTime failed for value=%d, t_ingested=%v", value, tIngested)
+		}
+	}
+
+	if err = res.Err(); err != nil {
+		log.Printf("ERROR: result iteration failed: %v", err)
 	}
 
 	obs.tracker.PrintAsCsv()

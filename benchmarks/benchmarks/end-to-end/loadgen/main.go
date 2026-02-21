@@ -41,7 +41,9 @@ func init() {
 }
 
 func main() {
-	startTime := time.Now()
+	log.SetFlags(log.LUTC)
+	startTime := time.Now().UTC()
+	log.Println("Starting Benchmark now: ", startTime)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sigs := make(chan os.Signal, 1)
@@ -113,9 +115,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("not able to start endpoint-workload: %v", err)
 	}
-	ew.Run()
 
+	ew.Run()
+	log.Printf("finished running in: %vs, now sleeping 60s", time.Since(startTime).Seconds())
 	time.Sleep(60 * time.Second)
+	log.Printf("now starting to observe")
 	obs.ObserveBenchmark(ctx)
 }
 
