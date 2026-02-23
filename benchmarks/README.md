@@ -35,21 +35,23 @@ benchmarks/
     ├── ingestion-service/   # Ingestion service latency & throughput
     ├── mapper/              # Mapper throughput
     ├── end-to-end/          # ingestion-service → InfluxDB pipeline
-    └── ml-pipeline/         # TODO: specify benchmarks for ML components
+    └── ml-pipeline/         # 'wearables-lp' → InfluxDB (through the ML Pipeline)
 ```
 
 ---
 
 ## Benchmark Status
 
-| Benchmark                 | Implementation-Status | Notes                         | Execution-Status |
-|---------------------------|-----------------------|-------------------------------|------------------|
-| Runner                    | ✅ Complete            | Kubernetes Job Runner via SSH | ✅ Tested         |
-| Test Benchmark            | ✅ Complete            | Runner smoke test             | ✅ Complete       |
-| Ingestion Service Latency | ✅ Complete            | Partial throughput included   | ⏳ Pending        |
-| Mapper Throughput         | ✅ Complete            |                               | ⏳ Pending        |
-| End-to-End Throughput     | ✅ Complete            |                               | ⏳ Pending        |
-| ML Pipeline               | ⏳ Pending             | Scope and metrics TBD         | ⏳ Pending        |
+| Benchmark                   | Implementation-Status | Notes                         | Execution-Status | Relevance                                  |
+|-----------------------------|-----------------------|-------------------------------|------------------|--------------------------------------------|
+| Runner                      | ✅ Complete            | Kubernetes Job Runner via SSH | ✅ Tested         |                                            |
+| Test Benchmark              | ✅ Complete            | Runner smoke test             | ✅ Complete       |                                            |
+| Ingestion Service Latency   | ✅ Complete            | Partial throughput included   | ⏳ Pending        | 📝 Final Report                            |
+| Mapper Throughput           | ✅ Complete            |                               | ⏳ Pending        | 📝 Final Report                            |
+| End-to-End Throughput       | ✅ Complete            |                               | ⏳ Pending        | 👩‍🏫 Final Presentation / 📝 Final Report |
+| End-to-End Processing-Time  | ✅ Complete            |                               | ⏳ Pending        | 👩‍🏫 Final Presentation / 📝 Final Report |
+| ML Pipeline Throughput      | ✅ Complete            |                               | ⏳ Pending        | 👩‍🏫 Final Presentation / 📝 Final Report |
+| ML Pipeline Processing-Time | ✅ Complete            |                               | ⏳ Pending        | 👩‍🏫 Final Presentation / 📝 Final Report |
 
 ---
 
@@ -271,6 +273,145 @@ spec:
 ```
 
 ---
+## Benchmark Setup
+This section describes the hardware and system configuration used for all benchmark experiments.
+
+#### System Under Test (SUT)
+The System Under Tests runs on a Kubernetes-Cluster running on 3 OpenStack Worker Nodes.
+All Nodes are provisioned as **[deNBI-medium](https://cloud.denbi.de/wiki/Concept/flavors/)** instances with identical hardware specification.
+
+Common specifications:
+- RAM: 32GB per node
+- Architecture: x86_64
+- CPU Model: AMD EPYC Rome
+- vCPUs: 16
+- Threads per core: 1
+
+Results of `lscpu` on each Node:
+###### Node 1
+```
+Architecture:             x86_64
+  CPU op-mode(s):         32-bit, 64-bit
+  Address sizes:          48 bits physical, 48 bits virtual
+  Byte Order:             Little Endian
+CPU(s):                   16
+  On-line CPU(s) list:    0-15
+Vendor ID:                AuthenticAMD
+  Model name:             AMD EPYC-Rome Processor
+    CPU family:           23
+    Model:                49
+    Thread(s) per core:   1
+    Core(s) per socket:   1
+    Socket(s):            16
+    Stepping:             0
+    BogoMIPS:             3992.49
+```
+
+###### Node 2
+```
+Architecture:             x86_64
+  CPU op-mode(s):         32-bit, 64-bit
+  Address sizes:          48 bits physical, 48 bits virtual
+  Byte Order:             Little Endian
+CPU(s):                   16
+  On-line CPU(s) list:    0-15
+Vendor ID:                AuthenticAMD
+  Model name:             AMD EPYC-Rome Processor
+    CPU family:           23
+    Model:                49
+    Thread(s) per core:   1
+    Core(s) per socket:   1
+    Socket(s):            16
+    Stepping:             0
+    BogoMIPS:             3992.49
+```
+###### Node 3
+```
+Architecture:             x86_64
+  CPU op-mode(s):         32-bit, 64-bit
+  Address sizes:          48 bits physical, 48 bits virtual
+  Byte Order:             Little Endian
+CPU(s):                   16
+  On-line CPU(s) list:    0-15
+Vendor ID:                AuthenticAMD
+  Model name:             AMD EPYC-Rome Processor
+    CPU family:           23
+    Model:                49
+    Thread(s) per core:   1
+    Core(s) per socket:   1
+    Socket(s):            16
+    Stepping:             0
+    BogoMIPS:             3992.50
+```
+
+All 3 Nodes are homogeneous to ensure consistent performance measurements and to eliminate hardware-related variance.
+
+#### Load Generator
+The benchmark load is generated from a dedicated **[deNBI-small](https://cloud.denbi.de/wiki/Concept/flavors/)** instance.
+This node is **locked** to prevent Kubernetes from scheduling pods on it unless explicitly configured in the job specifications.
+
+**Specification**:
+```
+Architecture:                x86_64
+  CPU op-mode(s):            32-bit, 64-bit
+  Address sizes:             46 bits physical, 57 bits virtual
+  Byte Order:                Little Endian
+CPU(s):                      8
+  On-line CPU(s) list:       0-7
+Vendor ID:                   GenuineIntel
+  Model name:                Intel Xeon Processor (Icelake)
+    CPU family:              6
+    Model:                   134
+    Thread(s) per core:      1
+    Core(s) per socket:      1
+    Socket(s):               8
+    Stepping:                0
+    BogoMIPS:                4589.14
+```
+This separation ensures that benchmark traffic generation does not interfere with the system under test.
+
+#### Time Synchronization (NTP)
+All nodes and the benchmark client are synchronized using NTP to guarantee accurate latency and throughput measurements.
+
+Results chronyc:
+###### Node 1:
+```
+Reference ID    : 10.57.196.5
+Stratum         : 4
+System time     : 0.000130769 seconds slow of NTP time
+RMS offset      : 0.000139269 seconds
+Leap status     : Normal
+```
+
+###### Node 2
+```
+Reference ID    : 10.57.196.5
+Stratum         : 4
+System time     : 0.000026985 seconds slow of NTP time
+RMS offset      : 0.000057518 seconds
+Leap status     : Normal
+```
+
+###### Node 3
+```
+Reference ID    : 10.57.196.5
+Stratum         : 4
+System time     : 0.000000015 seconds fast of NTP time
+RMS offset      : 0.000078484 seconds
+Leap status     : Normal
+```
+
+###### Benchmark Client
+```
+Reference ID    : 10.57.196.5
+Stratum         : 4
+System time     : 0.000017690 seconds fast of NTP time
+RMS offset      : 0.000309231 seconds
+Leap status     : Normal
+```
+
+The observed offsets are within sub-millisecond range, ensuring reliable timestamp-based measurements.
+
 
 ## Evaluation & Baselines
 
@@ -290,7 +431,7 @@ All benchmark results are stored locally after each run for offline analysis.
 - [x] Define minimum execution standard for all benchmarks
 - [ ] Mapper: processing time across sampling configs — `0.1% / 1% / 10% / 100%`
 - [ ] End-to-End: throughput test — `10k msg/sec` with `100 KB` payloads
-- [ ] ML Pipeline: define scope and key metrics
+- [x] ML Pipeline: define scope and key metrics
 - [ ] Add automatic namespace creation in runner
 - [x] Trigger cleanup automatically on timeout expiration
 
