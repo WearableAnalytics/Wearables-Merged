@@ -47,22 +47,15 @@ from(bucket: "%s")
 		//obs.Config.T0.Format(time.RFC3339Nano),
 	)
 
-	log.Printf("executing query: %s", query)
-
-	timeBeforeQuery := time.Now()
 	res, err := queryApi.Query(ctx, query)
 	if err != nil {
 		log.Printf("error occurred when executing query: %v", err)
 		return
 	}
-	log.Printf("query took: %vms to execute", time.Since(timeBeforeQuery).Milliseconds())
 
 	for res.Next() {
 		rec := res.Record()
-		log.Printf("Raw record: %s", rec.String())
-
 		values := rec.Values()
-		log.Printf("Values map: %#v", values)
 
 		var value int64
 		v, ok := values["value"]

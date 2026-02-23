@@ -43,7 +43,6 @@ func init() {
 func main() {
 	log.SetFlags(log.LUTC)
 	startTime := time.Now().UTC()
-	log.Println("Starting Benchmark now: ", startTime)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sigs := make(chan os.Signal, 1)
@@ -117,9 +116,8 @@ func main() {
 	}
 
 	ew.Run()
-	log.Printf("finished running in: %vs, now sleeping 60s", time.Since(startTime).Seconds())
-	time.Sleep(60 * time.Second)
-	log.Printf("now starting to observe")
+	time.Sleep(10 * time.Second)
+
 	obs.ObserveBenchmark(ctx)
 }
 

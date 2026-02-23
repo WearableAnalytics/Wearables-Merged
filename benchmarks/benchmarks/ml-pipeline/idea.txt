@@ -1,4 +1,16 @@
--> Publish to Kafka Topic
--> Observe Bucket when the data arrived in Influx with Insight
+Components:
 
-1. Components: Kafka Publisher, Influx-Observer
+- Kafka Publisher
+<    - Publishes test messages at controlled rate (ticker speed = Second / RPS)
+    - Each message has it's unique message-id
+    - Line Protocol timestamp is benchmark-client timestamp
+- Influx Observer
+    - Polls InfluxDB bucket every 100ms
+    - Tracks which <prefix>-<message-id> IDs have arrived
+    - Records t_observed = now() when the message appears
+
+
+Metrics:
+Processing-time = t_observed - t_produced (approx say that window difference)
+throughput = #msg per observe window (1s Windows)
+lost = #messages produced - #messages observed
