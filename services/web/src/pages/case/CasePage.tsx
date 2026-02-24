@@ -21,7 +21,7 @@ import {
 const GRAFANA_PROXY_URL = appRuntimeConfig.grafanaProxyUrl;
 const GENERAL_GRAFANA_UID = 'wearables-health-real';
 const MEDICAL_USE_CASE_GRAFANA_UID = 'wearables-six-min';
-const AI_INSIGHTS_GRAFANA_UID = 'AI_PLACEHOLDER_TODO';
+const AI_INSIGHTS_GRAFANA_UID = 'adgf864';
 const ONE_MINUTE_MS = 60 * 1000;
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
