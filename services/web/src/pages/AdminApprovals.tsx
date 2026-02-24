@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AccessRequestType, NonAdminRole } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
+import { StatusCallout } from '@/components/custom/StatusCallout';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
 import { dispatchAdminApprovalsUpdatedEvent } from '@/lib/adminApprovalsEvents';
@@ -220,7 +221,7 @@ export function AdminApprovalsPage() {
           description="Admin access is required to manage access requests."
         />
         {permissionMessage ? (
-          <div className="surface-card mt-6 p-4 text-sm text-destructive">{permissionMessage}</div>
+          <StatusCallout tone="warning" message={permissionMessage} className="mt-6" />
         ) : (
           <div className="mt-6" />
         )}
@@ -237,11 +238,7 @@ export function AdminApprovalsPage() {
       />
 
       <section className="surface-card mt-6 p-4 md:p-5">
-        {error ? (
-          <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
+        {error ? <StatusCallout tone="error" message={error} className="mb-4" /> : null}
 
         <AdminApprovalsViewControls
           loading={loading}

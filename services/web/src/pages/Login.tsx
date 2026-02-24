@@ -2,6 +2,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
+import { StatusCallout } from '@/components/custom/StatusCallout';
 import { useAuth } from '@/context/AuthContext';
 import { AuthEmailFormPage } from '@/components/custom/AuthEmailFormPage';
 import { getTrimmedOrNull } from '@/lib/input';
@@ -14,11 +15,13 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signupInfoMessage, setSignupInfoMessage] = useState<string | null>(null);
   useMessageToast('error', 'login-error', error);
   useLoadingToast('login-loading', isSubmitting, 'Signing you in…');
 
   const resetFeedback = () => {
     setError(null);
+    setSignupInfoMessage(null);
   };
 
   useEffect(() => {
@@ -38,6 +41,7 @@ export function LoginPage() {
 
     setIsSubmitting(true);
     setError(null);
+    setSignupInfoMessage(null);
 
     try {
       const data = await defaultApi.login(trimmedEmail);
@@ -53,10 +57,18 @@ export function LoginPage() {
           title: 'Check your email',
           description: 'If your account is approved, we will send a secure login link.',
           message: successMessage,
+          tone: 'success',
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to log in.');
+      if (
+        err instanceof Error &&
+        (err as Error & { redirectToSignup?: boolean }).redirectToSignup
+      ) {
+        setSignupInfoMessage(err.message || 'This email is not registered. Please sign up first.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Unable to log in.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -75,13 +87,16 @@ export function LoginPage() {
       inputId="login-email"
       submitLabel="Send login link"
       footer={
-        <p className="m-0 text-sm text-muted-foreground">
-          Need access?{' '}
-          <Link to="/register" className="font-semibold text-foreground underline-offset-2 hover:underline">
-            Register here
-          </Link>
-          .
-        </p>
+        <div className="w-full space-y-3">
+          <p className="m-0 w-full text-center text-sm text-muted-foreground">
+            Need access?{' '}
+            <Link to="/register" className="font-semibold text-foreground underline-offset-2 hover:underline">
+              Register here
+            </Link>
+            .
+          </p>
+          {signupInfoMessage ? <StatusCallout tone="error" message={signupInfoMessage} /> : null}
+        </div>
       }
     />
   );

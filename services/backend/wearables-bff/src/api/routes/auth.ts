@@ -34,33 +34,31 @@ const requestCookies = (req: Request) =>
 const isLocalHost = (hostname: string) =>
   hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 
-const parseHostnames = (raw?: string) =>
-  (raw ?? '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .map((value) => {
-      try {
-        return new URL(value).hostname;
-      } catch {
-        return undefined;
-      }
-    })
-    .filter((value): value is string => Boolean(value));
+const parseHostname = (value: string): string | undefined => {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return undefined;
+  }
+};
 
 const isLocalCookieContext = () => {
-  const hostnames = [
-    ...parseHostnames(process.env.FRONTEND_URL),
-    ...parseHostnames(process.env.BACKEND_URL),
-  ];
+  const contextUrls = [
+    ...config.frontendOrigins,
+    config.frontendRedirectUrl,
+    config.backendUrl,
+  ].filter(Boolean);
+
+  const hostnames = contextUrls
+    .map((url) => parseHostname(url))
+    .filter((value): value is string => Boolean(value));
+
   return hostnames.some((hostname) => isLocalHost(hostname));
 };
 
 const resolveSecureCookies = () => {
-  const explicit = process.env.COOKIE_SECURE;
-  if (explicit === 'true') return true;
-  if (explicit === 'false') return false;
-  if (process.env.NODE_ENV === 'development') return false;
+  if (config.cookieSecure !== undefined) return config.cookieSecure;
+  if (config.nodeEnv === 'development') return false;
   if (isLocalCookieContext()) return false;
   return true;
 };
@@ -123,14 +121,17 @@ const createJwtToken = (user: UserRecord) => {
       adminRequestStatus: user.adminRequestStatus,
       roleRequestStatuses: user.roleRequestStatuses,
     },
-    process.env.JWT_SECRET || 'dev-secret',
-    { expiresIn: '7d' },
+    config.jwtSecret,
+    { expiresIn: config.authSessionExpirySeconds },
   );
 };
 
 // Helper function to set auth cookie
 const setAuthCookie = (res: Response, token: string) => {
-  res.cookie('jwt', token, { ...baseCookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
+  res.cookie('jwt', token, {
+    ...baseCookieOptions,
+    maxAge: config.authSessionExpirySeconds * 1000,
+  });
 };
 
 // Helper function to cleanup expired tokens
@@ -145,14 +146,13 @@ const cleanupExpiredTokens = () => {
 // Helper function to create magic link token
 const createMagicLinkToken = (email: string) => {
   const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + config.magicLinkExpirySeconds * 1000);
   tokenStore.set(token, { email, expiresAt });
   cleanupExpiredTokens();
   return token;
 };
 
-const isMagicLinkBypass = () =>
-  config.nodeEnv === 'development' || !config.mailerEnabled;
+const isMagicLinkBypass = () => !config.isProduction;
 
 // POST /login
 router.post('/login', async (req: Request, res: Response) => {
@@ -324,8 +324,8 @@ router.get('/verify-magiclink', async (req: Request, res: Response) => {
     const jwtToken = createJwtToken(user);
     setAuthCookie(res, jwtToken);
 
-    if (process.env.NODE_ENV !== 'development') {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    if (config.nodeEnv !== 'development') {
+      const frontendUrl = config.frontendRedirectUrl;
       const redirectPath = user.isAdmin || user.roles.includes('practitioner') ? '/overview' : '/account';
       res.redirect(frontendUrl + redirectPath);
     } else {
@@ -336,7 +336,7 @@ router.get('/verify-magiclink', async (req: Request, res: Response) => {
     }
   } catch (_err) {
     // Always redirect to login page with error parameter
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = config.frontendRedirectUrl;
     res.redirect(`${frontendUrl}/error-magic_link`);
   }
 });
@@ -471,7 +471,6 @@ const sendPendingAccessRequests = (_req: Request, res: Response) => {
 };
 
 router.get('/admin/pending-access-requests', ...auth.adminOnly, sendPendingAccessRequests);
-router.get('/admin/pending-admin-requests', ...auth.adminOnly, sendPendingAccessRequests);
 
 const updateUserStatus = async (
   req: Request,

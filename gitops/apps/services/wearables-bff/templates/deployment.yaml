@@ -1,3 +1,5 @@
+{{- $configMapName := default (printf "%s-config" .Release.Name) .Values.configMap.name -}}
+{{- $secretName := default (printf "%s-secrets" .Release.Name) .Values.secret.name -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,15 +23,10 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 10
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 5
+          envFrom:
+            - configMapRef:
+                name: {{ $configMapName }}
+            {{- if .Values.secret.enabled }}
+            - secretRef:
+                name: {{ $secretName }}
+            {{- end }}

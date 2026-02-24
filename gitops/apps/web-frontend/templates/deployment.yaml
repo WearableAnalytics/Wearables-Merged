@@ -1,3 +1,4 @@
+{{- $runtimeConfigMapName := default (printf "%s-runtime-config" .Release.Name) .Values.runtimeConfigMap.name -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,3 +42,15 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /usr/share/nginx/html/runtime-config.js
+              subPath: runtime-config.js
+              readOnly: true
+      volumes:
+        - name: runtime-config
+          configMap:
+            name: {{ $runtimeConfigMapName }}
+            items:
+              - key: runtime-config.js
+                path: runtime-config.js

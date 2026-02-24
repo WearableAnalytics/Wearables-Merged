@@ -1,9 +1,10 @@
 import { Configuration, CasesApi, HospitalCasesApi, PatientsApi } from './openapi-client';
 import type { Middleware } from './openapi-client';
 import { dispatchSessionExpiredEvent } from '@/lib/authSession';
+import { appRuntimeConfig } from '@/config/runtimeConfig';
 
 const normalizeApiBasePath = (rawBasePath: string) => {
-  const trimmed = rawBasePath.replace(/\/$/, '') || '/api';
+  const trimmed = rawBasePath.replace(/\/$/, '') || '/';
 
   if (!import.meta.env.DEV) {
     return trimmed;
@@ -13,7 +14,7 @@ const normalizeApiBasePath = (rawBasePath: string) => {
     const url = new URL(trimmed);
     const isLocalHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
     if (isLocalHost) {
-      return url.pathname.replace(/\/$/, '') || '/api';
+      return url.pathname.replace(/\/$/, '') || '/';
     }
   } catch {
     return trimmed;
@@ -23,7 +24,7 @@ const normalizeApiBasePath = (rawBasePath: string) => {
 };
 
 // Shared configuration for all generated API classes.
-export const API_BASE_PATH = normalizeApiBasePath(import.meta.env.VITE_API_BASE_URL ?? '/api');
+export const API_BASE_PATH = normalizeApiBasePath(appRuntimeConfig.apiBaseUrl);
 
 export type NonAdminRole = 'practitioner' | 'researcher';
 export type AccessRequestType = 'admin' | NonAdminRole;

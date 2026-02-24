@@ -8,6 +8,8 @@ type AuthEmailFormPageProps = {
   headerLabel: string;
   headerTitle: string;
   headerDescription: string;
+  preForm?: ReactNode;
+  showForm?: boolean;
   email: string;
   loading: boolean;
   inputId: string;
@@ -22,6 +24,8 @@ export function AuthEmailFormPage({
   headerLabel,
   headerTitle,
   headerDescription,
+  preForm,
+  showForm = true,
   email,
   loading,
   inputId,
@@ -37,22 +41,25 @@ export function AuthEmailFormPage({
 
       <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">
         <div className="w-full max-w-3xl px-4">
-          <SearchForm
-            value={email}
-            loading={loading}
-            onChange={onEmailChange}
-            onFocusReset={onFocusReset}
-            onSubmit={onSubmit}
-            inputId={inputId}
-            inputLabel="Email address"
-            inputType="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="Enter your email address"
-            submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
-            submitLabel={submitLabel}
-          />
-          {footer ? <div className="mt-4">{footer}</div> : null}
+          {preForm ? <div className="mb-4">{preForm}</div> : null}
+          {showForm ? (
+            <SearchForm
+              value={email}
+              loading={loading}
+              onChange={onEmailChange}
+              onFocusReset={onFocusReset}
+              onSubmit={onSubmit}
+              inputId={inputId}
+              inputLabel="Email address"
+              inputType="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="Enter your email address"
+              submitIcon={<ArrowRight aria-hidden className="h-5 w-5" />}
+              submitLabel={submitLabel}
+            />
+          ) : null}
+          {footer ? <div className="mt-2">{footer}</div> : null}
         </div>
       </div>
     </>
