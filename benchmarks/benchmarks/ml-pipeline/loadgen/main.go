@@ -43,7 +43,10 @@ func loadConfig() {
 func main() {
 	loadConfig()
 	log.SetFlags(log.LUTC)
+
 	startTime := time.Now().UTC()
+
+	observer := NewObserver(influxURL, influxToken, influxOrg, influxBucket, startTime)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -76,13 +79,11 @@ func main() {
 	p.Run(ctx)
 
 	// Pipeline needs ~30s to process a message, therefore sleep!
-	time.Sleep(1 * time.Minute)
+	time.Sleep(3 * time.Minute)
 
 	obsCtx, obsCancel := context.WithCancel(context.Background())
 	defer obsCancel()
 
-	observer := NewObserver(influxURL, influxToken, influxOrg, influxBucket, startTime)
-	log.Printf("now starting observing with: %v", observer)
 	observer.Run(obsCtx)
 }
 
