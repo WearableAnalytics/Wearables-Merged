@@ -73,20 +73,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create producer: %v", err)
 	}
-
-	log.Printf("starting benchmark: startRPS=%.0f targetRPS=%.0f rampUp=%ds steady=%ds rampDown=%ds",
-		loadCfg.StartRPS, loadCfg.RPS,
-		loadCfg.RampUpDuration, loadCfg.Duration, loadCfg.RampDownDuration,
-	)
-
 	p.Run(ctx)
 
 	// Pipeline needs ~30s to process a message, therefore sleep!
 	time.Sleep(1 * time.Minute)
 
-	obsCtx, obsCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	obsCtx, obsCancel := context.WithCancel(context.Background())
 	defer obsCancel()
+
 	observer := NewObserver(influxURL, influxToken, influxOrg, influxBucket, startTime)
+	log.Printf("now starting observing with: %v", observer)
 	observer.Run(obsCtx)
 }
 

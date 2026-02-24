@@ -89,9 +89,9 @@ func NewProducer(kafkaCfg KafkaConfig, payloadCfg PayloadConfig, loadCfg LoadCon
 // BenchmarkGenerateLineProtocol
 // BenchmarkGenerateLineProtocol-8   	 3748686	       314.9 ns/op
 func (p *Producer) GenerateNewLineProtocol() string {
-	ts := time.Now().UTC().UnixMilli()
+	ts := time.Now().UTC().UnixNano()
 	messageCount := p.MessageCounter.Add(1)
-	lineProtocol := fmt.Sprintf("%s,device-id=%s-%d,category=%s value=%d %d", p.MeasurementName, p.BaseDeviceID, messageCount, p.Category, p.Value, ts)
+	lineProtocol := fmt.Sprintf("%s,device-id=%s-%d,category=%s,version=1.0.0 value=%d %d", p.MeasurementName, p.BaseDeviceID, messageCount, p.Category, p.Value, ts)
 	return lineProtocol
 }
 

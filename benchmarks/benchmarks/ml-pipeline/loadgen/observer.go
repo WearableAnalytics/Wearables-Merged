@@ -49,12 +49,13 @@ func (o *Observer) Run(ctx context.Context) {
 	query := fmt.Sprintf(`
 	from(bucket: "%s")
 	  |> range(start: -%ds)
-	  |> filter(fn: (r) => r._measurement == "health_rate_v2")
-	  |> pivot(rowKey: ["_time", "device-id"], columnKey: ["_field"], valueColumn: "_value")`,
+	  |> filter(fn: (r) => r._measurement == "ml_predictions")
+	  |> pivot(rowKey: ["_time", "device_id"], columnKey: ["_field"], valueColumn: "_value")`,
 		o.InfluxBucket,
-		int(time.Since(o.StartTime).Seconds()),
+		int(time.Since(o.StartTime).Seconds()+time.Minute.Seconds()),
 	)
 
+	log.Printf("executing query: %s", query)
 	res, err := api.Query(ctx, query)
 	if err != nil {
 		log.Printf("error occurred when executing query: %v", err)
@@ -63,56 +64,61 @@ func (o *Observer) Run(ctx context.Context) {
 	for res.Next() {
 		rec := res.Record()
 		values := rec.Values()
-		log.Println(values)
-		/*
-			var messageId string
-			m, ok := values["device_id"]
-			if !ok {
-				log.Printf("ERROR: missing field 'device_id'")
+
+		var messageId string
+		m, ok := values["device_id"]
+		if !ok {
+			log.Printf("ERROR: missing field 'device_id'")
+			continue
+		}
+
+		switch msg := m.(type) {
+		case string:
+			messageId = msg
+		default:
+			log.Printf("ERROR: unexpected type for 'device-id': %T (%v)", m, m)
+			continue
+		}
+
+		var timeObserved time.Time
+		t, ok := values["created_at"]
+		if !ok {
+			log.Printf("ERROR: missing field 'created_at'")
+			continue
+		}
+
+		switch tO := t.(type) {
+		case int64:
+			timeObserved = time.Unix(0, tO)
+		case time.Time:
+			timeObserved = tO
+		case string:
+			parsed, err := time.Parse("2006-01-02 15:04:05.999999Z07:00", tO)
+			if err != nil {
+				log.Printf("ERROR: failed to parse 'created_at' string: %v", err)
 				continue
 			}
+			timeObserved = parsed
+		default:
+			log.Printf("ERROR: unexpected type for 'created_at': %T (%v)", m, m)
+			continue
+		}
 
-			switch msg := m.(type) {
-			case string:
-				messageId = msg
-			default:
-				log.Printf("ERROR: unexpected type for 'device-id': %T (%v)", m, m)
-				continue
-			}
+		timeProduced := rec.Time().UTC()
 
-			var timeObserved time.Time
-			t, ok := values["created_at"]
-			if !ok {
-				log.Printf("ERROR: missing field 'created_at'")
-				continue
-			}
+		record := Record{
+			MessageId:    messageId,
+			TimeProduced: timeProduced,
+			TimeObserved: timeObserved,
+		}
 
-			switch tO := t.(type) {
-			case int64:
-				timeObserved = time.Unix(0, tO)
-			case time.Time:
-				timeObserved = tO
-			default:
-				log.Printf("ERROR: unexpected type for 'created_at': %T (%v)", m, m)
-				continue
-			}
+		o.mu.Lock()
+		o.Records[messageId] = record
+		o.mu.Unlock()
 
-			timeProduced := rec.Time().UTC()
-
-			record := Record{
-				MessageId:    messageId,
-				TimeProduced: timeProduced,
-				TimeObserved: timeObserved,
-			}
-
-			o.mu.Lock()
-			o.Records[messageId] = record
-			o.mu.Unlock()
-
-		*/
 	}
 
-	// o.PrintAsCsv()
+	o.PrintAsCsv()
 }
 
 func (o *Observer) PrintAsCsv() {
