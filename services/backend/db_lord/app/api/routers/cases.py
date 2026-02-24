@@ -1,9 +1,9 @@
-from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi_pagination.cursor import CursorPage
+from pydantic import AwareDatetime
 
 from app.api.dependencies import AssignmentServiceDep, CaseFiltersDep, CaseServiceDep, CaseSortingDep
 from app.api.params import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam
@@ -12,7 +12,7 @@ from app.schemas.assignment import ContextAssignmentResponse, DeviceAssignmentRe
 from app.schemas.case import CaseCreate, CaseExpandableFields, CaseExpanded, CaseResponse, CaseUpdate
 
 router = APIRouter()
-OptionalDateTimeQuery = Annotated[datetime | None, Query()]
+OptionalDateTimeQuery = Annotated[AwareDatetime | None, Query()]
 
 
 @router.post("/", response_model=CaseResponse, status_code=status.HTTP_201_CREATED)
