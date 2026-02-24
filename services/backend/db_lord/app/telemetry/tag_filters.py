@@ -1,13 +1,7 @@
-from __future__ import annotations
-
 from app.telemetry.types import TelemetryTagInput, TelemetryTags
 
 
-def merge_tag_filter(
-    tags: TelemetryTags,
-    key: str,
-    incoming: TelemetryTagInput,
-) -> None:
+def merge_tag_filter(tags: TelemetryTags, key: str, incoming: TelemetryTagInput) -> None:
     existing = tags.get(key)
     incoming_values = incoming if isinstance(incoming, list) else [incoming]
 

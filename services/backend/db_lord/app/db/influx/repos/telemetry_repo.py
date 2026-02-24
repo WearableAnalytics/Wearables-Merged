@@ -28,6 +28,11 @@ SYSTEM_COLUMNS: frozenset[str] = frozenset(
 CURSOR_VERSION = 1
 CURSOR_SEPARATOR = "|"
 
+type FluxParams = dict[str, Any]
+type RecordValues = dict[str, Any]
+type PageRow = tuple[dict[str, Any], datetime | None, str]
+type RecordMapper = Callable[[RecordValues], dict[str, Any]]
+
 
 @dataclass(frozen=True)
 class TelemetryPage:
@@ -58,7 +63,7 @@ class CursorToken:
 class PreparedTelemetryQuery:
     schema: MeasurementSchema | None
     flux: str
-    params: dict[str, Any]
+    params: FluxParams
     stop_utc: datetime | None
 
 
@@ -100,7 +105,7 @@ class TelemetryRepo:
         cursor: Cursor | None = None,
         bucket: str | None = None,
     ) -> TelemetryPage:
-        query = await self._prepare_query(
+        query = await self._prepare_mode_query(
             measurement=measurement,
             start=start,
             end=end,
@@ -109,9 +114,8 @@ class TelemetryRepo:
             page_size=page_size,
             cursor=cursor,
             bucket=bucket,
-            pivot=True,
+            raw=False,
             include_cursor_extra=True,
-            include_field_in_cursor=False,
         )
         return await self._collect_points_page(
             query=query,
@@ -130,7 +134,7 @@ class TelemetryRepo:
         cursor: Cursor | None = None,
         bucket: str | None = None,
     ) -> TelemetryPage:
-        query = await self._prepare_query(
+        query = await self._prepare_mode_query(
             measurement=measurement,
             start=start,
             end=end,
@@ -139,9 +143,8 @@ class TelemetryRepo:
             page_size=page_size,
             cursor=cursor,
             bucket=bucket,
-            pivot=False,
+            raw=True,
             include_cursor_extra=True,
-            include_field_in_cursor=True,
         )
         return await self._collect_points_page(
             query=query,
@@ -160,7 +163,7 @@ class TelemetryRepo:
         cursor: Cursor | None = None,
         bucket: str | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
-        query = await self._prepare_query(
+        query = await self._prepare_mode_query(
             measurement=measurement,
             start=start,
             end=end,
@@ -169,9 +172,8 @@ class TelemetryRepo:
             page_size=page_size,
             cursor=cursor,
             bucket=bucket,
-            pivot=True,
+            raw=False,
             include_cursor_extra=False,
-            include_field_in_cursor=False,
         )
         async for item in self._stream_points(
             query,
@@ -190,7 +192,7 @@ class TelemetryRepo:
         cursor: Cursor | None = None,
         bucket: str | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
-        query = await self._prepare_query(
+        query = await self._prepare_mode_query(
             measurement=measurement,
             start=start,
             end=end,
@@ -199,12 +201,39 @@ class TelemetryRepo:
             page_size=page_size,
             cursor=cursor,
             bucket=bucket,
-            pivot=False,
+            raw=True,
             include_cursor_extra=False,
-            include_field_in_cursor=True,
         )
         async for item in self._stream_points(query, self._raw_item_from_values):
             yield item
+
+    async def _prepare_mode_query(
+        self,
+        *,
+        measurement: str | None,
+        start: datetime | None,
+        end: datetime | None,
+        tags: TelemetryTags | None,
+        fields: list[str] | None,
+        page_size: int,
+        cursor: Cursor | None,
+        bucket: str | None,
+        raw: bool,
+        include_cursor_extra: bool,
+    ) -> PreparedTelemetryQuery:
+        return await self._prepare_query(
+            measurement=measurement,
+            start=start,
+            end=end,
+            tags=tags,
+            fields=fields,
+            page_size=page_size,
+            cursor=cursor,
+            bucket=bucket,
+            pivot=not raw,
+            include_cursor_extra=include_cursor_extra,
+            include_field_in_cursor=raw,
+        )
 
     async def _prepare_query(
         self,
@@ -251,25 +280,44 @@ class TelemetryRepo:
         *,
         query: PreparedTelemetryQuery,
         page_size: int,
-        map_record: Callable[[dict[str, Any]], dict[str, Any]],
+        map_record: RecordMapper,
     ) -> TelemetryPage:
         stream = await self._query_api.query_stream(query.flux, params=query.params)
 
-        rows: list[tuple[dict[str, Any], datetime | None, str]] = []
+        rows: list[PageRow] = []
         async for record in stream:
             values = record.values
-            rows.append((map_record(values), values.get("_time"), self._cursor_key_from_values(values)))
+            cursor_key = values.get("_cursor_key")
+            rows.append((map_record(values), values.get("_time"), "" if cursor_key is None else str(cursor_key)))
 
         return self._finalize_page(rows, page_size, query.stop_utc)
 
     async def _stream_points(
         self,
         query: PreparedTelemetryQuery,
-        map_record: Callable[[dict[str, Any]], dict[str, Any]],
-    ) -> AsyncIterator[dict[str, Any]]:
+        map_record: RecordMapper,
+    ) -> AsyncIterator[RecordValues]:
         stream = await self._query_api.query_stream(query.flux, params=query.params)
         async for record in stream:
             yield map_record(record.values)
+
+    async def _collect_string_values(
+        self,
+        flux: str,
+        *,
+        params: FluxParams,
+        exclude_private: bool = False,
+    ) -> set[str]:
+        stream = await self._query_api.query_stream(flux, params=params)
+        values: set[str] = set()
+        async for record in stream:
+            value = record.values.get("_value")
+            if not isinstance(value, str) or not value:
+                continue
+            if exclude_private and value.startswith("_"):
+                continue
+            values.add(value)
+        return values
 
     async def list_measurements(self, *, bucket: str | None = None) -> list[str]:
         bucket_name = self._resolve_bucket(bucket)
@@ -285,14 +333,7 @@ class TelemetryRepo:
         )
         params = {"bucket_param": bucket_name, **schema_start_params}
 
-        stream = await self._query_api.query_stream(flux, params=params)
-        measurements: set[str] = set()
-        async for record in stream:
-            value = record.values.get("_value")
-            if isinstance(value, str) and value:
-                measurements.add(value)
-
-        return sorted(measurements)
+        return sorted(await self._collect_string_values(flux, params=params))
 
     async def describe_measurement(self, measurement: str, *, bucket: str | None = None) -> MeasurementSchema:
         bucket_name = self._resolve_bucket(bucket)
@@ -312,7 +353,8 @@ class TelemetryRepo:
         normalized_measurement = self._normalize_measurement(measurement)
         if normalized_measurement is None:
             raise ValueError("measurement must be a non-empty string")
-        if not tag_key:
+        normalized_tag_key = tag_key.strip()
+        if not normalized_tag_key:
             raise ValueError("tag_key must be a non-empty string")
         if limit is not None and limit < 1:
             raise ValueError("limit must be >= 1 when provided")
@@ -329,10 +371,10 @@ class TelemetryRepo:
             ")",
         ]
 
-        params: dict[str, Any] = {
+        params: FluxParams = {
             "bucket_param": bucket_name,
             "measurement_param": normalized_measurement,
-            "tag_param": tag_key,
+            "tag_param": normalized_tag_key,
             **schema_start_params,
         }
 
@@ -340,14 +382,7 @@ class TelemetryRepo:
             flux_parts.append("|> limit(n: limit_param)")
             params["limit_param"] = limit
 
-        stream = await self._query_api.query_stream("\n".join(flux_parts), params=params)
-        values: set[str] = set()
-        async for record in stream:
-            value = record.values.get("_value")
-            if isinstance(value, str) and value:
-                values.add(value)
-
-        return sorted(values)
+        return sorted(await self._collect_string_values("\n".join(flux_parts), params=params))
 
     def _build_flux_query(
         self,
@@ -364,7 +399,7 @@ class TelemetryRepo:
         pivot: bool,
         include_cursor_extra: bool,
         include_field_in_cursor: bool,
-    ) -> tuple[str, dict[str, Any], datetime | None]:
+    ) -> tuple[str, FluxParams, datetime | None]:
         if page_size is not None:
             if page_size < 1:
                 raise ValueError("page_size must be at least 1")
@@ -386,7 +421,7 @@ class TelemetryRepo:
         if start_utc is not None and stop_utc is not None and start_utc > stop_utc:
             raise ValueError("start must be <= end")
 
-        params: dict[str, Any] = {"bucket_param": bucket}
+        params: FluxParams = {"bucket_param": bucket}
         if start_utc is not None:
             params["start_param"] = start_utc
         if stop_utc is not None:
@@ -404,14 +439,12 @@ class TelemetryRepo:
 
         if tags:
             filter_conditions: list[str] = []
-            for index, (key, value) in enumerate(tags.items()):
+            for index, (key, values) in enumerate(tags.items()):
                 column = f"r[{json.dumps(key)}]"
-                normalized_values = [str(item) for item in value]
-                unique_values = list(dict.fromkeys(normalized_values))
+                unique_values = self._dedupe_preserve_order(str(item) for item in values)
                 if not unique_values:
                     filter_conditions.append("false")
                     continue
-
                 if len(unique_values) == 1:
                     value_param = f"tag_val_{index}"
                     params[value_param] = unique_values[0]
@@ -427,24 +460,18 @@ class TelemetryRepo:
                     list_param = f"tag_vals_{index}"
                     params[list_param] = unique_values
                     filter_conditions.append(f"contains(value: {column}, set: {list_param})")
-
             if filter_conditions:
                 flux_parts.append(f"|> filter(fn: (r) => {' and '.join(filter_conditions)})")
 
         if fields:
-            deduped_fields = list(dict.fromkeys(str(field) for field in fields if field))
+            deduped_fields = self._dedupe_preserve_order(str(field) for field in fields if field)
             if deduped_fields:
                 params["field_set_param"] = deduped_fields
                 flux_parts.append('|> filter(fn: (r) => contains(value: r["_field"], set: field_set_param))')
 
-        keep_tag_keys = list(schema.tag_keys) if schema is not None else list(CORE_TELEMETRY_TAG_ORDER)
-        if tags:
-            keep_tag_keys.extend(str(tag_key) for tag_key in tags)
-
-        deduped_tag_keys = list(dict.fromkeys(keep_tag_keys))
-        keep_columns = ["_time", "_measurement", "_field", "_value", *deduped_tag_keys]
-        deduped_keep_columns = list(dict.fromkeys(keep_columns))
-        flux_parts.append(f"|> keep(columns: [{', '.join(json.dumps(column) for column in deduped_keep_columns)}])")
+        deduped_tag_keys = self._known_tag_keys(schema, tags)
+        keep_columns = self._dedupe_preserve_order(["_time", "_measurement", "_field", "_value", *deduped_tag_keys])
+        flux_parts.append(f"|> keep(columns: [{', '.join(json.dumps(column) for column in keep_columns)}])")
 
         if pivot:
             row_key_columns = ["_time", "_measurement", *deduped_tag_keys]
@@ -454,7 +481,6 @@ class TelemetryRepo:
                 'columnKey: ["_field"], valueColumn: "_value"'
                 ")"
             )
-
         flux_parts.append("|> group(columns: [])")
 
         key_columns = ["_measurement", *deduped_tag_keys]
@@ -465,14 +491,13 @@ class TelemetryRepo:
             f"|> map(fn: (r) => ({{ r with _cursor_key: {self._build_cursor_key_expression(key_columns)} }}))"
         )
 
-        if cursor:
+        if cursor is not None:
             params["cursor_time_param"] = cursor.timestamp
             params["cursor_key_param"] = cursor.key
             flux_parts.append(
                 '|> filter(fn: (r) => r["_time"] < cursor_time_param or '
                 '(r["_time"] == cursor_time_param and r["_cursor_key"] < cursor_key_param))'
             )
-
         flux_parts.append('|> sort(columns: ["_time", "_cursor_key"], desc: true)')
         if page_size is not None:
             limit_n = page_size + 1 if include_cursor_extra else page_size
@@ -544,28 +569,20 @@ class TelemetryRepo:
                 ")",
             ]
         )
-        params = {
+        params: FluxParams = {
             "bucket_param": bucket,
             "measurement_param": measurement,
             **schema_start_params,
         }
-
-        stream = await self._query_api.query_stream(flux, params=params)
-        keys: set[str] = set()
-        async for record in stream:
-            value = record.values.get("_value")
-            if isinstance(value, str) and value and not value.startswith("_"):
-                keys.add(value)
-
-        return keys
+        return await self._collect_string_values(flux, params=params, exclude_private=True)
 
     def _structured_item_from_values(
         self,
-        values: dict[str, Any],
+        values: RecordValues,
         fields: list[str] | None,
         schema: MeasurementSchema | None,
         tags: TelemetryTags | None,
-    ) -> dict[str, Any]:
+    ) -> RecordValues:
         field_values, other_tags = self._split_structured_values(values, fields, schema, tags)
         core_tags = {tag_key: values.get(tag_key) for tag_key in CORE_TELEMETRY_TAG_ORDER}
         return {
@@ -577,7 +594,7 @@ class TelemetryRepo:
         }
 
     @staticmethod
-    def _raw_item_from_values(values: dict[str, Any]) -> dict[str, Any]:
+    def _raw_item_from_values(values: RecordValues) -> RecordValues:
         return {
             "timestamp": values.get("_time"),
             "measurement": values.get("_measurement"),
@@ -588,15 +605,12 @@ class TelemetryRepo:
 
     @staticmethod
     def _split_structured_values(
-        values: dict[str, Any],
+        values: RecordValues,
         fields: list[str] | None,
         schema: MeasurementSchema | None,
         tags: TelemetryTags | None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        known_tag_keys = list(schema.tag_keys) if schema is not None else list(CORE_TELEMETRY_TAG_ORDER)
-        if tags:
-            known_tag_keys.extend(str(tag_key) for tag_key in tags)
-        deduped_tag_keys = list(dict.fromkeys(known_tag_keys))
+        deduped_tag_keys = TelemetryRepo._known_tag_keys(schema, tags)
 
         other_tags: dict[str, Any] = {}
         for key in deduped_tag_keys:
@@ -607,7 +621,7 @@ class TelemetryRepo:
                 other_tags[key] = value
 
         if fields:
-            selected_fields = [field for field in fields if field]
+            selected_fields = TelemetryRepo._dedupe_preserve_order(field for field in fields if field)
         else:
             selected_fields = sorted(schema.field_keys) if schema is not None else []
 
@@ -627,6 +641,17 @@ class TelemetryRepo:
             field_values[key] = value
 
         return field_values, other_tags
+
+    @staticmethod
+    def _known_tag_keys(schema: MeasurementSchema | None, tags: TelemetryTags | None) -> list[str]:
+        base_keys: list[str] = list(schema.tag_keys) if schema is not None else list(CORE_TELEMETRY_TAG_ORDER)
+        if tags:
+            base_keys.extend(str(tag_key) for tag_key in tags)
+        return TelemetryRepo._dedupe_preserve_order(base_keys)
+
+    @staticmethod
+    def _dedupe_preserve_order(values: Iterable[str]) -> list[str]:
+        return list(dict.fromkeys(values))
 
     @staticmethod
     def _build_cursor_key_expression(columns: list[str]) -> str:
@@ -650,17 +675,10 @@ class TelemetryRepo:
             components.append(escaped_value_expr)
         return f"strings.joinStr(arr: [{', '.join(components)}], v: {json.dumps(CURSOR_SEPARATOR)})"
 
-    @staticmethod
-    def _cursor_key_from_values(values: dict[str, Any]) -> str:
-        key = values.get("_cursor_key")
-        if key is None:
-            return ""
-        return str(key)
-
     @classmethod
     def _finalize_page(
         cls,
-        rows: list[tuple[dict[str, Any], datetime | None, str]],
+        rows: list[PageRow],
         page_size: int,
         stop: datetime | None,
     ) -> TelemetryPage:
