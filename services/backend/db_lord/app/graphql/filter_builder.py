@@ -2,11 +2,12 @@
 Filter builder for converting GraphQL FilterInput to SQLAlchemy expressions.
 """
 
+from functools import cache
 from typing import Any
 
 from sqlalchemy import ColumnElement, and_, not_, or_
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute
 from strawberry.types.maybe import Some
 
 from app.graphql.inputs import FilterCondition, FilterInput, FilterOperator, FilterValue
@@ -42,8 +43,13 @@ class FilterBuilder:
 
     def __init__(self, model: type[DeclarativeBase]):
         self.model = model
+        self._columns = self._resolve_model_columns(model)
+
+    @staticmethod
+    @cache
+    def _resolve_model_columns(model: type[DeclarativeBase]) -> dict[str, InstrumentedAttribute[Any]]:
         mapper = sa_inspect(model)
-        self._columns: dict[str, Any] = {attr.key: getattr(model, attr.key) for attr in mapper.column_attrs}
+        return {attr.key: getattr(model, attr.key) for attr in mapper.column_attrs}
 
     def build(self, filter_input: FilterInput | None) -> ColumnElement[bool] | None:
         """
@@ -95,9 +101,15 @@ class FilterBuilder:
             case FilterOperator.LTE:
                 return column <= value
             case FilterOperator.IN:
-                return column.in_(value) if value else column.in_([])
+                if not isinstance(value, (list, tuple, set, frozenset)):
+                    raise ValueError("Filter operator IN requires a list-like value")
+                iterable_values = list(value)
+                return column.in_(iterable_values)
             case FilterOperator.NOT_IN:
-                return column.not_in(value) if value else column.not_in([])
+                if not isinstance(value, (list, tuple, set, frozenset)):
+                    raise ValueError("Filter operator NOT_IN requires a list-like value")
+                iterable_values = list(value)
+                return column.not_in(iterable_values)
             case FilterOperator.IS_NULL:
                 if value is True or value is None:
                     return column.is_(None)

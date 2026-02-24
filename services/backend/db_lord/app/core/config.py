@@ -23,22 +23,33 @@ class Settings(BaseSettings):
     INFLUX_TIMEOUT_MS: int | None = None
     INFLUX_CONNECTION_POOL_MAXSIZE: int | None = None
     INFLUX_SCHEMA_CACHE_TTL_SECONDS: int = 300
-    INFLUX_SCHEMA_CACHE_MAX_MEASUREMENTS: int = 1000
+    INFLUX_SCHEMA_CACHE_MAX_MEASUREMENTS: int = 1_000
     INFLUX_SCHEMA_LOOKBACK: int = 0
 
     # SQLAlchemy pool tuning
+    WEB_CONCURRENCY: int = 4
     DB_ECHO: bool = False
-    DB_POOL_SIZE: int = 10
-    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 5
     DB_POOL_TIMEOUT: int = 30
-    DB_POOL_RECYCLE: int = 1800
+    DB_POOL_RECYCLE: int = 1_800
     DB_POOL_PRE_PING: bool = True
+    DB_POOL_WARN_THRESHOLD: int = 80
+    # Random values should be adjusted in real deployments
+    HEALTHCHECK_DB_TIMEOUT_MS: int = 5_000
+    HEALTHCHECK_INFLUX_TIMEOUT_MS: int = 5_000
     GRAPHQL_DB_MAX_CONCURRENCY: int = 8
-    TELEMETRY_MAX_IDS_PER_TAG: int = 5000
-    TELEMETRY_MAX_TOTAL_IDS: int = 20000
+    GRAPHQL_WS_KEEP_ALIVE_INTERVAL_SECONDS: int = 15
+    GRAPHQL_RELAY_MAX_RESULTS: int = 100
+    GRAPHQL_MAX_DEPTH: int = 12
+    GRAPHQL_MAX_TOKENS: int = 5_000
+    GRAPHQL_MAX_ALIASES: int = 15
+    TELEMETRY_MAX_IDS_PER_TAG: int = 5_000
+    TELEMETRY_MAX_TOTAL_IDS: int = 20_000
 
     ERRORS_INCLUDE_TECHNICAL_DETAILS: bool = False
 
+    ENVIRONMENT: str = "development"  # or "production" dsiables graphiql web interface and  
     @property
     def POSTGRES_URL(self) -> URL:
         url = URL.create(

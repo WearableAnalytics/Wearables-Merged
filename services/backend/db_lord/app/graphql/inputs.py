@@ -11,6 +11,8 @@ from uuid import UUID
 
 import strawberry
 
+from app.telemetry.constants import TELEMETRY_DEFAULT_PAGE_SIZE
+
 
 @strawberry.enum
 class FilterOperator(Enum):
@@ -117,34 +119,31 @@ class TelemetryQueryInput:
         default=None, description="Direct Influx tag filters as key/value entries."
     )
     patient_filter: FilterInput | None = strawberry.field(
-        default=None,
-        description="Optional PostgreSQL patient filter resolved to telemetry patient_id IN.",
+        default=None, description="Optional PostgreSQL patient filter resolved to telemetry patient_id IN."
     )
     case_filter: FilterInput | None = strawberry.field(
-        default=None,
-        description="Optional PostgreSQL case filter resolved to telemetry case_id IN.",
+        default=None, description="Optional PostgreSQL case filter resolved to telemetry case_id IN."
     )
     device_filter: FilterInput | None = strawberry.field(
-        default=None,
-        description="Optional PostgreSQL device filter resolved to telemetry device_id IN.",
+        default=None, description="Optional PostgreSQL device filter resolved to telemetry device_id IN."
     )
     wearable_filter: FilterInput | None = strawberry.field(
-        default=None,
-        description="Optional PostgreSQL wearable filter resolved to telemetry wearable_id IN.",
+        default=None, description="Optional PostgreSQL wearable filter resolved to telemetry wearable_id IN."
     )
     context_filter: FilterInput | None = strawberry.field(
-        default=None,
-        description="Optional PostgreSQL context filter resolved to telemetry context_id IN.",
+        default=None, description="Optional PostgreSQL context filter resolved to telemetry context_id IN."
     )
     mapping_filter: FilterInput | None = strawberry.field(
-        default=None,
-        description="Optional PostgreSQL mapping filter resolved to telemetry mapping_id IN.",
+        default=None, description="Optional PostgreSQL mapping filter resolved to telemetry mapping_id IN."
     )
     include_resolved_metadata: bool = strawberry.field(
-        default=False,
-        description="When true, include PostgreSQL entities resolved from cross-db filters.",
+        default=False, description="When true, include PostgreSQL entities resolved from cross-db filters."
     )
-    codes: list[str] | None = strawberry.field(default=None, description="Telemetry code tags (OR logic).")
+    dot_dependency_file_ids: list[str] | None = strawberry.field(
+        default=None, description="Telemetry dot_dependency_file_id tags (OR logic)."
+    )
     fields: list[str] | None = strawberry.field(default=None, description="Specific fields to return (None = all).")
-    page_size: int = strawberry.field(default=100, description="Number of points to return (max 10000).")
+    page_size: int = strawberry.field(
+        default=TELEMETRY_DEFAULT_PAGE_SIZE, description="Number of points to return (max 10000)."
+    )
     cursor: str | None = strawberry.field(default=None, description="Opaque telemetry cursor for pagination.")

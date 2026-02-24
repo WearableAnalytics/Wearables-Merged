@@ -1,13 +1,14 @@
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Hashable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 from fastapi_filters import FilterSet, SortingValues
 from fastapi_filters.ext.sqlalchemy import apply_filters_and_sorting, apply_sorting
 from fastapi_pagination.cursor import CursorPage
 from fastapi_pagination.ext.sqlalchemy import apaginate
 from pydantic import BaseModel
-from sqlalchemy import delete, select, text, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import delete, select, update
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase
@@ -15,19 +16,89 @@ from sqlalchemy.orm import DeclarativeBase
 from app.filters import GLOBAL_SORT_VALUES
 
 
+@dataclass(frozen=True)
+class ConnectionItem[NodeType]:
+    node: NodeType
+    cursor_values: tuple[object, ...]
+
+
+@dataclass(frozen=True)
+class GroupedConnectionPage[NodeType]:
+    items_by_parent: dict[UUID, list[ConnectionItem[NodeType]]]
+    has_extra_by_parent: dict[UUID, bool]
+
+
+def ordered_unique[T](values: Iterable[T]) -> list[T]:
+    return list(dict.fromkeys(values))
+
+
+def slice_grouped_page[T](
+    *, parent_ids: Sequence[UUID], values_by_parent: Mapping[UUID, list[T]], page_size: int, fetch_backward: bool
+) -> tuple[dict[UUID, bool], dict[UUID, list[T]]]:
+    has_extra_by_parent: dict[UUID, bool] = {}
+    kept_values_by_parent: dict[UUID, list[T]] = {}
+    for parent_id in parent_ids:
+        values = values_by_parent.get(parent_id, [])
+        has_extra_by_parent[parent_id] = len(values) > page_size if page_size > 0 else bool(values)
+        if page_size == 0:
+            kept_values: list[T] = []
+        else:
+            kept_values = values[:page_size]
+            if fetch_backward:
+                kept_values.reverse()
+        kept_values_by_parent[parent_id] = kept_values
+    return has_extra_by_parent, kept_values_by_parent
+
+
+async def grouped_page_from_ranked_subquery[TValue: Hashable, NodeType](
+    *,
+    db: AsyncSession,
+    parent_ids: Sequence[UUID],
+    ranked_subquery: Any,
+    page_size: int,
+    fetch_backward: bool,
+    value_from_row: Callable[[Any], TValue],
+    load_nodes_by_value: Callable[[list[TValue]], Awaitable[dict[TValue, NodeType]]],
+    cursor_values_from: Callable[[NodeType, TValue], tuple[object, ...]],
+) -> GroupedConnectionPage[NodeType]:
+    fetch_limit = page_size + 1 if page_size > 0 else 1
+    rows_stmt = (
+        select(*ranked_subquery.c)
+        .where(ranked_subquery.c.rn <= fetch_limit)
+        .order_by(ranked_subquery.c.parent_id, ranked_subquery.c.rn)
+    )
+    rows_result = await db.execute(rows_stmt)
+    rows = rows_result.all()
+
+    values_by_parent: dict[UUID, list[TValue]] = {}
+    for row in rows:
+        values_by_parent.setdefault(row.parent_id, []).append(value_from_row(row))
+
+    has_extra_by_parent, kept_values_by_parent = slice_grouped_page(
+        parent_ids=parent_ids,
+        values_by_parent=values_by_parent,
+        page_size=page_size,
+        fetch_backward=fetch_backward,
+    )
+
+    unique_values: list[TValue] = ordered_unique(value for values in kept_values_by_parent.values() for value in values)
+    nodes_by_value = await load_nodes_by_value(unique_values) if unique_values else {}
+
+    items_by_parent: dict[UUID, list[ConnectionItem[NodeType]]] = {}
+    for parent_id in parent_ids:
+        parent_items: list[ConnectionItem[NodeType]] = []
+        for value in kept_values_by_parent[parent_id]:
+            node = nodes_by_value.get(value)
+            if node is None:
+                continue
+            parent_items.append(ConnectionItem(node=node, cursor_values=cursor_values_from(node, value)))
+        items_by_parent[parent_id] = parent_items
+
+    return GroupedConnectionPage(items_by_parent=items_by_parent, has_extra_by_parent=has_extra_by_parent)
+
+
 class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSchemaType: BaseModel]:
-    """Base repository with CRUD operations using ORM models for Postgres.
-
-
-    This counts are approximated using PostgreSQL's pg_class.reltuples.
-    This statistic is updated by vacuum and analyze operations.
-
-    For accurate counts after bulk inserts/updates, run:
-        analyze table_name;
-
-    TODO: Maybe Schedule periodic analyze in maintenance windows or after large data loads
-    ->The default autovacuum settings probably work fine
-    """
+    """Base repository with CRUD operations using ORM models for Postgres."""
 
     def __init__(self, model: type[ModelType], db: AsyncSession, pk: str = "id"):
         self.model = model
@@ -37,20 +108,21 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
     async def get(self, id: Any) -> ModelType | None:
         return await self.db.get(self.model, id)
 
-    async def get_all(self, limit: int = 1000) -> Sequence[ModelType]:
-        query = select(self.model).limit(min(limit, 1000))
-        result = await self.db.execute(query)
-        return result.scalars().all()
+    async def list_by_ids(self, ids: Sequence[Any]) -> list[ModelType]:
+        if not ids:
+            return []
+        stmt = select(self.model).where(self.pk_col.in_(ids))
+        return list(await self.db.scalars(stmt))
+
+    async def map_by_ids(self, ids: Sequence[Any]) -> dict[Any, ModelType]:
+        entities = await self.list_by_ids(ids)
+        return {getattr(entity, self.pk_col.key): entity for entity in entities}
 
     @staticmethod
     def _effective_sorting(sorting: SortingValues | None) -> SortingValues:
         return sorting if sorting is not None else GLOBAL_SORT_VALUES
 
-    def _build_filtered_query(
-        self,
-        filters: FilterSet | None = None,
-        sorting: SortingValues | None = None,
-    ):
+    def _build_filtered_query(self, filters: FilterSet | None = None, sorting: SortingValues | None = None):
         query = select(self.model)
         effective_sorting = self._effective_sorting(sorting)
         if filters:
@@ -67,7 +139,7 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
         """Stream matching records using server-side cursors.
 
         `as_mapping=True` yields SQLAlchemy RowMapping objects projected from table columns,
-        which avoids ORM entity construction for read-only streaming paths.
+        this avoids ORM entity construction for read-only streaming paths.
         """
         query, _ = self._build_filtered_query(filters, sorting)
         if as_mapping:
@@ -96,33 +168,11 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
             return await self.get(id)
 
         stmt = update(self.model).where(self.pk_col == id).values(**obj_data).returning(self.model)
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
-
-    async def upsert(self, id: Any, obj_in: CreateSchemaType) -> ModelType | None:
-        """Insert or update a record.
-
-        On conflict updates all fields except the primary key.
-        """
-        insert_data = obj_in.model_dump(exclude_unset=True)
-        insert_data[self.pk_col.key] = id
-
-        # Exclude PK from update set
-        update_data = {k: v for k, v in insert_data.items() if k != self.pk_col.key}
-
-        stmt = (
-            pg_insert(self.model)
-            .values(**insert_data)
-            .on_conflict_do_update(index_elements=[self.pk_col], set_=update_data)
-            .returning(self.model)
-        )
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        return await self.db.scalar(stmt)
 
     async def delete(self, id: Any) -> ModelType | None:
         stmt = delete(self.model).where(self.pk_col == id).returning(self.model)
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        return await self.db.scalar(stmt)
 
     async def list_paginated(
         self,
@@ -139,11 +189,3 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
             query = query.order_by(self.pk_col.desc())
 
         return await apaginate(self.db, query)
-
-    async def get_approximate_count(self) -> int:
-        """Get approximate row count using pg_class.reltuples."""
-        table_name = self.model.__tablename__
-        query = text("SELECT reltuples::bigint FROM pg_class WHERE relname = :table_name")
-        result = await self.db.execute(query, {"table_name": table_name})
-        row = result.scalar()
-        return max(0, row or 0)  # reltuples can be -1 for unknown tables

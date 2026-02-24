@@ -25,6 +25,7 @@ class TunedBase(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,  # Required for ORM model serialization
         str_strip_whitespace=True,
+        extra="forbid",
     )
 
 

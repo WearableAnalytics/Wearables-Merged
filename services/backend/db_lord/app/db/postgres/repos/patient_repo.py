@@ -15,5 +15,4 @@ class PatientRepo(BaseRepo[Patient, PatientCreate, PatientUpdate]):
 
     async def get_with_cases(self, id: UUID) -> Patient | None:
         query = select(Patient).where(Patient.id == id).options(selectinload(Patient.cases))
-        result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        return await self.db.scalar(query)

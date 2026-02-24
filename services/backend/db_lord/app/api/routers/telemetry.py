@@ -32,10 +32,7 @@ async def record_telemetry_batch(items_in: list[TelemetryCreate], service: Telem
     await service.record_batch(items_in)
 
 
-@router.get(
-    "/",
-    response_model=TelemetryPageResponse,
-)
+@router.get("/", response_model=TelemetryPageResponse)
 async def read_telemetry(
     service: TelemetryServiceDep,
     params: Annotated[CursorParamsNoTotal, Depends(CursorParamsNoTotal)],
@@ -49,22 +46,12 @@ async def read_telemetry(
     raw_params = params.to_raw_params()
 
     result = await service.read_telemetry(
-        measurement,
-        start,
-        end,
-        tags,
-        fields,
-        raw_params.size,
-        raw_params.cursor,
-        bucket=bucket,
+        measurement, start, end, tags, fields, raw_params.size, raw_params.cursor, bucket
     )
     return TelemetryPageResponse.create(result.items, params=params, next_=result.next_cursor)
 
 
-@router.get(
-    "/raw",
-    response_model=TelemetryRawPageResponse,
-)
+@router.get("/raw", response_model=TelemetryRawPageResponse)
 async def read_telemetry_raw(
     service: TelemetryServiceDep,
     params: Annotated[CursorParamsNoTotal, Depends(CursorParamsNoTotal)],
@@ -78,21 +65,12 @@ async def read_telemetry_raw(
     raw_params = params.to_raw_params()
 
     result = await service.read_telemetry_raw(
-        measurement,
-        start,
-        end,
-        tags,
-        fields,
-        raw_params.size,
-        raw_params.cursor,
-        bucket=bucket,
+        measurement, start, end, tags, fields, raw_params.size, raw_params.cursor, bucket
     )
     return TelemetryRawPageResponse.create(result.items, params=params, next_=result.next_cursor)
 
 
-@router.get(
-    "/stream",
-)
+@router.get("/stream")
 async def stream_telemetry(
     service: TelemetryServiceDep,
     params: Annotated[CursorParamsNoTotal, Depends(CursorParamsNoTotal)],
@@ -105,23 +83,12 @@ async def stream_telemetry(
 ):
     raw_params = params.to_raw_params()
     return stream_as_ndjson(
-        service.stream_telemetry(
-            measurement,
-            start,
-            end,
-            tags,
-            fields,
-            raw_params.size,
-            raw_params.cursor,
-            bucket=bucket,
-        ),
+        service.stream_telemetry(measurement, start, end, tags, fields, raw_params.size, raw_params.cursor, bucket),
         schema=TelemetryPointResponse,
     )
 
 
-@router.get(
-    "/raw/stream",
-)
+@router.get("/raw/stream")
 async def stream_telemetry_raw(
     service: TelemetryServiceDep,
     params: Annotated[CursorParamsNoTotal, Depends(CursorParamsNoTotal)],
@@ -134,15 +101,6 @@ async def stream_telemetry_raw(
 ):
     raw_params = params.to_raw_params()
     return stream_as_ndjson(
-        service.stream_telemetry_raw(
-            measurement,
-            start,
-            end,
-            tags,
-            fields,
-            raw_params.size,
-            raw_params.cursor,
-            bucket=bucket,
-        ),
+        service.stream_telemetry_raw(measurement, start, end, tags, fields, raw_params.size, raw_params.cursor, bucket),
         schema=TelemetryRawPointResponse,
     )

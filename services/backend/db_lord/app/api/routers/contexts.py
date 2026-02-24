@@ -1,9 +1,10 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, status
 from fastapi_pagination.cursor import CursorPage
 
 from app.api.dependencies import ContextFiltersDep, ContextServiceDep, ContextSortingDep
+from app.api.params import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam
 from app.api.streaming import stream_as_ndjson
 from app.schemas.context import ContextCreate, ContextResponse, ContextUpdate
 
@@ -40,6 +41,6 @@ async def stream_contexts(
     service: ContextServiceDep,
     filters: ContextFiltersDep,
     sorting: ContextSortingDep,
-    batch_size: int = Query(500, ge=1, le=10_000),
+    batch_size: StreamBatchSizeParam = STREAM_BATCH_SIZE_DEFAULT,
 ):
     return stream_as_ndjson(service.stream_all(filters, sorting, batch_size, as_mapping=True), schema=ContextResponse)

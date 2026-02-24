@@ -5,6 +5,8 @@ from fastapi_pagination.types import Cursor
 
 from app.db.influx.repos.telemetry_repo import TelemetryPage, TelemetryRepo
 from app.schemas.telemetry import TelemetryCreate
+from app.telemetry.constants import TELEMETRY_DEFAULT_PAGE_SIZE
+from app.telemetry.types import TelemetryTags
 
 
 class TelemetryService:
@@ -22,9 +24,9 @@ class TelemetryService:
         measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
-        tags: dict[str, str | list[str]] | None = None,
+        tags: TelemetryTags | None = None,
         fields: list[str] | None = None,
-        page_size: int = 100,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
         cursor: Cursor | None = None,
         bucket: str | None = None,
     ) -> TelemetryPage:
@@ -35,9 +37,9 @@ class TelemetryService:
         measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
-        tags: dict[str, str | list[str]] | None = None,
+        tags: TelemetryTags | None = None,
         fields: list[str] | None = None,
-        page_size: int = 100,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
         cursor: Cursor | None = None,
         bucket: str | None = None,
     ) -> TelemetryPage:
@@ -48,9 +50,9 @@ class TelemetryService:
         measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
-        tags: dict[str, str | list[str]] | None = None,
+        tags: TelemetryTags | None = None,
         fields: list[str] | None = None,
-        page_size: int = 100,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
         cursor: Cursor | None = None,
         bucket: str | None = None,
     ) -> AsyncIterator[dict[str, object]]:
@@ -61,9 +63,9 @@ class TelemetryService:
         measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
-        tags: dict[str, str | list[str]] | None = None,
+        tags: TelemetryTags | None = None,
         fields: list[str] | None = None,
-        page_size: int = 100,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
         cursor: Cursor | None = None,
         bucket: str | None = None,
     ) -> AsyncIterator[dict[str, object]]:

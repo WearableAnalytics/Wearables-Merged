@@ -15,7 +15,7 @@ from .orm import (
 __all__ = [
     # ORM Base (Base.metadata used by Alembic)
     "Base",
-    # ORM Models
+    # ORM Models alembic needs to detect for migrations
     "Patient",
     "Case",
     "Device",

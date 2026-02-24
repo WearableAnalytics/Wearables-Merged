@@ -11,13 +11,17 @@ import strawberry
 import strawberry.relay as relay
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from strawberry.types.cast import cast as strawberry_cast
+from strawberry import cast as strawberry_cast
 
 from app.db.postgres.orm import Case as CaseModel
 from app.db.postgres.orm import Context as ContextModel
 from app.db.postgres.orm import Device as DeviceModel
+from app.db.postgres.orm import DotDependencyFile as DotDependencyFileModel
+from app.db.postgres.orm import FHIRMapping as FHIRMappingModel
 from app.db.postgres.orm import Patient as PatientModel
 from app.db.postgres.orm import Wearable as WearableModel
+from app.graphql.connection_batching import NestedConnectionField, NestedConnectionSource, NestedKeysetConnection
+from app.graphql.context import context_from_info
 from app.schemas.case import CaseStatus
 from app.schemas.common import HardwareStatus
 
@@ -26,7 +30,8 @@ if TYPE_CHECKING:
 
 
 def _session_context(info: strawberry.Info) -> tuple[async_sessionmaker[AsyncSession], Semaphore]:
-    return info.context["session_factory"], info.context["db_semaphore"]
+    context = context_from_info(info)
+    return context["session_factory"], context["db_semaphore"]
 
 
 async def _resolve_relay_nodes[TNode: relay.Node](
@@ -53,8 +58,8 @@ async def _resolve_relay_nodes[TNode: relay.Node](
 
     session_factory, db_semaphore = _session_context(info)
     async with db_semaphore, session_factory() as db:
-        result = await db.execute(select(model).where(model.id.in_(valid_node_ids)))
-        entities_by_id = {str(entity.id): strawberry_cast(graphql_type, entity) for entity in result.scalars().all()}
+        result = await db.scalars(select(model).where(model.id.in_(valid_node_ids)))
+        entities_by_id = {str(entity.id): strawberry_cast(graphql_type, entity) for entity in result}
 
     resolved_nodes: list[TNode | None] = []
     for raw_node_id, parsed_node_id in zip(raw_node_ids, parsed_node_ids, strict=True):
@@ -83,7 +88,7 @@ class Patient(relay.Node):
     @classmethod
     async def resolve_nodes(
         cls, *, info: strawberry.Info, node_ids: Iterable[str], required: bool = False
-    ) -> list[Patient | None]:
+    ) -> Any:
         return await _resolve_relay_nodes(
             info=info,
             node_ids=node_ids,
@@ -92,10 +97,13 @@ class Patient(relay.Node):
             required=required,
         )
 
-    @strawberry.field
-    async def cases(self, info: strawberry.Info) -> list[Case]:
-        loaders: Loaders = info.context["loaders"]
-        return await loaders.cases_by_patient.load(self.id)
+    @relay.connection(NestedKeysetConnection["Case"], description="Relay connection for patient cases.")
+    async def cases(self) -> Iterable[Case]:
+        return NestedConnectionSource(
+            field=NestedConnectionField.PATIENT_CASES,
+            parent_id=self.id,
+            graphql_type=Case,
+        )
 
 
 @strawberry.type
@@ -110,7 +118,7 @@ class Device(relay.Node):
     @classmethod
     async def resolve_nodes(
         cls, *, info: strawberry.Info, node_ids: Iterable[str], required: bool = False
-    ) -> list[Device | None]:
+    ) -> Any:
         return await _resolve_relay_nodes(
             info=info,
             node_ids=node_ids,
@@ -119,10 +127,16 @@ class Device(relay.Node):
             required=required,
         )
 
-    @strawberry.field
-    async def case_assignments(self, info: strawberry.Info) -> list[DeviceAssignment]:
-        loaders: Loaders = info.context["loaders"]
-        return await loaders.device_assignments_by_device.load(self.id)
+    @relay.connection(
+        NestedKeysetConnection["DeviceAssignment"],
+        description="Relay connection for device case assignments.",
+    )
+    async def case_assignments(self) -> Iterable[DeviceAssignment]:
+        return NestedConnectionSource(
+            field=NestedConnectionField.DEVICE_CASE_ASSIGNMENTS,
+            parent_id=self.id,
+            graphql_type=DeviceAssignment,
+        )
 
 
 @strawberry.type
@@ -137,7 +151,7 @@ class Wearable(relay.Node):
     @classmethod
     async def resolve_nodes(
         cls, *, info: strawberry.Info, node_ids: Iterable[str], required: bool = False
-    ) -> list[Wearable | None]:
+    ) -> Any:
         return await _resolve_relay_nodes(
             info=info,
             node_ids=node_ids,
@@ -146,10 +160,16 @@ class Wearable(relay.Node):
             required=required,
         )
 
-    @strawberry.field
-    async def case_assignments(self, info: strawberry.Info) -> list[WearableAssignment]:
-        loaders: Loaders = info.context["loaders"]
-        return await loaders.wearable_assignments_by_wearable.load(self.id)
+    @relay.connection(
+        NestedKeysetConnection["WearableAssignment"],
+        description="Relay connection for wearable case assignments.",
+    )
+    async def case_assignments(self) -> Iterable[WearableAssignment]:
+        return NestedConnectionSource(
+            field=NestedConnectionField.WEARABLE_CASE_ASSIGNMENTS,
+            parent_id=self.id,
+            graphql_type=WearableAssignment,
+        )
 
 
 @strawberry.type
@@ -161,7 +181,7 @@ class Context(relay.Node):
     @classmethod
     async def resolve_nodes(
         cls, *, info: strawberry.Info, node_ids: Iterable[str], required: bool = False
-    ) -> list[Context | None]:
+    ) -> Any:
         return await _resolve_relay_nodes(
             info=info,
             node_ids=node_ids,
@@ -170,26 +190,53 @@ class Context(relay.Node):
             required=required,
         )
 
-    @strawberry.field
-    async def cases(self, info: strawberry.Info) -> list[Case]:
-        loaders: Loaders = info.context["loaders"]
-        return await loaders.cases_by_context.load(self.id)
+    @relay.connection(NestedKeysetConnection["Case"], description="Relay connection for context cases.")
+    async def cases(self) -> Iterable[Case]:
+        return NestedConnectionSource(
+            field=NestedConnectionField.CONTEXT_CASES,
+            parent_id=self.id,
+            graphql_type=Case,
+        )
 
 
 @strawberry.type
-class FHIRMapping:
-    id: UUID
+class FHIRMapping(relay.Node):
+    id: relay.NodeID[UUID]
     version: str
     full_mapping: strawberry.scalars.JSON
 
+    @classmethod
+    async def resolve_nodes(
+        cls, *, info: strawberry.Info, node_ids: Iterable[str], required: bool = False
+    ) -> Any:
+        return await _resolve_relay_nodes(
+            info=info,
+            node_ids=node_ids,
+            model=FHIRMappingModel,
+            graphql_type=cls,
+            required=required,
+        )
+
 
 @strawberry.type
-class DotDependencyFile:
-    id: UUID
+class DotDependencyFile(relay.Node):
+    id: relay.NodeID[UUID]
     version: str
     category: str
     digraph: strawberry.scalars.JSON
     mapping_id: UUID
+
+    @classmethod
+    async def resolve_nodes(
+        cls, *, info: strawberry.Info, node_ids: Iterable[str], required: bool = False
+    ) -> Any:
+        return await _resolve_relay_nodes(
+            info=info,
+            node_ids=node_ids,
+            model=DotDependencyFileModel,
+            graphql_type=cls,
+            required=required,
+        )
 
 
 @strawberry.type
@@ -201,12 +248,16 @@ class DeviceAssignment:
 
     @strawberry.field
     async def device(self, info: strawberry.Info) -> Device | None:
-        loaders: Loaders = info.context["loaders"]
+        loaders: Loaders | None = context_from_info(info)["loaders"]
+        if loaders is None:
+            return None
         return await loaders.device_by_id.load(self.device_id)
 
     @strawberry.field
     async def case(self, info: strawberry.Info) -> Case | None:
-        loaders: Loaders = info.context["loaders"]
+        loaders: Loaders | None = context_from_info(info)["loaders"]
+        if loaders is None:
+            return None
         return await loaders.case_by_id.load(self.case_id)
 
 
@@ -219,12 +270,16 @@ class WearableAssignment:
 
     @strawberry.field
     async def wearable(self, info: strawberry.Info) -> Wearable | None:
-        loaders: Loaders = info.context["loaders"]
+        loaders: Loaders | None = context_from_info(info)["loaders"]
+        if loaders is None:
+            return None
         return await loaders.wearable_by_id.load(self.wearable_id)
 
     @strawberry.field
     async def case(self, info: strawberry.Info) -> Case | None:
-        loaders: Loaders = info.context["loaders"]
+        loaders: Loaders | None = context_from_info(info)["loaders"]
+        if loaders is None:
+            return None
         return await loaders.case_by_id.load(self.case_id)
 
 
@@ -237,7 +292,7 @@ class Case(relay.Node):
     @classmethod
     async def resolve_nodes(
         cls, *, info: strawberry.Info, node_ids: Iterable[str], required: bool = False
-    ) -> list[Case | None]:
+    ) -> Any:
         return await _resolve_relay_nodes(
             info=info,
             node_ids=node_ids,
@@ -248,33 +303,56 @@ class Case(relay.Node):
 
     @strawberry.field
     async def patient(self, info: strawberry.Info) -> Patient | None:
-        loaders: Loaders = info.context["loaders"]
+        loaders: Loaders | None = context_from_info(info)["loaders"]
+        if loaders is None:
+            return None
         return await loaders.patient_by_id.load(self.patient_id)
 
-    @strawberry.field
-    async def devices(self, info: strawberry.Info) -> list[Device]:
-        loaders: Loaders = info.context["loaders"]
-        return await loaders.devices_by_case.load(self.id)
+    @relay.connection(NestedKeysetConnection[Device], description="Relay connection for active case devices.")
+    async def devices(self) -> Iterable[Device]:
+        return NestedConnectionSource(
+            field=NestedConnectionField.CASE_DEVICES,
+            parent_id=self.id,
+            graphql_type=Device,
+        )
 
-    @strawberry.field
-    async def device_assignments(self, info: strawberry.Info) -> list[DeviceAssignment]:
-        loaders: Loaders = info.context["loaders"]
-        return await loaders.device_assignments_by_case.load(self.id)
+    @relay.connection(
+        NestedKeysetConnection[DeviceAssignment],
+        description="Relay connection for case device assignments.",
+    )
+    async def device_assignments(self) -> Iterable[DeviceAssignment]:
+        return NestedConnectionSource(
+            field=NestedConnectionField.CASE_DEVICE_ASSIGNMENTS,
+            parent_id=self.id,
+            graphql_type=DeviceAssignment,
+        )
 
-    @strawberry.field
-    async def wearables(self, info: strawberry.Info) -> list[Wearable]:
-        loaders: Loaders = info.context["loaders"]
-        return await loaders.wearables_by_case.load(self.id)
+    @relay.connection(NestedKeysetConnection[Wearable], description="Relay connection for active case wearables.")
+    async def wearables(self) -> Iterable[Wearable]:
+        return NestedConnectionSource(
+            field=NestedConnectionField.CASE_WEARABLES,
+            parent_id=self.id,
+            graphql_type=Wearable,
+        )
 
-    @strawberry.field
-    async def wearable_assignments(self, info: strawberry.Info) -> list[WearableAssignment]:
-        loaders: Loaders = info.context["loaders"]
-        return await loaders.wearable_assignments_by_case.load(self.id)
+    @relay.connection(
+        NestedKeysetConnection[WearableAssignment],
+        description="Relay connection for case wearable assignments.",
+    )
+    async def wearable_assignments(self) -> Iterable[WearableAssignment]:
+        return NestedConnectionSource(
+            field=NestedConnectionField.CASE_WEARABLE_ASSIGNMENTS,
+            parent_id=self.id,
+            graphql_type=WearableAssignment,
+        )
 
-    @strawberry.field
-    async def contexts(self, info: strawberry.Info) -> list[Context]:
-        loaders: Loaders = info.context["loaders"]
-        return await loaders.contexts_by_case.load(self.id)
+    @relay.connection(NestedKeysetConnection[Context], description="Relay connection for case contexts.")
+    async def contexts(self) -> Iterable[Context]:
+        return NestedConnectionSource(
+            field=NestedConnectionField.CASE_CONTEXTS,
+            parent_id=self.id,
+            graphql_type=Context,
+        )
 
 
 @strawberry.type
@@ -286,7 +364,7 @@ class TelemetryPoint:
     wearable_id: str | None
     case_id: str | None
     mapping_id: str | None
-    code: str | None
+    dot_dependency_file_id: str | None
     context_id: str | None
     other_tags: strawberry.scalars.JSON
     fields: strawberry.scalars.JSON

@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID
 
@@ -6,11 +6,10 @@ from fastapi_filters import FilterSet, SortingValues
 from fastapi_pagination.cursor import CursorPage
 from pydantic import BaseModel
 from sqlalchemy.engine import RowMapping
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 
-from app.core.exceptions import ConflictError, DuplicateEntityError, EntityNotFoundError
+from app.core.exceptions import EntityNotFoundError
 from app.db.postgres.repos.base import BaseRepo
 
 
@@ -33,9 +32,6 @@ class BaseService[
             raise EntityNotFoundError(self.name, id)
         return result
 
-    async def get_all(self) -> Sequence[ModelType]:
-        return await self.repo.get_all()
-
     async def list(
         self, filters: FilterSet | None = None, sorting: SortingValues | None = None
     ) -> CursorPage[ModelType]:
@@ -48,35 +44,23 @@ class BaseService[
         batch_size: int = 500,
         as_mapping: bool = False,
     ) -> AsyncIterator[ModelType | RowMapping]:
-        return self.repo.stream_all(filters=filters, sorting=sorting, batch_size=batch_size, as_mapping=as_mapping)
+        return self.repo.stream_all(filters, sorting, batch_size, as_mapping)
 
     async def create(self, obj_in: CreateSchemaType) -> ModelType:
-        try:
+        async with self.db.begin():
             new_obj = await self.repo.create(obj_in)
-            await self.db.commit()
             return new_obj
-        except IntegrityError as e:
-            await self.db.rollback()
-            raise DuplicateEntityError(self.name, "constraint violation") from e
 
     async def update(self, id: UUID, obj_in: UpdateSchemaType) -> ModelType:
-        try:
+        async with self.db.begin():
             result = await self.repo.update(id, obj_in)
             if not result:
                 raise EntityNotFoundError(self.name, id)
-            await self.db.commit()
             return result
-        except IntegrityError as e:
-            await self.db.rollback()
-            raise DuplicateEntityError(self.name, "constraint violation during update") from e
 
     async def delete(self, id: UUID) -> ModelType:
-        try:
+        async with self.db.begin():
             result = await self.repo.delete(id)
             if not result:
                 raise EntityNotFoundError(self.name, id)
-            await self.db.commit()
             return result
-        except IntegrityError as e:
-            await self.db.rollback()
-            raise ConflictError(f"Cannot delete {self.name} due to existing references or constraints") from e

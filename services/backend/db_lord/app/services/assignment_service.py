@@ -1,10 +1,11 @@
-from datetime import UTC, datetime
+from collections.abc import Awaitable, Callable
+from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, EntityNotFoundError
-from app.db.postgres.orm import CaseDevice, CaseWearable
 from app.db.postgres.repos.assignment_repo import AssignmentRepo
 from app.db.postgres.repos.case_repo import CaseRepo
 from app.db.postgres.repos.device_repo import DeviceRepo
@@ -31,241 +32,207 @@ class AssignmentService:
         self.case_repo = case_repo
         self.assignment_repo = assignment_repo
 
-    @staticmethod
-    def _device_assignment_response(assignment: CaseDevice) -> DeviceAssignmentResponse:
+    async def _ensure_active_case(self, case_id: UUID) -> None:
+        case = await self.case_repo.get(case_id)
+        if not case:
+            raise EntityNotFoundError("Case", case_id)
+        if case.status not in {CaseStatus.PLANNED, CaseStatus.ONGOING}:
+            raise BadRequestError("Case is not active")
+
+    async def _claim_hardware(
+        self,
+        *,
+        hardware_name: str,
+        hardware_id: UUID,
+        update_status: Callable[..., Awaitable[bool]],
+        get_current: Callable[[UUID], Awaitable[Any | None]],
+    ) -> None:
+        claimed = await update_status(
+            hardware_id,
+            HardwareStatus.ASSIGNED.value,
+            expected_status=HardwareStatus.AVAILABLE.value,
+        )
+        if claimed:
+            return
+
+        current = await get_current(hardware_id)
+        if not current:
+            raise EntityNotFoundError(hardware_name, hardware_id)
+
+        raise BadRequestError(f"{hardware_name} is not available (Current status: {current.status})")
+
+    async def _mark_hardware_available(
+        self, *, hardware_id: UUID, update_status: Callable[..., Awaitable[bool]]
+    ) -> None:
+        await update_status(hardware_id, HardwareStatus.AVAILABLE.value)
+
+    async def get_active_device_assignment(self, case_id: UUID, device_id: UUID) -> DeviceAssignmentResponse:
+        assignment = await self.assignment_repo.get_active_device(case_id, device_id)
+        if not assignment:
+            raise EntityNotFoundError("ActiveDeviceAssignment", f"{case_id}/{device_id}")
         return DeviceAssignmentResponse.model_validate(assignment)
 
-    @staticmethod
-    def _wearable_assignment_response(assignment: CaseWearable) -> WearableAssignmentResponse:
+    async def get_last_device_assignment(self, case_id: UUID) -> DeviceAssignmentResponse:
+        assignment = await self.assignment_repo.get_last_device_assignment(case_id)
+        if not assignment:
+            raise EntityNotFoundError("DeviceAssignment", f"Case {case_id}")
+        return DeviceAssignmentResponse.model_validate(assignment)
+
+    async def get_active_wearable_assignment(self, case_id: UUID, wearable_id: UUID) -> WearableAssignmentResponse:
+        assignment = await self.assignment_repo.get_active_wearable(case_id, wearable_id)
+        if not assignment:
+            raise EntityNotFoundError("ActiveWearableAssignment", f"{case_id}/{wearable_id}")
         return WearableAssignmentResponse.model_validate(assignment)
 
-    @staticmethod
-    def _context_assignment_response(case_id: UUID, context_id: UUID) -> ContextAssignmentResponse:
-        return ContextAssignmentResponse(case_id=case_id, context_id=context_id)
-
-    # Read helpers (used by GraphQL dataloaders)
-    async def list_device_assignments_by_case_ids(self, case_ids: list[UUID]) -> list[CaseDevice]:
-        return await self.assignment_repo.list_device_assignments_by_case_ids(case_ids)
-
-    async def list_device_assignments_by_device_ids(self, device_ids: list[UUID]) -> list[CaseDevice]:
-        return await self.assignment_repo.list_device_assignments_by_device_ids(device_ids)
-
-    async def list_active_device_assignments_by_case_ids(
-        self, case_ids: list[UUID], now_ts: datetime | None = None
-    ) -> list[CaseDevice]:
-        return await self.assignment_repo.list_active_device_assignments_by_case_ids(case_ids, now_ts=now_ts)
-
-    async def list_wearable_assignments_by_case_ids(self, case_ids: list[UUID]) -> list[CaseWearable]:
-        return await self.assignment_repo.list_wearable_assignments_by_case_ids(case_ids)
-
-    async def list_wearable_assignments_by_wearable_ids(self, wearable_ids: list[UUID]) -> list[CaseWearable]:
-        return await self.assignment_repo.list_wearable_assignments_by_wearable_ids(wearable_ids)
-
-    async def list_active_wearable_assignments_by_case_ids(
-        self, case_ids: list[UUID], now_ts: datetime | None = None
-    ) -> list[CaseWearable]:
-        return await self.assignment_repo.list_active_wearable_assignments_by_case_ids(case_ids, now_ts=now_ts)
+    async def get_last_wearable_assignment(self, case_id: UUID) -> WearableAssignmentResponse:
+        assignment = await self.assignment_repo.get_last_wearable_assignment(case_id)
+        if not assignment:
+            raise EntityNotFoundError("WearableAssignment", f"Case {case_id}")
+        return WearableAssignmentResponse.model_validate(assignment)
 
     # Devices
     async def assign_device(
         self, case_id: UUID, device_id: UUID, start_time: datetime | None = None, end_time: datetime | None = None
     ) -> DeviceAssignmentResponse:
-        try:
-            effective_start_time = start_time or datetime.now(UTC)
-            # Validate Case State
-            case = await self.case_repo.get(case_id)
-            if not case:
-                raise EntityNotFoundError("Case", case_id)
-            if case.status not in {CaseStatus.PLANNED, CaseStatus.ONGOING}:
-                raise BadRequestError("Case is not active")
-
-            # Optimistic
-            device = await self.device_repo.update_status(
-                device_id, HardwareStatus.ASSIGNED.value, expected_status=HardwareStatus.AVAILABLE.value
+        async with self.db.begin():
+            await self._ensure_active_case(case_id)
+            await self._claim_hardware(
+                hardware_name="Device",
+                hardware_id=device_id,
+                update_status=self.device_repo.update_status,
+                get_current=self.device_repo.get,
             )
 
-            if not device:
-                # Slow Path:-> why did it fail?
-                current_device = await self.device_repo.get(device_id)
-                if not current_device:
-                    raise EntityNotFoundError("Device", device_id)
-
-                # If it exists but wasnt updated it wasnt AVAILABLE
-                raise BadRequestError(f"Device is not available (Current status: {current_device.status})")
-
-            assignment = await self.assignment_repo.assign_device(case_id, device_id, effective_start_time, end_time)
+            assignment = await self.assignment_repo.assign_device(case_id, device_id, start_time, end_time)
             if not assignment:
                 raise EntityNotFoundError("DeviceAssignment", f"{case_id}/{device_id}")
-            await self.db.commit()
-            return self._device_assignment_response(assignment)
-
-        except Exception:
-            await self.db.rollback()
-            raise
+            return DeviceAssignmentResponse.model_validate(assignment)
 
     async def unassign_device(
         self, case_id: UUID, device_id: UUID, end_time: datetime | None = None
     ) -> DeviceAssignmentResponse:
-        try:
-            effective_end_time = end_time or datetime.now(UTC)
+        async with self.db.begin():
             # Close assignment
-            assignment = await self.assignment_repo.unassign_device(case_id, device_id, effective_end_time)
+            assignment = await self.assignment_repo.unassign_device(case_id, device_id, end_time)
 
             if not assignment:
                 raise EntityNotFoundError("ActiveDeviceAssignment", f"{case_id}/{device_id}")
 
-            # Free device
-            await self.device_repo.update_status(device_id, HardwareStatus.AVAILABLE.value)
+            await self._mark_hardware_available(
+                hardware_id=device_id,
+                update_status=self.device_repo.update_status,
+            )
 
-            await self.db.commit()
-            return self._device_assignment_response(assignment)
-        except Exception:
-            await self.db.rollback()
-            raise
+            return DeviceAssignmentResponse.model_validate(assignment)
 
     async def unassign_last_device(self, case_id: UUID, end_time: datetime | None = None) -> DeviceAssignmentResponse:
-        try:
-            effective_end_time = end_time or datetime.now(UTC)
-
-            assignment = await self.assignment_repo.unassign_last_device(case_id, effective_end_time)
+        async with self.db.begin():
+            assignment = await self.assignment_repo.unassign_last_device(case_id, end_time)
 
             if not assignment:
                 raise EntityNotFoundError("ActiveDeviceAssignment", f"Case {case_id}")
 
-            await self.device_repo.update_status(assignment.device_id, HardwareStatus.AVAILABLE.value)
+            await self._mark_hardware_available(
+                hardware_id=assignment.device_id,
+                update_status=self.device_repo.update_status,
+            )
 
-            await self.db.commit()
-            return self._device_assignment_response(assignment)
-        except Exception:
-            await self.db.rollback()
-            raise
+            return DeviceAssignmentResponse.model_validate(assignment)
 
     async def delete_device_assignment(
         self, case_id: UUID, device_id: UUID, assigned_from: datetime | None = None
     ) -> DeviceAssignmentResponse | None:
-        try:
+        async with self.db.begin():
             # Hard delete
             assignment = await self.assignment_repo.delete_device_assignment(case_id, device_id, assigned_from)
 
             if assignment:
                 # Edge Case: If we deleted an ACTIVE assignment, we must free the device
                 if assignment.assigned_to is None:
-                    await self.device_repo.update_status(device_id, HardwareStatus.AVAILABLE.value)
+                    await self._mark_hardware_available(
+                        hardware_id=device_id,
+                        update_status=self.device_repo.update_status,
+                    )
 
-                await self.db.commit()
-                return self._device_assignment_response(assignment)
+                return DeviceAssignmentResponse.model_validate(assignment)
 
             # If None-> Not Found (or Ambiguous)
             return None
-        except Exception:
-            await self.db.rollback()
-            raise
 
     # Wearables
     async def assign_wearable(
         self, case_id: UUID, wearable_id: UUID, start_time: datetime | None = None, end_time: datetime | None = None
     ) -> WearableAssignmentResponse:
-        try:
-            effective_start_time = start_time or datetime.now(UTC)
-            case = await self.case_repo.get(case_id)
-            if not case:
-                raise EntityNotFoundError("Case", case_id)
-            if case.status not in {CaseStatus.PLANNED, CaseStatus.ONGOING}:
-                raise BadRequestError("Case is not active")
-
-            wearable = await self.wearable_repo.update_status(
-                wearable_id,
-                HardwareStatus.ASSIGNED.value,
-                expected_status=HardwareStatus.AVAILABLE.value,
+        async with self.db.begin():
+            await self._ensure_active_case(case_id)
+            await self._claim_hardware(
+                hardware_name="Wearable",
+                hardware_id=wearable_id,
+                update_status=self.wearable_repo.update_status,
+                get_current=self.wearable_repo.get,
             )
 
-            if not wearable:
-                current_wearable = await self.wearable_repo.get(wearable_id)
-                if not current_wearable:
-                    raise EntityNotFoundError("Wearable", wearable_id)
-                raise BadRequestError(f"Wearable is not available (Current status: {current_wearable.status})")
-
-            assignment = await self.assignment_repo.assign_wearable(
-                case_id, wearable_id, effective_start_time, end_time
-            )
+            assignment = await self.assignment_repo.assign_wearable(case_id, wearable_id, start_time, end_time)
             if not assignment:
                 raise EntityNotFoundError("WearableAssignment", f"{case_id}/{wearable_id}")
-            await self.db.commit()
-            return self._wearable_assignment_response(assignment)
-        except Exception:
-            await self.db.rollback()
-            raise
+            return WearableAssignmentResponse.model_validate(assignment)
 
     async def unassign_wearable(
         self, case_id: UUID, wearable_id: UUID, end_time: datetime | None = None
     ) -> WearableAssignmentResponse:
-        try:
-            effective_end_time = end_time or datetime.now(UTC)
-            assignment = await self.assignment_repo.unassign_wearable(case_id, wearable_id, effective_end_time)
+        async with self.db.begin():
+            assignment = await self.assignment_repo.unassign_wearable(case_id, wearable_id, end_time)
 
             if not assignment:
                 raise EntityNotFoundError("ActiveWearableAssignment", f"{case_id}/{wearable_id}")
 
-            await self.wearable_repo.update_status(wearable_id, HardwareStatus.AVAILABLE.value)
-            await self.db.commit()
-            return self._wearable_assignment_response(assignment)
-        except Exception:
-            await self.db.rollback()
-            raise
+            await self._mark_hardware_available(
+                hardware_id=wearable_id,
+                update_status=self.wearable_repo.update_status,
+            )
+            return WearableAssignmentResponse.model_validate(assignment)
 
     async def unassign_last_wearable(
         self, case_id: UUID, end_time: datetime | None = None
     ) -> WearableAssignmentResponse:
-        try:
-            effective_end_time = end_time or datetime.now(UTC)
-            assignment = await self.assignment_repo.unassign_last_wearable(case_id, effective_end_time)
+        async with self.db.begin():
+            assignment = await self.assignment_repo.unassign_last_wearable(case_id, end_time)
 
             if not assignment:
                 raise EntityNotFoundError("ActiveWearableAssignment", f"Case {case_id}")
 
-            await self.wearable_repo.update_status(assignment.wearable_id, HardwareStatus.AVAILABLE.value)
-            await self.db.commit()
-            return self._wearable_assignment_response(assignment)
-        except Exception:
-            await self.db.rollback()
-            raise
+            await self._mark_hardware_available(
+                hardware_id=assignment.wearable_id,
+                update_status=self.wearable_repo.update_status,
+            )
+            return WearableAssignmentResponse.model_validate(assignment)
 
     async def delete_wearable_assignment(
         self, case_id: UUID, wearable_id: UUID, assigned_from: datetime | None = None
     ) -> WearableAssignmentResponse | None:
-        try:
+        async with self.db.begin():
             assignment = await self.assignment_repo.delete_wearable_assignment(case_id, wearable_id, assigned_from)
 
             if assignment:
                 if assignment.assigned_to is None:
-                    await self.wearable_repo.update_status(wearable_id, HardwareStatus.AVAILABLE.value)
-                await self.db.commit()
-                return self._wearable_assignment_response(assignment)
+                    await self._mark_hardware_available(
+                        hardware_id=wearable_id,
+                        update_status=self.wearable_repo.update_status,
+                    )
+                return WearableAssignmentResponse.model_validate(assignment)
             return None
-        except Exception:
-            await self.db.rollback()
-            raise
 
     # Contexts
     async def link_context(self, case_id: UUID, context_id: UUID) -> ContextAssignmentResponse:
-        try:
+        async with self.db.begin():
             result = await self.assignment_repo.link_context(case_id, context_id)
-            await self.db.commit()
             if not result:
-                return self._context_assignment_response(case_id, context_id)
-            return self._context_assignment_response(result.case_id, result.context_id)
-        except Exception:
-            await self.db.rollback()
-            raise
+                return ContextAssignmentResponse(case_id=case_id, context_id=context_id)
+            return ContextAssignmentResponse(case_id=result.case_id, context_id=result.context_id)
 
     async def unlink_context(self, case_id: UUID, context_id: UUID) -> ContextAssignmentResponse:
-        try:
+        async with self.db.begin():
             result = await self.assignment_repo.unlink_context(case_id, context_id)
             if not result:
                 raise EntityNotFoundError("ContextAssignment", f"{case_id}/{context_id}")
-
-            await self.db.commit()
-            return self._context_assignment_response(result.case_id, result.context_id)
-        except Exception:
-            await self.db.rollback()
-            raise
+            return ContextAssignmentResponse(case_id=result.case_id, context_id=result.context_id)

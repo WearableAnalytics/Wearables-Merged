@@ -1,25 +1,20 @@
-from datetime import UTC, datetime
 from uuid import UUID
 
-from pydantic import AwareDatetime, field_validator
+from pydantic import AwareDatetime, model_validator
 
 from .common import TunedBase, TunedUpdateBase
-
-
-# TODO: current hack for sqllite test suite since it doesn't support timezone-aware datetimes.
-# should proably just change the test suite instead of adding this hack to the main codebase.
-class _AssignmentDateTimeMixin(TunedBase):
-    @field_validator("assigned_from", "assigned_to", mode="before", check_fields=False)
-    @classmethod
-    def _ensure_timezone_aware(cls, value):
-        if isinstance(value, datetime) and value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value
 
 
 class DeviceAssignmentCreate(TunedBase):
     assigned_from: AwareDatetime | None
     assigned_to: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def validate_assignment_window(self) -> DeviceAssignmentCreate:
+        if self.assigned_from is not None and self.assigned_to is not None and self.assigned_to <= self.assigned_from:
+            msg = "assigned_to must be later than assigned_from"
+            raise ValueError(msg)
+        return self
 
 
 class DeviceAssignmentUpdate(TunedUpdateBase):
@@ -28,8 +23,15 @@ class DeviceAssignmentUpdate(TunedUpdateBase):
     assigned_from: AwareDatetime | None = None  # Should we allow changing assigned_from?
     assigned_to: AwareDatetime | None = None
 
+    @model_validator(mode="after")
+    def validate_assignment_window(self) -> DeviceAssignmentUpdate:
+        if self.assigned_from is not None and self.assigned_to is not None and self.assigned_to <= self.assigned_from:
+            msg = "assigned_to must be later than assigned_from"
+            raise ValueError(msg)
+        return self
 
-class DeviceAssignmentResponse(_AssignmentDateTimeMixin):
+
+class DeviceAssignmentResponse(TunedBase):
     case_id: UUID
     device_id: UUID
     assigned_from: AwareDatetime
@@ -40,6 +42,13 @@ class WearableAssignmentCreate(TunedBase):
     assigned_from: AwareDatetime | None
     assigned_to: AwareDatetime | None = None
 
+    @model_validator(mode="after")
+    def validate_assignment_window(self) -> WearableAssignmentCreate:
+        if self.assigned_from is not None and self.assigned_to is not None and self.assigned_to <= self.assigned_from:
+            msg = "assigned_to must be later than assigned_from"
+            raise ValueError(msg)
+        return self
+
 
 class WearableAssignmentUpdate(TunedUpdateBase):
     case_id: UUID
@@ -47,8 +56,15 @@ class WearableAssignmentUpdate(TunedUpdateBase):
     assigned_from: AwareDatetime | None = None
     assigned_to: AwareDatetime | None = None
 
+    @model_validator(mode="after")
+    def validate_assignment_window(self) -> WearableAssignmentUpdate:
+        if self.assigned_from is not None and self.assigned_to is not None and self.assigned_to <= self.assigned_from:
+            msg = "assigned_to must be later than assigned_from"
+            raise ValueError(msg)
+        return self
 
-class WearableAssignmentResponse(_AssignmentDateTimeMixin):
+
+class WearableAssignmentResponse(TunedBase):
     case_id: UUID
     wearable_id: UUID
     assigned_from: AwareDatetime

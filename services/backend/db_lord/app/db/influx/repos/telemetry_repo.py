@@ -1,8 +1,7 @@
 import asyncio
-import base64
 import json
 from collections import OrderedDict
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -12,13 +11,19 @@ from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from influxdb_client.client.write.point import Point
 
 from app.core.config import settings
+from app.core.exceptions import BadRequestError
+from app.core.json_types import JsonObject
 from app.schemas.telemetry import TelemetryCreate
+from app.telemetry.constants import (
+    CORE_TELEMETRY_TAG_KEYS,
+    CORE_TELEMETRY_TAG_ORDER,
+    TELEMETRY_DEFAULT_PAGE_SIZE,
+    TELEMETRY_MAX_PAGE_SIZE,
+)
+from app.telemetry.types import TelemetryTags
 
 SYSTEM_COLUMNS: frozenset[str] = frozenset(
     ("result", "table", "_start", "_stop", "_time", "_measurement", "_field", "_value", "_cursor_key")
-)
-CORE_TAG_KEYS: frozenset[str] = frozenset(
-    ("patient_id", "device_id", "wearable_id", "case_id", "context_id", "mapping_id", "code")
 )
 CURSOR_VERSION = 1
 CURSOR_SEPARATOR = "|"
@@ -46,13 +51,21 @@ class MeasurementSchemaCacheEntry:
 class CursorToken:
     timestamp: datetime
     key: str
-    stop: datetime
+    stop: datetime | None
+
+
+@dataclass(frozen=True)
+class PreparedTelemetryQuery:
+    schema: MeasurementSchema | None
+    flux: str
+    params: dict[str, Any]
+    stop_utc: datetime | None
 
 
 class TelemetryRepo:
     """Repository for InfluxDB telemetry data."""
 
-    MAX_PAGE_SIZE = 10_000
+    MAX_PAGE_SIZE = TELEMETRY_MAX_PAGE_SIZE
 
     def __init__(self, client: InfluxDBClientAsync):
         self._client = client
@@ -63,6 +76,9 @@ class TelemetryRepo:
         self._schema_lookback = settings.INFLUX_SCHEMA_LOOKBACK
         self._schema_cache: OrderedDict[tuple[str, str], MeasurementSchemaCacheEntry] = OrderedDict()
         self._schema_cache_lock = asyncio.Lock()
+
+    def resolve_bucket(self, bucket: str | None) -> str:
+        return self._resolve_bucket(bucket)
 
     async def write_point(self, point: TelemetryCreate) -> None:
         await self._write_api.write(bucket=settings.INFLUX_BUCKET, record=self._build_point(point))
@@ -78,62 +94,133 @@ class TelemetryRepo:
         measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
-        tags: dict[str, str | list[str]] | None = None,
+        tags: TelemetryTags | None = None,
         fields: list[str] | None = None,
-        page_size: int = 100,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
         cursor: Cursor | None = None,
         bucket: str | None = None,
     ) -> TelemetryPage:
-        bucket_name = self._resolve_bucket(bucket)
-        normalized_measurement = self._normalize_measurement(measurement)
-        schema = (
-            await self._get_measurement_schema(normalized_measurement, bucket=bucket_name)
-            if normalized_measurement is not None
-            else None
-        )
-        cursor_token = self._decode_cursor(cursor)
-
-        flux, params, stop_utc = self._build_flux_query(
-            bucket=bucket_name,
-            measurement=normalized_measurement,
+        query = await self._prepare_query(
+            measurement=measurement,
             start=start,
             end=end,
             tags=tags,
             fields=fields,
             page_size=page_size,
-            cursor=cursor_token,
-            schema=schema,
+            cursor=cursor,
+            bucket=bucket,
             pivot=True,
             include_cursor_extra=True,
             include_field_in_cursor=False,
         )
-
-        stream = await self._query_api.query_stream(flux, params=params)
-
-        rows: list[tuple[dict[str, Any], datetime | None, str]] = []
-        async for record in stream:
-            values = record.values
-            rows.append(
-                (
-                    self._structured_item_from_values(values, fields, schema, tags),
-                    values.get("_time"),
-                    self._cursor_key_from_values(values),
-                )
-            )
-
-        return self._finalize_page(rows, page_size, stop_utc)
+        return await self._collect_points_page(
+            query=query,
+            page_size=page_size,
+            map_record=lambda values: self._structured_item_from_values(values, fields, query.schema, tags),
+        )
 
     async def get_points_raw(
         self,
         measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
-        tags: dict[str, str | list[str]] | None = None,
+        tags: TelemetryTags | None = None,
         fields: list[str] | None = None,
-        page_size: int = 100,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
         cursor: Cursor | None = None,
         bucket: str | None = None,
     ) -> TelemetryPage:
+        query = await self._prepare_query(
+            measurement=measurement,
+            start=start,
+            end=end,
+            tags=tags,
+            fields=fields,
+            page_size=page_size,
+            cursor=cursor,
+            bucket=bucket,
+            pivot=False,
+            include_cursor_extra=True,
+            include_field_in_cursor=True,
+        )
+        return await self._collect_points_page(
+            query=query,
+            page_size=page_size,
+            map_record=self._raw_item_from_values,
+        )
+
+    async def stream_points(
+        self,
+        measurement: str | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        tags: TelemetryTags | None = None,
+        fields: list[str] | None = None,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
+        cursor: Cursor | None = None,
+        bucket: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        query = await self._prepare_query(
+            measurement=measurement,
+            start=start,
+            end=end,
+            tags=tags,
+            fields=fields,
+            page_size=page_size,
+            cursor=cursor,
+            bucket=bucket,
+            pivot=True,
+            include_cursor_extra=False,
+            include_field_in_cursor=False,
+        )
+        async for item in self._stream_points(
+            query,
+            lambda values: self._structured_item_from_values(values, fields, query.schema, tags),
+        ):
+            yield item
+
+    async def stream_points_raw(
+        self,
+        measurement: str | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        tags: TelemetryTags | None = None,
+        fields: list[str] | None = None,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
+        cursor: Cursor | None = None,
+        bucket: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        query = await self._prepare_query(
+            measurement=measurement,
+            start=start,
+            end=end,
+            tags=tags,
+            fields=fields,
+            page_size=page_size,
+            cursor=cursor,
+            bucket=bucket,
+            pivot=False,
+            include_cursor_extra=False,
+            include_field_in_cursor=True,
+        )
+        async for item in self._stream_points(query, self._raw_item_from_values):
+            yield item
+
+    async def _prepare_query(
+        self,
+        *,
+        measurement: str | None,
+        start: datetime | None,
+        end: datetime | None,
+        tags: TelemetryTags | None,
+        fields: list[str] | None,
+        page_size: int,
+        cursor: Cursor | None,
+        bucket: str | None,
+        pivot: bool,
+        include_cursor_extra: bool,
+        include_field_in_cursor: bool,
+    ) -> PreparedTelemetryQuery:
         bucket_name = self._resolve_bucket(bucket)
         normalized_measurement = self._normalize_measurement(measurement)
         schema = (
@@ -153,130 +240,50 @@ class TelemetryRepo:
             page_size=page_size,
             cursor=cursor_token,
             schema=schema,
-            pivot=False,
-            include_cursor_extra=True,
-            include_field_in_cursor=True,
+            pivot=pivot,
+            include_cursor_extra=include_cursor_extra,
+            include_field_in_cursor=include_field_in_cursor,
         )
+        return PreparedTelemetryQuery(schema=schema, flux=flux, params=params, stop_utc=stop_utc)
 
-        stream = await self._query_api.query_stream(flux, params=params)
+    async def _collect_points_page(
+        self,
+        *,
+        query: PreparedTelemetryQuery,
+        page_size: int,
+        map_record: Callable[[dict[str, Any]], dict[str, Any]],
+    ) -> TelemetryPage:
+        stream = await self._query_api.query_stream(query.flux, params=query.params)
 
         rows: list[tuple[dict[str, Any], datetime | None, str]] = []
         async for record in stream:
             values = record.values
-            rows.append(
-                (
-                    self._raw_item_from_values(values),
-                    values.get("_time"),
-                    self._cursor_key_from_values(values),
-                )
-            )
+            rows.append((map_record(values), values.get("_time"), self._cursor_key_from_values(values)))
 
-        return self._finalize_page(rows, page_size, stop_utc)
+        return self._finalize_page(rows, page_size, query.stop_utc)
 
-    async def stream_points(
+    async def _stream_points(
         self,
-        measurement: str | None = None,
-        start: datetime | None = None,
-        end: datetime | None = None,
-        tags: dict[str, str | list[str]] | None = None,
-        fields: list[str] | None = None,
-        page_size: int = 100,
-        cursor: Cursor | None = None,
-        bucket: str | None = None,
+        query: PreparedTelemetryQuery,
+        map_record: Callable[[dict[str, Any]], dict[str, Any]],
     ) -> AsyncIterator[dict[str, Any]]:
-        bucket_name = self._resolve_bucket(bucket)
-        normalized_measurement = self._normalize_measurement(measurement)
-        schema = (
-            await self._get_measurement_schema(normalized_measurement, bucket=bucket_name)
-            if normalized_measurement is not None
-            else None
-        )
-        cursor_token = self._decode_cursor(cursor)
-
-        flux, params, _ = self._build_flux_query(
-            bucket=bucket_name,
-            measurement=normalized_measurement,
-            start=start,
-            end=end,
-            tags=tags,
-            fields=fields,
-            page_size=page_size,
-            cursor=cursor_token,
-            schema=schema,
-            pivot=True,
-            include_cursor_extra=False,
-            include_field_in_cursor=False,
-        )
-
-        stream = await self._query_api.query_stream(flux, params=params)
-        emitted = 0
+        stream = await self._query_api.query_stream(query.flux, params=query.params)
         async for record in stream:
-            values = record.values
-            yield self._structured_item_from_values(values, fields, schema, tags)
-            emitted += 1
-            if emitted >= page_size:
-                break
-
-    async def stream_points_raw(
-        self,
-        measurement: str | None = None,
-        start: datetime | None = None,
-        end: datetime | None = None,
-        tags: dict[str, str | list[str]] | None = None,
-        fields: list[str] | None = None,
-        page_size: int = 100,
-        cursor: Cursor | None = None,
-        bucket: str | None = None,
-    ) -> AsyncIterator[dict[str, Any]]:
-        bucket_name = self._resolve_bucket(bucket)
-        normalized_measurement = self._normalize_measurement(measurement)
-        schema = (
-            await self._get_measurement_schema(normalized_measurement, bucket=bucket_name)
-            if normalized_measurement is not None
-            else None
-        )
-        cursor_token = self._decode_cursor(cursor)
-
-        flux, params, _ = self._build_flux_query(
-            bucket=bucket_name,
-            measurement=normalized_measurement,
-            start=start,
-            end=end,
-            tags=tags,
-            fields=fields,
-            page_size=page_size,
-            cursor=cursor_token,
-            schema=schema,
-            pivot=False,
-            include_cursor_extra=False,
-            include_field_in_cursor=True,
-        )
-
-        stream = await self._query_api.query_stream(flux, params=params)
-        emitted = 0
-        async for record in stream:
-            values = record.values
-            yield self._raw_item_from_values(values)
-            emitted += 1
-            if emitted >= page_size:
-                break
+            yield map_record(record.values)
 
     async def list_measurements(self, *, bucket: str | None = None) -> list[str]:
         bucket_name = self._resolve_bucket(bucket)
-        schema_start = self._schema_start_time(datetime.now(UTC))
+        schema_start_expr, schema_start_params = self._schema_start_expr_and_params()
         flux = "\n".join(
             [
                 'import "influxdata/influxdb/schema"',
                 "schema.measurements(",
                 "  bucket: bucket_param,",
-                "  start: schema_start_param,",
+                f"  start: {schema_start_expr},",
                 ")",
             ]
         )
-        params = {
-            "bucket_param": bucket_name,
-            "schema_start_param": schema_start,
-        }
+        params = {"bucket_param": bucket_name, **schema_start_params}
 
         stream = await self._query_api.query_stream(flux, params=params)
         measurements: set[str] = set()
@@ -311,14 +318,14 @@ class TelemetryRepo:
             raise ValueError("limit must be >= 1 when provided")
         bucket_name = self._resolve_bucket(bucket)
 
-        schema_start = self._schema_start_time(datetime.now(UTC))
+        schema_start_expr, schema_start_params = self._schema_start_expr_and_params()
         flux_parts = [
             'import "influxdata/influxdb/schema"',
             "schema.measurementTagValues(",
             "  bucket: bucket_param,",
             "  measurement: measurement_param,",
             "  tag: tag_param,",
-            "  start: schema_start_param,",
+            f"  start: {schema_start_expr},",
             ")",
         ]
 
@@ -326,7 +333,7 @@ class TelemetryRepo:
             "bucket_param": bucket_name,
             "measurement_param": normalized_measurement,
             "tag_param": tag_key,
-            "schema_start_param": schema_start,
+            **schema_start_params,
         }
 
         if limit is not None:
@@ -348,7 +355,7 @@ class TelemetryRepo:
         measurement: str | None,
         start: datetime | None,
         end: datetime | None,
-        tags: dict[str, str | list[str]] | None,
+        tags: TelemetryTags | None,
         fields: list[str] | None,
         page_size: int | None,
         cursor: CursorToken | None,
@@ -357,29 +364,40 @@ class TelemetryRepo:
         pivot: bool,
         include_cursor_extra: bool,
         include_field_in_cursor: bool,
-    ) -> tuple[str, dict[str, Any], datetime]:
+    ) -> tuple[str, dict[str, Any], datetime | None]:
         if page_size is not None:
             if page_size < 1:
                 raise ValueError("page_size must be at least 1")
             if page_size > self.MAX_PAGE_SIZE:
                 raise ValueError(f"page_size cannot exceed {self.MAX_PAGE_SIZE}")
 
-        start_utc = self._to_utc(start) if start else datetime.now(UTC) - timedelta(hours=24)
-        stop_utc = cursor.stop if cursor else (self._to_utc(end) if end else datetime.now(UTC))
+        start_expr = "start_param" if start is not None else "-24h"
+        stop_expr: str | None = None
+        stop_utc = None
+        if cursor and cursor.stop is not None:
+            stop_utc = cursor.stop
+            stop_expr = "stop_param"
+        elif end is not None:
+            stop_utc = self._to_utc(end)
+            stop_expr = "stop_param"
 
-        if start_utc > stop_utc:
+        start_utc = self._to_utc(start) if start is not None else None
+
+        if start_utc is not None and stop_utc is not None and start_utc > stop_utc:
             raise ValueError("start must be <= end")
 
-        params: dict[str, Any] = {
-            "bucket_param": bucket,
-            "start_param": start_utc,
-            "stop_param": stop_utc,
-        }
+        params: dict[str, Any] = {"bucket_param": bucket}
+        if start_utc is not None:
+            params["start_param"] = start_utc
+        if stop_utc is not None:
+            params["stop_param"] = stop_utc
 
-        flux_parts = [
-            "from(bucket: bucket_param)",
-            "|> range(start: start_param, stop: stop_param)",
-        ]
+        range_call = f"|> range(start: {start_expr}"
+        if stop_expr is not None:
+            range_call = f"{range_call}, stop: {stop_expr}"
+        range_call = f"{range_call})"
+
+        flux_parts = ["from(bucket: bucket_param)", range_call]
         if measurement is not None:
             params["measurement_param"] = measurement
             flux_parts.append('|> filter(fn: (r) => r["_measurement"] == measurement_param)')
@@ -388,32 +406,27 @@ class TelemetryRepo:
             filter_conditions: list[str] = []
             for index, (key, value) in enumerate(tags.items()):
                 column = f"r[{json.dumps(key)}]"
-                if isinstance(value, list):
-                    normalized_values = [str(item) for item in value]
-                    unique_values = list(dict.fromkeys(normalized_values))
-                    if not unique_values:
-                        filter_conditions.append("false")
-                        continue
+                normalized_values = [str(item) for item in value]
+                unique_values = list(dict.fromkeys(normalized_values))
+                if not unique_values:
+                    filter_conditions.append("false")
+                    continue
 
-                    if len(unique_values) == 1:
-                        value_param = f"tag_val_{index}"
-                        params[value_param] = unique_values[0]
-                        filter_conditions.append(f"{column} == {value_param}")
-                    elif len(unique_values) <= 8:
-                        or_conditions: list[str] = []
-                        for value_index, item in enumerate(unique_values):
-                            value_param = f"tag_val_{index}_{value_index}"
-                            params[value_param] = item
-                            or_conditions.append(f"{column} == {value_param}")
-                        filter_conditions.append(f"({' or '.join(or_conditions)})")
-                    else:
-                        list_param = f"tag_vals_{index}"
-                        params[list_param] = unique_values
-                        filter_conditions.append(f"contains(value: {column}, set: {list_param})")
-                else:
+                if len(unique_values) == 1:
                     value_param = f"tag_val_{index}"
-                    params[value_param] = str(value)
+                    params[value_param] = unique_values[0]
                     filter_conditions.append(f"{column} == {value_param}")
+                elif len(unique_values) <= 8:
+                    or_conditions: list[str] = []
+                    for value_index, item in enumerate(unique_values):
+                        value_param = f"tag_val_{index}_{value_index}"
+                        params[value_param] = item
+                        or_conditions.append(f"{column} == {value_param}")
+                    filter_conditions.append(f"({' or '.join(or_conditions)})")
+                else:
+                    list_param = f"tag_vals_{index}"
+                    params[list_param] = unique_values
+                    filter_conditions.append(f"contains(value: {column}, set: {list_param})")
 
             if filter_conditions:
                 flux_parts.append(f"|> filter(fn: (r) => {' and '.join(filter_conditions)})")
@@ -424,7 +437,7 @@ class TelemetryRepo:
                 params["field_set_param"] = deduped_fields
                 flux_parts.append('|> filter(fn: (r) => contains(value: r["_field"], set: field_set_param))')
 
-        keep_tag_keys = list(schema.tag_keys) if schema is not None else list(CORE_TAG_KEYS)
+        keep_tag_keys = list(schema.tag_keys) if schema is not None else list(CORE_TELEMETRY_TAG_ORDER)
         if tags:
             keep_tag_keys.extend(str(tag_key) for tag_key in tags)
 
@@ -481,9 +494,8 @@ class TelemetryRepo:
                 self._schema_cache.move_to_end(cache_key)
                 return cached.schema
 
-            schema_start = self._schema_start_time(now)
-            tag_keys = await self._get_measurement_tag_keys(measurement, schema_start, bucket=bucket)
-            field_keys = await self._get_measurement_field_keys(measurement, schema_start, bucket=bucket)
+            tag_keys = await self._get_measurement_tag_keys(measurement, bucket=bucket)
+            field_keys = await self._get_measurement_field_keys(measurement, bucket=bucket)
 
             schema = MeasurementSchema(
                 tag_keys=tuple(sorted(tag_keys)),
@@ -500,18 +512,16 @@ class TelemetryRepo:
 
             return schema
 
-    async def _get_measurement_tag_keys(self, measurement: str, schema_start: datetime, *, bucket: str) -> set[str]:
+    async def _get_measurement_tag_keys(self, measurement: str, *, bucket: str) -> set[str]:
         return await self._get_measurement_schema_keys(
             measurement=measurement,
-            schema_start=schema_start,
             schema_fn="measurementTagKeys",
             bucket=bucket,
         )
 
-    async def _get_measurement_field_keys(self, measurement: str, schema_start: datetime, *, bucket: str) -> set[str]:
+    async def _get_measurement_field_keys(self, measurement: str, *, bucket: str) -> set[str]:
         return await self._get_measurement_schema_keys(
             measurement=measurement,
-            schema_start=schema_start,
             schema_fn="measurementFieldKeys",
             bucket=bucket,
         )
@@ -520,24 +530,24 @@ class TelemetryRepo:
         self,
         *,
         measurement: str,
-        schema_start: datetime,
         schema_fn: str,
         bucket: str,
     ) -> set[str]:
+        schema_start_expr, schema_start_params = self._schema_start_expr_and_params()
         flux = "\n".join(
             [
                 'import "influxdata/influxdb/schema"',
                 f"schema.{schema_fn}(",
                 "  bucket: bucket_param,",
                 "  measurement: measurement_param,",
-                "  start: schema_start_param,",
+                f"  start: {schema_start_expr},",
                 ")",
             ]
         )
         params = {
             "bucket_param": bucket,
             "measurement_param": measurement,
-            "schema_start_param": schema_start,
+            **schema_start_params,
         }
 
         stream = await self._query_api.query_stream(flux, params=params)
@@ -554,19 +564,14 @@ class TelemetryRepo:
         values: dict[str, Any],
         fields: list[str] | None,
         schema: MeasurementSchema | None,
-        tags: dict[str, str | list[str]] | None,
+        tags: TelemetryTags | None,
     ) -> dict[str, Any]:
         field_values, other_tags = self._split_structured_values(values, fields, schema, tags)
+        core_tags = {tag_key: values.get(tag_key) for tag_key in CORE_TELEMETRY_TAG_ORDER}
         return {
             "timestamp": values.get("_time"),
             "measurement": values.get("_measurement"),
-            "patient_id": values.get("patient_id"),
-            "device_id": values.get("device_id"),
-            "wearable_id": values.get("wearable_id"),
-            "case_id": values.get("case_id"),
-            "context_id": values.get("context_id"),
-            "mapping_id": values.get("mapping_id"),
-            "code": values.get("code"),
+            **core_tags,
             "other_tags": other_tags,
             "fields": field_values,
         }
@@ -586,16 +591,16 @@ class TelemetryRepo:
         values: dict[str, Any],
         fields: list[str] | None,
         schema: MeasurementSchema | None,
-        tags: dict[str, str | list[str]] | None,
+        tags: TelemetryTags | None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        known_tag_keys = list(schema.tag_keys) if schema is not None else list(CORE_TAG_KEYS)
+        known_tag_keys = list(schema.tag_keys) if schema is not None else list(CORE_TELEMETRY_TAG_ORDER)
         if tags:
             known_tag_keys.extend(str(tag_key) for tag_key in tags)
         deduped_tag_keys = list(dict.fromkeys(known_tag_keys))
 
         other_tags: dict[str, Any] = {}
         for key in deduped_tag_keys:
-            if key in CORE_TAG_KEYS:
+            if key in CORE_TELEMETRY_TAG_KEYS:
                 continue
             value = values.get(key)
             if value is not None:
@@ -615,7 +620,7 @@ class TelemetryRepo:
         if field_values or selected_fields:
             return field_values, other_tags
 
-        blocked_columns = SYSTEM_COLUMNS | CORE_TAG_KEYS | set(deduped_tag_keys) | {"_cursor_key"}
+        blocked_columns = SYSTEM_COLUMNS | CORE_TELEMETRY_TAG_KEYS | set(deduped_tag_keys)
         for key, value in values.items():
             if key in blocked_columns or value is None or key.startswith("_"):
                 continue
@@ -657,7 +662,7 @@ class TelemetryRepo:
         cls,
         rows: list[tuple[dict[str, Any], datetime | None, str]],
         page_size: int,
-        stop: datetime,
+        stop: datetime | None,
     ) -> TelemetryPage:
         has_more = len(rows) > page_size
         if has_more:
@@ -673,15 +678,15 @@ class TelemetryRepo:
         return TelemetryPage(items=[item for item, _, _ in rows], next_cursor=next_cursor)
 
     @staticmethod
-    def _encode_cursor(timestamp: datetime, key: str, stop: datetime) -> str:
-        payload = {
+    def _encode_cursor(timestamp: datetime, key: str, stop: datetime | None) -> str:
+        payload: JsonObject = {
             "v": CURSOR_VERSION,
             "t": TelemetryRepo._to_utc(timestamp).isoformat(),
             "k": key,
-            "s": TelemetryRepo._to_utc(stop).isoformat(),
         }
-        encoded = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode("utf-8")).decode("ascii")
-        return encoded.rstrip("=")
+        if stop is not None:
+            payload["s"] = TelemetryRepo._to_utc(stop).isoformat()
+        return json.dumps(payload, separators=(",", ":"))
 
     @staticmethod
     def _decode_cursor(cursor: Cursor | None) -> CursorToken | None:
@@ -692,49 +697,46 @@ class TelemetryRepo:
         if not raw_cursor:
             return None
 
-        padded = raw_cursor + "=" * (-len(raw_cursor) % 4)
         try:
-            payload_raw = base64.urlsafe_b64decode(padded.encode("ascii"))
-            payload = json.loads(payload_raw)
-        except Exception as exc:
-            raise ValueError("Invalid telemetry cursor.") from exc
+            payload = json.loads(raw_cursor)
+        except json.JSONDecodeError as exc:
+            raise BadRequestError("Invalid telemetry cursor.") from exc
 
         if not isinstance(payload, dict):
-            raise ValueError("Invalid telemetry cursor.")
+            raise BadRequestError("Invalid telemetry cursor.")
 
         if payload.get("v") != CURSOR_VERSION:
-            raise ValueError("Unsupported telemetry cursor version.")
+            raise BadRequestError("Unsupported telemetry cursor version.")
 
         ts_raw = payload.get("t")
         key_raw = payload.get("k")
         stop_raw = payload.get("s")
-        if not isinstance(ts_raw, str) or not isinstance(key_raw, str) or not isinstance(stop_raw, str):
-            raise ValueError("Invalid telemetry cursor.")
+        if not isinstance(ts_raw, str) or not isinstance(key_raw, str):
+            raise BadRequestError("Invalid telemetry cursor.")
+        if stop_raw is not None and not isinstance(stop_raw, str):
+            raise BadRequestError("Invalid telemetry cursor.")
 
         try:
             timestamp = datetime.fromisoformat(ts_raw)
-            stop = datetime.fromisoformat(stop_raw)
+            stop = datetime.fromisoformat(stop_raw) if isinstance(stop_raw, str) else None
         except ValueError as exc:
-            raise ValueError("Invalid telemetry cursor timestamp.") from exc
+            raise BadRequestError("Invalid telemetry cursor timestamp.") from exc
 
         return CursorToken(
             timestamp=TelemetryRepo._to_utc(timestamp),
             key=key_raw,
-            stop=TelemetryRepo._to_utc(stop),
+            stop=TelemetryRepo._to_utc(stop) if stop is not None else None,
         )
 
     def _build_point(self, item: TelemetryCreate) -> Point:
-        timestamp = item.timestamp or datetime.now(UTC)
-        point = Point(item.measurement).time(self._to_utc(timestamp))
+        point = Point(item.measurement)
+        if item.timestamp is not None:
+            point = point.time(self._to_utc(item.timestamp))
 
-        point.tag("patient_id", str(item.patient_id))
-        point.tag("case_id", str(item.case_id))
-        point.tag("device_id", str(item.device_id))
-        point.tag("wearable_id", str(item.wearable_id))
-        point.tag("mapping_id", str(item.mapping_id))
-        point.tag("code", str(item.code))
-        if item.context_id is not None:
-            point.tag("context_id", str(item.context_id))
+        for tag_key in CORE_TELEMETRY_TAG_ORDER:
+            value = getattr(item, tag_key, None)
+            if value is not None:
+                point.tag(tag_key, str(value))
 
         for key, value in item.other_tags.items():
             point.tag(str(key), str(value))
@@ -751,10 +753,10 @@ class TelemetryRepo:
 
         return point
 
-    def _schema_start_time(self, now: datetime) -> datetime:
+    def _schema_start_expr_and_params(self) -> tuple[str, dict[str, Any]]:
         if self._schema_lookback <= 0:
-            return datetime.fromtimestamp(0, UTC)
-        return now - timedelta(seconds=self._schema_lookback)
+            return "schema_start_param", {"schema_start_param": datetime.fromtimestamp(0, UTC)}
+        return f"-{self._schema_lookback}s", {}
 
     @staticmethod
     def _normalize_measurement(measurement: str | None) -> str | None:

@@ -1,14 +1,15 @@
+import asyncio
+import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import ORJSONResponse
 from fastapi_pagination import add_pagination
+from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from influxdb_client.rest import ApiException as InfluxApiException
-from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError, InvalidRequestError, OperationalError
+from sqlalchemy.exc import IntegrityError, InvalidRequestError, OperationalError, SQLAlchemyError
 
-from app.api.dependencies import InfluxClientDep, PgSessionDep
 from app.api.errors import (
     bad_request_handler,
     conflict_error_handler,
@@ -20,34 +21,64 @@ from app.api.errors import (
     sqlalchemy_invalid_request_handler,
 )
 from app.api.routers import cases, contexts, devices, fhir_mapping, graphql, patients, telemetry, wearables
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, ConflictError, DuplicateEntityError, EntityNotFoundError
+from app.core.json_types import JsonObject
 from app.db.influx.client import create_influx_client
 from app.db.influx.repos.telemetry_repo import TelemetryRepo
 from app.db.postgres.engine import engine as pg_engine
 
+logger = logging.getLogger(__name__)
+
+
+def _max_graphql_db_concurrency() -> int:
+    max_pool_capacity = max(1, settings.DB_POOL_SIZE + settings.DB_MAX_OVERFLOW)
+    return max(1, min(settings.GRAPHQL_DB_MAX_CONCURRENCY, max_pool_capacity))
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    # Start Postgres
-    async with pg_engine.begin() as conn:
-        await conn.exec_driver_sql("SELECT 1")
-    # Start InfluxDB
-    influx_client = create_influx_client()
-    if not await influx_client.ping():
-        await influx_client.close()
-        raise ConnectionError("Failed to ping to InfluxDB during startup.")
-    app.state.influx_client = influx_client
-    app.state.telemetry_repo = TelemetryRepo(influx_client)
+    max_conn_per_pod = settings.WEB_CONCURRENCY * (settings.DB_POOL_SIZE + settings.DB_MAX_OVERFLOW)
+    if max_conn_per_pod > settings.DB_POOL_WARN_THRESHOLD:
+        logger.warning(
+            "Configured DB pool budget is high for a single pod: workers=%s, pool_size=%s, max_overflow=%s, "
+            "max_conn_per_pod=%s (warn_threshold=%s).",
+            settings.WEB_CONCURRENCY,
+            settings.DB_POOL_SIZE,
+            settings.DB_MAX_OVERFLOW,
+            max_conn_per_pod,
+            settings.DB_POOL_WARN_THRESHOLD,
+        )
+
+    influx_client = getattr(app.state, "influx_client", None)
+    owns_influx = influx_client is None
+    if owns_influx:
+        async with pg_engine.begin() as conn:
+            await conn.exec_driver_sql("SELECT 1")
+
+        influx_client = create_influx_client()
+        if not await influx_client.ping():
+            await influx_client.close()
+            raise ConnectionError("Failed to ping to InfluxDB during startup.")
+        app.state.influx_client = influx_client
+
+    owns_telemetry_repo = not hasattr(app.state, "telemetry_repo")
+    if owns_telemetry_repo:
+        app.state.telemetry_repo = TelemetryRepo(app.state.influx_client)
+
+    app.state.graphql_db_semaphore = asyncio.Semaphore(_max_graphql_db_concurrency())
+
     try:
         yield
     finally:
-        # Shutdown InfluxDB client
-        with suppress(Exception):
-            await app.state.influx_client.close()
-        with suppress(Exception):
+        del app.state.graphql_db_semaphore
+
+        if owns_telemetry_repo:
             del app.state.telemetry_repo
-        # Dispose Postgres engine
-        with suppress(Exception):
+
+        if owns_influx:
+            await app.state.influx_client.close()
+
             await pg_engine.dispose()
 
 
@@ -58,45 +89,63 @@ app = FastAPI(
 )
 
 
-@app.get("/health", tags=["health"])
-async def health_check(db: PgSessionDep, influx_client: InfluxClientDep) -> ORJSONResponse:
-    health_status = {
-        "status": "healthy",
-        "postgres": False,
-        "influx": False,
-    }
-    # Check Postgres
+async def _check_postgres_readiness() -> bool:
     try:
-        await db.execute(text("SELECT 1"))
-        health_status["postgres"] = True
-    except Exception:
-        health_status["status"] = "unhealthy"
-    # Check InfluxDB
-    try:
-        if await influx_client.ping():
-            health_status["influx"] = True
-        else:
-            health_status["status"] = "unhealthy"
-    except Exception:
-        health_status["status"] = "unhealthy"
+        async with asyncio.timeout(settings.HEALTHCHECK_DB_TIMEOUT_MS / 1000):
+            async with pg_engine.connect() as conn:
+                await conn.exec_driver_sql("SELECT 1")
+        return True
+    except TimeoutError, SQLAlchemyError:
+        return False
 
-    if health_status["status"] == "unhealthy":
-        return ORJSONResponse(status_code=503, content=health_status)
-    return ORJSONResponse(status_code=200, content=health_status)
+
+async def _check_influx_readiness(request: Request) -> bool:
+    try:
+        client = getattr(request.app.state, "influx_client", None)
+        if not isinstance(client, InfluxDBClientAsync):
+            return False
+        async with asyncio.timeout(settings.HEALTHCHECK_INFLUX_TIMEOUT_MS / 1000):
+            return bool(await client.ping())
+    except TimeoutError, InfluxApiException, OSError:
+        return False
+
+
+@app.get("/livez", tags=["health"])
+async def livez() -> ORJSONResponse:
+    return ORJSONResponse(
+        status_code=200,
+        content={"status": "healthy"},
+    )
+
+
+@app.get("/readyz", tags=["health"])
+async def readyz(request: Request) -> ORJSONResponse:
+    postgres_ok = await _check_postgres_readiness()
+    influx_ok = await _check_influx_readiness(request)
+    all_ready = postgres_ok and influx_ok
+
+    health_status: JsonObject = {
+        "status": "healthy" if all_ready else "unhealthy",
+        "postgres": postgres_ok,
+        "influx": influx_ok,
+    }
+    return ORJSONResponse(status_code=200 if all_ready else 503, content=health_status)
 
 
 # exception handlers
-# Pylance complains but afaik FastAPI gurantees these will be called with the correct exception types so should be fine
-app.add_exception_handler(EntityNotFoundError, entity_not_found_handler)  # type: ignore
-app.add_exception_handler(DuplicateEntityError, duplicate_entity_handler)  # type: ignore
-app.add_exception_handler(BadRequestError, bad_request_handler)  # type: ignore
-app.add_exception_handler(ConflictError, conflict_error_handler)  # type: ignore
-# Pg
-app.add_exception_handler(IntegrityError, postgres_integrity_error_handler)  # type: ignore
-app.add_exception_handler(OperationalError, postgres_unavailable_handler)  # type: ignore
-app.add_exception_handler(InvalidRequestError, sqlalchemy_invalid_request_handler)  # type: ignore
-# InfluxDB
-app.add_exception_handler(InfluxApiException, influx_api_exception_handler)  # type: ignore
+# Pylance complains, but FastAPI guarantees these are called with matching exception types.
+_exception_handlers = (
+    (EntityNotFoundError, entity_not_found_handler),
+    (DuplicateEntityError, duplicate_entity_handler),
+    (BadRequestError, bad_request_handler),
+    (ConflictError, conflict_error_handler),
+    (IntegrityError, postgres_integrity_error_handler),
+    (OperationalError, postgres_unavailable_handler),
+    (InvalidRequestError, sqlalchemy_invalid_request_handler),
+    (InfluxApiException, influx_api_exception_handler),
+)
+for exc_type, handler in _exception_handlers:
+    app.add_exception_handler(exc_type, handler)  # type: ignore[arg-type]
 
 
 # Router registrations

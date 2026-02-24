@@ -1,8 +1,8 @@
-from typing import Any
 from uuid import UUID
 
 from pydantic import AwareDatetime, ConfigDict, Field
 
+from app.core.json_types import JsonObject, JsonValue
 from app.pagination import CursorPageNoTotal
 from app.schemas.common import TunedBase
 
@@ -13,14 +13,14 @@ class TelemetryCreate(TunedBase):
     device_id: UUID
     wearable_id: UUID
     mapping_id: UUID
-    code: str
+    dot_dependency_file_id: str
     context_id: UUID | None = None
 
     measurement: str
 
     timestamp: AwareDatetime | None = None
     other_tags: dict[str, str] = Field(default_factory=dict)
-    fields: dict[str, Any] = Field(default_factory=dict)
+    fields: JsonObject = Field(default_factory=dict)
 
 
 class TelemetryPointResponse(TunedBase):
@@ -29,14 +29,14 @@ class TelemetryPointResponse(TunedBase):
     device_id: UUID
     wearable_id: UUID
     mapping_id: UUID
-    code: str
+    dot_dependency_file_id: str
     context_id: UUID | None = None
 
     measurement: str
 
     timestamp: AwareDatetime
     other_tags: dict[str, str] = Field(default_factory=dict)
-    fields: dict[str, Any] = Field(default_factory=dict)
+    fields: JsonObject = Field(default_factory=dict)
     model_config = ConfigDict(extra="allow")
 
 
@@ -44,7 +44,7 @@ class TelemetryRawPointResponse(TunedBase):
     timestamp: AwareDatetime
     measurement: str
     field: str
-    value: Any
+    value: JsonValue
 
     model_config = ConfigDict(extra="allow")
 

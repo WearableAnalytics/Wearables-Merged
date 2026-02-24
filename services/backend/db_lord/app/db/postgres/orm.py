@@ -26,7 +26,7 @@ from app.model_constants import (
 from app.schemas.case import CaseStatus
 from app.schemas.common import HardwareStatus
 
-# Naming convention for constraints - required for Alembic autogenerate
+# Naming convention for constraints - required for Alembic autogenerate to work properly with constraints
 _naming_convention = {
     "ix": "ix_%(column_0_label)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -36,8 +36,8 @@ _naming_convention = {
 }
 
 
-# TODO: also monotonic true is appernty only in sqlalchemy 2.1 wich is currently in beta so...
-
+# monotonic can be used for uuids in sqlalchemy 2.1 to improve performance slightly (but 2.1 is currently only in beta)
+# Use actual postgres enums: these can cause issues with Alembic autogenerate if not handled carefully!!
 case_status_db = SAEnum(CaseStatus, name="case_status_enum", native_enum=True, validate_strings=True)
 hardware_status_db = SAEnum(HardwareStatus, name="hardware_status_enum", native_enum=True, validate_strings=True)
 
@@ -63,6 +63,11 @@ class CaseContext(Base):
         ForeignKey("contexts.id", ondelete="CASCADE"), primary_key=True, index=True
     )
 
+    __table_args__ = (
+        # context -> cases GraphQL connection
+        Index("ix_case_contexts_context_case_desc", "context_id", text("case_id DESC")),
+    )
+
 
 class CaseDevice(Base):
     """Association table for Case <-> Device with temporal assignment data."""
@@ -80,14 +85,28 @@ class CaseDevice(Base):
     device: Mapped[Device] = relationship(back_populates="case_assignments", lazy="raise")
 
     __table_args__ = (
-        # Index for Graphql DataLoaders
-        # TODO: test performance.
-        # case_id is already the first part of the PK index.
-        # Index("ix_case_devices_case_id", "case_id"),
+        # case -> device assignment connection sorted by most recent assignment
+        Index(
+            "ix_case_devices_case_assigned_from_desc",
+            "case_id",
+            text("assigned_from DESC"),
+            text("device_id DESC"),
+            postgresql_include=["assigned_to"],
+        ),
+        # device detail/history lookups sorted by most recent assignment
+        Index(
+            "ix_case_devices_device_assigned_from_desc",
+            "device_id",
+            text("assigned_from DESC"),
+            text("case_id DESC"),
+            postgresql_include=["assigned_to"],
+        ),
+        # enforces valid assignment windows: an end timestamp, if present, must be after start
         CheckConstraint(
             "assigned_to IS NULL OR assigned_to > assigned_from",
             name="ck_case_devices_assigned_order",
         ),
+        # prevents overlapping assignment intervals for the same device across cases
         ExcludeConstraint(
             ("device_id", "="),
             (
@@ -97,7 +116,7 @@ class CaseDevice(Base):
             name="ex_case_device_no_overlap",
             using="gist",
         ),
-        # Quickly find active device assignments
+        # currently assigned device checks without scanning historical rows
         Index(
             "ix_case_devices_active_by_device",
             "device_id",
@@ -124,14 +143,28 @@ class CaseWearable(Base):
     wearable: Mapped[Wearable] = relationship(back_populates="case_assignments", lazy="raise")
 
     __table_args__ = (
-        # TODO: test performance.
-        # case_id is already the first part of the PK index.
-        # Index for Graphql DataLoaders
-        # Index("ix_case_wearables_case_id", "case_id"),
+        # case -> wearable assignment connection sorted by most recent assignment
+        Index(
+            "ix_case_wearables_case_assigned_from_desc",
+            "case_id",
+            text("assigned_from DESC"),
+            text("wearable_id DESC"),
+            postgresql_include=["assigned_to"],
+        ),
+        # wearable detail/history lookups sorted by most recent assignment
+        Index(
+            "ix_case_wearables_wearable_assigned_from_desc",
+            "wearable_id",
+            text("assigned_from DESC"),
+            text("case_id DESC"),
+            postgresql_include=["assigned_to"],
+        ),
+        # enforces valid assignment windows: an end timestamp, if present, must be after start
         CheckConstraint(
             "assigned_to IS NULL OR assigned_to > assigned_from",
             name="ck_case_wearables_assigned_order",
         ),
+        # prevents overlapping assignment intervals for the same wearable across cases
         ExcludeConstraint(
             ("wearable_id", "="),
             (
@@ -141,7 +174,7 @@ class CaseWearable(Base):
             name="ex_case_wearable_no_overlap",
             using="gist",
         ),
-        # Quickly find active wearable assignments
+        # currently assigned wearable checks without scanning historical rows
         Index(
             "ix_case_wearables_active_by_wearable",
             "wearable_id",
@@ -173,8 +206,11 @@ class Patient(Base):
     )
 
     __table_args__ = (
+        # weight must be positive when provided
         CheckConstraint("weight is null OR weight > 0", name="ck_patients_weight_positive"),
+        # height must be positive when provided
         CheckConstraint("height is null OR height > 0", name="ck_patients_height_positive"),
+        # patient name search/autocomplete
         Index("ix_patients_name_trgm", "name", postgresql_using="gin", postgresql_ops={"name": "gin_trgm_ops"}),
     )
 
@@ -202,7 +238,12 @@ class Case(Base):
     contexts: Mapped[list[Context]] = relationship(
         secondary="case_contexts", back_populates="cases", lazy="raise", passive_deletes=True
     )
-    __table_args__ = (Index("ix_cases_patient_status", "patient_id", "status"),)
+    __table_args__ = (
+        # patient -> cases filtering by status
+        Index("ix_cases_patient_status", "patient_id", "status"),
+        # patient -> cases connection ordered by newest case id (proxy for creation time since UUIDv7 is time ordered)
+        Index("ix_cases_patient_id_id_desc", "patient_id", text("id DESC")),
+    )
 
 
 class Device(Base):
@@ -214,6 +255,7 @@ class Device(Base):
     model: Mapped[str] = mapped_column(String(HARDWARE_MODEL_MAX_LEN), nullable=False)
     manufacturer: Mapped[str | None] = mapped_column(String(HARDWARE_MANUFACTURER_MAX_LEN), nullable=True)
     os_version: Mapped[str] = mapped_column(String(HARDWARE_OS_VERSION_MAX_LEN), nullable=False)
+    # indexed for inventory filtering by current availability/status
     status: Mapped[HardwareStatus] = mapped_column(
         hardware_status_db, default=HardwareStatus.AVAILABLE, index=True, nullable=False
     )
@@ -237,6 +279,7 @@ class Wearable(Base):
     model: Mapped[str] = mapped_column(String(HARDWARE_MODEL_MAX_LEN), nullable=False)
     manufacturer: Mapped[str | None] = mapped_column(String(HARDWARE_MANUFACTURER_MAX_LEN), nullable=True)
     os_version: Mapped[str] = mapped_column(String(HARDWARE_OS_VERSION_MAX_LEN), nullable=False)
+    # Indexed for inventory filtering by current availability/status.
     status: Mapped[HardwareStatus] = mapped_column(
         hardware_status_db, default=HardwareStatus.AVAILABLE, index=True, nullable=False
     )
@@ -270,6 +313,7 @@ class FHIRMapping(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, server_default=text("uuidv7()"))
 
+    # indexed+unique for direct lookup of mapping payload by version
     version: Mapped[str] = mapped_column(String(FHIR_VERSION_MAX_LEN), unique=True, index=True, nullable=False)
     full_mapping: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
     # Relationships
@@ -283,7 +327,8 @@ class DotDependencyFile(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, server_default=text("uuidv7()"))
 
-    version: Mapped[str] = mapped_column(String(FHIR_VERSION_MAX_LEN), nullable=False)
+    version: Mapped[str] = mapped_column(String(FHIR_VERSION_MAX_LEN), index=True, nullable=False)
+    # Indexed for category-scoped dependency file queries.
     category: Mapped[str] = mapped_column(String(FHIR_CATEGORY_MAX_LEN), index=True, nullable=False)
     digraph: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
 
@@ -292,4 +337,7 @@ class DotDependencyFile(Base):
     # Relationships
     mapping: Mapped[FHIRMapping] = relationship(back_populates="dot_dependency_files", lazy="raise")
 
-    __table_args__ = (Index("ix_dot_dependency_files_version_category", "version", "category"),)
+    __table_args__ = (
+        # fetching dependency graphs by mapping version and category at the same time
+        Index("ix_dot_dependency_files_version_category", "version", "category"),
+    )

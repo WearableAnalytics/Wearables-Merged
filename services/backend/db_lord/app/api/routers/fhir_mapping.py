@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, status
 from fastapi_pagination.cursor import CursorPage
 
 from app.api.dependencies import (
@@ -11,6 +11,7 @@ from app.api.dependencies import (
     FHIRMappingServiceDep,
     FHIRMappingSortingDep,
 )
+from app.api.params import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam
 from app.api.streaming import stream_as_ndjson
 from app.schemas.fhir_mapping import (
     DotDependencyFileCreate,
@@ -57,7 +58,7 @@ async def stream_fhir_mappings(
     service: FHIRMappingServiceDep,
     filters: FHIRMappingFiltersDep,
     sorting: FHIRMappingSortingDep,
-    batch_size: int = Query(500, ge=1, le=10_000),
+    batch_size: StreamBatchSizeParam = STREAM_BATCH_SIZE_DEFAULT,
 ):
     return stream_as_ndjson(
         service.stream_all(filters, sorting, batch_size, as_mapping=True), schema=FHIRMappingResponse
@@ -97,7 +98,7 @@ async def stream_dot_dependency_files(
     service: DotDependencyFileServiceDep,
     filters: DotDependencyFileFiltersDep,
     sorting: DotDependencyFileSortingDep,
-    batch_size: int = Query(500, ge=1, le=10_000),
+    batch_size: StreamBatchSizeParam = STREAM_BATCH_SIZE_DEFAULT,
 ):
     return stream_as_ndjson(
         service.stream_all(filters, sorting, batch_size, as_mapping=True), schema=DotDependencyFileResponse

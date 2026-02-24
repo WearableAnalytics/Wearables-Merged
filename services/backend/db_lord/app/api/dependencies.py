@@ -1,6 +1,5 @@
-import asyncio
 from collections.abc import AsyncGenerator
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Depends, Request
 from fastapi_filters.filter_set import FilterSet
@@ -8,7 +7,6 @@ from fastapi_filters.types import SortingValues
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.db.influx.repos.telemetry_repo import TelemetryRepo
 from app.db.postgres.engine import AsyncSessionLocal
 from app.db.postgres.repos.assignment_repo import AssignmentRepo
@@ -34,6 +32,7 @@ from app.filters import (
     WearableFilters,
     WearableSorting,
 )
+from app.graphql.context import GraphQLContext
 from app.graphql.dataloaders import Loaders
 from app.services.assignment_service import AssignmentService
 from app.services.case_service import CaseService
@@ -46,8 +45,9 @@ from app.services.wearable_service import WearableService
 
 
 async def get_db() -> AsyncGenerator[AsyncSession]:
-    """Provide a database session with rollback-by-default.
-    - Services must explicitly call commit() to persist changes
+    """Provide a database session.
+    - Service write methods own transaction boundaries via `async with session.begin()`
+    - Services have to commit: rollback is enabled by default
     """
     async with AsyncSessionLocal() as session:
         try:
@@ -57,18 +57,8 @@ async def get_db() -> AsyncGenerator[AsyncSession]:
                 await session.rollback()
 
 
-def _require_app_state(request: Request, attr: str, label: str) -> object:
-    value = getattr(request.app.state, attr, None)
-    if value is None:
-        raise RuntimeError(f"{label} is not initialized on app.state. Ensure application startup has completed.")
-    return value
-
-
 def get_influx_client(request: Request) -> InfluxDBClientAsync:
-    value = _require_app_state(request, "influx_client", "InfluxDB client")
-    if not isinstance(value, InfluxDBClientAsync):
-        raise RuntimeError("app.state.influx_client is not an InfluxDBClientAsync instance.")
-    return value
+    return request.app.state.influx_client
 
 
 PgSessionDep = Annotated[AsyncSession, Depends(get_db)]
@@ -101,10 +91,7 @@ def get_assignment_repo(db: PgSessionDep) -> AssignmentRepo:
 
 
 def get_telemetry_repo(request: Request) -> TelemetryRepo:
-    value = _require_app_state(request, "telemetry_repo", "Telemetry repository")
-    if not isinstance(value, TelemetryRepo):
-        raise RuntimeError("app.state.telemetry_repo is not a TelemetryRepo instance.")
-    return value
+    return request.app.state.telemetry_repo
 
 
 def get_fhir_mapping_repo(db: PgSessionDep) -> FHIRMappingRepo:
@@ -169,10 +156,8 @@ def get_dot_dependency_file_service(repo: DotDependencyFileRepoDep) -> DotDepend
     return DotDependencyFileService(repo)
 
 
-async def get_graphql_context(request: Request, telemetry_repo: TelemetryRepoDep) -> dict[str, Any]:
-    max_pool_capacity = max(1, settings.DB_POOL_SIZE + settings.DB_MAX_OVERFLOW)
-    max_graphql_concurrency = max(1, min(settings.GRAPHQL_DB_MAX_CONCURRENCY, max_pool_capacity))
-    db_semaphore = asyncio.Semaphore(max_graphql_concurrency)
+async def get_graphql_context(request: Request, telemetry_repo: TelemetryRepoDep) -> GraphQLContext:
+    db_semaphore = request.app.state.graphql_db_semaphore
 
     return {
         "request": request,

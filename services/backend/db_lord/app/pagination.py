@@ -1,17 +1,23 @@
 from typing import TypeVar
 
 from fastapi_pagination.bases import CursorRawParams
-from fastapi_pagination.cursor import CursorPage, CursorParams, decode_cursor
+from fastapi_pagination.cursor import CursorPage, CursorParams
+from fastapi_pagination.types import Cursor
 from pydantic import Field
 
 T = TypeVar("T")
 
 
 class CursorParamsNoTotal(CursorParams):
-    """Cursor params that disable total count computation."""
+    """Cursor params that disable total count computation and keep cursor values opaque."""
 
-    def decode_cursor(self, cursor: str | None) -> str | None:
-        return decode_cursor(cursor, to_str=True, quoted=self.quoted_cursor)
+    def encode_cursor(self, cursor: Cursor | None) -> str | None:
+        if cursor is None:
+            return None
+        return cursor.decode() if isinstance(cursor, bytes) else cursor
+
+    def decode_cursor(self, cursor: str | None) -> Cursor | None:
+        return cursor
 
     def to_raw_params(self) -> CursorRawParams:
         raw = super().to_raw_params()
@@ -21,8 +27,7 @@ class CursorParamsNoTotal(CursorParams):
 
 class CursorPageNoTotal[T](CursorPage[T]):
     """Cursor page with optional total."""
-
-    total: int | None = Field(default=None, exclude=True)
+    total: int = Field(default=0, exclude=True)
 
 
 CursorPageNoTotal.set_params(CursorParamsNoTotal)

@@ -15,14 +15,12 @@ class WearableRepo(BaseRepo[Wearable, WearableCreate, WearableUpdate]):
 
     async def get_with_assignments(self, id: UUID) -> Wearable | None:
         query = select(Wearable).where(Wearable.id == id).options(selectinload(Wearable.case_assignments))
-        result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        return await self.db.scalar(query)
 
     async def update_status(self, id: UUID, status: str, expected_status: str | None = None) -> bool:
         stmt = update(Wearable).where(Wearable.id == id)
         if expected_status is not None:
             stmt = stmt.where(Wearable.status == expected_status)
         stmt = stmt.values(status=status).returning(Wearable.id)
-        result = await self.db.execute(stmt)
-        row = result.scalar_one_or_none()
+        row = await self.db.scalar(stmt)
         return row is not None

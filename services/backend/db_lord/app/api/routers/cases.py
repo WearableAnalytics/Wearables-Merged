@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from fastapi_pagination.cursor import CursorPage
 
 from app.api.dependencies import AssignmentServiceDep, CaseFiltersDep, CaseServiceDep, CaseSortingDep
+from app.api.params import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam
 from app.api.streaming import stream_as_ndjson
 from app.schemas.assignment import ContextAssignmentResponse, DeviceAssignmentResponse, WearableAssignmentResponse
 from app.schemas.case import CaseCreate, CaseExpandableFields, CaseExpanded, CaseResponse, CaseUpdate
@@ -51,7 +52,7 @@ async def stream_cases(
     service: CaseServiceDep,
     filters: CaseFiltersDep,
     sorting: CaseSortingDep,
-    batch_size: int = Query(500, ge=1, le=10_000),
+    batch_size: StreamBatchSizeParam = STREAM_BATCH_SIZE_DEFAULT,
 ):
     return stream_as_ndjson(service.stream_all(filters, sorting, batch_size, as_mapping=True), schema=CaseResponse)
 
@@ -70,6 +71,16 @@ async def assign_device(
     return await service.assign_device(case_id, device_id, start_time, end_time)
 
 
+@router.get("/{case_id}/devices/{device_id}/active-assignment", response_model=DeviceAssignmentResponse)
+async def get_active_device_assignment(case_id: UUID, device_id: UUID, service: AssignmentServiceDep):
+    return await service.get_active_device_assignment(case_id, device_id)
+
+
+@router.get("/{case_id}/devices/last-assignment", response_model=DeviceAssignmentResponse)
+async def get_last_device_assignment(case_id: UUID, service: AssignmentServiceDep):
+    return await service.get_last_device_assignment(case_id)
+
+
 @router.post(
     "/{case_id}/wearables/{wearable_id}", response_model=WearableAssignmentResponse, status_code=status.HTTP_201_CREATED
 )
@@ -81,6 +92,16 @@ async def assign_wearable(
     end_time: OptionalDateTimeQuery = None,
 ):
     return await service.assign_wearable(case_id, wearable_id, start_time, end_time)
+
+
+@router.get("/{case_id}/wearables/{wearable_id}/active-assignment", response_model=WearableAssignmentResponse)
+async def get_active_wearable_assignment(case_id: UUID, wearable_id: UUID, service: AssignmentServiceDep):
+    return await service.get_active_wearable_assignment(case_id, wearable_id)
+
+
+@router.get("/{case_id}/wearables/last-assignment", response_model=WearableAssignmentResponse)
+async def get_last_wearable_assignment(case_id: UUID, service: AssignmentServiceDep):
+    return await service.get_last_wearable_assignment(case_id)
 
 
 @router.post(
@@ -97,33 +118,33 @@ async def unlink_context(case_id: UUID, context_id: UUID, service: AssignmentSer
 
 @router.delete("/{case_id}/devices/last", status_code=status.HTTP_204_NO_CONTENT)
 async def unassign_last_device(case_id: UUID, service: AssignmentServiceDep, end_time: OptionalDateTimeQuery = None):
-    await service.unassign_last_device(case_id, end_time=end_time)
+    await service.unassign_last_device(case_id, end_time)
 
 
 @router.delete("/{case_id}/wearables/last", status_code=status.HTTP_204_NO_CONTENT)
 async def unassign_last_wearable(case_id: UUID, service: AssignmentServiceDep, end_time: OptionalDateTimeQuery = None):
-    await service.unassign_last_wearable(case_id, end_time=end_time)
+    await service.unassign_last_wearable(case_id, end_time)
 
 
 @router.delete("/{case_id}/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def unassign_device(
     case_id: UUID, device_id: UUID, service: AssignmentServiceDep, end_time: OptionalDateTimeQuery = None
 ):
-    await service.unassign_device(case_id, device_id, end_time=end_time)
+    await service.unassign_device(case_id, device_id, end_time)
 
 
 @router.delete("/{case_id}/wearables/{wearable_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def unassign_wearable(
     case_id: UUID, wearable_id: UUID, service: AssignmentServiceDep, end_time: OptionalDateTimeQuery = None
 ):
-    await service.unassign_wearable(case_id, wearable_id, end_time=end_time)
+    await service.unassign_wearable(case_id, wearable_id, end_time)
 
 
 @router.delete("/{case_id}/devices/{device_id}/assignments", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_device_assignment(
     case_id: UUID, device_id: UUID, service: AssignmentServiceDep, assigned_from: OptionalDateTimeQuery = None
 ):
-    result = await service.delete_device_assignment(case_id, device_id, assigned_from=assigned_from)
+    result = await service.delete_device_assignment(case_id, device_id, assigned_from)
     if result is None:
         raise HTTPException(
             status_code=404,
@@ -135,7 +156,7 @@ async def delete_device_assignment(
 async def delete_wearable_assignment(
     case_id: UUID, wearable_id: UUID, service: AssignmentServiceDep, assigned_from: OptionalDateTimeQuery = None
 ):
-    result = await service.delete_wearable_assignment(case_id, wearable_id, assigned_from=assigned_from)
+    result = await service.delete_wearable_assignment(case_id, wearable_id, assigned_from)
     if result is None:
         raise HTTPException(
             status_code=404,
