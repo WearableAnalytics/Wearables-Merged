@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: runner-test-job
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: tar-checker
+          image: golang:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "id,value"
+              sleep 10
+              echo "1,hello"
+              sleep 10
+              echo "2,world"
+              sleep 10
+              echo "done"

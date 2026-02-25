@@ -1,4 +1,4 @@
-name: upload-on-push-registration
+name: upload-on-push-wearables-bff
 run-name: Build and push the image to the repo by @${{ github.actor }}
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
       - name: build-and-push
         uses: docker/build-push-action@v6.18.0
         with:
-          context: ./services/backend/registration-service
-          file: ./app.Dockerfile
+          context: ./services/backend/wearables-bff
+          file: ./services/backend/wearables-bff/Dockerfile
           push: true
-          tags: lndocker3s/registration-service:latest
+          tags: gmsdaniil/wearables-bff:latest

@@ -41,9 +41,22 @@ function CollapsibleInfoSection({
         <div className="surface-subtle mt-2 px-3 py-2 text-sm text-muted-foreground">{emptyMessage}</div>
       ) : (
         <dl className="mt-2 grid grid-cols-1 gap-3">
-          {items.map((item) => (
-            <InfoItem key={`${itemKeyPrefix}-${item.key}`} label={item.label} value={item.value} />
-          ))}
+          {items.map((item) => {
+            const valueTitle =
+              typeof item.value === 'string' || typeof item.value === 'number' ? String(item.value) : undefined;
+
+            return (
+              <InfoItem
+                key={`${itemKeyPrefix}-${item.key}`}
+                label={item.label}
+                value={
+                  <span className="block truncate" title={valueTitle}>
+                    {item.value}
+                  </span>
+                }
+              />
+            );
+          })}
         </dl>
       )}
     </div>

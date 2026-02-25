@@ -1,13 +1,16 @@
 image:
-  repository: gmsdaniil/wearables-web-frontend
-  tag: "latest"
+  repository: wearables42/web-frontend
+  tag: "1.0.0"
   pullPolicy: Always
 
-# Environment variables for the frontend build
-env:
-  backendUrl: "https://wearables.charite.de"
-  apiBasePath: "/api"
-  grafanaIframeUrl: "https://wearables.charite.de/grafana-proxy"
+runtimeConfigMap:
+  create: true
+  name: ""
+
+runtimeConfig:
+  apiBaseUrl: "http://localhost:3001/api"
+  grafanaProxyUrl: "http://localhost:3002/grafana-proxy"
+  socketUrl: "http://localhost:3001"
 
 # Service configuration
 service:
@@ -16,7 +19,7 @@ service:
 
 # Ingress configuration
 ingress:
-  enabled: true
+  enabled: false
   host: "wearables.charite.de"
   path: "/"
   certificateSecretName: "wearables-tls"

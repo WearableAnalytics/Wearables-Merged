@@ -1,0 +1,13 @@
+ssh:
+  user: "stahlco"
+  host: "denbi-jumphost-01.bihealth.org"
+  keyPath: "~/.ssh/github"
+job:
+  name: "kafka-test"
+  namespace: "default"
+paths:
+  localConfig: "../benchmarks/mapper/job-config.yaml"
+  remoteConfig: "/tmp/kafka-test.yaml"
+  localOutput: "../evaluation/measurements/mapper/25kb_1RPS_60s_03.csv"
+  localLogs: "stderr"
+timeout: "5m"

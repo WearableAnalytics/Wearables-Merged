@@ -8,6 +8,7 @@ import { useActiveCase } from '@/lib/activeCase';
 import { useTheme } from '@/context/ThemeContext';
 import { formatDateDayMonthYear } from '@/lib/date';
 import { useMessageToast } from '@/lib/toast';
+import { appRuntimeConfig } from '@/config/runtimeConfig';
 import { CaseQrCard } from './components/CaseQrCard';
 import { CaseQrModal } from './components/CaseQrModal';
 import { CaseDataPanel, type CaseDisplayItem } from './components/CaseDataPanel';
@@ -17,14 +18,15 @@ import {
   type QuickRangeOption,
 } from './components/CaseMonitoringPanel';
 
-const GRAFANA_PROXY_URL = import.meta.env.VITE_GRAFANA_PROXY_URL;
+const GRAFANA_PROXY_URL = appRuntimeConfig.grafanaProxyUrl;
 const GENERAL_GRAFANA_UID = 'wearables-health-real';
 const MEDICAL_USE_CASE_GRAFANA_UID = 'wearables-six-min';
+const AI_INSIGHTS_GRAFANA_UID = 'adgf864';
 const ONE_MINUTE_MS = 60 * 1000;
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
 type RawSectionData = Record<string, unknown>;
-type MonitoringViewId = 'general' | 'useCase';
+type MonitoringViewId = 'general' | 'useCase' | 'aiInsights';
 
 const GENERAL_QUICK_RANGE_OPTIONS: QuickRangeOption[] = [
   { label: 'Last 24h', durationMs: ONE_DAY_MS },
@@ -40,6 +42,7 @@ const SIX_MINUTE_WALKING_TEST_QUICK_RANGE_OPTIONS: QuickRangeOption[] = [
 const MONITORING_VIEWS: MonitoringViewOption<MonitoringViewId>[] = [
   { id: 'general', label: 'General data', kind: 'grafana' },
   { id: 'useCase', label: 'Six minute walking test', kind: 'grafana' },
+  { id: 'aiInsights', label: 'AI Insights', kind: 'grafana' },
 ];
 
 function toDatetimeLocalValue(date: Date): string {
@@ -285,14 +288,29 @@ export function CasePage() {
       }),
     [grafanaBaseQuery],
   );
+  const aiInsightsGrafanaUrl = useMemo(
+    () =>
+      buildGrafanaEmbedUrl(GRAFANA_PROXY_URL, grafanaBaseQuery, {
+        dashboardUid: AI_INSIGHTS_GRAFANA_UID,
+      }),
+    [grafanaBaseQuery],
+  );
   const activeMonitoringConfig = useMemo(
     () => MONITORING_VIEWS.find((view) => view.id === activeMonitoringView) ?? MONITORING_VIEWS[0],
     [activeMonitoringView],
   );
   const activeGrafanaUrl = useMemo(() => {
     if (activeMonitoringConfig.kind !== 'grafana') return null;
-    return activeMonitoringView === 'useCase' ? useCaseGrafanaUrl : generalGrafanaUrl;
-  }, [activeMonitoringConfig.kind, activeMonitoringView, generalGrafanaUrl, useCaseGrafanaUrl]);
+    if (activeMonitoringView === 'useCase') return useCaseGrafanaUrl;
+    if (activeMonitoringView === 'aiInsights') return aiInsightsGrafanaUrl;
+    return generalGrafanaUrl;
+  }, [
+    activeMonitoringConfig.kind,
+    activeMonitoringView,
+    aiInsightsGrafanaUrl,
+    generalGrafanaUrl,
+    useCaseGrafanaUrl,
+  ]);
   const activeQuickRangeOptions = useMemo(
     () =>
       activeMonitoringView === 'useCase'
@@ -335,6 +353,7 @@ export function CasePage() {
           loading={loading}
           error={error}
           monitoringViews={MONITORING_VIEWS}
+          separatedMonitoringViewIds={['aiInsights']}
           activeMonitoringView={activeMonitoringView}
           onMonitoringViewChange={setActiveMonitoringView}
           activeMonitoringConfig={activeMonitoringConfig}

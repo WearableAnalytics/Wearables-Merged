@@ -9,3 +9,11 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+interface Window {
+  __APP_CONFIG__?: {
+    API_BASE_URL?: string;
+    GRAFANA_PROXY_URL?: string;
+    SOCKET_URL?: string;
+  };
+}

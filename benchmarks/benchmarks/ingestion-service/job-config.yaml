@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ingestion-service-lg
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: ingestion-service-job
+          image: stahlco/ingestion-service-lg:latest
+          env:
+            - name: SERVICE_URL
+              value: ""
+            - name: MESSAGE_SIZE
+              value: "102400"         # 100KB
+            - name: RPS
+              value: "10"             # Smoke-Test
+            - name: RAMP_UP_DURATION
+              value: "10"             # seconds
+            - name: DURATION
+              value: "45"
+            - name: RAMP_DOWN_DURATION
+              value: "5"

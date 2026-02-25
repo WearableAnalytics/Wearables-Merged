@@ -202,6 +202,6 @@ export function errorHandler(err: Error, _: Request, res: Response, __: NextFunc
   logger.error('Unhandled error', err);
   res.json({
     message: err.message,
-    stack: process.env.NODE_ENV !== 'development' ? '<redacted>' : err.stack,
+    stack: config.nodeEnv !== 'development' ? '<redacted>' : err.stack,
   });
 }

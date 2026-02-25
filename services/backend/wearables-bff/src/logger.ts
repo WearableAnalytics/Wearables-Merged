@@ -10,7 +10,7 @@ const levelWeights: Record<LogLevel, number> = {
   error: 50,
 };
 
-const serviceName = 'registration-service-node';
+const serviceName = 'wearables-bff';
 
 const currentLevel = config.logLevel as LogLevel;
 

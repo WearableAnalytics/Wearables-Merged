@@ -3,22 +3,14 @@ import { logger } from '../logger.js';
 
 type Sender = { name: string; email: string };
 
-const defaultSender: Sender = {
-  name: process.env.MAILER_FROM_NAME || 'Wearables Platform',
-  email: process.env.MAILER_FROM_EMAIL || 'jmm123@posteo.de',
-};
-
-const shouldLogOnly =
-  !config.mailerEnabled ||
-  !process.env.BREVO_API_KEY ||
-  config.nodeEnv === 'development';
+const shouldLogOnly = !config.isProduction || !config.brevoApiKey;
 
 function getBackendUrl(): string {
-  return process.env.BACKEND_URL || `http://localhost:${config.port}`;
+  return config.backendUrl;
 }
 
 function getFrontendUrl(): string {
-  return process.env.FRONTEND_URL || 'http://localhost:5173';
+  return config.frontendRedirectUrl;
 }
 
 function buildMagicLink(token: string, redirect?: string): string {
@@ -30,22 +22,38 @@ function buildMagicLink(token: string, redirect?: string): string {
   return `${baseUrl}${config.apiPrefix}/verify-magiclink?${params.toString()}`;
 }
 
+function formatMagicLinkValidity(seconds: number): string {
+  if (seconds % 3600 === 0) {
+    const hours = seconds / 3600;
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  if (seconds % 60 === 0) {
+    const minutes = seconds / 60;
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  return `${seconds} second${seconds === 1 ? '' : 's'}`;
+}
+
 async function sendEmail(
   to: string,
   subject: string,
   htmlContent: string,
-  sender: Sender = defaultSender,
 ) {
   if (shouldLogOnly || to.includes('@example.com')) {
     return;
   }
+
+  const sender: Sender = {
+    name: config.mailerFromName!,
+    email: config.mailerFromEmail!,
+  };
 
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       accept: 'application/json',
-      'api-key': process.env.BREVO_API_KEY || '',
+      'api-key': config.brevoApiKey ?? '',
     },
     body: JSON.stringify({
       to: [{ email: to }],
@@ -67,6 +75,7 @@ export async function sendMagicLinkEmail(
   options: { isRegistration?: boolean; redirect?: string } = {},
 ) {
   const magicLink = buildMagicLink(token, options.redirect);
+  const magicLinkValidity = formatMagicLinkValidity(config.magicLinkExpirySeconds);
   const isNewUser = Boolean(options.isRegistration);
   const subject = isNewUser
     ? 'Complete your Wearables registration'
@@ -97,7 +106,7 @@ export async function sendMagicLinkEmail(
         </a>
       </div>
       <p style="color:#578494;margin:0;font-size:13px;text-align:center;">
-        This link is valid for 15 minutes and can only be used once.
+        This link is valid for ${magicLinkValidity} and can only be used once.
       </p>
     </div>
     <div style="background:#FFFFFF;padding:16px;border-radius:8px;border:1px solid #D1E4F0;">

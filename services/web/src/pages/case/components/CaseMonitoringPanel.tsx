@@ -16,6 +16,7 @@ type CaseMonitoringPanelProps<ViewId extends string = string> = {
   loading: boolean;
   error: string | null;
   monitoringViews: MonitoringViewOption<ViewId>[];
+  separatedMonitoringViewIds?: ViewId[];
   activeMonitoringView: ViewId;
   onMonitoringViewChange: (viewId: ViewId) => void;
   activeMonitoringConfig: MonitoringViewOption<ViewId>;
@@ -34,6 +35,7 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
   loading,
   error,
   monitoringViews,
+  separatedMonitoringViewIds = [],
   activeMonitoringView,
   onMonitoringViewChange,
   activeMonitoringConfig,
@@ -47,6 +49,27 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
   timeRangeError,
   activeGrafanaUrl,
 }: CaseMonitoringPanelProps<ViewId>) {
+  const separatedViewIdSet = new Set(separatedMonitoringViewIds);
+  const groupedMonitoringViews = monitoringViews.filter((view) => !separatedViewIdSet.has(view.id));
+  const separatedMonitoringViews = monitoringViews.filter((view) => separatedViewIdSet.has(view.id));
+
+  const renderMonitoringButton = (view: MonitoringViewOption<ViewId>, separated = false) => {
+    const isActive = activeMonitoringView === view.id;
+    return (
+      <Button
+        key={view.id}
+        type="button"
+        size={separated ? 'tabGroup' : 'sm'}
+        variant={separated ? 'aiTab' : isActive ? 'default' : 'ghost'}
+        className="px-3"
+        aria-pressed={isActive}
+        onClick={() => onMonitoringViewChange(view.id)}
+      >
+        {view.label}
+      </Button>
+    );
+  };
+
   return (
     <div className="surface-card p-4 md:col-span-3">
       {error ? (
@@ -61,41 +84,29 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
       ) : (
         activeMonitoringConfig.kind === 'grafana' ? (
           <div className="relative w-full space-y-3">
-            <div className="inline-flex max-w-full flex-wrap gap-2 rounded-xl border border-border bg-muted/40 p-1">
-              {monitoringViews.map((view) => {
-                const isActive = activeMonitoringView === view.id;
-                return (
-                  <Button
-                    key={view.id}
-                    type="button"
-                    size="sm"
-                    variant={isActive ? 'default' : 'ghost'}
-                    className="px-3"
-                    aria-pressed={isActive}
-                    onClick={() => onMonitoringViewChange(view.id)}
-                  >
-                    {view.label}
-                  </Button>
-                );
-              })}
+            <div className="flex max-w-full flex-wrap items-stretch gap-2">
+              <div className="inline-flex max-w-full flex-wrap gap-2 rounded-xl border border-border bg-muted/40 p-1">
+                {groupedMonitoringViews.map((view) => renderMonitoringButton(view))}
+              </div>
+              {separatedMonitoringViews.map((view) => renderMonitoringButton(view, true))}
             </div>
             <div className="surface-subtle px-3 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Data time range
               </p>
-              <div className="mt-3 flex flex-wrap items-end gap-3">
-                <div className="min-w-[220px]">
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3 md:items-end">
+                <div className="min-w-0">
                   <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                     Quick range
                   </span>
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-2 grid grid-cols-3 gap-2">
                     {activeQuickRangeOptions.map((option) => (
                       <Button
                         key={option.label}
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="px-3 font-normal"
+                        className="w-full px-2 font-normal"
                         onClick={() => onQuickRangeSelect(option.durationMs)}
                       >
                         {option.label}
@@ -103,7 +114,7 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
                     ))}
                   </div>
                 </div>
-                <label className="min-w-[240px] flex-1">
+                <label className="min-w-0">
                   <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                     From
                   </span>
@@ -115,7 +126,7 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
                     onChange={(event) => onFromInputChange(event.target.value)}
                   />
                 </label>
-                <label className="min-w-[240px] flex-1">
+                <label className="min-w-0">
                   <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                     Until
                   </span>

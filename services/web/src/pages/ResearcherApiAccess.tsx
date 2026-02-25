@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API_BASE_PATH, defaultApi } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
+import { StatusCallout } from '@/components/custom/StatusCallout';
 import { Button } from '@/components/ui/button';
 
 export function ResearcherApiAccessPage() {
@@ -81,11 +82,7 @@ export function ResearcherApiAccessPage() {
       <section className="surface-card mt-6 p-4 md:p-5">
         <h2 className="text-section-title">Your API access token</h2>
 
-        {error ? (
-          <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
+        {error ? <StatusCallout tone="error" message={error} className="mt-4" /> : null}
 
         {loading ? (
           <p className="m-0 mt-4 text-sm text-muted-foreground">Loading token…</p>
