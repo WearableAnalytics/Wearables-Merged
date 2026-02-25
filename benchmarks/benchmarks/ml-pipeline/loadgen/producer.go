@@ -30,6 +30,8 @@ type PayloadConfig struct {
 	Category        string
 	BaseDeviceID    string
 	Value           int
+	ClientIndex     int
+	NumClients      int
 }
 
 type LoadConfig struct {
@@ -81,6 +83,9 @@ func NewProducer(kafkaCfg KafkaConfig, payloadCfg PayloadConfig, loadCfg LoadCon
 	}, nil
 }
 
+// Please rewrite this function so that Device-ID the System reuses devices every 100ms for situation where I generate 10_000 RPS.
+// Make sure that the Device-IDs never generate LineProtocols twice in a 100ms window
+
 // GenerateNewLineProtocol creates a new Message
 // goos: darwin
 // goarch: arm64
@@ -90,9 +95,18 @@ func NewProducer(kafkaCfg KafkaConfig, payloadCfg PayloadConfig, loadCfg LoadCon
 // BenchmarkGenerateLineProtocol-8   	 3748686	       314.9 ns/op
 func (p *Producer) GenerateNewLineProtocol() string {
 	ts := time.Now().UTC().UnixNano()
-	messageCount := p.MessageCounter.Add(1)
-	lineProtocol := fmt.Sprintf("%s,device-id=%s-%d,category=%s,version=1.0.0 value=%d %d", p.MeasurementName, p.BaseDeviceID, messageCount, p.Category, p.Value, ts)
+
+	deviceID := p.CalculateDeviceID()
+
+	lineProtocol := fmt.Sprintf("%s,device-id=%s-%d,category=%s,version=1.0.0 value=%d %d", p.MeasurementName, p.BaseDeviceID, deviceID, p.Category, p.Value, ts)
 	return lineProtocol
+}
+
+func (p *Producer) CalculateDeviceID() int64 {
+	messageCount := p.MessageCounter.Add(1)
+	devicesPerClient := int64(p.RPS) / int64(p.NumClients)
+	return int64(p.ClientIndex)*devicesPerClient + ((messageCount - 1) % devicesPerClient)
+
 }
 
 func (p *Producer) Run(ctx context.Context) {
