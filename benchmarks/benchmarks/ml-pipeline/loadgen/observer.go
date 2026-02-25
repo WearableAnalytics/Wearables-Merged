@@ -124,27 +124,35 @@ func (o *Observer) Run(ctx context.Context) {
 func (o *Observer) CleanUp(ctx context.Context) {
 	deleteAPI := o.InfluxClient.DeleteAPI()
 
-	window := 10 * time.Second
-	t := o.StartTime
+	window := 1 * time.Minute
 
-	for t.Before(time.Now()) {
-		next := t.Add(window)
+	bucketsAndMeasurements := map[string]string{
+		o.InfluxBucket: `_measurement="ml_predictions"`,
+		"measurements": `_measurement="heart-rate"`,
+	}
 
-		err := deleteAPI.DeleteWithName(
-			ctx,
-			o.InfluxOrg,
-			o.InfluxBucket,
-			t,
-			next,
-			`_measurement="ml_predictions"`,
-		)
-		if err != nil {
-			log.Printf("cleanup error: %v", err)
-			return
+	for bucket, predicate := range bucketsAndMeasurements {
+		t := o.StartTime
+
+		for t.Before(time.Now()) {
+			next := t.Add(window)
+
+			err := deleteAPI.DeleteWithName(
+				ctx,
+				o.InfluxOrg,
+				bucket,
+				t,
+				next,
+				predicate,
+			)
+			if err != nil {
+				log.Printf("cleanup error for bucket %s: %v", bucket, err)
+				return
+			}
+
+			t = next
+			time.Sleep(200 * time.Millisecond)
 		}
-
-		t = next
-		time.Sleep(200 * time.Millisecond)
 	}
 }
 

@@ -37,7 +37,6 @@ func NewInfluxObserver(conf *InfluxObserverConfig, tracker *Tracker) *InfluxObse
 
 func (obs *InfluxObserver) ObserveBenchmark(ctx context.Context) {
 	queryApi := obs.Client.QueryAPI(obs.Config.Org)
-
 	query := fmt.Sprintf(`
 from(bucket: "%s")
   |> range(start: -3m)
@@ -90,8 +89,6 @@ from(bucket: "%s")
 			log.Printf("ERROR: unexpected type for 't_ingested': %T (%v)", t, t)
 			continue
 		}
-
-		log.Printf("Parsed value=%d, t_ingested=%v", value, tIngested)
 
 		if !obs.tracker.AddIngestTime(value, tIngested) {
 			log.Printf("ERROR: AddIngestTime failed for value=%d, t_ingested=%v", value, tIngested)

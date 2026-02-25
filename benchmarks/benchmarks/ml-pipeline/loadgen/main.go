@@ -70,6 +70,8 @@ func main() {
 		Category:        "measurements.instantaneous",
 		BaseDeviceID:    "benchmark-client",
 		Value:           72,
+		ClientIndex:     0,
+		NumClients:      1,
 	}
 
 	p, err := NewProducer(kafkaCfg, payloadCfg, loadCfg)
