@@ -1,0 +1,190 @@
+name: Security Scanning (Trivy)
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write  # GitHub Security tab (SARIF upload)
+  packages: read
+
+jobs:
+
+  # ──────────────────────────────────────────────────────────────
+  # JOB 1: Filesystem, Secrets & Dependency Scan
+  # Scans all f the Source-Code: package.json, requirements.txt,
+  # Helm Charts, hardcoded Secrets. Docker build is not neccessary
+  # ──────────────────────────────────────────────────────────────
+  trivy-fs:
+    name: "Trivy · Filesystem & Secrets"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy – full filesystem scan (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln,secret,misconfig"
+          severity: "CRITICAL,HIGH,MEDIUM"
+          format: "sarif"
+          output: "trivy-fs.sarif"
+          exit-code: "1"          # breaks on  CRITICAL/HIGH/MEDIUM findings
+          ignore-unfixed: true
+
+      - name: Upload SARIF → GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-fs.sarif"
+          category: "trivy-fs"
+
+      - name: Trivy – table summary (CI Logs)
+        uses: aquasecurity/trivy-action@master
+        if: always()
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln,secret,misconfig"
+          severity: "CRITICAL,HIGH,MEDIUM"
+          format: "table"
+          ignore-unfixed: true
+
+  # ──────────────────────────────────────────────────────────────
+  # JOB 2: Container Image Scans (Matrix over all Services)
+  # Every Service-Image will be  build and directly scanned 
+  # not pushed to GHCR. Scas for CVEs  inside the Base-Image + Dependencies.
+  # ──────────────────────────────────────────────────────────────
+  trivy-image:
+    name: "Trivy · Image (${{ matrix.service }})"
+    runs-on: ubuntu-latest
+    needs: trivy-fs   # only if fs scan gets trough
+
+    strategy:
+      fail-fast: false   # scans all images, even if some fails
+      matrix:
+        include:
+          - service: importservice
+            context: services/backend/importservice
+            dockerfile: services/backend/importservice/Dockerfile
+
+          - service: db-lord
+            context: services/backend/db_lord
+            dockerfile: services/backend/db_lord/Dockerfile
+
+          - service: wearables-bff
+            context: services/backend/wearables-bff
+            dockerfile: services/backend/wearables-bff/Dockerfile
+
+          - service: fhir-mapper-validator
+            context: services/backend/fhir-mapper-validator
+            dockerfile: services/backend/fhir-mapper-validator/Dockerfile
+
+          - service: grafana-proxy
+            context: services/backend/grafana-proxy
+            dockerfile: services/backend/grafana-proxy/Dockerfile
+
+          - service: web-frontend
+            context: services/web
+            dockerfile: services/web/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image (lokal, kein Push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: false
+          tags: wearables/${{ matrix.service }}:scan
+          load: true    # image is accessible locally
+
+      - name: Trivy – image scan (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "image"
+          image-ref: "wearables/${{ matrix.service }}:scan"
+          scanners: "vuln,secret"
+          severity: "CRITICAL,HIGH"
+          format: "sarif"
+          output: "trivy-image-${{ matrix.service }}.sarif"
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Upload SARIF → GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-image-${{ matrix.service }}.sarif"
+          category: "trivy-image-${{ matrix.service }}"
+
+      - name: Trivy – table summary (CI Logs)
+        uses: aquasecurity/trivy-action@master
+        if: always()
+        with:
+          scan-type: "image"
+          image-ref: "wearables/${{ matrix.service }}:scan"
+          scanners: "vuln,secret"
+          severity: "CRITICAL,HIGH,MEDIUM"
+          format: "table"
+          ignore-unfixed: true
+
+  # ──────────────────────────────────────────────────────────────
+  # JOB 3: Kubernetes / Helm Misconfiguration Scan
+  # Renders all Helm Charts in gitops/apps/ and scans
+  # resulting yamls for K8s misconfigurations (z.B. PodSecurity, NetworkPolicies, RBAC, etc.)
+  # ──────────────────────────────────────────────────────────────
+  trivy-k8s-misconfig:
+    name: "Trivy · K8s Misconfig (Helm)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Render Helm templates → plain YAML
+        run: |
+          mkdir -p /tmp/rendered-manifests
+          # gitops/apps/<gruppe>/<chart>/ – zwei Ebenen tief
+          for chart_dir in gitops/apps/*/*/; do
+            chart_name=$(basename "$chart_dir")
+            echo "Rendering: $chart_dir"
+            helm template "$chart_name" "$chart_dir" \
+              --output-dir "/tmp/rendered-manifests/$chart_name" \
+              --set "image.tag=scan" 2>/dev/null || true
+          done
+
+      - name: Trivy – config scan auf gerenderten Manifesten (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "config"
+          scan-ref: "/tmp/rendered-manifests"
+          severity: "CRITICAL,HIGH,MEDIUM"
+          format: "sarif"
+          output: "trivy-k8s.sarif"
+          exit-code: "0"   # K8s misconfigs do not block the build
+      - name: Upload SARIF → GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-k8s.sarif"
+          category: "trivy-k8s"
+
+      - name: Trivy – table summary (CI Logs)
+        uses: aquasecurity/trivy-action@master
+        if: always()
+        with:
+          scan-type: "config"
+          scan-ref: "/tmp/rendered-manifests"
+          severity: "CRITICAL,HIGH,MEDIUM"
+          format: "table"
