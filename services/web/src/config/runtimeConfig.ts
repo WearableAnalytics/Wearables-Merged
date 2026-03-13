@@ -1,7 +1,6 @@
 type AppRuntimeConfig = {
   API_BASE_URL?: string;
   GRAFANA_PROXY_URL?: string;
-  SOCKET_URL?: string;
 };
 
 const readConfigValue = (value: string | undefined): string | undefined => {
@@ -31,10 +30,8 @@ const grafanaProxyUrl = resolveConfigValue(
   runtimeConfig?.GRAFANA_PROXY_URL,
   import.meta.env.VITE_GRAFANA_PROXY_URL,
 );
-const socketUrl = resolveConfigValue(runtimeConfig?.SOCKET_URL, import.meta.env.VITE_SOCKET_URL);
 
 export const appRuntimeConfig = {
   apiBaseUrl: requireConfigValue('API_BASE_URL', apiBaseUrl),
   grafanaProxyUrl: requireConfigValue('GRAFANA_PROXY_URL', grafanaProxyUrl),
-  socketUrl: socketUrl ?? '',
 } as const;

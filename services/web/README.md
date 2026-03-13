@@ -12,7 +12,6 @@ Kubernetes deployment behavior is documented in `gitops/apps/web-frontend/README
 - Renders auth, case management, and monitoring UI.
 - Calls BFF APIs through the generated OpenAPI client and custom auth endpoints.
 - Embeds Grafana dashboards on the case page through `${GRAFANA_PROXY_URL}/embed`.
-- Opens a Socket.IO client using runtime-configured `SOCKET_URL`.
 
 ## Runtime Config In The Code
 
@@ -55,7 +54,6 @@ Useful scripts:
 - App bootstrap: `services/web/src/main.tsx`
 - Runtime config resolver: `services/web/src/config/runtimeConfig.ts`
 - API wiring: `services/web/src/api/defaultApi.ts`
-- Socket client: `services/web/src/socket.ts`
 - Case monitoring + Grafana embed usage: `services/web/src/pages/case/CasePage.tsx`
 - Dev proxy and env loading: `services/web/vite.config.ts`
 - Container serving config: `services/web/Dockerfile`, `services/web/nginx.conf`
