@@ -27,7 +27,6 @@ Values mapping:
 
 - `runtimeConfig.apiBaseUrl` -> `window.__APP_CONFIG__.API_BASE_URL`
 - `runtimeConfig.grafanaProxyUrl` -> `window.__APP_CONFIG__.GRAFANA_PROXY_URL`
-- `runtimeConfig.socketUrl` -> `window.__APP_CONFIG__.SOCKET_URL`
 
 ## Important Chart Behavior
 

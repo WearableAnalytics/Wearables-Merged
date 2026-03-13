@@ -10,7 +10,6 @@ data:
   runtime-config.js: |
     window.__APP_CONFIG__ = {
       API_BASE_URL: {{ .Values.runtimeConfig.apiBaseUrl | quote }},
-      GRAFANA_PROXY_URL: {{ .Values.runtimeConfig.grafanaProxyUrl | quote }},
-      SOCKET_URL: {{ .Values.runtimeConfig.socketUrl | quote }}
+      GRAFANA_PROXY_URL: {{ .Values.runtimeConfig.grafanaProxyUrl | quote }}
     };
 {{- end }}
