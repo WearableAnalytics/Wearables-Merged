@@ -23,6 +23,12 @@ spec:
             - containerPort: 6379
               name: valkey
           {{- if .Values.valkey.persistence.enabled }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
           volumeMounts:
             - name: valkey-data
               mountPath: /data

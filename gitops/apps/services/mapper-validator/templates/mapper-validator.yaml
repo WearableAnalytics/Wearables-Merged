@@ -19,6 +19,19 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ .Values.mapperEnvConfigMap }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1536Mi"
           volumeMounts:
             - name: {{ .Values.mappingConfigVol}}
               mountPath: /config

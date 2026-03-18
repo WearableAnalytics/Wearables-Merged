@@ -30,6 +30,19 @@ spec:
               value: "{{ .Values.env.JWT_SECRET }}"
             - name: JWT_ISSUER
               value: "{{ .Values.env.JWT_ISSUER }}"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           livenessProbe:
             httpGet:
               path: "{{ .Values.livenessProbe.path }}"

@@ -21,6 +21,18 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.secretRef }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
           volumeMounts:
             - mountPath: /var/lib/postgresql/data
               name: "{{ .Release.Name }}-data"

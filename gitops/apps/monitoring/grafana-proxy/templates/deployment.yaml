@@ -28,6 +28,19 @@ spec:
                 name: {{ $configMapName }}
             - secretRef:
                 name: {{ $secretName }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           volumeMounts:
             - name: grafana-jwt-key
               mountPath: /secrets/grafana-jwt-private.pem

@@ -53,6 +53,12 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Release.Name }}-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
           volumeMounts:
             - name: code
               mountPath: /app/server.mjs

@@ -18,6 +18,18 @@ spec:
           ports:
             - containerPort: {{ .Values.port }}
               name: mqtt
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
           volumeMounts:
             - name: config
               mountPath: /mosquitto/config/mosquitto.conf
