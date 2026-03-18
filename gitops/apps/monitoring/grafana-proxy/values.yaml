@@ -11,10 +11,13 @@ configMap:
   name: ""
 
 secret:
+  # REQUIRED — set create: true and provide real values via --set or a values override file.
+  # APP_JWT_SECRET is the shared HS256 secret distributed by bootstrap-runtime-secrets.sh.
+  # GRAFANA_JWT_PRIVATE_KEY is the RS256 private key for signing X-JWT-Assertion headers.
   create: false
   name: ""
   data:
-    APP_JWT_SECRET: "change-me"
+    APP_JWT_SECRET: "CHANGE_ME_APP_JWT_SECRET"
     GRAFANA_JWT_PRIVATE_KEY: ""
 
 proxy:

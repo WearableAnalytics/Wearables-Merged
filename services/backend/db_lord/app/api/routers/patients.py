@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_db_read
+from app.api.deps import get_db, get_db_read, get_current_user
 from app.db.postgres.repos.patient_repo import PatientRepo
 from app.db.postgres.repos.case_repo import CaseRepo
 from app.schemas.patient import Patient, PatientCreate, PatientUpdate

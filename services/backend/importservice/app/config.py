@@ -18,7 +18,9 @@ class Settings:
     influxdb_org: str = os.getenv("INFLUXDB_ORG", "test")
     influxdb_bucket: str = os.getenv("INFLUXDB_BUCKET", "gmstest")
 
-    jwt_secret: str = os.getenv("JWT_SECRET", "dev-secret")
+    jwt_secret: str = os.getenv("JWT_SECRET") or (_ for _ in ()).throw(
+        ValueError("JWT_SECRET environment variable must be set – refusing to start with insecure default")
+    )
     registration_issuer: str = os.getenv("JWT_ISSUER", "registration-service")
 
 

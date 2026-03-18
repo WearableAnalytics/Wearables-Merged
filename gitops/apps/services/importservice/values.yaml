@@ -12,7 +12,9 @@ service:
 env:
   KAFKA_BOOTSTRAP_SERVERS: "kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
   KAFKA_TOPIC: "wearables-raw"
-  JWT_SECRET: "dev-secret"
+  # REQUIRED — override via --set or values override file; injected by bootstrap-runtime-secrets.sh.
+  # Service crashes on startup if this is missing or empty (enforced in config.py).
+  JWT_SECRET: "CHANGE_ME_JWT_SECRET"
   JWT_ISSUER: "registration-service"
 
 autoscaling:

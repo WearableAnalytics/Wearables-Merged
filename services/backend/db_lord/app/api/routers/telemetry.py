@@ -4,10 +4,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api import deps
+from app.api.deps import get_current_user
 from app.schemas.telemetry import TelemetryCreate, TelemetryPageResponse
 from app.services.telemetry_service import TelemetryService
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)

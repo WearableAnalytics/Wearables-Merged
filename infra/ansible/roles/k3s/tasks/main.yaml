@@ -28,7 +28,7 @@
 - name: K3s installieren
   shell: |
     curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - \
-      --write-kubeconfig-mode 644 \
+      --write-kubeconfig-mode 600 \
       --disable traefik \
       --disable servicelb
   args:

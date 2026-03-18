@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_db_read
+from app.api.deps import get_db, get_db_read, get_current_user
 from app.db.postgres.repos.wearable_repo import WearableRepo
 from app.schemas.wearable import Wearable, WearableCreate, WearableUpdate
 from app.services.wearable_service import WearableService

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_db_read
+from app.api.deps import get_db, get_db_read, get_current_user
 from app.db.postgres.repos.context_repo import ContextRepo
 from app.schemas.context import Context, ContextCreate, ContextUpdate
 from app.services.context_service import ContextService

@@ -134,9 +134,9 @@ const caseTokenExpirySeconds = requirePositiveIntEnv('CASE_TOKEN_EXPIRY_SECONDS'
 const tokenIssuer = requireEnv('TOKEN_ISSUER');
 
 const jwtSecret = requireEnv('JWT_SECRET');
-// if (isProduction && jwtSecret === 'dev-secret') {
-//   throw new Error('Invalid configuration: JWT_SECRET cannot be "dev-secret" in production.');
-// }
+if (isProduction && jwtSecret === 'dev-secret') {
+  throw new Error('Invalid configuration: JWT_SECRET cannot be "dev-secret" in production.');
+}
 
 const parseCsv = (value: string): string[] =>
   value

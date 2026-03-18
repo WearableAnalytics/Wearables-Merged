@@ -35,3 +35,17 @@ variable "existing_ssh_key_names" {
   type        = list(string)
   default     = []
 }
+
+variable "management_ips" {
+  description = <<-EOT
+    CIDR ranges allowed to reach management ports (SSH/22 and K3s API/6443).
+    SECURITY: Restrict to known IP ranges before any production deployment with
+    real patient data. Leaving this as 0.0.0.0/0 exposes the cluster control
+    plane to the entire internet (findings F-11 and F-12).
+    Example: ["203.0.113.10/32", "198.51.100.0/24"]
+  EOT
+  type    = list(string)
+  # Default preserves current behaviour for the research deployment.
+  # Override for production: -var='management_ips=["<your-ip>/32"]'
+  default = ["0.0.0.0/0", "::/0"]
+}

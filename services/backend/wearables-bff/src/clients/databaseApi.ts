@@ -1,4 +1,18 @@
+import jwt from 'jsonwebtoken';
 import config from '../config.js';
+
+/**
+ * Mint a short-lived service-account token so db_lord can verify that
+ * calls originate from the BFF and not from an unauthenticated pod.
+ * The token is signed with the same shared JWT_SECRET that db_lord validates.
+ */
+function mintServiceToken(): string {
+  return jwt.sign(
+    { sub: 'wearables-bff', service: true },
+    config.jwtSecret,
+    { expiresIn: '5m', algorithm: 'HS256' }
+  );
+}
 
 export interface Patient {
   id: string;
@@ -75,6 +89,7 @@ class DatabaseApiClient {
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${mintServiceToken()}`,
           ...options.headers,
         },
       });

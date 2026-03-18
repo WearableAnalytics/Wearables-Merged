@@ -9,3 +9,10 @@ port: 1883
 image:
   repository: eclipse-mosquitto
   tag: 2
+
+mosquitto:
+  # REQUIRED — Mosquitto password file content (username:bcrypt_hash, one per line).
+  # Generate with: mosquitto_passwd -c /tmp/passwords <username>
+  # The bootstrap-runtime-secrets.sh script can generate and inject this automatically.
+  # Never commit real credentials here.
+  passwordFileContent: "CHANGE_ME_MOSQUITTO_PASSWORDS"

@@ -28,15 +28,12 @@ data "hcloud_ssh_key" "existing_keys" {
 resource "hcloud_firewall" "firewall" {
   name = "${var.server_name}-firewall"
 
-  # SSH
+  # SSH — restrict to management_ips in production (see variables.tf, finding F-12)
   rule {
-    direction = "in"
-    protocol  = "tcp"
-    port      = "22"
-    source_ips = [
-      "0.0.0.0/0",
-      "::/0"
-    ]
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "22"
+    source_ips = var.management_ips
   }
 
   # HTTP
@@ -61,15 +58,12 @@ resource "hcloud_firewall" "firewall" {
     ]
   }
 
-  # K3s API
+  # K3s API — restrict to management_ips in production (see variables.tf, finding F-11)
   rule {
-    direction = "in"
-    protocol  = "tcp"
-    port      = "6443"
-    source_ips = [
-      "0.0.0.0/0",
-      "::/0"
-    ]
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "6443"
+    source_ips = var.management_ips
   }
 }
 

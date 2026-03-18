@@ -8,6 +8,12 @@ image:
 postgres:
   storageSize: 10Gi
   storageClassName: local-path
+  # REQUIRED — override these via a values override file or Helm --set.
+  # Never commit real credentials here.
+  # Generate with: openssl rand -base64 24
+  user: "CHANGE_ME_POSTGRES_USER"
+  password: "CHANGE_ME_POSTGRES_PASSWORD"
+  db: "db"
 
 secretRef: "postgres-secret"
 

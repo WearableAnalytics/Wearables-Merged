@@ -1,14 +1,30 @@
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from fastapi.params import Depends
+from fastapi import Depends
+from fastapi.params import Depends as FastAPIDepends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import TokenPayload, decode_token
 from app.db.influx.client import client as global_influx_client
 from app.db.influx.repos.telemetry_repo import TelemetryRepo
 from app.db.postgres.engine import AsyncSessionLocal
 from app.services.telemetry_service import TelemetryService
+
+_bearer = HTTPBearer()
+
+
+async def get_current_user(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+) -> TokenPayload:
+    """Validate the Bearer JWT. Used as a dependency on all protected endpoints."""
+    return decode_token(credentials.credentials)
+
+
+# Convenience alias: add `_current_user: CurrentUser` to any endpoint to require auth
+CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
 
 
 # Postgres

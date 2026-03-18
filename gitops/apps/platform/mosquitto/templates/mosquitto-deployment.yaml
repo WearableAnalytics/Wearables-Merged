@@ -20,7 +20,13 @@ spec:
               name: mqtt
           volumeMounts:
             - name: config
-              mountPath: /mosquitto/config
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+              readOnly: true
+            - name: passwords
+              mountPath: /mosquitto/config/passwords
+              subPath: passwords
+              readOnly: true
           readinessProbe:
             tcpSocket:
               port: {{ .Values.port }}
@@ -32,6 +38,9 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 20
       volumes:
-      - name: config
-        configMap:
-          name: "{{ .Release.Name }}-config"
+        - name: config
+          configMap:
+            name: "{{ .Release.Name }}-config"
+        - name: passwords
+          secret:
+            secretName: "{{ .Release.Name }}-passwords"

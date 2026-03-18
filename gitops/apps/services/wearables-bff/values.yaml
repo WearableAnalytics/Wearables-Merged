@@ -39,6 +39,10 @@ secret:
   create: true
   name: ""
   data:
-    JWT_SECRET: "dev-secret"
-    BREVO_API_KEY: "key"
-    RESEARCHER_API_ACCESS_TOKEN: "dev-secret"
+    # REQUIRED — JWT_SECRET injected at deploy time by bootstrap-runtime-secrets.sh.
+    # Service crashes on startup in production if this equals "dev-secret" (enforced in config.ts).
+    JWT_SECRET: "CHANGE_ME_JWT_SECRET"
+    # REQUIRED — Brevo transactional email API key for magic-link delivery.
+    BREVO_API_KEY: "CHANGE_ME_BREVO_API_KEY"
+    # REQUIRED — Shared secret for researcher API bearer token validation.
+    RESEARCHER_API_ACCESS_TOKEN: "CHANGE_ME_RESEARCHER_API_ACCESS_TOKEN"
