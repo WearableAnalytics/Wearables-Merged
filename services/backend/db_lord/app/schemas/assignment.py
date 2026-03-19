@@ -1,64 +1,86 @@
-from datetime import UTC, datetime
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import AwareDatetime, model_validator
 
 from .common import TunedBase, TunedUpdateBase
 
 
-def utc_now() -> datetime:
-    return datetime.now(UTC)
+class DeviceAssignmentCreate(TunedBase):
+    assigned_from: AwareDatetime | None
+    assigned_to: AwareDatetime | None = None
 
-
-class DeviceAssignmentBase(TunedBase):
-    case_id: UUID
-    device_id: UUID
-    assigned_from: datetime = Field(default_factory=utc_now)
-    assigned_to: datetime | None = None
-
-
-class DeviceAssignmentCreate(DeviceAssignmentBase):
-    pass
+    @model_validator(mode="after")
+    def validate_assignment_window(self) -> DeviceAssignmentCreate:
+        if self.assigned_from is not None and self.assigned_to is not None and self.assigned_to <= self.assigned_from:
+            msg = "assigned_to must be later than assigned_from"
+            raise ValueError(msg)
+        return self
 
 
 class DeviceAssignmentUpdate(TunedUpdateBase):
-    assigned_from: datetime | None = None  # Should we allow changing assigned_from?
-    assigned_to: datetime | None = None
-
-
-class DeviceAssignment(DeviceAssignmentBase):
-    pass
-
-
-class WearableAssignmentBase(TunedBase):
     case_id: UUID
-    wearable_id: UUID
-    assigned_from: datetime = Field(default_factory=utc_now)
-    assigned_to: datetime | None = None
+    device_id: UUID
+    assigned_from: AwareDatetime | None = None  # Should we allow changing assigned_from?
+    assigned_to: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def validate_assignment_window(self) -> DeviceAssignmentUpdate:
+        if self.assigned_from is not None and self.assigned_to is not None and self.assigned_to <= self.assigned_from:
+            msg = "assigned_to must be later than assigned_from"
+            raise ValueError(msg)
+        return self
 
 
-class WearableAssignmentCreate(WearableAssignmentBase):
-    pass
+class DeviceAssignmentResponse(TunedBase):
+    case_id: UUID
+    device_id: UUID
+    assigned_from: AwareDatetime
+    assigned_to: AwareDatetime | None
+
+
+class WearableAssignmentCreate(TunedBase):
+    assigned_from: AwareDatetime | None
+    assigned_to: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def validate_assignment_window(self) -> WearableAssignmentCreate:
+        if self.assigned_from is not None and self.assigned_to is not None and self.assigned_to <= self.assigned_from:
+            msg = "assigned_to must be later than assigned_from"
+            raise ValueError(msg)
+        return self
 
 
 class WearableAssignmentUpdate(TunedUpdateBase):
-    assigned_from: datetime | None = None  # Should we allow changing assigned_from?
-    assigned_to: datetime | None = None
+    case_id: UUID
+    wearable_id: UUID
+    assigned_from: AwareDatetime | None = None
+    assigned_to: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def validate_assignment_window(self) -> WearableAssignmentUpdate:
+        if self.assigned_from is not None and self.assigned_to is not None and self.assigned_to <= self.assigned_from:
+            msg = "assigned_to must be later than assigned_from"
+            raise ValueError(msg)
+        return self
 
 
-class WearableAssignment(WearableAssignmentBase):
-    pass
+class WearableAssignmentResponse(TunedBase):
+    case_id: UUID
+    wearable_id: UUID
+    assigned_from: AwareDatetime
+    assigned_to: AwareDatetime | None
 
 
-class ContextAssignmentBase(TunedBase):
+class ContextAssignmentCreate(TunedBase):
     case_id: UUID
     context_id: UUID
-
-
-class ContextAssignmentCreate(ContextAssignmentBase):
-    pass
 
 
 class ContextAssignmentUpdate(TunedUpdateBase):
     case_id: UUID | None = None
     context_id: UUID | None = None
+
+
+class ContextAssignmentResponse(TunedBase):
+    case_id: UUID
+    context_id: UUID

@@ -1,84 +1,112 @@
-from collections.abc import Collection
-from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, literal_column, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import lateral, true
+from sqlalchemy.orm import joinedload, selectinload
 
-from app.db.postgres.models import (
-    case_contexts,
-    case_devices,
-    case_wearables,
-    cases,
-    contexts,
-    devices,
-    patients,
-    wearables,
+from app.db.postgres.orm import Case, CaseContext, CaseDevice, CaseWearable
+from app.db.postgres.repos.base import (
+    BaseRepo,
+    GroupedConnectionPage,
+    grouped_page_from_ranked_subquery,
 )
-from app.db.postgres.repos.base import BaseRepo
-from app.schemas.case import CaseCreate, CaseUpdate
+from app.schemas.case import CaseCreate, CaseExpandableFields, CaseUpdate
 
 
-class CaseRepo(BaseRepo[cases, CaseCreate, CaseUpdate]):
+class CaseRepo(BaseRepo[Case, CaseCreate, CaseUpdate]):
     def __init__(self, db: AsyncSession):
-        super().__init__(cases, db)
+        super().__init__(Case, db)
 
-    async def get_with_relations(self, id: UUID, expand: Collection[str] | None = None) -> dict[str, Any] | None:
-        # Probably dumb to do this again here, but whatever
-        expand_set = {e.strip().lower() for e in (expand or []) if e and e.strip()}
+    async def get_with_relations(self, id: UUID, expand: list[CaseExpandableFields]) -> Case | None:
+        """
+        Get a case with optional relationship expansion using ORM.
+        """
+        query = select(Case).where(Case.id == id)
 
-        c_alias = cases.alias("c")
+        if CaseExpandableFields.DEVICES in expand:
+            query = query.options(selectinload(Case.device_assignments).selectinload(CaseDevice.device))
+        if CaseExpandableFields.WEARABLES in expand:
+            query = query.options(selectinload(Case.wearable_assignments).selectinload(CaseWearable.wearable))
+        if CaseExpandableFields.CONTEXTS in expand:
+            query = query.options(selectinload(Case.contexts))
+        if CaseExpandableFields.PATIENT in expand:
+            query = query.options(joinedload(Case.patient))
 
-        cols = [
-            c_alias.c.id.label("id"),
-            c_alias.c.status.label("status"),
-            c_alias.c.patient_id.label("patient_id"),
-        ]
+        return await self.db.scalar(query)
 
-        stmt = select(*cols).select_from(c_alias)
+    async def get_by_patient_id(self, patient_id: UUID) -> list[Case]:
+        """Get all cases for a specific patient."""
+        stmt = select(Case).where(Case.patient_id == patient_id)
+        return list(await self.db.scalars(stmt))
 
-        if "devices" in expand_set:
-            dev_sub = (
-                select(func.jsonb_agg(func.to_jsonb(literal_column("devices"))).label("devices"))
-                .select_from(case_devices.join(devices, devices.c.id == case_devices.c.device_id))
-                .where(case_devices.c.case_id == c_alias.c.id)
-            )
-            dev_lat = lateral(dev_sub).alias("dev")
-            stmt = stmt.outerjoin(dev_lat, true()).add_columns(dev_lat.c.devices)
+    async def list_by_patient_ids_connection(
+        self,
+        patient_ids: list[UUID],
+        *,
+        page_size: int,
+        fetch_backward: bool,
+        after_id: UUID | None = None,
+        before_id: UUID | None = None,
+    ) -> GroupedConnectionPage[Case]:
+        if not patient_ids:
+            return GroupedConnectionPage(items_by_parent={}, has_extra_by_parent={})
 
-        if "wearables" in expand_set:
-            wr_sub = (
-                select(func.jsonb_agg(func.to_jsonb(literal_column("wearables"))).label("wearables"))
-                .select_from(case_wearables.join(wearables, wearables.c.id == case_wearables.c.wearable_id))
-                .where(case_wearables.c.case_id == c_alias.c.id)
-            )
-            wr_lat = lateral(wr_sub).alias("wr")
-            stmt = stmt.outerjoin(wr_lat, true()).add_columns(wr_lat.c.wearables)
+        order_expr = Case.id.asc() if fetch_backward else Case.id.desc()
+        ranked = select(
+            Case.patient_id.label("parent_id"),
+            Case.id.label("node_id"),
+            func.row_number().over(partition_by=Case.patient_id, order_by=order_expr).label("rn"),
+        ).where(Case.patient_id.in_(patient_ids))
 
-        if "contexts" in expand_set:
-            ctx_sub = (
-                select(func.jsonb_agg(func.to_jsonb(literal_column("contexts"))).label("contexts"))
-                .select_from(case_contexts.join(contexts, contexts.c.id == case_contexts.c.context_id))
-                .where(case_contexts.c.case_id == c_alias.c.id)
-            )
-            ctx_lat = lateral(ctx_sub).alias("ctx")
-            stmt = stmt.outerjoin(ctx_lat, true()).add_columns(ctx_lat.c.contexts)
+        if after_id is not None:
+            ranked = ranked.where(Case.id < after_id)
+        if before_id is not None:
+            ranked = ranked.where(Case.id > before_id)
 
-        if "patient" in expand_set:
-            stmt = stmt.outerjoin(patients, patients.c.id == c_alias.c.patient_id).add_columns(
-                func.to_jsonb(literal_column("patients")).label("patient")
-            )
+        ranked_subquery = ranked.subquery()
+        return await grouped_page_from_ranked_subquery(
+            db=self.db,
+            parent_ids=patient_ids,
+            ranked_subquery=ranked_subquery,
+            page_size=page_size,
+            fetch_backward=fetch_backward,
+            value_from_row=lambda row: row.node_id,
+            load_nodes_by_value=self.map_by_ids,
+            cursor_values_from=lambda node, _node_id: (node.id,),
+        )
 
-        stmt = stmt.where(c_alias.c.id == id)
+    async def list_by_context_ids_connection(
+        self,
+        context_ids: list[UUID],
+        *,
+        page_size: int,
+        fetch_backward: bool,
+        after_id: UUID | None = None,
+        before_id: UUID | None = None,
+    ) -> GroupedConnectionPage[Case]:
+        if not context_ids:
+            return GroupedConnectionPage(items_by_parent={}, has_extra_by_parent={})
 
-        result = await self.db.execute(stmt)
-        row = result.mappings().first()
+        order_expr = CaseContext.case_id.asc() if fetch_backward else CaseContext.case_id.desc()
+        ranked = select(
+            CaseContext.context_id.label("parent_id"),
+            CaseContext.case_id.label("node_id"),
+            func.row_number().over(partition_by=CaseContext.context_id, order_by=order_expr).label("rn"),
+        ).where(CaseContext.context_id.in_(context_ids))
 
-        return dict(row) if row else None
+        if after_id is not None:
+            ranked = ranked.where(CaseContext.case_id < after_id)
+        if before_id is not None:
+            ranked = ranked.where(CaseContext.case_id > before_id)
 
-    async def get_by_patient_id(self, patient_id: UUID) -> list:
-        """Get all cases for a specific patient"""
-        stmt = select(cases).where(cases.c.patient_id == patient_id)
-        result = await self.db.execute(stmt)
-        return list(result.mappings().all())
+        ranked_subquery = ranked.subquery()
+        return await grouped_page_from_ranked_subquery(
+            db=self.db,
+            parent_ids=context_ids,
+            ranked_subquery=ranked_subquery,
+            page_size=page_size,
+            fetch_backward=fetch_backward,
+            value_from_row=lambda row: row.node_id,
+            load_nodes_by_value=self.map_by_ids,
+            cursor_values_from=lambda node, _node_id: (node.id,),
+        )

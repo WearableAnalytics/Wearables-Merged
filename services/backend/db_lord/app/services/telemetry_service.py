@@ -1,8 +1,12 @@
-from collections.abc import Iterable
-from datetime import UTC, datetime
+from collections.abc import AsyncIterator, Iterable
+from datetime import datetime
+
+from fastapi_pagination.types import Cursor
 
 from app.db.influx.repos.telemetry_repo import TelemetryPage, TelemetryRepo
 from app.schemas.telemetry import TelemetryCreate
+from app.telemetry.constants import TELEMETRY_DEFAULT_PAGE_SIZE
+from app.telemetry.types import TelemetryTags
 
 
 class TelemetryService:
@@ -10,46 +14,59 @@ class TelemetryService:
         self.repo = repo
 
     async def record_telemetry(self, item_in: TelemetryCreate) -> None:
-        point = self._create_to_dict(item_in)
-        await self.repo.write_point(point)
+        await self.repo.write_point(item_in)
 
     async def record_batch(self, items_in: Iterable[TelemetryCreate]) -> None:
-        points = [self._create_to_dict(item) for item in items_in]
-        if points:
-            await self.repo.write_batch(points)
+        await self.repo.write_batch(items_in)
 
     async def read_telemetry(
         self,
-        measurement: str,
+        measurement: str | None = None,
         start: datetime | None = None,
         end: datetime | None = None,
-        tags: dict[str, str] | None = None,
-        page_size: int = 100,
-        cursor: str | None = None,
+        tags: TelemetryTags | None = None,
+        fields: list[str] | None = None,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
+        cursor: Cursor | None = None,
+        bucket: str | None = None,
     ) -> TelemetryPage:
-        return await self.repo.get_points(
-            measurement=measurement,
-            start=start,
-            end=end,
-            tags=tags,
-            page_size=page_size,
-            cursor=cursor,
-        )
+        return await self.repo.get_points(measurement, start, end, tags, fields, page_size, cursor, bucket=bucket)
 
-    def _create_to_dict(self, item: TelemetryCreate) -> dict:
-        timestamp = item.timestamp or datetime.now(UTC)
+    async def read_telemetry_raw(
+        self,
+        measurement: str | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        tags: TelemetryTags | None = None,
+        fields: list[str] | None = None,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
+        cursor: Cursor | None = None,
+        bucket: str | None = None,
+    ) -> TelemetryPage:
+        return await self.repo.get_points_raw(measurement, start, end, tags, fields, page_size, cursor, bucket=bucket)
 
-        tags = {
-            "patient_id": str(item.patient_id),
-            "case_id": str(item.case_id),
-            "device_id": str(item.device_id),
-        }
-        if item.tags:
-            tags.update(item.tags)
+    def stream_telemetry(
+        self,
+        measurement: str | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        tags: TelemetryTags | None = None,
+        fields: list[str] | None = None,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
+        cursor: Cursor | None = None,
+        bucket: str | None = None,
+    ) -> AsyncIterator[dict[str, object]]:
+        return self.repo.stream_points(measurement, start, end, tags, fields, page_size, cursor, bucket=bucket)
 
-        return {
-            "measurement": item.measurement,
-            "timestamp": timestamp,
-            "tags": tags,
-            "fields": item.fields or {},
-        }
+    def stream_telemetry_raw(
+        self,
+        measurement: str | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        tags: TelemetryTags | None = None,
+        fields: list[str] | None = None,
+        page_size: int = TELEMETRY_DEFAULT_PAGE_SIZE,
+        cursor: Cursor | None = None,
+        bucket: str | None = None,
+    ) -> AsyncIterator[dict[str, object]]:
+        return self.repo.stream_points_raw(measurement, start, end, tags, fields, page_size, cursor, bucket=bucket)

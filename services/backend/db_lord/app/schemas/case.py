@@ -1,16 +1,16 @@
-import uuid
-from enum import Enum
+from enum import StrEnum
+from uuid import UUID
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from .common import TunedBase, TunedUpdateBase
-from .context import Context
-from .device import Device
-from .patient import Patient
-from .wearable import Wearable
+from .context import ContextResponse
+from .device import DeviceResponse
+from .patient import PatientResponse
+from .wearable import WearableResponse
 
 
-class CaseStatus(str, Enum):
+class CaseStatus(StrEnum):
     PLANNED = "PLANNED"
     ONGOING = "ONGOING"
     COMPLETED = "COMPLETED"
@@ -18,9 +18,16 @@ class CaseStatus(str, Enum):
     OTHER = "OTHER"
 
 
+class CaseExpandableFields(StrEnum):
+    DEVICES = "devices"
+    WEARABLES = "wearables"
+    CONTEXTS = "contexts"
+    PATIENT = "patient"
+
+
 class CaseBase(TunedBase):
     status: CaseStatus = Field(default=CaseStatus.PLANNED)
-    patient_id: uuid.UUID
+    patient_id: UUID
 
 
 class CaseCreate(CaseBase):
@@ -29,15 +36,28 @@ class CaseCreate(CaseBase):
 
 class CaseUpdate(TunedUpdateBase):
     status: CaseStatus | None = None
-    patient_id: uuid.UUID | None = None
+    patient_id: UUID | None = None
 
 
-class Case(CaseBase):
-    id: uuid.UUID
+class CaseResponse(CaseBase):
+    id: UUID
 
 
-class CaseExpanded(Case):
-    devices: list[Device] = Field(default_factory=list)
-    wearables: list[Wearable] = Field(default_factory=list)
-    contexts: list[Context] = Field(default_factory=list)
-    patient: Patient | None = None
+# Expanded response shape
+class CaseDeviceAssignmentExpandedResponse(TunedBase):
+    assigned_from: AwareDatetime
+    assigned_to: AwareDatetime | None
+    device: DeviceResponse
+
+
+class CaseWearableAssignmentExpandedResponse(TunedBase):
+    assigned_from: AwareDatetime
+    assigned_to: AwareDatetime | None
+    wearable: WearableResponse
+
+
+class CaseExpanded(CaseResponse):
+    devices: list[CaseDeviceAssignmentExpandedResponse] = Field(default_factory=list)
+    wearables: list[CaseWearableAssignmentExpandedResponse] = Field(default_factory=list)
+    contexts: list[ContextResponse] = Field(default_factory=list)
+    patient: PatientResponse | None = None

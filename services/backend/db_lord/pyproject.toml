@@ -5,34 +5,58 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "aiocsv>=1.4.0",
-    "aiohttp>=3.13.2",
     "alembic[tz]>=1.17.2",
     "asyncpg>=0.31.0",
     "fastapi>=0.128.0",
-    "greenlet>=3.3.0",
-    "influxdb-client>=1.49.0",
+    "fastapi-filters>=0.3.1",
+    "fastapi-pagination>=0.15.9",
+    "influxdb-client[async,ciso]>=1.50.0",
+    "orjson>=3.11.5",
     "pydantic-settings>=2.12.0",
-    "python-dateutil>=2.9.0.post0",
-    "requests>=2.32.5",
-    "sqlalchemy>=2.0.45",
+    "sqlakeyset>=2.0.1762907931",
+    "sqlalchemy[asyncio]>=2.0.46",
+    "strawberry-graphql[fastapi]>=0.305.0",
     "uvicorn[standard]>=0.40.0",
 ]
 
 [dependency-groups]
 dev = [
+    "aiosqlite>=0.21.0",
     "httpx>=0.28.1",
+    "locust>=2.43.2",
+    "pyright[nodejs]>=1.1.408",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
-    "ruff>=0.14.10",
+    "ruff>=0.15.1",
+    "testcontainers>=4.14.1",
 ]
 
 [tool.ruff]
 line-length = 120
+target-version = "py314"
 
 [tool.ruff.lint]
 # E/F = Standard, I = Imports
 # B = Find Bugs, UP = Modernize Syntax, SIM = Simplify Code
 select = ["E", "F", "I", "B", "UP", "SIM"]
 fixable = ["ALL"]
+
+[tool.ruff.format]
+quote-style = "double"
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+markers = [
+    "unit: Fast tests (SQLite + mocked InfluxDB)",
+    "integration: Real dependency tests (PostgreSQL + InfluxDB via testcontainers)",
+    "smoke: Startup/transport smoke tests",
+]
+addopts = "-v --tb=short"
 

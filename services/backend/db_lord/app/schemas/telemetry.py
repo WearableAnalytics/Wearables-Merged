@@ -1,9 +1,9 @@
-from datetime import datetime
-from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, ConfigDict, Field
 
+from app.core.json_types import JsonObject, JsonValue
+from app.pagination import CursorPageNoTotal
 from app.schemas.common import TunedBase
 
 
@@ -11,24 +11,43 @@ class TelemetryCreate(TunedBase):
     patient_id: UUID
     case_id: UUID
     device_id: UUID
+    wearable_id: UUID
+    mapping_id: UUID
+    dot_dependency_file_id: str
+    context_id: UUID | None = None
+
     measurement: str
 
-    timestamp: datetime | None = None
-    tags: dict[str, str] | None = None
-    fields: dict[str, Any] = Field(default_factory=dict)
+    timestamp: AwareDatetime | None = None
+    other_tags: dict[str, str] = Field(default_factory=dict)
+    fields: JsonObject = Field(default_factory=dict)
 
 
-class TelemetryPoint(TunedBase):
-    timestamp: datetime
+class TelemetryPointResponse(TunedBase):
+    patient_id: UUID
+    case_id: UUID
+    device_id: UUID
+    wearable_id: UUID
+    mapping_id: UUID
+    dot_dependency_file_id: str
+    context_id: UUID | None = None
+
     measurement: str
 
-    patient_id: UUID | None = None
-    case_id: UUID | None = None
-    device_id: UUID | None = None
+    timestamp: AwareDatetime
+    other_tags: dict[str, str] = Field(default_factory=dict)
+    fields: JsonObject = Field(default_factory=dict)
+    model_config = ConfigDict(extra="allow")
+
+
+class TelemetryRawPointResponse(TunedBase):
+    timestamp: AwareDatetime
+    measurement: str
+    field: str
+    value: JsonValue
 
     model_config = ConfigDict(extra="allow")
 
 
-class TelemetryPageResponse(BaseModel):
-    items: list[TelemetryPoint]
-    next_cursor: str | None
+TelemetryPageResponse = CursorPageNoTotal[TelemetryPointResponse]
+TelemetryRawPageResponse = CursorPageNoTotal[TelemetryRawPointResponse]

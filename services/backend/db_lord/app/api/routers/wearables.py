@@ -1,61 +1,52 @@
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, status
+from fastapi_pagination.cursor import CursorPage
 
-from app.api.deps import get_db, get_db_read
-from app.db.postgres.repos.wearable_repo import WearableRepo
-from app.schemas.wearable import Wearable, WearableCreate, WearableUpdate
-from app.services.wearable_service import WearableService
+from app.api.dependencies import WearableFiltersDep, WearableServiceDep, WearableSortingDep
+from app.api.params import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam
+from app.api.streaming import stream_as_ndjson
+from app.schemas.assignment import WearableAssignmentResponse
+from app.schemas.wearable import WearableCreate, WearableResponse, WearableUpdate
 
 router = APIRouter()
 
 
-def get_wearable_service(db: Annotated[AsyncSession, Depends(get_db)]) -> WearableService:
-    return WearableService(WearableRepo(db))
+@router.post("/", response_model=WearableResponse, status_code=status.HTTP_201_CREATED)
+async def create_wearable(item_in: WearableCreate, service: WearableServiceDep):
+    return await service.create(item_in)
 
 
-def get_wearable_service_read(db: Annotated[AsyncSession, Depends(get_db_read)]) -> WearableService:
-    return WearableService(WearableRepo(db))
+@router.patch("/{id:uuid}", response_model=WearableResponse)
+async def update_wearable(id: UUID, item_in: WearableUpdate, service: WearableServiceDep):
+    return await service.update(id, item_in)
 
 
-@router.post("/", response_model=Wearable, status_code=status.HTTP_201_CREATED)
-async def create_wearable(item_in: WearableCreate, service: Annotated[WearableService, Depends(get_wearable_service)]):
-    try:
-        return await service.create(item_in)
-    except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Constraint violation") from exc
+@router.delete("/{id:uuid}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_wearable(id: UUID, service: WearableServiceDep):
+    await service.delete(id)
 
 
-@router.get("/", response_model=list[Wearable])
-async def list_wearables(service: Annotated[WearableService, Depends(get_wearable_service_read)]):
-    return await service.get_all()
+@router.get("/{id:uuid}", response_model=WearableResponse)
+async def get_wearable(id: UUID, service: WearableServiceDep):
+    return await service.get(id)
 
 
-@router.get("/{id}", response_model=Wearable)
-async def get_wearable(id: UUID, service: Annotated[WearableService, Depends(get_wearable_service_read)]):
-    try:
-        return await service.get(id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Wearable not found") from exc
+@router.get("/{id:uuid}/assignments", response_model=list[WearableAssignmentResponse])
+async def get_wearable_assignments(id: UUID, service: WearableServiceDep):
+    return await service.get_assignments(id)
 
 
-@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_wearable(id: UUID, service: Annotated[WearableService, Depends(get_wearable_service)]):
-    try:
-        await service.delete(id)
-        return None
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Wearable not found") from exc
+@router.get("/", response_model=CursorPage[WearableResponse])
+async def list_wearables(service: WearableServiceDep, filters: WearableFiltersDep, sorting: WearableSortingDep):
+    return await service.list(filters, sorting)
 
 
-@router.put("/{id}", response_model=Wearable, status_code=status.HTTP_200_OK)
-async def update_wearable(
-    id: UUID, item_in: WearableUpdate, service: Annotated[WearableService, Depends(get_wearable_service)]
+@router.get("/stream")
+async def stream_wearables(
+    service: WearableServiceDep,
+    filters: WearableFiltersDep,
+    sorting: WearableSortingDep,
+    batch_size: StreamBatchSizeParam = STREAM_BATCH_SIZE_DEFAULT,
 ):
-    try:
-        return await service.update(id, item_in)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="Wearable not found") from exc
+    return stream_as_ndjson(service.stream_all(filters, sorting, batch_size, as_mapping=True), schema=WearableResponse)
