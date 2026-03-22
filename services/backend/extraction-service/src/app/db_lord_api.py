@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 
-from .schemas import TelemetryPageResponse
+from .schemas import DotDependencyFileResponse, FhirMappingResponse, TelemetryPageResponse
 
 
 class DbLordApi:
@@ -26,7 +26,7 @@ class DbLordApi:
     ) -> TelemetryPageResponse:
         params: dict[str, Any] = {
             "measurement": measurement,
-            "page_size": page_size,
+            "size": page_size,
         }
         if start:
             params["start"] = start.isoformat()
@@ -44,3 +44,13 @@ class DbLordApi:
         r = await self._client.get("/telemetry/", params=params)
         r.raise_for_status()
         return TelemetryPageResponse.model_validate(r.json())
+
+    async def get_fhir_mapping(self, mapping_id: str) -> FhirMappingResponse:
+        r = await self._client.get(f"/fhir_mapping/{mapping_id}")
+        r.raise_for_status()
+        return FhirMappingResponse.model_validate(r.json())
+
+    async def get_dot_dependency_file(self, file_id: str) -> DotDependencyFileResponse:
+        r = await self._client.get(f"/fhir_mapping/dot_dependency_file/{file_id}")
+        r.raise_for_status()
+        return DotDependencyFileResponse.model_validate(r.json())

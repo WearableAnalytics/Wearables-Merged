@@ -77,8 +77,6 @@ def build_nodes(node_names: list[str], raw_graph: str) -> list[Node]:
             pre = dependency[0].strip()
             post = dependency[1].strip().removesuffix(";")
 
-            print(node_names)
-
             if pre not in node_names or post not in node_names:
                 raise RuntimeError(f"there is a dependency with a non-existent node; '{pre}' or '{post}' are not in {node_names}")
 
@@ -93,6 +91,11 @@ def build_nodes(node_names: list[str], raw_graph: str) -> list[Node]:
 
             pre_node.successor.append(post_node)
             post_node.predecessor.append(pre_node)
+
+            if pre_node not in built_nodes:
+                built_nodes.append(pre_node)
+            if post_node not in built_nodes:
+                built_nodes.append(post_node)
 
     return built_nodes
 

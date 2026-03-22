@@ -13,7 +13,7 @@ env:
   KAFKA_BOOTSTRAP_SERVERS: "kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
   KAFKA_TOPIC: "wearables-raw"
   JWT_SECRET: "dev-secret"
-  JWT_ISSUER: "registration-service"
+  JWT_ISSUER: "wearables-bff"
 
 autoscaling:
   enabled: false

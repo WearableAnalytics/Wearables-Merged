@@ -4,15 +4,7 @@ from typing import Any
 from line_protocol_parser import parse_line
 
 from src.fhir_serde.dot_parser import Node
-from src.fhir_serde.model import FhirYamlConfig, FieldDef
-
-
-class LPRecord:
-    def __init__(self):
-        fields: list[tuple[str, str]]
-        tags: list[tuple[str, str]]
-        measurement: str
-        time: int
+from src.fhir_serde.model import FhirYamlConfig, FieldDef, MappingDef
 
 
 def tokenize_path(path: str) -> list[tuple[str, str | int]]:
@@ -70,8 +62,67 @@ def tokenize_path(path: str) -> list[tuple[str, str | int]]:
     return tokens
 
 
+def _resolve_mapping(field_name: str, key: str, mappings: list[MappingDef] | None) -> str | None:
+    """Look up a value in the mappings table for a given field and key."""
+    if not mappings:
+        return None
+    for m in mappings:
+        if m.fieldName == field_name:
+            for entry in m.map:
+                if entry.key == key:
+                    return entry.value
+    return None
+
+
+def _apply_transforms(
+    value: Any,
+    field_def: FieldDef,
+    fhir_dict: dict,
+    mappings: list[MappingDef] | None,
+) -> Any:
+    """Apply the transform chain defined on a FieldDef."""
+    if not field_def.transform:
+        return value
+
+    result = value
+    for t in field_def.transform:
+        if t.type == "toLowerCase" and isinstance(result, str):
+            result = result.lower()
+        elif t.type == "replace" and isinstance(result, str) and t.params and len(t.params) >= 2:
+            result = result.replace(t.params[0], t.params[1])
+        elif t.type == "append" and isinstance(result, str) and t.params:
+            result = result + t.params[0]
+        elif t.type == "prepend" and isinstance(result, str) and t.params:
+            result = t.params[0] + result
+        elif t.type == "map":
+            mapped = _resolve_mapping(field_def.name, str(result), mappings)
+            if mapped is not None:
+                result = mapped
+    return result
+
+
+def _read_fhir_path(fhir_dict: dict, path: str) -> Any:
+    """Read a value from a nested dict using a dot/bracket path."""
+    tokens = tokenize_path(path)
+    current: Any = fhir_dict
+    for tok_type, tok_val in tokens:
+        if current is None:
+            return None
+        if tok_type == "field":
+            if isinstance(current, dict):
+                current = current.get(tok_val)
+            else:
+                return None
+        elif tok_type == "index":
+            if isinstance(current, list) and tok_val < len(current):
+                current = current[tok_val]
+            else:
+                return None
+    return current
+
+
 class FhirParser:
-    def __init__(self, yaml_basis: FhirYamlConfig, category_name: str, nodes: list[Node]):
+    def __init__(self, yaml_basis: FhirYamlConfig, category_name: str, nodes: list[Node] | None = None):
         copy_yaml = yaml_basis.model_copy(deep=True)
 
         yaml_basis.measurement.paths = [
@@ -82,15 +133,16 @@ class FhirParser:
         if len(yaml_basis.measurement.paths) != 1:
             raise RuntimeError(f"there should be exactly one applicable category, but there are {yaml_basis.measurement.paths}")
 
-        measurement_fields = yaml_basis.measurement.paths[0].fields
+        self._measurement_path = yaml_basis.measurement.paths[0]
+        measurement_fields = self._measurement_path.fields
         metadata_fields = yaml_basis.metadata.fields
+        self._mappings = self._measurement_path.mappings
 
         self.all_fields: list[FieldDef] = measurement_fields + metadata_fields
-        self.nodes = nodes
+        self.nodes = nodes or []
         self.fhir_dict: dict = {}
 
-    #TODO implement retreiving different version from the database but this shouldnt happen here
-    def build_fhir(self, lp_record: str) -> str:
+    def build_fhir(self, lp_record: str) -> dict:
         lp_dict = parse_line(lp_record)
 
         fields: dict[str, str | int | float] = lp_dict["fields"]
@@ -98,10 +150,93 @@ class FhirParser:
         measurement: str = lp_dict["measurement"]
         time: int = lp_dict["time"]
 
-        for field_name, field_value in fields.items():
-            node = self.find_node_by_field_name(field_name)
-            self.deduct_partial_fhir(node, field_value)
+        self.fhir_dict = {}
 
+        # 1) Set constant-value fields
+        for field_def in self.all_fields:
+            if field_def.value is not None:
+                self.build_path(field_def.target, field_def.value)
+
+        # 2) Set fields from raw source (line protocol fields + tags)
+        all_raw = {**tags, **fields}
+        for field_def in self.all_fields:
+            if field_def.rawSource is not None or field_def.lineProtocol is not None:
+                raw_value = self._resolve_raw_value(field_def, all_raw)
+                if raw_value is not None:
+                    transformed = _apply_transforms(raw_value, field_def, self.fhir_dict, self._mappings)
+                    self.build_path(field_def.target, transformed)
+
+        # 3) Set fields derived from other FHIR fields (fhirSource)
+        for field_def in self.all_fields:
+            if field_def.fhirSource is not None:
+                source_val = _read_fhir_path(self.fhir_dict, field_def.fhirSource)
+                if source_val is not None:
+                    transformed = _apply_transforms(source_val, field_def, self.fhir_dict, self._mappings)
+                    self.build_path(field_def.target, transformed)
+
+        return self.fhir_dict
+
+    def build_fhir_from_telemetry(
+        self,
+        *,
+        fields: dict[str, Any],
+        tags: dict[str, str],
+        measurement: str,
+        timestamp: str,
+    ) -> dict:
+        """Build a FHIR resource from a db_lord telemetry record (already parsed JSON)."""
+        self.fhir_dict = {}
+
+        # 1) Set constant-value fields
+        for field_def in self.all_fields:
+            if field_def.value is not None:
+                self.build_path(field_def.target, field_def.value)
+
+        # 2) Set fields from raw data (fields + tags)
+        all_raw: dict[str, Any] = {**tags, **fields}
+        # Also inject measurement name and timestamp for fields that reference them
+        all_raw["__measurement__"] = measurement
+        all_raw["__timestamp__"] = timestamp
+
+        for field_def in self.all_fields:
+            if field_def.value is not None:
+                continue  # already handled
+            if field_def.fhirSource is not None:
+                continue  # handled in pass 3
+
+            raw_value = self._resolve_raw_value(field_def, all_raw)
+            if raw_value is not None:
+                transformed = _apply_transforms(raw_value, field_def, self.fhir_dict, self._mappings)
+                self.build_path(field_def.target, transformed)
+
+        # 3) Set fields derived from other FHIR fields (fhirSource)
+        for field_def in self.all_fields:
+            if field_def.fhirSource is not None:
+                source_val = _read_fhir_path(self.fhir_dict, field_def.fhirSource)
+                if source_val is not None:
+                    transformed = _apply_transforms(source_val, field_def, self.fhir_dict, self._mappings)
+                    self.build_path(field_def.target, transformed)
+
+        return self.fhir_dict
+
+    @staticmethod
+    def _resolve_raw_value(field_def: FieldDef, all_raw: dict[str, Any]) -> Any:
+        """Resolve the raw value for a field from the input data."""
+        # Line protocol type hints which source key to use
+        if field_def.lineProtocol:
+            lp = field_def.lineProtocol
+            if lp.type == "measurement":
+                return all_raw.get("__measurement__")
+            if lp.type == "timestamp":
+                return all_raw.get("__timestamp__")
+            if lp.name and lp.name in all_raw:
+                return all_raw[lp.name]
+
+        # Fall back to matching by field name
+        if field_def.name in all_raw:
+            return all_raw[field_def.name]
+
+        return None
 
     def find_node_by_field_name(self, field_name: str) -> Node | None:
 
@@ -111,16 +246,16 @@ class FhirParser:
 
         return None
 
-    def deduct_partial_fhir(self, node: Node, field_value: str | int | float):
+    def deduct_partial_fhir(self, node: Node | None, field_value: str | int | float):
 
-        #start with the input node
+        if node is None:
+            return
+
         target_path = self.find_path_by_field_name(node.name)
         if target_path is None:
             raise RuntimeError("no target_path set for field")
 
         self.build_path(target_path, field_value)
-
-
 
 
     def find_path_by_field_name(self, field_name: str) -> str | None:
@@ -153,7 +288,7 @@ class FhirParser:
                 if not isinstance(current, dict):
                     new_obj: dict = {}
                     if parent is None:
-                        raise TypeError(f"Root must be a dict to set field {field_name!r} in path {target_path!r}")
+                        raise TypeError(f"Root must be a dict to set field {field_name!r} in path {path!r}")
                     if isinstance(parent, dict):
                         parent[parent_key] = new_obj
                     else:
@@ -195,4 +330,3 @@ class FhirParser:
 
             else:
                 raise ValueError(f"Unknown token type: {tok_type!r}")
-
