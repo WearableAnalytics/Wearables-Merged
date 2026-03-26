@@ -28,4 +28,4 @@ service:
 
 storage:
   size: 20Gi
-  storageClassName: cinder-csi
+  storageClassName: standard

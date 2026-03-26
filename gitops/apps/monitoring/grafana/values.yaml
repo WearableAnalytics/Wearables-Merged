@@ -9,7 +9,7 @@ resourceRequests:
   mem: 2Gi
 persistence:
   storage: 1Gi
-  storageClassName: cinder-csi
+  storageClassName: standard # may need to be changed accordingly
   accessModes: ["ReadWriteOnce"]
 ingress: 
   host: "wearables.charite.de"

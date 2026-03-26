@@ -9,7 +9,7 @@ seaweedfs:
     replicas: 2
     data:
       type: "persistentVolumeClaim" # automatic PVC creation
-      storageClass: cinder-csi
+      storageClass: standard #may need to be changed accordingly
       size: 40Gi
 
   filer:
