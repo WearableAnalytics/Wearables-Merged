@@ -21,5 +21,5 @@ http://extraction-service.extraction-service.svc.cluster.local:8010
 
 ```bash
 helm template extraction-service ./gitops/apps/services/extraction-service --namespace extraction-service -s templates/extraction-service-secrets.yaml > extraction-service-secrets.yaml
-helm upgrade extraction-service ./gitops/apps/services/extraction-service --namespace extraction-service --install --create namespace
+helm upgrade extraction-service ./gitops/apps/services/extraction-service --namespace extraction-service --install --create-namespace
 ```

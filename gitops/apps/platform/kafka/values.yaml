@@ -58,19 +58,19 @@ topics:
     segmentBytes: 1073741824
 
 
-kafkaConnect:
-  replicas: 1
-  image: lndocker3s/kafka-connect
-  tag: latest
-  resources:
-    requests:
-      memory: 1Gi
-      cpu: 500m
-    limits:
-      memory: 2Gi
-      cpu: 1
-  group:
-    id: connect-cluster
+# kafkaConnect:
+#   replicas: 1
+#   image: lndocker3s/kafka-connect
+#   tag: latest
+#   resources:
+#     requests:
+#       memory: 1Gi
+#       cpu: 500m
+#     limits:
+#       memory: 2Gi
+#       cpu: 1
+#   group:
+#     id: connect-cluster
 
 sourceConnector:
   mosquittoName: mosquitto # Must match your mosquitto DEPLOYMENT name
