@@ -12,28 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql.elements import ColumnElement
 from strawberry import cast as strawberry_cast
 from strawberry.relay.types import NodeIterableType
+from strawberry.relay.utils import to_base64
 from strawberry.types.base import StrawberryContainer, get_object_definition
 
-from app.graphql.cursor_codec import decode_base64_cursor, encode_base64_cursor, invalid_cursor_argument
+from app.graphql.cursor_codec import decode_base64_cursor, invalid_cursor_argument
 
 KEYSET_CURSOR_PREFIX = "keyset"
-
-
-def _encode_keyset_cursor(node_id: UUID) -> str:
-    return encode_base64_cursor(prefix=KEYSET_CURSOR_PREFIX, payload=str(node_id))
-
-
-def _decode_keyset_cursor(cursor: str, argument_name: str) -> UUID:
-    raw_value = decode_base64_cursor(
-        cursor=cursor,
-        expected_prefix=KEYSET_CURSOR_PREFIX,
-        argument_name=argument_name,
-    )
-
-    try:
-        return UUID(raw_value)
-    except ValueError as exc:
-        raise invalid_cursor_argument(argument_name) from exc
 
 
 @dataclass(frozen=True)
@@ -43,6 +27,7 @@ class PaginationWindow:
 
 
 def resolve_pagination_window(first: int | None, last: int | None, max_allowed: int) -> PaginationWindow:
+    """Normalize Relay pagination args into a page size and traversal direction."""
     if first is not None and last is not None:
         raise ValueError("Arguments 'first' and 'last' cannot both be provided.")
 
@@ -51,25 +36,25 @@ def resolve_pagination_window(first: int | None, last: int | None, max_allowed: 
             raise ValueError("Argument 'first' must be a non-negative integer.")
         if first > max_allowed:
             raise ValueError(f"Argument 'first' cannot be higher than {max_allowed}.")
-        return PaginationWindow(page_size=first, fetch_backward=False)
+        return PaginationWindow(first, False)
 
     if last is not None:
         if last < 0:
             raise ValueError("Argument 'last' must be a non-negative integer.")
         if last > max_allowed:
             raise ValueError(f"Argument 'last' cannot be higher than {max_allowed}.")
-        return PaginationWindow(page_size=last, fetch_backward=True)
+        return PaginationWindow(last, True)
 
-    return PaginationWindow(page_size=max_allowed, fetch_backward=False)
+    return PaginationWindow(max_allowed, False)
 
 
 def derive_page_flags(
-    *,
     fetch_backward: bool,
     has_extra: bool,
     before: str | None,
     after: str | None,
 ) -> tuple[bool, bool]:
+    """Compute Relay `hasNextPage` / `hasPreviousPage` from keyset fetch context."""
     if fetch_backward:
         has_previous_page = has_extra
         has_next_page = before is not None
@@ -81,10 +66,13 @@ def derive_page_flags(
 
 @cache
 def resolve_edge_type(connection_type: type[relay.Connection[Any]]) -> type[relay.Edge[Any]]:
+    """Resolve and cache the concrete Relay Edge type for a connection class."""
     type_def = get_object_definition(connection_type)
-    assert type_def is not None
+    if type_def is None:
+        raise TypeError("Connection type is missing a Strawberry object definition.")
     field_def = type_def.get_field("edges")
-    assert field_def is not None
+    if field_def is None:
+        raise TypeError("Connection type is missing an 'edges' field.")
 
     field_type = field_def.resolve_type(type_definition=type_def)
     while isinstance(field_type, StrawberryContainer):
@@ -104,16 +92,17 @@ class KeysetSource[NodeType](Iterable[NodeType]):
     where_clause: ColumnElement[bool] | None = None
 
     def __iter__(self) -> Iterator[NodeType]:
+        """Prevent direct iteration. Needs to inherit from iterable for Strawberry type resolution
+        but should only be consumed by KeysetConnection."""
         raise TypeError("KeysetSource is resolved by KeysetConnection, not iterated directly.")
 
 
 @strawberry.type(name="Connection", description="A connection to a list of items.")
-class KeysetConnection[NodeType](relay.ListConnection[NodeType]):  # pyright: ignore[reportInvalidTypeArguments]
+class KeysetConnection[NodeType: relay.Node](relay.ListConnection[NodeType]):
     @classmethod
     async def resolve_connection(
         cls,
         nodes: NodeIterableType[NodeType],
-        *,
         info: strawberry.Info,
         before: str | None = None,
         after: str | None = None,
@@ -122,6 +111,7 @@ class KeysetConnection[NodeType](relay.ListConnection[NodeType]):  # pyright: ig
         max_results: int | None = None,
         **kwargs: Any,
     ) -> Self:
+        """Resolve a Relay connection using ID keyset pagination over a SQLAlchemy model."""
         if not isinstance(nodes, KeysetSource):
             raise TypeError("KeysetConnection requires KeysetSource nodes.")
 
@@ -130,8 +120,19 @@ class KeysetConnection[NodeType](relay.ListConnection[NodeType]):  # pyright: ig
         page_size = window.page_size
         fetch_backward = window.fetch_backward
 
-        after_id = _decode_keyset_cursor(after, "after") if after else None
-        before_id = _decode_keyset_cursor(before, "before") if before else None
+        after_id = None
+        if after:
+            try:
+                after_id = UUID(decode_base64_cursor(after, KEYSET_CURSOR_PREFIX, "after"))
+            except ValueError as exc:
+                raise invalid_cursor_argument("after") from exc
+
+        before_id = None
+        if before:
+            try:
+                before_id = UUID(decode_base64_cursor(before, KEYSET_CURSOR_PREFIX, "before"))
+            except ValueError as exc:
+                raise invalid_cursor_argument("before") from exc
 
         query = select(nodes.model)
         if nodes.where_clause is not None:
@@ -141,6 +142,7 @@ class KeysetConnection[NodeType](relay.ListConnection[NodeType]):  # pyright: ig
         if before_id is not None:
             query = query.where(nodes.model.id > before_id)
 
+        # Fetch one extra row so we can derive Relay page flags without a separate query
         fetch_limit = page_size + 1 if page_size > 0 else 1
         order_by = nodes.model.id.asc() if fetch_backward else nodes.model.id.desc()
         query = query.order_by(order_by).limit(fetch_limit)
@@ -160,17 +162,12 @@ class KeysetConnection[NodeType](relay.ListConnection[NodeType]):  # pyright: ig
         if fetch_backward:
             entities.reverse()
 
-        has_next_page, has_previous_page = derive_page_flags(
-            fetch_backward=fetch_backward,
-            has_extra=has_extra,
-            before=before,
-            after=after,
-        )
+        has_next_page, has_previous_page = derive_page_flags(fetch_backward, has_extra, before, after)
 
         edge_type = resolve_edge_type(cls)
         edges = [
             edge_type(
-                cursor=_encode_keyset_cursor(entity.id),
+                cursor=to_base64(KEYSET_CURSOR_PREFIX, str(entity.id)),
                 node=cls.resolve_node(strawberry_cast(nodes.graphql_type, entity), info=info, **kwargs),
             )
             for entity in entities

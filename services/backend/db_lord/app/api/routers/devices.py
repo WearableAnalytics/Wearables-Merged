@@ -4,8 +4,7 @@ from fastapi import APIRouter, status
 from fastapi_pagination.cursor import CursorPage
 
 from app.api.dependencies import DeviceFiltersDep, DeviceServiceDep, DeviceSortingDep
-from app.api.params import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam
-from app.api.streaming import stream_as_ndjson
+from app.api.streaming import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam, stream_as_ndjson
 from app.schemas.assignment import DeviceAssignmentResponse
 from app.schemas.device import DeviceCreate, DeviceResponse, DeviceUpdate
 
@@ -32,7 +31,12 @@ async def get_device(id: UUID, service: DeviceServiceDep):
     return await service.get(id)
 
 
-@router.get("/{id:uuid}/assignments", response_model=list[DeviceAssignmentResponse])
+@router.get(
+    "/{id:uuid}/assignments",
+    response_model=list[DeviceAssignmentResponse],
+    summary="List device assignments",
+    description="Return the complete assignment history for a device",
+)
 async def get_device_assignments(id: UUID, service: DeviceServiceDep):
     return await service.get_assignments(id)
 
@@ -42,7 +46,7 @@ async def list_devices(service: DeviceServiceDep, filters: DeviceFiltersDep, sor
     return await service.list(filters, sorting)
 
 
-@router.get("/stream")
+@router.get("/stream", summary="Stream devices as NDJSON")
 async def stream_devices(
     service: DeviceServiceDep,
     filters: DeviceFiltersDep,

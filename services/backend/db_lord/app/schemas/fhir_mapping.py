@@ -73,8 +73,9 @@ class DotDependencyFileBase(TunedBase):
     digraph: JsonObject = Field(
         ...,
         title="Digraph",
-        description="The digraph that defines how this category of telemetry data should be mapped to FHIR."
-        "be transformed into FHIR resources.",
+        description=(
+            "The digraph that defines how this category of telemetry data should be transformed into FHIR resources."
+        ),
     )
     mapping_id: UUID = Field(
         ...,
@@ -108,8 +109,9 @@ class DotDependencyFileUpdate(TunedUpdateBase):
     digraph: JsonObject | None = Field(
         None,
         title="Digraph",
-        description="The digraph that defines how this category of telemetry data should be mapped to FHIR."
-        "be transformed into FHIR resources.",
+        description=(
+            "The digraph that defines how this category of telemetry data should be transformed into FHIR resources."
+        ),
     )
     mapping_id: UUID | None = Field(
         None,

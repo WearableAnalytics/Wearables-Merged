@@ -1,4 +1,9 @@
-CORE_TELEMETRY_TAG_ORDER: tuple[str, ...] = (
+"""
+Kind of a leftover from when we defrenciated between the different types of tags (core vs non core).
+Should probably be moved somewhere else.
+"""
+
+TELEMETRY_TAG_NAMES: tuple[str, ...] = (
     "patient_id",
     "device_id",
     "wearable_id",
@@ -7,7 +12,6 @@ CORE_TELEMETRY_TAG_ORDER: tuple[str, ...] = (
     "mapping_id",
     "dot_dependency_file_id",
 )
-CORE_TELEMETRY_TAG_KEYS: frozenset[str] = frozenset(CORE_TELEMETRY_TAG_ORDER)
 
 TELEMETRY_NON_TAG_QUERY_KEYS: frozenset[str] = frozenset(
     {
@@ -17,13 +21,12 @@ TELEMETRY_NON_TAG_QUERY_KEYS: frozenset[str] = frozenset(
         "end",
         "field",
         "fields",
-        "size",
-        "cursor",
+        "limit",
         "tag",
     }
 )
 
-RESERVED_TELEMETRY_QUERY_KEYS: frozenset[str] = TELEMETRY_NON_TAG_QUERY_KEYS | CORE_TELEMETRY_TAG_KEYS
+RESERVED_TELEMETRY_QUERY_KEYS: frozenset[str] = TELEMETRY_NON_TAG_QUERY_KEYS | frozenset(TELEMETRY_TAG_NAMES)
 
-TELEMETRY_DEFAULT_PAGE_SIZE = 100
-TELEMETRY_MAX_PAGE_SIZE = 10_000
+TELEMETRY_DEFAULT_LIMIT = 100
+TELEMETRY_MAX_LIMIT = 10_000

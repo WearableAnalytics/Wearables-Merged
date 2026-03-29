@@ -4,8 +4,7 @@ from fastapi import APIRouter, status
 from fastapi_pagination.cursor import CursorPage
 
 from app.api.dependencies import PatientFiltersDep, PatientServiceDep, PatientSortingDep
-from app.api.params import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam
-from app.api.streaming import stream_as_ndjson
+from app.api.streaming import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam, stream_as_ndjson
 from app.schemas.case import CaseResponse
 from app.schemas.patient import PatientCreate, PatientResponse, PatientUpdate
 
@@ -33,9 +32,13 @@ async def get_patient(id: UUID, service: PatientServiceDep):
     return await service.get(id)
 
 
-@router.get("/{id:uuid}/cases", response_model=list[CaseResponse])
+@router.get(
+    "/{id:uuid}/cases",
+    response_model=list[CaseResponse],
+    summary="List patient cases",
+    description="Return all cases linked to the specified patient.",
+)
 async def get_patient_cases(id: UUID, service: PatientServiceDep):
-    """Get all cases for a specific patient"""
     return await service.get_cases(id)
 
 
@@ -44,7 +47,7 @@ async def list_patients(service: PatientServiceDep, filters: PatientFiltersDep, 
     return await service.list(filters, sorting)
 
 
-@router.get("/stream")
+@router.get("/stream", summary="Stream patients as NDJSON")
 async def stream_patients(
     service: PatientServiceDep,
     filters: PatientFiltersDep,

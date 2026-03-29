@@ -1,20 +1,19 @@
-from __future__ import annotations
-
 import asyncio
-from asyncio import Semaphore
+from collections import defaultdict
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
 from typing import Any
 from uuid import UUID
 
 import strawberry
 import strawberry.relay as relay
-from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import literal, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from strawberry import cast as strawberry_cast
 from strawberry.types.maybe import Some
 
 from app.core.config import settings
+from app.core.utils import ordered_unique
+from app.db.influx.telemetry.queries import resolve_bucket
 from app.db.postgres.orm import Case as CaseModel
 from app.db.postgres.orm import Context as ContextModel
 from app.db.postgres.orm import Device as DeviceModel
@@ -22,7 +21,7 @@ from app.db.postgres.orm import DotDependencyFile as DotDependencyFileModel
 from app.db.postgres.orm import FHIRMapping as FHIRMappingModel
 from app.db.postgres.orm import Patient as PatientModel
 from app.db.postgres.orm import Wearable as WearableModel
-from app.graphql.context import GraphQLTelemetryRepo, context_from_info
+from app.graphql.context import context_from_info
 from app.graphql.filter_builder import apply_filter
 from app.graphql.inputs import FilterInput, TelemetryQueryInput
 from app.graphql.keyset_connection import KeysetConnection, KeysetSource
@@ -34,30 +33,26 @@ from app.graphql.types import (
     InfluxMeasurementIntrospection,
     InfluxTagIntrospection,
     Patient,
-    TelemetryPage,
+    RawTelemetryPoint,
+    RawTelemetryWindow,
     TelemetryPoint,
     TelemetryResolvedMetadata,
+    TelemetryWindow,
     Wearable,
 )
-from app.graphql.types import (
-    DotDependencyFile as DotDependencyFileType,
-)
-from app.graphql.types import (
-    FHIRMapping as FHIRMappingType,
-)
+from app.graphql.types import DotDependencyFile as DotDependencyFileType
+from app.graphql.types import FHIRMapping as FHIRMappingType
+from app.services.telemetry_service import TelemetryService
+from app.telemetry.constants import TELEMETRY_DEFAULT_LIMIT
 from app.telemetry.tag_filters import merge_tag_filter
 from app.telemetry.types import TelemetryTags
 
-_UUID_ADAPTER = TypeAdapter(UUID)
-
-
-def _session_context(info: strawberry.Info) -> tuple[async_sessionmaker[AsyncSession], Semaphore]:
-    context = context_from_info(info)
-    return context["session_factory"], context["db_semaphore"]
-
 
 async def _with_db[TDbResult](info: strawberry.Info, fn: Callable[[AsyncSession], Awaitable[TDbResult]]) -> TDbResult:
-    session_factory, db_semaphore = _session_context(info)
+    """Run a DB callback inside the request session factory and semaphore guard."""
+    context = context_from_info(info)
+    session_factory: async_sessionmaker[AsyncSession] = context["session_factory"]
+    db_semaphore = context["db_semaphore"]
     async with db_semaphore, session_factory() as db:
         return await fn(db)
 
@@ -65,18 +60,21 @@ async def _with_db[TDbResult](info: strawberry.Info, fn: Callable[[AsyncSession]
 def _keyset_source[TGraphQL](
     info: strawberry.Info, model: type[Any], graphql_type: type[TGraphQL], filter_input: FilterInput | None
 ) -> KeysetSource[TGraphQL]:
-    session_factory, db_semaphore = _session_context(info)
+    context = context_from_info(info)
+    session_factory: async_sessionmaker[AsyncSession] = context["session_factory"]
+    db_semaphore = context["db_semaphore"]
     return KeysetSource(session_factory, db_semaphore, model, graphql_type, apply_filter(model, filter_input))
 
 
 def _enforce_telemetry_fanout_limits[TId](ids_by_key: dict[str, list[TId]]) -> dict[str, list[TId]]:
+    """Deduplicate resolved IDs and enforce per tag and total telemetry fan out limits."""
     max_per_tag = max(1, settings.TELEMETRY_MAX_IDS_PER_TAG)
     max_total = max(1, settings.TELEMETRY_MAX_TOTAL_IDS)
 
     normalized: dict[str, list[TId]] = {}
     total = 0
     for tag_key, entity_ids in ids_by_key.items():
-        deduped = list(dict.fromkeys(entity_ids))
+        deduped = ordered_unique(entity_ids)
         count = len(deduped)
         if count > max_per_tag:
             raise ValueError(
@@ -97,6 +95,7 @@ def _enforce_telemetry_fanout_limits[TId](ids_by_key: dict[str, list[TId]]) -> d
 async def _resolve_entity_ids_bulk(
     db: AsyncSession, specs: list[tuple[str, type[Any], FilterInput]]
 ) -> dict[str, list[UUID]]:
+    """Resolve multiple model/filter specs into a tag key -> entity id list map in one SQL query."""
     tagged_selects = []
     for tag_key, model, filter_input in specs:
         stmt = select(
@@ -114,35 +113,27 @@ async def _resolve_entity_ids_bulk(
     combined_query = tagged_selects[0] if len(tagged_selects) == 1 else union_all(*tagged_selects)
 
     result = await db.execute(combined_query)
-    grouped: dict[str, list[UUID]] = {}
-    for tag_key, entity_id in result.all():
-        try:
-            parsed_id = _UUID_ADAPTER.validate_python(entity_id)
-        except ValidationError:
-            continue
-        grouped.setdefault(str(tag_key), []).append(parsed_id)
-    return grouped
+    grouped: defaultdict[str, list[UUID]] = defaultdict(list)
+    for tag_key, entity_id in result:
+        grouped[str(tag_key)].append(entity_id)
+    return dict(grouped)
 
 
 async def _load_entities_by_ids[TGraphQL](
     db: AsyncSession, model: type[Any], graphql_type: type[TGraphQL], entity_ids: list[UUID]
 ) -> list[TGraphQL]:
-    unique_ids = list(dict.fromkeys(entity_ids))
+    """Load entities by IDs and return GraphQL cast nodes in provided ID order."""
+    unique_ids = ordered_unique(entity_ids)
     if not unique_ids:
-        empty: list[TGraphQL] = []
-        return empty
+        return []
 
     entities_result = await db.scalars(select(model).where(model.id.in_(unique_ids)))
     entities = {entity.id: strawberry_cast(graphql_type, entity) for entity in entities_result}
-    resolved_entities: list[TGraphQL] = []
-    for entity_id in unique_ids:
-        entity = entities.get(entity_id)
-        if entity is not None:
-            resolved_entities.append(entity)
-    return resolved_entities
+    return [entity for entity_id in unique_ids if (entity := entities.get(entity_id)) is not None]
 
 
 async def _build_resolved_metadata(db: AsyncSession, ids_by_key: dict[str, list[UUID]]) -> TelemetryResolvedMetadata:
+    """Build optional telemetry resolved metadata payload from entity IDs."""
     return TelemetryResolvedMetadata(
         patients=await _load_entities_by_ids(db, PatientModel, Patient, ids_by_key.get("patient_id", [])),
         cases=await _load_entities_by_ids(db, CaseModel, Case, ids_by_key.get("case_id", [])),
@@ -150,28 +141,16 @@ async def _build_resolved_metadata(db: AsyncSession, ids_by_key: dict[str, list[
         wearables=await _load_entities_by_ids(db, WearableModel, Wearable, ids_by_key.get("wearable_id", [])),
         contexts=await _load_entities_by_ids(db, ContextModel, Context, ids_by_key.get("context_id", [])),
         mappings=await _load_entities_by_ids(db, FHIRMappingModel, FHIRMappingType, ids_by_key.get("mapping_id", [])),
-    )
-
-
-def _telemetry_point_from_item(item: dict[str, Any]) -> TelemetryPoint:
-    return TelemetryPoint(
-        timestamp=item["timestamp"],
-        measurement=item["measurement"],
-        patient_id=item["patient_id"],
-        device_id=item["device_id"],
-        wearable_id=item["wearable_id"],
-        case_id=item["case_id"],
-        mapping_id=item["mapping_id"],
-        dot_dependency_file_id=item["dot_dependency_file_id"],
-        context_id=item.get("context_id"),
-        other_tags=item.get("other_tags", {}),
-        fields=item.get("fields", {}),
+        dot_dependency_files=await _load_entities_by_ids(
+            db, DotDependencyFileModel, DotDependencyFileType, ids_by_key.get("dot_dependency_file_id", [])
+        ),
     )
 
 
 async def _prepare_telemetry_filters(
     db: AsyncSession, query: TelemetryQueryInput
 ) -> tuple[TelemetryTags, dict[str, list[UUID]], bool]:
+    """Build Influx tag filters from direct tags and entity filters -> return whether filters match any results."""
     tags: TelemetryTags = {}
 
     if query.tags:
@@ -192,6 +171,7 @@ async def _prepare_telemetry_filters(
         ("wearable_id", WearableModel, query.wearable_filter),
         ("context_id", ContextModel, query.context_filter),
         ("mapping_id", FHIRMappingModel, query.mapping_filter),
+        ("dot_dependency_file_id", DotDependencyFileModel, query.dot_dependency_file_filter),
     ]
     active_tag_filter_specs: list[tuple[str, type[Any], FilterInput]] = [
         (tag_key, model, filter_input) for tag_key, model, filter_input in tag_filter_specs if filter_input is not None
@@ -205,7 +185,9 @@ async def _prepare_telemetry_filters(
         merge_tag_filter(tags, tag_key, [str(entity_id) for entity_id in ids])
 
     if query.dot_dependency_file_ids:
-        merge_tag_filter(tags, "dot_dependency_file_id", query.dot_dependency_file_ids)
+        merge_tag_filter(
+            tags, "dot_dependency_file_id", [str(dot_file_id) for dot_file_id in query.dot_dependency_file_ids]
+        )
 
     return tags, ids_by_key, True
 
@@ -213,11 +195,11 @@ async def _prepare_telemetry_filters(
 async def _resolve_telemetry_query_context(
     info: strawberry.Info,
     query: TelemetryQueryInput,
-    *,
     include_resolved_metadata: bool,
-) -> tuple[GraphQLTelemetryRepo, str, TelemetryTags, bool, TelemetryResolvedMetadata | None]:
-    telemetry_repo: GraphQLTelemetryRepo = context_from_info(info)["telemetry_repo"]
-    bucket_name = telemetry_repo.resolve_bucket(query.bucket)
+) -> tuple[TelemetryService, str, TelemetryTags, bool, TelemetryResolvedMetadata | None]:
+    """Resolve telemetry repo, bucket, tags, result feasibility, and optional resolved metadata."""
+    telemetry_service: TelemetryService = context_from_info(info)["telemetry_service"]
+    bucket_name = resolve_bucket(settings.INFLUX_BUCKET, query.bucket)
 
     async def _resolve_inputs(
         db: AsyncSession,
@@ -227,38 +209,7 @@ async def _resolve_telemetry_query_context(
         return tags, has_results, resolved_metadata
 
     tags, has_results, resolved_metadata = await _with_db(info, _resolve_inputs)
-    return telemetry_repo, bucket_name, tags, has_results, resolved_metadata
-
-
-async def _build_influx_measurement_introspection(
-    telemetry_repo: GraphQLTelemetryRepo,
-    bucket: str,
-    measurement: str,
-    *,
-    include_tag_values: bool,
-    tag_value_limit: int | None,
-) -> InfluxMeasurementIntrospection:
-    schema = await telemetry_repo.describe_measurement(measurement, bucket=bucket)
-    tags: list[InfluxTagIntrospection] = []
-    for tag_key in schema.tag_keys:
-        tag_values = (
-            await telemetry_repo.get_measurement_tag_values(
-                measurement,
-                tag_key,
-                limit=tag_value_limit,
-                bucket=bucket,
-            )
-            if include_tag_values
-            else []
-        )
-        tags.append(InfluxTagIntrospection(key=tag_key, values=tag_values))
-
-    return InfluxMeasurementIntrospection(
-        measurement=measurement,
-        tag_keys=list(schema.tag_keys),
-        field_keys=sorted(schema.field_keys),
-        tags=tags,
-    )
+    return telemetry_service, bucket_name, tags, has_results, resolved_metadata
 
 
 @strawberry.type
@@ -306,53 +257,125 @@ class Query:
         include_tag_values: bool = True,
         tag_value_limit: int | None = 500,
     ) -> InfluxDbIntrospection:
-        telemetry_repo: GraphQLTelemetryRepo = context_from_info(info)["telemetry_repo"]
-        bucket_name = telemetry_repo.resolve_bucket(bucket)
+        telemetry_service: TelemetryService = context_from_info(info)["telemetry_service"]
+        bucket_name = resolve_bucket(settings.INFLUX_BUCKET, bucket)
         if measurement is not None and measurement.strip() == "":
             raise ValueError("measurement must be a non-empty string when provided.")
         if tag_value_limit is not None and tag_value_limit < 1:
             raise ValueError("tag_value_limit must be >= 1 when provided.")
 
         measurement_names = (
-            [measurement] if measurement is not None else await telemetry_repo.list_measurements(bucket=bucket_name)
+            [measurement] if measurement is not None else await telemetry_service.list_measurements(bucket=bucket_name)
         )
-        measurements = await asyncio.gather(
-            *(
-                _build_influx_measurement_introspection(
-                    telemetry_repo,
-                    bucket_name,
-                    measurement_name,
-                    include_tag_values=include_tag_values,
-                    tag_value_limit=tag_value_limit,
+
+        async def build_measurement(measurement_name: str) -> InfluxMeasurementIntrospection:
+            schema = await telemetry_service.describe_measurement(measurement_name, bucket=bucket_name)
+            tags: list[InfluxTagIntrospection] = []
+            for tag_key in schema.tag_keys:
+                tag_values = (
+                    await telemetry_service.get_measurement_tag_values(
+                        measurement_name,
+                        tag_key,
+                        tag_value_limit,
+                        bucket_name,
+                    )
+                    if include_tag_values
+                    else []
                 )
-                for measurement_name in measurement_names
+                tags.append(InfluxTagIntrospection(key=tag_key, values=tag_values))
+
+            return InfluxMeasurementIntrospection(
+                measurement=measurement_name,
+                tag_keys=list(schema.tag_keys),
+                field_keys=sorted(schema.field_keys),
+                tags=tags,
             )
+
+        measurements = await asyncio.gather(
+            *(build_measurement(measurement_name) for measurement_name in measurement_names),
         )
         return InfluxDbIntrospection(bucket=bucket_name, measurements=list(measurements))
 
     @strawberry.field(description="Query telemetry data from InfluxDB.")
-    async def telemetry(self, info: strawberry.Info, query: TelemetryQueryInput) -> TelemetryPage:
-        telemetry_repo, bucket_name, tags, has_results, resolved_metadata = await _resolve_telemetry_query_context(
-            info,
-            query,
-            include_resolved_metadata=query.include_resolved_metadata,
+    async def telemetry(self, info: strawberry.Info, query: TelemetryQueryInput) -> TelemetryWindow:
+        telemetry_service, bucket_name, tags, has_results, resolved_metadata = await _resolve_telemetry_query_context(
+            info, query, query.include_resolved_metadata
         )
+        limit = query.limit or TELEMETRY_DEFAULT_LIMIT
         if not has_results:
-            return TelemetryPage(items=[], next_cursor=None, resolved=resolved_metadata)
+            return TelemetryWindow(
+                items=[],
+                has_more=False,
+                next_end=None,
+                resolved=resolved_metadata,
+            )
 
-        result = await telemetry_repo.get_points(
-            measurement=query.measurement,
-            start=query.start,
-            end=query.end,
-            tags=tags or None,
-            fields=query.fields,
-            page_size=query.page_size,
-            cursor=query.cursor,
-            bucket=bucket_name,
+        result = await telemetry_service.read_window(
+            query.measurement,
+            query.start,
+            query.end,
+            tags or None,
+            query.fields,
+            limit,
+            bucket_name,
         )
 
-        items = [_telemetry_point_from_item(item) for item in result.items]
-        return TelemetryPage(items=items, next_cursor=result.next_cursor, resolved=resolved_metadata)
+        items = [
+            TelemetryPoint(
+                timestamp=item["timestamp"],
+                measurement=item["measurement"],
+                tags=item["tags"],
+                fields=item.get("fields", {}),
+            )
+            for item in result.items
+        ]
+        return TelemetryWindow(
+            items=items,
+            has_more=result.has_more,
+            next_end=result.next_end,
+            resolved=resolved_metadata,
+        )
+
+    @strawberry.field(description="Query raw telemetry rows from InfluxDB.")
+    async def telemetry_raw(self, info: strawberry.Info, query: TelemetryQueryInput) -> RawTelemetryWindow:
+        telemetry_service, bucket_name, tags, has_results, resolved_metadata = await _resolve_telemetry_query_context(
+            info, query, query.include_resolved_metadata
+        )
+        limit = query.limit or TELEMETRY_DEFAULT_LIMIT
+        if not has_results:
+            return RawTelemetryWindow(
+                items=[],
+                has_more=False,
+                next_end=None,
+                resolved=resolved_metadata,
+            )
+
+        result = await telemetry_service.read_raw_window(
+            query.measurement,
+            query.start,
+            query.end,
+            tags or None,
+            query.fields,
+            limit,
+            bucket_name,
+        )
+
+        items = [
+            RawTelemetryPoint(
+                timestamp=item["timestamp"],
+                measurement=item["measurement"],
+                field=item["field"],
+                value=item["value"],
+                tags=item["tags"],
+            )
+            for item in result.items
+        ]
+        return RawTelemetryWindow(
+            items=items,
+            has_more=result.has_more,
+            next_end=result.next_end,
+            resolved=resolved_metadata,
+        )
 
 
 @strawberry.type
@@ -361,22 +384,51 @@ class Subscription:
     async def telemetry_stream(
         self, info: strawberry.Info, query: TelemetryQueryInput
     ) -> AsyncGenerator[TelemetryPoint]:
-        telemetry_repo, bucket_name, tags, has_results, _ = await _resolve_telemetry_query_context(
-            info,
-            query,
-            include_resolved_metadata=False,
+        telemetry_service, bucket_name, tags, has_results, _ = await _resolve_telemetry_query_context(
+            info, query, False
         )
         if not has_results:
             return
 
-        async for item in telemetry_repo.stream_points(
-            measurement=query.measurement,
-            start=query.start,
-            end=query.end,
-            tags=tags or None,
-            fields=query.fields,
-            page_size=query.page_size,
-            cursor=query.cursor,
-            bucket=bucket_name,
+        async for item in telemetry_service.stream_structured(
+            query.measurement,
+            query.start,
+            query.end,
+            tags or None,
+            query.fields,
+            query.limit,
+            bucket_name,
         ):
-            yield _telemetry_point_from_item(item)
+            yield TelemetryPoint(
+                timestamp=item["timestamp"],
+                measurement=item["measurement"],
+                tags=item["tags"],
+                fields=item.get("fields", {}),
+            )
+
+    @strawberry.subscription(description=("Stream raw telemetry rows one by one from InfluxDB."))
+    async def telemetry_raw_stream(
+        self, info: strawberry.Info, query: TelemetryQueryInput
+    ) -> AsyncGenerator[RawTelemetryPoint]:
+        telemetry_service, bucket_name, tags, has_results, _ = await _resolve_telemetry_query_context(
+            info, query, False
+        )
+        if not has_results:
+            return
+
+        async for item in telemetry_service.stream_raw(
+            query.measurement,
+            query.start,
+            query.end,
+            tags or None,
+            query.fields,
+            query.limit,
+            bucket_name,
+        ):
+            yield RawTelemetryPoint(
+                timestamp=item["timestamp"],
+                measurement=item["measurement"],
+                field=item["field"],
+                value=item["value"],
+                tags=item["tags"],
+            )

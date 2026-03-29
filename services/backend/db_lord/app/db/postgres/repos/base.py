@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Awaitable, Callable, Hashable, Iterable, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -13,28 +13,29 @@ from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 
+from app.core.utils import ordered_unique
 from app.filters import GLOBAL_SORT_VALUES
 
 
 @dataclass(frozen=True)
 class ConnectionItem[NodeType]:
+    """GraphQL grouped connection item containing a node and cursor payload."""
+
     node: NodeType
     cursor_values: tuple[object, ...]
 
 
 @dataclass(frozen=True)
 class GroupedConnectionPage[NodeType]:
+    """GraphQL grouped connection page keyed by parent id."""
+
     items_by_parent: dict[UUID, list[ConnectionItem[NodeType]]]
     has_extra_by_parent: dict[UUID, bool]
-
-
-def ordered_unique[T](values: Iterable[T]) -> list[T]:
-    return list(dict.fromkeys(values))
-
 
 def slice_grouped_page[T](
     *, parent_ids: Sequence[UUID], values_by_parent: Mapping[UUID, list[T]], page_size: int, fetch_backward: bool
 ) -> tuple[dict[UUID, bool], dict[UUID, list[T]]]:
+    """GraphQL helper: slice per-parent rows and normalize backward ordering."""
     has_extra_by_parent: dict[UUID, bool] = {}
     kept_values_by_parent: dict[UUID, list[T]] = {}
     for parent_id in parent_ids:
@@ -61,6 +62,7 @@ async def grouped_page_from_ranked_subquery[TValue: Hashable, NodeType](
     load_nodes_by_value: Callable[[list[TValue]], Awaitable[dict[TValue, NodeType]]],
     cursor_values_from: Callable[[NodeType, TValue], tuple[object, ...]],
 ) -> GroupedConnectionPage[NodeType]:
+    """Build per-parent connection payload for GraphQL resolvers from ranked SQL rows."""
     fetch_limit = page_size + 1 if page_size > 0 else 1
     rows_stmt = (
         select(*ranked_subquery.c)
@@ -115,16 +117,18 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
         return list(await self.db.scalars(stmt))
 
     async def map_by_ids(self, ids: Sequence[Any]) -> dict[Any, ModelType]:
+        """Returns `{primary_key: entity}` for the given IDs.
+
+        Used by GraphQL grouped connection loaders (`grouped_page_from_ranked_subquery`) which need
+        fast key->node lookup after fetching ranked parent-child row keys.
+        """
         entities = await self.list_by_ids(ids)
         return {getattr(entity, self.pk_col.key): entity for entity in entities}
 
-    @staticmethod
-    def _effective_sorting(sorting: SortingValues | None) -> SortingValues:
-        return sorting if sorting is not None else GLOBAL_SORT_VALUES
-
     def _build_filtered_query(self, filters: FilterSet | None = None, sorting: SortingValues | None = None):
+        """Create a filtered/sorted query and return the effective sorting used."""
         query = select(self.model)
-        effective_sorting = self._effective_sorting(sorting)
+        effective_sorting = sorting if sorting is not None else GLOBAL_SORT_VALUES
         if filters:
             return apply_filters_and_sorting(query, filters, effective_sorting), effective_sorting
         return apply_sorting(query, effective_sorting), effective_sorting
@@ -139,7 +143,7 @@ class BaseRepo[ModelType: DeclarativeBase, CreateSchemaType: BaseModel, UpdateSc
         """Stream matching records using server-side cursors.
 
         `as_mapping=True` yields SQLAlchemy RowMapping objects projected from table columns,
-        this avoids ORM entity construction for read-only streaming paths.
+        avoids ORM entity construction for read-only streaming paths.
         """
         query, _ = self._build_filtered_query(filters, sorting)
         if as_mapping:

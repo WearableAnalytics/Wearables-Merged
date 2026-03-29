@@ -4,8 +4,7 @@ from fastapi import APIRouter, status
 from fastapi_pagination.cursor import CursorPage
 
 from app.api.dependencies import WearableFiltersDep, WearableServiceDep, WearableSortingDep
-from app.api.params import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam
-from app.api.streaming import stream_as_ndjson
+from app.api.streaming import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam, stream_as_ndjson
 from app.schemas.assignment import WearableAssignmentResponse
 from app.schemas.wearable import WearableCreate, WearableResponse, WearableUpdate
 
@@ -32,7 +31,12 @@ async def get_wearable(id: UUID, service: WearableServiceDep):
     return await service.get(id)
 
 
-@router.get("/{id:uuid}/assignments", response_model=list[WearableAssignmentResponse])
+@router.get(
+    "/{id:uuid}/assignments",
+    response_model=list[WearableAssignmentResponse],
+    summary="List wearable assignments",
+    description="Return complete assignment history for a wearable.",
+)
 async def get_wearable_assignments(id: UUID, service: WearableServiceDep):
     return await service.get_assignments(id)
 
@@ -42,7 +46,7 @@ async def list_wearables(service: WearableServiceDep, filters: WearableFiltersDe
     return await service.list(filters, sorting)
 
 
-@router.get("/stream")
+@router.get("/stream", summary="Stream wearables as NDJSON")
 async def stream_wearables(
     service: WearableServiceDep,
     filters: WearableFiltersDep,
