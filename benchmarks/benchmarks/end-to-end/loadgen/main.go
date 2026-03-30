@@ -26,7 +26,7 @@ var (
 	RPS              int
 )
 
-func init() {
+func load() {
 	serviceURL = mustGetEnvString("SERVICE_URL")
 	influxURL = mustGetEnvString("INFLUX_URL")
 	influxToken = mustGetEnvString("INFLUX_TOKEN")
@@ -41,6 +41,7 @@ func init() {
 }
 
 func main() {
+	load()
 	log.SetFlags(log.LUTC)
 	startTime := time.Now().UTC()
 	ctx, cancel := context.WithCancel(context.Background())
