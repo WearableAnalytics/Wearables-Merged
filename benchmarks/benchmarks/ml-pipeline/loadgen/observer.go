@@ -44,6 +44,7 @@ func NewObserver(addr, token, org, bucket string, startTime time.Time) *Observer
 }
 
 func (o *Observer) Run(ctx context.Context) {
+	defer o.CleanUp(ctx)
 	api := o.InfluxClient.QueryAPI(o.InfluxOrg)
 
 	query := fmt.Sprintf(`
@@ -55,10 +56,9 @@ func (o *Observer) Run(ctx context.Context) {
 		int(time.Since(o.StartTime).Seconds()+time.Minute.Seconds()),
 	)
 
-	log.Printf("executing query: %s", query)
 	res, err := api.Query(ctx, query)
 	if err != nil {
-		log.Printf("error occurred when executing query: %v", err)
+		log.Fatalf("error occurred when executing query: %v", err)
 	}
 
 	for res.Next() {
@@ -119,6 +119,41 @@ func (o *Observer) Run(ctx context.Context) {
 	}
 
 	o.PrintAsCsv()
+}
+
+func (o *Observer) CleanUp(ctx context.Context) {
+	deleteAPI := o.InfluxClient.DeleteAPI()
+
+	window := 1 * time.Minute
+
+	bucketsAndMeasurements := map[string]string{
+		o.InfluxBucket: `_measurement="ml_predictions"`,
+		"measurements": `_measurement="heart-rate"`,
+	}
+
+	for bucket, predicate := range bucketsAndMeasurements {
+		t := o.StartTime
+
+		for t.Before(time.Now()) {
+			next := t.Add(window)
+
+			err := deleteAPI.DeleteWithName(
+				ctx,
+				o.InfluxOrg,
+				bucket,
+				t,
+				next,
+				predicate,
+			)
+			if err != nil {
+				log.Printf("cleanup error for bucket %s: %v", bucket, err)
+				return
+			}
+
+			t = next
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
 }
 
 func (o *Observer) PrintAsCsv() {

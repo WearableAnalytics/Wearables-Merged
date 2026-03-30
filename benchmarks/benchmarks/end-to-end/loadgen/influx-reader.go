@@ -35,16 +35,15 @@ func NewInfluxObserver(conf *InfluxObserverConfig, tracker *Tracker) *InfluxObse
 	return &observer
 }
 
-func (obs *InfluxObserver) ObserveBenchmark(ctx context.Context) {
+func (obs *InfluxObserver) ObserveBenchmark(ctx context.Context, duration time.Duration) {
 	queryApi := obs.Client.QueryAPI(obs.Config.Org)
-
 	query := fmt.Sprintf(`
 from(bucket: "%s")
-  |> range(start: -3m)
+  |> range(start: -%ds)
   |> filter(fn: (r) => r._measurement == "heart-rate")
   |> pivot(rowKey: ["_time", "device-id"], columnKey: ["_field"], valueColumn: "_value")`,
 		obs.Config.Bucket,
-		//obs.Config.T0.Format(time.RFC3339Nano),
+		int(duration),
 	)
 
 	res, err := queryApi.Query(ctx, query)
@@ -90,8 +89,6 @@ from(bucket: "%s")
 			log.Printf("ERROR: unexpected type for 't_ingested': %T (%v)", t, t)
 			continue
 		}
-
-		log.Printf("Parsed value=%d, t_ingested=%v", value, tIngested)
 
 		if !obs.tracker.AddIngestTime(value, tIngested) {
 			log.Printf("ERROR: AddIngestTime failed for value=%d, t_ingested=%v", value, tIngested)

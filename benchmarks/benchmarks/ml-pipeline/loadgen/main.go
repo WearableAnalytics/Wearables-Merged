@@ -13,10 +13,6 @@ import (
 var (
 	kafkaURL         string
 	kafkaTopic       string
-	influxURL        string
-	influxToken      string
-	influxOrg        string
-	influxBucket     string
 	rampUpDuration   int
 	duration         int
 	rampDownDuration int
@@ -27,10 +23,6 @@ var (
 func loadConfig() {
 	kafkaURL = mustGetEnvString("KAFKA_URL")
 	kafkaTopic = mustGetEnvString("TOPIC")
-	influxURL = mustGetEnvString("INFLUX_URL")
-	influxToken = mustGetEnvString("INFLUX_TOKEN")
-	influxOrg = mustGetEnvString("INFLUX_ORG")
-	influxBucket = mustGetEnvString("INFLUX_BUCKET")
 
 	rampUpDuration = mustGetEnvInt("RAMP_UP_DURATION")
 	rampDownDuration = mustGetEnvInt("RAMP_DOWN_DURATION")
@@ -43,7 +35,6 @@ func loadConfig() {
 func main() {
 	loadConfig()
 	log.SetFlags(log.LUTC)
-	startTime := time.Now().UTC()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -55,7 +46,32 @@ func main() {
 		cancel()
 	}()
 
-	loadCfg := NewLoadConfig(float64(startRPS), float64(RPS), rampUpDuration, duration, rampDownDuration)
+	var phases []Phase
+
+	if rampUpDuration > 0 {
+		phases = append(phases, Phase{
+			Type:     2,
+			Duration: time.Duration(rampUpDuration) * time.Second,
+			StartRPS: startRPS,
+			Step:     RPS / rampUpDuration,
+		})
+	}
+	if duration > 0 {
+		phases = append(phases, Phase{
+			Type:     1,
+			Duration: time.Duration(duration) * time.Second,
+			StartRPS: RPS,
+			Step:     0,
+		})
+	}
+	if rampDownDuration > 0 {
+		phases = append(phases, Phase{
+			Type:     3,
+			Duration: time.Duration(rampDownDuration) * time.Second,
+			StartRPS: RPS,
+			Step:     RPS / rampDownDuration,
+		})
+	}
 
 	kafkaCfg := KafkaConfig{
 		KafkaURL: kafkaURL,
@@ -67,23 +83,15 @@ func main() {
 		Category:        "measurements.instantaneous",
 		BaseDeviceID:    "benchmark-client",
 		Value:           72,
+		ClientIndex:     0,
+		NumClients:      1,
 	}
 
-	p, err := NewProducer(kafkaCfg, payloadCfg, loadCfg)
+	p, err := NewProducer(kafkaCfg, payloadCfg, phases)
 	if err != nil {
 		log.Fatalf("failed to create producer: %v", err)
 	}
 	p.Run(ctx)
-
-	// Pipeline needs ~30s to process a message, therefore sleep!
-	time.Sleep(1 * time.Minute)
-
-	obsCtx, obsCancel := context.WithCancel(context.Background())
-	defer obsCancel()
-
-	observer := NewObserver(influxURL, influxToken, influxOrg, influxBucket, startTime)
-	log.Printf("now starting observing with: %v", observer)
-	observer.Run(obsCtx)
 }
 
 func mustGetEnvString(key string) string {
