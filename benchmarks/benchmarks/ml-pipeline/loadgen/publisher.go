@@ -126,9 +126,9 @@ func (p *Producer) executePhase(ctx context.Context, phase *Phase) {
 
 			tick := time.Duration(1000/n) * time.Millisecond
 
-			log.Printf("Rps: %d, Calc-Tick: %v", n, tick)
-
 			subTicker := time.NewTicker(tick)
+
+			log.Printf("[%ds] sending %d msg/s", int(time.Since(phase.startTime).Seconds()), n)
 
 			for i := 0; i < n; i++ {
 				<-subTicker.C
