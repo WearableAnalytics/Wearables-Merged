@@ -28,7 +28,7 @@ INTEGRITY_BY_EXCEPTION: tuple[tuple[type[Exception], IntegrityMapping], ...] = (
     (
         ForeignKeyViolationError,
         (
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "foreign_key_violation",
             "Invalid reference: The referenced entity does not exist.",
         ),
@@ -36,7 +36,7 @@ INTEGRITY_BY_EXCEPTION: tuple[tuple[type[Exception], IntegrityMapping], ...] = (
     (
         NotNullViolationError,
         (
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "not_null_violation",
             "Missing data: A required field was missing.",
         ),

@@ -1,36 +1,35 @@
 [project]
 name = "db-lord"
 version = "0.1.0"
-description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "alembic[tz]>=1.17.2",
+    "alembic[tz]>=1.18.4",
     "asyncpg>=0.31.0",
     "cachetools>=7.0.5",
-    "fastapi>=0.128.0",
-    "fastapi-filters>=0.3.1",
-    "fastapi-pagination>=0.15.9",
+    "fastapi>=0.135.2",
+    "fastapi-filters>=0.3.3",
+    "fastapi-pagination>=0.15.12",
     "httpx>=0.28.1",
     "influxdb-client[async,ciso]>=1.50.0",
-    "orjson>=3.11.5",
-    "pydantic-settings>=2.12.0",
+    "orjson>=3.11.7",
+    "pydantic-settings>=2.13.1",
     "sqlakeyset>=2.0.1762907931",
-    "sqlalchemy[asyncio]>=2.0.46",
-    "strawberry-graphql[fastapi]>=0.305.0",
-    "uvicorn[standard]>=0.40.0",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "strawberry-graphql[fastapi]>=0.312.2",
+    "uvicorn[standard]>=0.42.0",
 ]
 
 [dependency-groups]
 dev = [
-    "aiosqlite>=0.21.0",
-    "locust>=2.43.2",
+    "aiosqlite>=0.22.1",
+    "locust>=2.43.3",
     "pyright[nodejs]>=1.1.408",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-xdist>=3.8.0",
-    "ruff>=0.15.1",
-    "testcontainers>=4.14.1",
+    "ruff>=0.15.8",
+    "testcontainers>=4.14.2",
 ]
 
 [tool.ruff]
@@ -52,8 +51,8 @@ testpaths = ["tests"]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::pytest.PytestUnraisableExceptionWarning",
+    # "ignore::DeprecationWarning",
+    # "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
 markers = [
     "unit: Fast tests (SQLite + mocked InfluxDB)",
