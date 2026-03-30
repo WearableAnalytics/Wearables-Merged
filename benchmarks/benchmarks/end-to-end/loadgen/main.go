@@ -116,9 +116,10 @@ func main() {
 	}
 
 	ew.Run()
-	time.Sleep(10 * time.Second)
+	time.Sleep(150 * time.Second)
 
-	obs.ObserveBenchmark(ctx)
+	duration := 150*time.Second + time.Duration(maxDuration)*time.Second
+	obs.ObserveBenchmark(ctx, duration)
 }
 
 func mustGetEnvString(key string) string {
