@@ -124,6 +124,10 @@ func (p *Producer) executePhase(ctx context.Context, phase *Phase) {
 		case <-ticker.C:
 			n := phase.CalculateRps()
 
+			if n == 0 {
+				continue
+			}
+
 			tick := time.Duration(1000/n) * time.Millisecond
 
 			subTicker := time.NewTicker(tick)

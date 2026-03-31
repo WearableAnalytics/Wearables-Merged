@@ -96,6 +96,10 @@ func (p *Phase) Run(ctx context.Context, c *Client, provider *Provider) error {
 		case <-ticker.C:
 			n := p.CalculateRPS()
 
+			if n == 0 {
+				continue
+			}
+
 			subTicker := time.NewTicker(time.Duration(1000/n) * time.Millisecond)
 
 			for i := 0; i < n; i++ {
