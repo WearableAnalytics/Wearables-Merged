@@ -1,6 +1,3 @@
-#group,false,false,true,true,false,false,true,true,true,true,true,true
-#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string,string,string,string
-#default,max,,,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,category,device-id,host,version
 ,,0,2026-03-31T16:45:50Z,2026-03-31T16:53:45Z,2026-03-31T16:45:51.204Z,1774975621702258670,t_ingested,heart-rate,measurements.instantaneous,019d4035-a6dc-7438-aa89-ee5b7d3a5747,telegraf-74fdcb947c-d6t5m,1.0.0
 ,,0,2026-03-31T16:45:50Z,2026-03-31T16:53:45Z,2026-03-31T16:45:52.523Z,1774975569307514948,t_ingested,heart-rate,measurements.instantaneous,019d4035-a6dc-7438-aa89-ee5b7d3a5747,telegraf-74fdcb947c-d6t5m,1.0.0
@@ -1082,4 +1079,3 @@
 ,,2,2026-03-31T16:45:50Z,2026-03-31T16:53:45Z,2026-03-31T16:53:42.087Z,1774998350662283289,t_ingested,heart-rate,measurements.instantaneous,019d4035-a6dc-7438-aa89-ee5b7d3a5747,telegraf-74fdcb947c-z766c,1.0.0
 ,,2,2026-03-31T16:45:50Z,2026-03-31T16:53:45Z,2026-03-31T16:53:43.406Z,1774998397557601611,t_ingested,heart-rate,measurements.instantaneous,019d4035-a6dc-7438-aa89-ee5b7d3a5747,telegraf-74fdcb947c-z766c,1.0.0
 ,,2,2026-03-31T16:45:50Z,2026-03-31T16:53:45Z,2026-03-31T16:53:44.725Z,1774998406393747008,t_ingested,heart-rate,measurements.instantaneous,019d4035-a6dc-7438-aa89-ee5b7d3a5747,telegraf-74fdcb947c-z766c,1.0.0
-
