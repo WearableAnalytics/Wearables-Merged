@@ -48,6 +48,7 @@ func (c *Client) CallEndpoint(ctx context.Context, payload Payload) error {
 		return err
 	}
 
+	log.Println("sending request")
 	req, err := http.NewRequest("POST", c.Addr, bytes.NewBuffer(data))
 	if err != nil {
 		return err
@@ -60,6 +61,8 @@ func (c *Client) CallEndpoint(ctx context.Context, payload Payload) error {
 	if err != nil {
 		return err
 	}
+
+	log.Printf("got response: %v", resp.Status)
 
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("response was not 200: %s", resp.Status)
@@ -76,6 +79,7 @@ func (p *Producer) Run(ctx context.Context) {
 	}
 
 	for _, phase := range p.Phases {
+		log.Printf("Starting to run phase: %v", phase)
 		if err := phase.Run(ctx, p.Client, p.Provider); err != nil {
 			log.Printf("Running phase failed with err: %v", err)
 		}

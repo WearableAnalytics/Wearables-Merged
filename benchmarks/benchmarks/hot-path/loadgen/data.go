@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"sync/atomic"
 	"time"
 )
@@ -73,6 +74,7 @@ func NewDataProvider(messageSize int) *Provider {
 
 func (p *Provider) CreateBenchmarkMessage() Payload {
 	now := time.Now().UTC().Format(p.TimestampLayout)
+	log.Println(now)
 
 	payload := Payload{
 		DeviceInfo: DeviceInfo{
@@ -96,11 +98,9 @@ func (p *Provider) CreateBenchmarkMessage() Payload {
 		Timestamp:       now,
 	}
 
-	base := p.MessageCount.Add(1)
-
 	instant := InstantMeasurement{
 		Type:      "heart-rate",
-		Value:     float32(base),
+		Value:     72,
 		Unit:      "BEATS_PER_MINUTE",
 		Timestamp: now,
 	}
@@ -115,7 +115,7 @@ func (p *Provider) CreateBenchmarkMessage() Payload {
 	for i := 0; i < n+1; i++ {
 		instant = InstantMeasurement{
 			Type:      "heart-rate",
-			Value:     float32(base),
+			Value:     72,
 			Unit:      "BEATS_PER_MINUTE",
 			Timestamp: now,
 		}

@@ -24,6 +24,7 @@ func loadConfig() {
 	serviceUrl = mustGetEnvString("SERVICE_URL")
 	jwtToken = mustGetEnvString("JWT_TOKEN")
 	messageSize = mustGetEnvInt("MESSAGE_SIZE")
+	rps = mustGetEnvInt("RPS")
 	rampUpDuration = mustGetEnvInt("RAMP_UP_DURATION")
 	duration = mustGetEnvInt("DURATION")
 	rampDownDuration = mustGetEnvInt("RAMP_DOWN_DURATION")
@@ -32,6 +33,8 @@ func loadConfig() {
 func main() {
 	loadConfig()
 	log.SetFlags(log.LUTC)
+
+	log.Printf("Starting Benchmark and sending requests to: %s", serviceUrl)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -53,6 +56,11 @@ func main() {
 	var phases []Phase
 
 	if rampUpDuration > 0 {
+
+		step := rps / rampUpDuration
+
+		log.Printf("RPS: %d, RampUp: %d, Step: %d", rps, rampUpDuration, step)
+
 		phases = append(phases, Phase{
 			Type:     1,
 			Duration: time.Duration(rampUpDuration) * time.Second,
@@ -78,6 +86,8 @@ func main() {
 			Step:     rps / rampDownDuration,
 		})
 	}
+
+	log.Printf("Phases: %v", phases)
 
 	producer := Producer{
 		Client:   c,
