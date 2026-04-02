@@ -81,6 +81,7 @@ func (p *Phase) CalculateRps() int {
 	if rps > 1000 {
 		rps = 1000
 	}
+
 	if rps < 0 {
 		rps = 0
 	}
