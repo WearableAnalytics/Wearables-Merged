@@ -66,7 +66,7 @@ func main() {
 	}
 	if rampDownDuration > 0 {
 		phases = append(phases, Phase{
-			Type:     RampUp,
+			Type:     RampDown,
 			Duration: time.Duration(rampDownDuration) * time.Second,
 			StartRPS: RPS,
 			Step:     RPS / rampDownDuration,
