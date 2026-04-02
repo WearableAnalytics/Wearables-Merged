@@ -24,10 +24,10 @@ type KafkaConfig struct {
 	Topic    string
 }
 
-var (
-	Constant = 1
-	RampUp   = 2
-	RampDown = 3
+const (
+	Constant = iota
+	RampUp
+	RampDown
 )
 
 type Phase struct {
@@ -42,10 +42,8 @@ type Phase struct {
 type PayloadConfig struct {
 	MeasurementName string
 	Category        string
-	BaseDeviceID    string
+	DeviceID        string
 	Value           int
-	ClientIndex     int
-	NumClients      int
 }
 
 func NewProducer(kafkaCfg KafkaConfig, payloadCfg PayloadConfig, phases []Phase) (*Producer, error) {
@@ -163,13 +161,6 @@ func (p *Producer) Produce() {
 func (p *Producer) GenerateNewLineProtocol() string {
 	ts := time.Now().UTC().UnixNano()
 
-	deviceID := p.CalculateDeviceID()
-
-	lineProtocol := fmt.Sprintf("%s,device-id=%s-%d,category=%s,version=1.0.0 value=%d %d", p.MeasurementName, p.BaseDeviceID, deviceID, p.Category, p.Value, ts)
+	lineProtocol := fmt.Sprintf("%s,device-id=%s,category=%s,version=1.0.0 value=%d %d", p.MeasurementName, p.DeviceID, p.Category, p.Value, ts)
 	return lineProtocol
-}
-
-func (p *Producer) CalculateDeviceID() int32 {
-	messageCount := p.MessageCounter.Add(1)
-	return messageCount
 }
