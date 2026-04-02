@@ -50,7 +50,7 @@ func main() {
 
 	if rampUpDuration > 0 {
 		phases = append(phases, Phase{
-			Type:     2,
+			Type:     RampUp,
 			Duration: time.Duration(rampUpDuration) * time.Second,
 			StartRPS: startRPS,
 			Step:     RPS / rampUpDuration,
@@ -58,7 +58,7 @@ func main() {
 	}
 	if duration > 0 {
 		phases = append(phases, Phase{
-			Type:     1,
+			Type:     Constant,
 			Duration: time.Duration(duration) * time.Second,
 			StartRPS: RPS,
 			Step:     0,
@@ -66,7 +66,7 @@ func main() {
 	}
 	if rampDownDuration > 0 {
 		phases = append(phases, Phase{
-			Type:     3,
+			Type:     RampDown,
 			Duration: time.Duration(rampDownDuration) * time.Second,
 			StartRPS: RPS,
 			Step:     RPS / rampDownDuration,
@@ -81,10 +81,8 @@ func main() {
 	payloadCfg := PayloadConfig{
 		MeasurementName: "heart-rate",
 		Category:        "measurements.instantaneous",
-		BaseDeviceID:    "benchmark-client",
-		Value:           72,
-		ClientIndex:     0,
-		NumClients:      1,
+		DeviceID:        "bench",
+		Value:           42,
 	}
 
 	p, err := NewProducer(kafkaCfg, payloadCfg, phases)
