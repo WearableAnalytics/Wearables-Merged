@@ -12,7 +12,7 @@ build-push-arm tag log-level:
     docker buildx build \
       --platform linux/arm64 \
       --build-arg LOG_LEVEL={{log-level}} \
-      -t wearables42/mapper-validator:{{tag}} \
+      -t wearables42/mapper-validator-arm:{{tag}} \
       --push .
 
 
