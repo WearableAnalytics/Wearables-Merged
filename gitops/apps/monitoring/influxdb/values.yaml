@@ -12,4 +12,4 @@ image:
 
 persistence:
   size: 10Gi
-  storageClass: standard # may need to be changed accordingly
+  storageClass: local-path # may need to be changed accordingly

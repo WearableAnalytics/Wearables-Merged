@@ -18,6 +18,13 @@ spec:
         size: {{ .Values.kafkaNodePools.volume.size }}
         deleteClaim: false
         kraftMetadata: shared
+        class: {{ .Values.storageClassName }} 
+  template:
+    pod:
+      securityContext:
+        fsGroup: 1000        # Kafka's GID — makes mounted volumes group-writable
+        runAsUser: 1000
+        runAsGroup: 1000
   resources: 
     requests:
       memory: {{ .Values.dualRole.resources.requests.memory }}

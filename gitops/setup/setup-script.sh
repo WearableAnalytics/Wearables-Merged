@@ -16,10 +16,8 @@ GRAFANA_JWT_PRIVATE_KEY_PATH="${GRAFANA_JWT_PRIVATE_KEY_PATH:-$REPO_ROOT/secrets
 PROD_POSTGRES_NAMESPACE="${PROD_POSTGRES_NAMESPACE:-prod-postgres}"
 
 DB_LORD_NAMESPACE="${DB_LORD_NAMESPACE:-db-lord}"
-DB_LORD_SECRET_NAME="${DB_LORD_SECRET_NAME:-db-lord-secrets}"
 
 EXTRACTION_SERVICE_NAMESPACE="${EXTRACTION_SERVICE_NAMESPACE:-extraction-service}"
-EXTRACTION_SERVICE_SECRET_NAME="${EXTRACTION_SERVICE_SECRET_NAME:-extraction-service-secrets}"
 
 if ! command -v helm >/dev/null 2>&1; then
 	echo "helm is required but not installed."
@@ -54,6 +52,12 @@ require_file() {
 		exit 1
 	fi
 }
+
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+
+kubectl wait -n local-path-storage deployment/local-path-provisioner --for=condition=Available --timeout=300s
+
+echo "installed local path provisioner"
 
 # --- kafka (strimzi -> kafka -> topics -> mapper) ---
 if ! helm status strimzi-cluster-operator -n kafka >/dev/null 2>&1; then
@@ -123,8 +127,6 @@ else
 	kubectl port-forward svc/influxdb-service -n influx 8086:8086 >/dev/null 2>&1 &
 	sleep 1
 fi
-
-open http://localhost:8086
 
 if [[ -z "${INFLUX_ORG:-}" || -z "${INFLUX_BUCKET:-}" || -z "${INFLUX_TOKEN:-}" ]]; then
 	echo "InfluxDB setup requires manual steps to create org, bucket, and token." >&2
@@ -259,7 +261,6 @@ require_env PROD_POSTGRES_LAKEFS_PASSWORD
 )
 
 # --- db-lord ---
-ensure_namespace "$DB_LORD_NAMESPACE"
 require_env DB_LORD_POSTGRES_SERVER
 require_env DB_LORD_POSTGRES_PORT
 require_env DB_LORD_POSTGRES_DB
@@ -270,10 +271,9 @@ require_env DB_LORD_INFLUX_ORG
 require_env DB_LORD_INFLUX_BUCKET
 require_env DB_LORD_INFLUX_TOKEN
 
-db_lord_secret_file="$(mktemp)"
-db_lord_job_file="$(mktemp)"
-
-helm template db-lord "$APPS_DIR/services/db-lord" --namespace "$DB_LORD_NAMESPACE" \
+helm upgrade --install db-lord "$APPS_DIR/services/db-lord" \
+	--namespace "$DB_LORD_NAMESPACE" \
+	--create-namespace \
 	--set env.POSTGRES_SERVER="$DB_LORD_POSTGRES_SERVER" \
 	--set env.POSTGRES_PORT="$DB_LORD_POSTGRES_PORT" \
 	--set env.POSTGRES_DB="$DB_LORD_POSTGRES_DB" \
@@ -282,41 +282,10 @@ helm template db-lord "$APPS_DIR/services/db-lord" --namespace "$DB_LORD_NAMESPA
 	--set env.INFLUX_URL="$DB_LORD_INFLUX_URL" \
 	--set env.INFLUX_ORG="$DB_LORD_INFLUX_ORG" \
 	--set env.INFLUX_BUCKET="$DB_LORD_INFLUX_BUCKET" \
-	--set env.INFLUX_TOKEN="$DB_LORD_INFLUX_TOKEN" \
-	-s templates/db-lord-secrets.yaml >"$db_lord_secret_file"
-
-kubectl apply -f "$db_lord_secret_file" -n "$DB_LORD_NAMESPACE" >/dev/null
-
-kubectl -n "$DB_LORD_NAMESPACE" label secret "$DB_LORD_SECRET_NAME" \
-	app.kubernetes.io/managed-by=Helm --overwrite >/dev/null
-
-kubectl -n "$DB_LORD_NAMESPACE" annotate secret "$DB_LORD_SECRET_NAME" \
-	meta.helm.sh/release-name=db-lord \
-	meta.helm.sh/release-namespace="$DB_LORD_NAMESPACE" \
-	--overwrite >/dev/null
-
-helm template db-lord "$APPS_DIR/services/db-lord" --namespace "$DB_LORD_NAMESPACE" \
-	--set env.POSTGRES_SERVER="$DB_LORD_POSTGRES_SERVER" \
-	--set env.POSTGRES_PORT="$DB_LORD_POSTGRES_PORT" \
-	--set env.POSTGRES_DB="$DB_LORD_POSTGRES_DB" \
-	--set env.POSTGRES_USER="$DB_LORD_POSTGRES_USER" \
-	--set env.POSTGRES_PASSWORD="$DB_LORD_POSTGRES_PASSWORD" \
-	-s templates/job-migrate.yaml >"$db_lord_job_file"
-
-kubectl delete job db-lord-migrate -n "$DB_LORD_NAMESPACE" --ignore-not-found
-kubectl apply -f "$db_lord_job_file" -n "$DB_LORD_NAMESPACE"
-
-helm upgrade --install db-lord "$APPS_DIR/services/db-lord" --namespace "$DB_LORD_NAMESPACE"
-
-rm -f "$db_lord_secret_file" "$db_lord_job_file"
+	--set env.INFLUX_TOKEN="$DB_LORD_INFLUX_TOKEN"
 
 # --- extraction-service ---
-ensure_namespace "$EXTRACTION_SERVICE_NAMESPACE"
 require_env EXTRACTION_SERVICE_DB_LORD_BASE_URL
-
-kubectl -n "$EXTRACTION_SERVICE_NAMESPACE" create secret generic "$EXTRACTION_SERVICE_SECRET_NAME" \
-	--from-literal=DB_LORD_BASE_URL="$EXTRACTION_SERVICE_DB_LORD_BASE_URL" \
-	--dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 helm upgrade --install extraction-service "$APPS_DIR/services/extraction-service" --namespace "$EXTRACTION_SERVICE_NAMESPACE" --create-namespace \
 	--set env.DB_LORD_BASE_URL="$EXTRACTION_SERVICE_DB_LORD_BASE_URL"

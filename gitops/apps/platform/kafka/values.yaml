@@ -24,9 +24,11 @@ kafka:
             advertisedPort: 19092
 
 kafkaNodePools:
-  replicas: 1
+  replicas: 3
   volume:
     size: 5Gi
+
+storageClassName: local-path # may need to be changed
 
 dualRole:
   resources:

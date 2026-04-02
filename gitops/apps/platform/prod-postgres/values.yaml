@@ -28,4 +28,4 @@ service:
 
 storage:
   size: 20Gi
-  storageClassName: standard
+  storageClassName: local-path

@@ -17,4 +17,5 @@ spec:
         size: {{ .Values.kafkaNodePools.volume.size }}
         deleteClaim: false
         kraftMetadata: shared
+        class: {{ .Values.storageClassName }}
 {{- end }}
