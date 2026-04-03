@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: teardown-seaweedfs-
+  namespace: prod-postgres
+spec:
+  entrypoint: teardown-seaweedfs
+  templates:
+  - name: teardown-seaweedfs
+    container:
+      image: postgres:alpine
+      env:
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: postgres-setup-secrets
+            key: PGPASSWORD
+      command:
+      - /bin/sh
+      - -c
+      - |
+        echo "Tearing down SeaweedFS database and user..."
+        
+        cat <<EOF > /tmp/teardown.sql
+        -- Terminate active connections to the database
+        REVOKE CONNECT ON DATABASE seaweedfs FROM public;
+        SELECT pg_terminate_backend(pg_stat_activity.pid) 
+        FROM pg_stat_activity 
+        WHERE pg_stat_activity.datname = 'seaweedfs' AND pid <> pg_backend_pid();
+        
+        -- Drop database and user
+        DROP DATABASE IF EXISTS seaweedfs;
+        DROP USER IF EXISTS seaweedfs_user;
+        EOF
+        
+        psql -h prod-postgres -U postgres -d postgres -f /tmp/teardown.sql
+        echo "SeaweedFS teardown complete."

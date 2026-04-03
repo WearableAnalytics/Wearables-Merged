@@ -1,0 +1,11 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: seaweedfs-init-run
+  namespace: seaweedfs
+spec:
+  workflowTemplateRef:
+    name: seaweedfs-init-template
+
+  ttlStrategy:
+    secondsAfterCompletion: 60

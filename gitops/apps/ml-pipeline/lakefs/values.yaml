@@ -38,26 +38,6 @@ lakefs:
 
     - name: LAKEFS_BLOCKSTORE_S3_ENDPOINT
       value: "http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333"
-    
-
-    # --- LakeFS access setup ---
-    - name: LAKEFS_SETUP_ACCESS_KEY_ID
-      valueFrom:
-        secretKeyRef:
-          name: lakefs-secrets
-          key: lakefs_s3_access_key
-    
-    - name: LAKEFS_SETUP_SECRET_ACCESS_KEY
-      valueFrom:
-        secretKeyRef:
-          name: lakefs-secrets
-          key: lakefs_s3_secret_key
-
-    - name: LAKEFS_SETUP_FIRST_USER_DISPLAY_NAME
-      valueFrom:
-        secretKeyRef:
-          name: lakefs-secrets
-          key: lakefs_first_user_display_name
 
   lakefsConfig: |
     database:

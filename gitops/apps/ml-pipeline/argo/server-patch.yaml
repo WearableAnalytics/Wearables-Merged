@@ -1,0 +1,15 @@
+# kubectl port-forward deployment/argo-server 2746:2746 -n argo --address 0.0.0.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argo-server
+  namespace: argo
+spec:
+  template:
+    spec:
+      containers:
+      - name: argo-server
+        args:
+        - server
+        - --auth-mode=server
+        - --secure=false  # Simplifies local port-forwarding/NodePort

@@ -1,7 +1,7 @@
 apiVersion: v2
 name: seaweedfs-wrapper
 description: A SeaweedFS Helm chart for Kubernetes
-version: 1.0.0
+version: 2.0.0
 
 # Umbrella Chart pattern: This chart depends on the official SeaweedFS chart as a sub-chart
 # https://github.com/seaweedfs/seaweedfs/tree/master/k8s/charts/seaweedfs
