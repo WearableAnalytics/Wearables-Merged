@@ -84,13 +84,12 @@ kubeconfig
 
 # CI/CD
 .github/actions-runner/
-<<<<<<< HEAD
 # Miscellaneous
-*.class
 *.log
+*.tmp
 *.pyc
-*.swp
-.DS_Store
+*._.DS_Store
+*/._.DS_Store
 .atom/
 .build/
 .buildlog/
@@ -103,7 +102,6 @@ migrate_working_dir/
 *.iml
 *.ipr
 *.iws
-.idea/
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
@@ -130,10 +128,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-=======
-
-
-*.log
-*.tmp
-*._.DS_Store
-*/._.DS_Store

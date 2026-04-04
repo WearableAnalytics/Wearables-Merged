@@ -9,8 +9,8 @@ metadata:
 data:
   runtime-config.js: |
     window.__APP_CONFIG__ = {
-      API_BASE_URL: {{ .Values.runtimeConfig.apiBaseUrl | quote }},
-      GRAFANA_PROXY_URL: {{ .Values.runtimeConfig.grafanaProxyUrl | quote }},
-      SOCKET_URL: {{ .Values.runtimeConfig.socketUrl | quote }}
+      API_BASE_URL: {{ default (printf "https://%s/api" .Values.ingress.host) .Values.runtimeConfig.apiBaseUrl | quote }},
+      GRAFANA_PROXY_URL: {{ default (printf "https://%s/grafana-proxy" .Values.ingress.host) .Values.runtimeConfig.grafanaProxyUrl | quote }},
+      SOCKET_URL: {{ default (printf "https://%s" .Values.ingress.host) .Values.runtimeConfig.socketUrl | quote }}
     };
 {{- end }}

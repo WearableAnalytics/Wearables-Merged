@@ -8,9 +8,11 @@ runtimeConfigMap:
   name: ""
 
 runtimeConfig:
-  apiBaseUrl: "http://localhost:3001/api"
-  grafanaProxyUrl: "http://localhost:3002/grafana-proxy"
-  socketUrl: "http://localhost:3001"
+  # Leave empty to auto-derive from ingress.host (recommended).
+  # Override only if API/socket live on a different domain.
+  apiBaseUrl: ""
+  grafanaProxyUrl: ""
+  socketUrl: ""
 
 # Service configuration
 service:
@@ -19,7 +21,7 @@ service:
 
 # Ingress configuration
 ingress:
-  enabled: false
+  enabled: true
   host: "wearables.charite.de"
   path: "/"
   certificateSecretName: "wearables-tls"
