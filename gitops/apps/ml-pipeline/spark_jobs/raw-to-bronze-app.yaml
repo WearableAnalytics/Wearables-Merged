@@ -1,0 +1,42 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: raw-to-bronze-stream
+  namespace: ml-pipeline-spark-jobs
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: "wearables42/streaming-ml-pipeline:latest"
+  imagePullPolicy: Always
+  mainApplicationFile: "local:///opt/spark/work-dir/jobs/raw_to_bronze.py"
+  sparkVersion: "4.1.1"
+
+  sparkConf:
+    spark.jars.packages: "org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1,org.apache.hadoop:hadoop-aws:3.4.1,io.delta:delta-spark_2.13:4.0.0"
+    spark.jars.ivy: "/tmp/.ivy2"
+    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
+    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+
+  restartPolicy:
+    type: OnFailure
+    onFailureRetries: 3
+    onFailureRetryInterval: 30
+    onSubmissionFailureRetries: 3
+    onSubmissionFailureRetryInterval: 30
+
+  driver:
+    cores: 1
+    memory: "1g"
+    serviceAccount: spark-operator-spark
+    envFrom:
+      - secretRef:
+          name: spark-pipeline-secrets
+
+  executor:
+    cores: 1
+    instances: 1
+    memory: "1g"
+    envFrom:
+      - secretRef:
+          name: spark-pipeline-secrets

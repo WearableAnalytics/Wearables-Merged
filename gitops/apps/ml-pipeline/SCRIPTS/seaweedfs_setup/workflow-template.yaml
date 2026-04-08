@@ -2,7 +2,9 @@ apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
   name: seaweedfs-init-template
-  namespace: seaweedfs
+  namespace: ml-pipeline-seaweedfs
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   entrypoint: run-shell
   templates:

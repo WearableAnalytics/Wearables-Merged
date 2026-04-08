@@ -1,0 +1,16 @@
+project: wearables
+provider: local
+registry:
+  registry_type: sql
+  path: postgresql+psycopg://feast_user:FEAST_DB_PASSWORD_PLACEHOLDER@prod-postgres.prod-postgres.svc.cluster.local:5432/feast
+online_store:
+  type: postgres
+  host: prod-postgres.prod-postgres.svc.cluster.local
+  port: 5432
+  database: feast
+  user: feast_user
+  password: FEAST_DB_PASSWORD_PLACEHOLDER
+  sslmode: disable
+offline_store:
+  type: file
+entity_key_serialization_version: 3

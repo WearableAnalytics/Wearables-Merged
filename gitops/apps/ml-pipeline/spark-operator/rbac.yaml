@@ -1,0 +1,85 @@
+# ServiceAccount used by Spark driver pods.
+# All three SparkApplications reference: serviceAccount: spark-operator-spark
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark-operator-spark
+  namespace: ml-pipeline-spark-jobs
+---
+# Role granting the driver pod the minimum permissions it needs:
+# - create/delete executor pods
+# - create/delete services (for driver UI)
+# - get/watch/list pods (to track executor status)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spark-driver-role
+  namespace: ml-pipeline-spark-jobs
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch, create, delete, patch]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch, create, delete]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch, create, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-driver-rolebinding
+  namespace: ml-pipeline-spark-jobs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: spark-driver-role
+subjects:
+  - kind: ServiceAccount
+    name: spark-operator-spark
+    namespace: ml-pipeline-spark-jobs
+---
+# Role for the spark-operator controller itself in spark-jobs.
+# Needed so it can: create/delete driver+executor pods, update SparkApplication
+# status, create services and configmaps, and emit events.
+# The chart only creates this when sparkJobNamespaces is set at first install;
+# since we corrected the values after the fact we add it explicitly here.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spark-operator-role
+  namespace: ml-pipeline-spark-jobs
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch, create, delete, patch, update]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch, create, delete, patch, update]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch, create, delete, patch, update]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, update, patch]
+  - apiGroups: [sparkoperator.k8s.io]
+    resources: [sparkapplications, sparkapplications/status, sparkapplications/finalizers]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [sparkoperator.k8s.io]
+    resources: [scheduledsparkapplications, scheduledsparkapplications/status, scheduledsparkapplications/finalizers]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-operator-rolebinding
+  namespace: ml-pipeline-spark-jobs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: spark-operator-role
+subjects:
+  - kind: ServiceAccount
+    name: spark-operator
+    namespace: ml-pipeline-spark-operator

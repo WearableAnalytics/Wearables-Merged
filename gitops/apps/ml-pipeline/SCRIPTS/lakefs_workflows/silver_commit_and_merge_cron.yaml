@@ -1,0 +1,78 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: lakefs-commit-and-merge-cron
+  namespace: ml-pipeline-lakefs
+spec:
+  schedule: "*/30 * * * *"  # Every 30 minutes
+  concurrencyPolicy: Replace
+  startingDeadlineSeconds: 0
+  workflowSpec:
+    entrypoint: commit-and-merge
+    templates:
+    - name: commit-and-merge
+      container:
+        image: treeverse/lakectl:latest
+        env:
+        - name: LAKECTL_SERVER_ENDPOINT_URL
+          value: "http://lakefs.ml-pipeline-lakefs.svc.cluster.local:80"
+        - name: LAKECTL_CREDENTIALS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: lakefs-secrets
+              key: lakefs_s3_access_key
+        - name: LAKECTL_CREDENTIALS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: lakefs-secrets
+              key: lakefs_s3_secret_key
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          REPO="lake-silver"
+          BRANCH="processed"
+
+          echo "=== Waiting for lakeFS ==="
+          until lakectl doctor; do
+            echo "lakeFS not ready, retrying in 5s..."
+            sleep 5
+          done
+          echo "lakeFS is ready."
+
+          # -------------------------------------------------------
+          # 1. Ensure the "processed" branch exists
+          # -------------------------------------------------------
+          echo "=== Ensuring branch '${BRANCH}' exists ==="
+          if ! lakectl branch show "lakefs://${REPO}/${BRANCH}" 2>/dev/null; then
+            echo "Creating branch '${BRANCH}' from 'main'..."
+            lakectl branch create "lakefs://${REPO}/${BRANCH}" --source "lakefs://${REPO}/main"
+            echo "Branch created."
+          else
+            echo "Branch '${BRANCH}' already exists."
+          fi
+
+          # -------------------------------------------------------
+          # 2. Commit on the "processed" branch
+          # -------------------------------------------------------
+          echo "=== Committing on branch '${BRANCH}' ==="
+          if lakectl commit "lakefs://${REPO}/${BRANCH}" \
+            -m "Scheduled processed data commit" \
+            --meta "source=argo-cron-workflow" \
+            --meta "workflow=lakefs-commit-and-merge-cron"; then
+            echo "Commit successful."
+          else
+            echo "Nothing to commit or commit failed. Skipping merge."
+            exit 0
+          fi
+
+          # -------------------------------------------------------
+          # 3. Merge "processed" → "main"
+          # -------------------------------------------------------
+          echo "=== Merging '${BRANCH}' into 'main' ==="
+          lakectl merge "lakefs://${REPO}/${BRANCH}" "lakefs://${REPO}/main" \
+            --message "Scheduled merge of processed branch into main" \
+            --meta "source=argo-cron-workflow"
+
+          echo "=== Done: committed and merged '${BRANCH}' → 'main' ==="

@@ -1,8 +1,8 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
-  name: setup-lakefs-workflow
-  namespace: lakefs
+  generateName: setup-lakefs-workflow-
+  namespace: ml-pipeline-lakefs
 spec:
   entrypoint: setup-lakefs
   templates:
@@ -22,7 +22,7 @@ spec:
             key: lakefs_s3_secret_key
       # Update this if your lakeFS service name or port is different
       - name: LAKEFS_ENDPOINT
-        value: "http://lakefs.lakefs.svc.cluster.local:80"
+        value: "http://lakefs.ml-pipeline-lakefs.svc.cluster.local:80"
       command:
       - /bin/sh
       - -c

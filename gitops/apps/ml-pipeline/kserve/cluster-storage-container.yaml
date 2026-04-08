@@ -1,0 +1,25 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterStorageContainer
+metadata:
+  name: mlflow-registry
+spec:
+  # Override the storage initializer for models:/ URIs to inject MLflow env vars.
+  # This lets KServe resolve "models:/heart_rate_model/Production" by calling the
+  # MLflow tracking server, then download the actual artifacts from SeaweedFS S3.
+  container:
+    name: storage-initializer
+    image: kserve/storage-initializer:v0.17.0
+    env:
+      - name: MLFLOW_TRACKING_URI
+        value: "http://mlflow-tracking.ml-pipeline-mlflow.svc.cluster.local:5000"
+      - name: MLFLOW_S3_ENDPOINT_URL
+        value: "http://seaweedfs-s3.ml-pipeline-seaweedfs.svc.cluster.local:8333"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  supportedUriFormats:
+    - prefix: "models:/"

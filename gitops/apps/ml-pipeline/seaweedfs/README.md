@@ -23,8 +23,6 @@ We set the password secrets values via --set, the ids are hardcoded in the value
     helm upgrade --install seaweedfs . \
     --namespace seaweedfs \
     --create-namespace \
-    --set mySecrets.adminSecretAccessKey="qPH8JS2yz%$3K7wxUi2!" \
-    --set mySecrets.readSecretAccessKey="CHxgjgbM%5cb8rBNJx#a" 
 ```
 
 If you want to first run dry run you can append the ` --dry-run --debug `

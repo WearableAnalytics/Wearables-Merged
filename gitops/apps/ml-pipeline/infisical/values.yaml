@@ -1,0 +1,50 @@
+# Infisical Helm Configuration
+infisical:
+  enabled: true
+  name: infisical
+  replicaCount: 2
+  image:
+    repository: infisical/infisical
+    tag: "v0.158.0"
+    pullPolicy: IfNotPresent
+  
+  # Reference to the Secret containing DB_CONNECTION_URI and REDIS_URL
+  kubeSecretRef: "infisical-secrets"
+
+  resources:
+    limits:
+      memory: 1000Mi
+    requests:
+      cpu: 350m
+
+# Ingress Configuration (Disabled as per your internal-only requirement)
+ingress:
+  enabled: false
+
+# PostgreSQL Configuration (New primary database)
+postgresql:
+  enabled: true
+  fullnameOverride: "postgresql"
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/postgresql
+    tag: "14.11.0-debian-11-r0"
+  auth:
+    username: "infisical"
+    password: "root"
+    database: "infisicalDB"
+
+# Redis Configuration (For caching and queues)
+redis:
+  enabled: true
+  fullnameOverride: "redis"
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/redis
+    tag: "7.0.12-debian-11-r0"
+  auth:
+    password: "mysecretpassword"
+
+# Explicitly disable MongoDB (Deprecated in newer Infisical versions)
+mongodb:
+  enabled: false

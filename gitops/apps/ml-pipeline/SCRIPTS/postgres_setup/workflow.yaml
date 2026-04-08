@@ -1,12 +1,12 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
-  name: postgres-init-wf
+  generateName: postgres-init-wf-
   namespace: prod-postgres
   annotations:
-    # Retaining your ArgoCD hooks if this is still deployed via ArgoCD
     argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   workflowTemplateRef:
     name: postgres-init-wt

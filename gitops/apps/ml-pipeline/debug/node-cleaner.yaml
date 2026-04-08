@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: node-cleaner
+  namespace: ml-pipeline-debug
+spec:
+  restartPolicy: Never
+  # FORCE the pod to run on the specific full node
+  nodeName: wearables-node-b6f485fdd-nb84g   #wearables-node-b6f485fdd-l74lt #wearables-node-5776c9586d-ssnwh
+  
+  # CRITICAL: This gives the pod "Root" access to the underlying server
+  hostPID: true
+  hostNetwork: true
+  
+  containers:
+  - name: cleaner
+    image: alpine
+    # We need a privileged container to talk to the Docker/Containerd daemon
+    securityContext:
+      privileged: true
+    # This command keeps the pod alive so we can attach to it
+    command: ["/bin/sh", "-c", "sleep 3600"]

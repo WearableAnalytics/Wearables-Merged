@@ -31,6 +31,36 @@ data:
     GRANT ALL PRIVILEGES ON DATABASE lakefs TO lakefs_user;
     GRANT ALL ON SCHEMA public TO lakefs_user;
 
+    -- Create Feast User if not exists
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'feast_user') THEN
+        CREATE USER feast_user WITH PASSWORD 'FEAST_PASSWORD_PLACEHOLDER';
+      END IF;
+    END $$;
+
+    SELECT 'CREATE DATABASE feast' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'feast')\gexec
+
+    -- Create MLflow User if not exists
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_catalog.pg_user WHERE usename = 'mlflow_user') THEN
+        CREATE USER mlflow_user WITH PASSWORD 'MLFLOW_PASSWORD_PLACEHOLDER';
+      END IF;
+    END $$;
+
+    SELECT 'CREATE DATABASE mlflow' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'mlflow')\gexec
+
+    -- Schema Permissions for MLflow
+    \c mlflow
+    GRANT ALL PRIVILEGES ON DATABASE mlflow TO mlflow_user;
+    GRANT ALL ON SCHEMA public TO mlflow_user;
+
+    -- Schema Permissions for Feast
+    \c feast
+    GRANT ALL PRIVILEGES ON DATABASE feast TO feast_user;
+    GRANT ALL ON SCHEMA public TO feast_user;
+
     -- Schema Permissions for SeaweedFS
     \c seaweedfs
     GRANT ALL PRIVILEGES ON DATABASE seaweedfs TO seaweedfs_user;

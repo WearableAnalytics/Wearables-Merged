@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: spark-debug-pod
+  namespace: ml-pipeline-spark-jobs
+spec:
+  serviceAccountName: spark-operator-spark
+  containers:
+    - name: debug-container
+      image: wearables42/streaming-ml-pipeline:latest
+      imagePullPolicy: Always
+      # Keep the container alive indefinitely for manual debugging
+      command: [ "sleep", "infinity" ]
+      envFrom:
+        - secretRef:
+            name: spark-pipeline-secrets
+  restartPolicy: Never

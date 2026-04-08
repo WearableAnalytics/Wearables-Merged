@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feast-feature-server
+  namespace: ml-pipeline-feast
+  labels:
+    app: feast
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feast
+  template:
+    metadata:
+      labels:
+        app: feast
+    spec:
+      initContainers:
+        # Generates feature_store.yaml with real credentials, then runs feast apply
+        - name: feast-apply
+          image: "wearables42/feast:latest"
+          envFrom:
+            - secretRef:
+                name: feast-secrets
+          command:
+            - /bin/sh
+            - -c
+            - |
+              cd /app/feature_repo
+              # Inject real credentials into feature_store.yaml
+              envsubst < /config/feature_store.yaml > feature_store.yaml
+              echo "--> Running feast apply..."
+              feast apply
+              echo "--> Feast apply complete."
+          volumeMounts:
+            - name: feast-config
+              mountPath: /config
+      containers:
+        - name: feast-server
+          image: "wearables42/feast:latest"
+          ports:
+            - containerPort: 6566
+          envFrom:
+            - secretRef:
+                name: feast-secrets
+          command:
+            - /bin/sh
+            - -c
+            - |
+              cd /app/feature_repo
+              envsubst < /config/feature_store.yaml > feature_store.yaml
+              feast serve --host 0.0.0.0 --port 6566
+          volumeMounts:
+            - name: feast-config
+              mountPath: /config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 6566
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 6566
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: feast-config
+          configMap:
+            name: feast-feature-repo

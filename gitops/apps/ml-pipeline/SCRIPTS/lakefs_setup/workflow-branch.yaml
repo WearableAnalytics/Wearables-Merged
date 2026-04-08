@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: setup-lake-silver-lakectl-
+  namespace: ml-pipeline-lakefs
+spec:
+  entrypoint: setup-repo
+  templates:
+  - name: setup-repo
+    container:
+      # Using the official lakeFS image which includes lakectl
+      image: treeverse/lakefs:latest
+      env:
+      - name: LAKECTL_SERVER_ENDPOINT_URL
+        value: "http://lakefs.ml-pipeline-lakefs.svc.cluster.local:80/api/v1"
+      - name: LAKECTL_CREDENTIALS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: lakefs-secrets
+            key: lakefs_s3_access_key
+      - name: LAKECTL_CREDENTIALS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: lakefs-secrets
+            key: lakefs_s3_secret_key
+      command:
+      - /bin/sh
+      - -c
+      - |
+        set -e # Exit on any error
+
+        echo "Creating repository 'lake-silver'..."
+        # '|| true' allows the script to continue if the repo already exists
+        lakectl repo create lakefs://lake-silver s3://lake-silver/ --default-branch main || echo "Repo already exists"
+
+        echo "Creating branch 'processed'..."
+        lakectl branch create lakefs://lake-silver/processed --source lakefs://lake-silver/main || echo "Branch 'processed' already exists"
+
+        echo "Creating branch 'influx-checkpoint-branch'..."
+        lakectl branch create lakefs://lake-silver/influx-checkpoint-branch --source lakefs://lake-silver/main || echo "Branch 'influx-checkpoint-branch' already exists"
+
+        echo "Setup complete!"
+        lakectl repo list

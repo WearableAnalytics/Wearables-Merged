@@ -37,7 +37,7 @@ lakefs:
           key: s3_secret_key
 
     - name: LAKEFS_BLOCKSTORE_S3_ENDPOINT
-      value: "http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333"
+      value: "http://seaweedfs-s3.ml-pipeline-seaweedfs.svc.cluster.local:8333"
 
   lakefsConfig: |
     database:

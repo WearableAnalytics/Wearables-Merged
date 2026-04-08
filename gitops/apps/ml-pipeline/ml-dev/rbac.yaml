@@ -1,0 +1,39 @@
+# ServiceAccount used by the Jupyter notebook pod.
+# The auto-mounted token lets kubectl/kubernetes-client inside the notebook
+# authenticate to the API server using this identity.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark-notebook
+  namespace: ml-pipeline-ml-dev
+---
+# ClusterRole that grants the minimum rights needed to submit, inspect,
+# and delete SparkApplications.  Scoped to sparkoperator.k8s.io resources only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ml-dev-spark-submitter
+rules:
+  - apiGroups: [sparkoperator.k8s.io]
+    resources: [sparkapplications, sparkapplications/status]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Allow reading pods/logs so the data scientist can monitor driver/executor output
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list, watch]
+---
+# RoleBinding in ml-pipeline-spark-jobs so the notebook SA can only touch
+# SparkApplications in that one namespace — not cluster-wide.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ml-dev-spark-submitter
+  namespace: ml-pipeline-spark-jobs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ml-dev-spark-submitter
+subjects:
+  - kind: ServiceAccount
+    name: spark-notebook
+    namespace: ml-pipeline-ml-dev

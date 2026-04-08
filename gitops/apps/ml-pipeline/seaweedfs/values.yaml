@@ -23,7 +23,7 @@ seaweedfs:
       WEED_LEVELDB2_ENABLED: "false"
       WEED_POSTGRES_ENABLED: "true"
       # Postgres connection settings - these should match the configuration of our Postgres Prod instance
-      WEED_POSTGRES_HOSTNAME: "prod-postgres.prod-postgres.svc.cluster.local" 
+      WEED_POSTGRES_HOSTNAME: "prod-postgres.prod-postgres.svc.cluster.local"
       WEED_POSTGRES_PORT: "5432"
       WEED_POSTGRES_DATABASE: "seaweedfs"
       WEED_POSTGRES_SSLMODE: "disable" # it needs to be disabled because our Postgres does not have SSL configured yet
@@ -31,18 +31,18 @@ seaweedfs:
     secretExtraEnvironmentVars:
       WEED_POSTGRES_USERNAME:
         secretKeyRef:
-          name: seaweedfs-postgres-secret
-          key: username
+          name: seaweedfs-s3-secret
+          key: WEED_POSTGRES_USERNAME
       WEED_POSTGRES_PASSWORD:
         secretKeyRef:
-          name: seaweedfs-postgres-secret
-          key: password
+          name: seaweedfs-s3-secret
+          key: WEED_POSTGRES_PASSWORD
   s3:
     enabled: true
     replicas: 1
     port: 8333
     enableAuth: true
-    existingConfigSecret: "seaweedfs-s3-secret" # Must match metadata.name in seaweedfs-s3-secret.yaml
+    existingConfigSecret: "seaweedfs-s3-secret"
 
   master:
     enabled: true

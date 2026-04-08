@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Only the RBAC goes through kustomize.
+# The operator itself is installed via Helm (see values.yaml).
+resources:
+  - rbac.yaml
