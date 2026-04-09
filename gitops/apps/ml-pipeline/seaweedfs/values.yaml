@@ -18,35 +18,33 @@ seaweedfs:
     s3:
       enabled: true
     extraEnvironmentVars:
+      # Disable MySQL and LevelDB2, and enable Postgres for metadata storage
       WEED_MYSQL_ENABLED: "false"
       WEED_LEVELDB2_ENABLED: "false"
-
       WEED_POSTGRES_ENABLED: "true"
-      WEED_POSTGRES_HOSTNAME: "prod-postgres.prod-postgres.svc.cluster.local" 
+      # Postgres connection settings - these should match the configuration of our Postgres Prod instance
+      WEED_POSTGRES_HOSTNAME: "prod-postgres.prod-postgres.svc.cluster.local"
       WEED_POSTGRES_PORT: "5432"
       WEED_POSTGRES_DATABASE: "seaweedfs"
-
-      WEED_POSTGRES_USERNAME: "seaweedfs_user"
-      WEED_POSTGRES_PASSWORD: "tuSfWf@3UNNhw2@b9Ygq"
-
       WEED_POSTGRES_SSLMODE: "disable" # it needs to be disabled because our Postgres does not have SSL configured yet
-
+    
+    secretExtraEnvironmentVars:
+      WEED_POSTGRES_USERNAME:
+        secretKeyRef:
+          name: seaweedfs-s3-secret
+          key: WEED_POSTGRES_USERNAME
+      WEED_POSTGRES_PASSWORD:
+        secretKeyRef:
+          name: seaweedfs-s3-secret
+          key: WEED_POSTGRES_PASSWORD
   s3:
     enabled: true
     replicas: 1
     port: 8333
-    auth:
-      enabled: true
-      existingSecret: "seaweedfs-secret" # Must match metadata.name in secret.yaml
+    enableAuth: true
+    existingConfigSecret: "seaweedfs-s3-secret"
 
   master:
     enabled: true
     replicas: 1
 
-
-mySecrets:
-  name: "seaweedfs-secret"
-  adminAccessKeyId: "admin"
-  adminSecretAccessKey: ""
-  readAccessKeyId: "readonly"
-  readSecretAccessKey: ""

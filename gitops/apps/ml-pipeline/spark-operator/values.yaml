@@ -1,0 +1,18 @@
+spark:
+  jobNamespaces:
+    - "ml-pipeline-spark-jobs"
+
+serviceAccounts:
+  sparkoperator:
+    create: true
+    name: spark-operator
+  # We manage the driver service account ourselves in rbac.yaml
+  spark:
+    create: false
+
+webhook:
+  enable: true
+
+# Disable metrics if no Prometheus scraping
+metrics:
+  enable: false

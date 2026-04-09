@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feast-feature-repo
+  namespace: ml-pipeline-feast
+data:
+  feature_store.yaml: |
+    project: wearables
+    provider: local
+    registry:
+      registry_type: sql
+      path: postgresql://${FEAST_DB_USER}:${FEAST_DB_PASSWORD}@${FEAST_DB_HOST}:${FEAST_DB_PORT}/${FEAST_DB_NAME}
+    online_store:
+      type: postgres
+      host: ${FEAST_DB_HOST}
+      port: ${FEAST_DB_PORT}
+      database: ${FEAST_DB_NAME}
+      user: ${FEAST_DB_USER}
+      password: ${FEAST_DB_PASSWORD}
+    offline_store:
+      type: file
+    entity_key_serialization_version: 2

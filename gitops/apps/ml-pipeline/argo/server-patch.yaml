@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argo-server
+  # Note: This must match the hardcoded "argo" namespace from the upstream base manifest.
+  # Kustomize applies patches first, and will later transform the final namespace 
+  # to "ml-pipeline-argo" based on the global override in kustomization.yaml.
+  namespace: argo
+spec:
+  template:
+    spec:
+      containers:
+      - name: argo-server
+        args:
+        - server
+        - --auth-mode=server
+        - --secure=false  # Simplifies local port-forwarding/NodePort
+        # Add the following probe overrides if secure=false:
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            port: 2746
+            path: /healthz
+        livenessProbe:
+          httpGet:
+            scheme: HTTP
+            port: 2746
+            path: /healthz

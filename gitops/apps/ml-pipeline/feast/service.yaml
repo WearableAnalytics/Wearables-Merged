@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: feast-feature-server
+  namespace: ml-pipeline-feast
+  labels:
+    app: feast
+spec:
+  type: ClusterIP
+  selector:
+    app: feast
+  ports:
+    - port: 6566
+      targetPort: 6566
+      protocol: TCP
+      name: http

@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: seaweedfs-init-template
+  namespace: ml-pipeline-seaweedfs
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  entrypoint: run-shell
+  templates:
+  - name: run-shell
+    container:
+      image: chrislusf/seaweedfs:latest
+      command: ["/bin/sh", "-c"]
+      args: ["cat /scripts/setup.txt | weed shell -master=seaweedfs-master:9333"]
+      volumeMounts:
+      - name: script-volume
+        mountPath: /scripts
+    volumes:
+    - name: script-volume
+      configMap:
+        name: seaweedfs-setup-script

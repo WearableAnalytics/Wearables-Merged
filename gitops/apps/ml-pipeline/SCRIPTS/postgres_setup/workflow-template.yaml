@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: postgres-init-wt
+  namespace: prod-postgres
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  entrypoint: init-db
+  volumes:
+  - name: script-vol
+    configMap:
+      name: postgres-setup-script
+  templates:
+  - name: init-db
+    container:
+      image: postgres:alpine
+      env:
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: postgres-setup-secrets
+            key: PGPASSWORD
+      - name: L_PASS
+        valueFrom:
+          secretKeyRef:
+            name: postgres-setup-secrets
+            key: LAKEFS_PASS
+      - name: S_PASS
+        valueFrom:
+          secretKeyRef:
+            name: postgres-setup-secrets
+            key: SEAWEEDFS_PASS
+      - name: M_PASS
+        valueFrom:
+          secretKeyRef:
+            name: postgres-setup-secrets
+            key: MLFLOW_PASS
+      - name: F_PASS
+        valueFrom:
+          secretKeyRef:
+            name: postgres-setup-secrets
+            key: FEAST_PASS
+      command:
+      - /bin/sh
+      - -c
+      - |
+        # Replace placeholders in the SQL with actual env vars
+        cp /scripts/setup.sql /tmp/setup.sql
+        sed -i "s/LAKEFS_PASSWORD_PLACEHOLDER/$L_PASS/g" /tmp/setup.sql
+        sed -i "s/SEAWEEDFS_PASSWORD_PLACEHOLDER/$S_PASS/g" /tmp/setup.sql
+        sed -i "s/MLFLOW_PASSWORD_PLACEHOLDER/$M_PASS/g" /tmp/setup.sql
+        sed -i "s/FEAST_PASSWORD_PLACEHOLDER/$F_PASS/g" /tmp/setup.sql
+        
+        # Run the script
+        psql -h prod-postgres -U postgres -d postgres -f /tmp/setup.sql
+      volumeMounts:
+      - name: script-vol
+        mountPath: /scripts

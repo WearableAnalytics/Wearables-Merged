@@ -1,0 +1,18 @@
+delta-spark==4.0.0 #must be the same as the version in spark_jobs/Dockerfile
+mlflow==3.10.1 #must be the same as the version in mlflow/Dockerfile
+lakefs-client
+influxdb-client
+pandas
+scikit-learn
+feast[postgres]
+pyyaml
+boto3
+
+# # Additional optional dependencies for Spark jobs
+# tqdm
+# numpy
+# pyarrow
+# scipy
+# boto3
+# botocore
+# requests

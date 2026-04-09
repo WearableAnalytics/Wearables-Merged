@@ -1,0 +1,24 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: heart-rate-model
+  namespace: ml-pipeline-kserve-models
+spec:
+  predictor:
+    serviceAccountName: kserve-sa
+    model:
+      modelFormat:
+        name: mlflow
+      # Resolves via MLflow tracking server (configured in ClusterStorageContainer).
+      # Always points to the current Production version — no path changes needed
+      # when the model is retrained and re-promoted to Production.
+      # MLflow 3.x alias syntax: models:/<name>@<alias>
+      # Falls back to stage syntax (models:/<name>/<stage>) for older MLflow versions
+      storageUri: "models:/heart_rate_model@Production"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi

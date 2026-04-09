@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: seaweedfs-setup-script
+  namespace: ml-pipeline-seaweedfs
+data:
+  setup.txt: |
+    fs.mkdir /buckets/lake-test
+    fs.mkdir /buckets/lake-bronze
+    fs.mkdir /buckets/lake-silver
+    fs.mkdir /buckets/lake-gold
+    fs.mkdir /buckets/models
+    lock
+    fs.configure -locationPrefix /buckets/lake-bronze -replication 000 --apply
+    fs.configure -locationPrefix /buckets/lake-silver -replication 001 --apply
+    fs.configure -locationPrefix /buckets/lake-gold -replication 001 --apply
+    fs.configure -locationPrefix /buckets/models -replication 001 --apply
+    unlock

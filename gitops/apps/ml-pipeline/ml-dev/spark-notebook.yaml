@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-notebook
+  namespace: ml-pipeline-ml-dev
+  labels:
+    app: spark-notebook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-notebook
+  template:
+    metadata:
+      labels:
+        app: spark-notebook
+    spec:
+      serviceAccountName: spark-notebook
+
+      containers:
+        - name: notebook
+          image: wearables42/spark-notebook:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8888
+          env:
+            - name: JUPYTER_TOKEN
+              value: "admin123"
+            # Cluster-internal service endpoints — not secrets, just topology
+            - name: MLFLOW_TRACKING_URI
+              value: "http://mlflow-tracking.ml-pipeline-mlflow.svc.cluster.local:5000"
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: "http://seaweedfs-s3.ml-pipeline-seaweedfs.svc.cluster.local:8333"
+          # All Infisical-managed secrets injected as environment variables.
+          # The InfisicalSecret CRD (infisical/secrets/ml-dev.yaml) keeps this
+          # Secret in sync with the ml-pipeline/prod project in Infisical.
+          envFrom:
+            - secretRef:
+                name: ml-dev-secrets
+          resources:
+            requests:
+              cpu: "1"
+              memory: "3Gi"
+              ephemeral-storage: "5Gi"
+            limits:
+              cpu: "2"
+              memory: "6Gi"
+          readinessProbe:
+            httpGet:
+              path: /api
+              port: 8888
+              httpHeaders:
+                - name: Authorization
+                  value: "token admin123"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-notebook
+  namespace: ml-pipeline-ml-dev
+  labels:
+    app: spark-notebook
+spec:
+  selector:
+    app: spark-notebook
+  ports:
+    - name: jupyter
+      port: 8888
+      targetPort: 8888
+  type: ClusterIP

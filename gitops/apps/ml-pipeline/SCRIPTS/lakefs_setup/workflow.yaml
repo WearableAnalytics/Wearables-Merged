@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: setup-lakefs-workflow-
+  namespace: ml-pipeline-lakefs
+spec:
+  entrypoint: setup-lakefs
+  templates:
+  - name: setup-lakefs
+    container:
+      image: curlimages/curl:latest
+      env:
+      - name: LAKEFS_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: lakefs-secrets
+            key: lakefs_s3_access_key
+      - name: LAKEFS_SECRET_KEY
+        valueFrom:
+          secretKeyRef:
+            name: lakefs-secrets
+            key: lakefs_s3_secret_key
+      # Update this if your lakeFS service name or port is different
+      - name: LAKEFS_ENDPOINT
+        value: "http://lakefs.ml-pipeline-lakefs.svc.cluster.local:80"
+      command:
+      - /bin/sh
+      - -c
+      - |
+        echo "Waiting for lakeFS to be ready at ${LAKEFS_ENDPOINT}..."
+        
+        # Loop until the health check endpoint returns an HTTP 200 OK
+        while ! curl -v --fail ${LAKEFS_ENDPOINT}/_health; do
+          echo "lakeFS not ready or unreachable, sleeping 5 seconds..."
+          sleep 5
+        done
+        
+        echo "lakeFS is up! Attempting automated setup..."
+        
+        # Hit the setup API endpoint with the credentials
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${LAKEFS_ENDPOINT}/api/v1/setup_lakefs" \
+          -H "Content-Type: application/json" \
+          -d '{
+                "username": "admin",
+                "key": {
+                  "access_key_id": "'"${LAKEFS_ACCESS_KEY}"'",
+                  "secret_access_key": "'"${LAKEFS_SECRET_KEY}"'"
+                }
+              }')
+
+        # Handle the API response
+        if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 201 ]; then
+          echo "lakeFS setup completed successfully!"
+          exit 0
+        elif [ "$HTTP_STATUS" -eq 409 ]; then
+          echo "lakeFS is already set up. Conflict (409) detected. Skipping."
+          exit 0
+        else
+          echo "Setup failed with HTTP status $HTTP_STATUS"
+          exit 1
+        fi

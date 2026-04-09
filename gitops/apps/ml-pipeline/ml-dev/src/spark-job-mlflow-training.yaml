@@ -1,0 +1,64 @@
+# Exemplary SparkApplication submitted from the ml-dev notebook.
+#
+# Usage from the Jupyter terminal:
+#   kubectl apply -f /home/jovyan/work/src/spark-job-mlflow-training.yaml
+#
+# Monitor:
+#   kubectl get sparkapplication mlflow-training-job -n ml-pipeline-spark-jobs -w
+#   kubectl logs -n ml-pipeline-spark-jobs -l spark-role=driver --tail=100
+#
+# Delete (to re-run):
+#   kubectl delete sparkapplication mlflow-training-job -n ml-pipeline-spark-jobs
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: mlflow-training-job
+  namespace: ml-pipeline-spark-jobs
+spec:
+  type: Python
+  pythonVersion: "3"
+  # cluster mode: driver runs inside the cluster as a pod managed by the operator
+  mode: cluster
+  # Same image as the notebook — contains sklearn, mlflow, pandas and the
+  # training script at /home/jovyan/work/src/ml_flow_training.py
+  image: "wearables42/spark-notebook:latest"
+  imagePullPolicy: Always
+  mainApplicationFile: "local:///home/jovyan/work/src/ml_flow_training.py"
+  sparkVersion: "4.1.1"
+
+  sparkConf:
+    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
+    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+
+  # One-shot training run — do not restart on failure so the data scientist
+  # can inspect the driver logs immediately.
+  restartPolicy:
+    type: Never
+
+  driver:
+    cores: 1
+    memory: "2g"
+    serviceAccount: spark-operator-spark
+    # spark-pipeline-secrets is synced from Infisical (same project/env as
+    # ml-dev-secrets) and already lives in ml-pipeline-spark-jobs.
+    envFrom:
+      - secretRef:
+          name: spark-pipeline-secrets
+    env:
+      - name: MLFLOW_TRACKING_URI
+        value: "http://mlflow-tracking.ml-pipeline-mlflow.svc.cluster.local:5000"
+      - name: MLFLOW_S3_ENDPOINT_URL
+        value: "http://seaweedfs-s3.ml-pipeline-seaweedfs.svc.cluster.local:8333"
+
+  executor:
+    cores: 1
+    instances: 1
+    memory: "1g"
+    envFrom:
+      - secretRef:
+          name: spark-pipeline-secrets
+    env:
+      - name: MLFLOW_TRACKING_URI
+        value: "http://mlflow-tracking.ml-pipeline-mlflow.svc.cluster.local:5000"
+      - name: MLFLOW_S3_ENDPOINT_URL
+        value: "http://seaweedfs-s3.ml-pipeline-seaweedfs.svc.cluster.local:8333"

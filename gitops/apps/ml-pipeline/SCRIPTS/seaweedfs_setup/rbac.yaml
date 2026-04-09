@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-admin-binding
+  namespace: ml-pipeline-seaweedfs
+subjects:
+- kind: ServiceAccount
+  name: argo-server
+  namespace: ml-pipeline-argo
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
