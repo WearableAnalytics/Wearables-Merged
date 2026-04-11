@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NewType
 
 import strawberry
 from pydantic import AwareDatetime as PydanticAwareDatetime
@@ -32,10 +32,12 @@ def _serialize_aware_datetime(value: datetime) -> str:
 if TYPE_CHECKING:
     type AwareDateTime = datetime
 else:
-    AwareDateTime = strawberry.scalar(
-        datetime,
-        name="AwareDateTime",
-        description="ISO 8601 datetime with timezone offset.",
-        serialize=_serialize_aware_datetime,
-        parse_value=_parse_aware_datetime,
-    )
+    AwareDateTime = NewType("AwareDateTime", datetime)
+
+
+AwareDateTimeScalar = strawberry.scalar(
+    name="AwareDateTime",
+    description="ISO 8601 datetime with timezone offset.",
+    serialize=_serialize_aware_datetime,
+    parse_value=_parse_aware_datetime,
+)
