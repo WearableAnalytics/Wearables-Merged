@@ -1,0 +1,62 @@
+services:
+  db:
+    image: postgres:18
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wearables
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d wearables"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: password123456
+      DOCKER_INFLUXDB_INIT_ORG: my-org
+      DOCKER_INFLUXDB_INIT_BUCKET: medical_data
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: devtoken123
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wearables
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: devtoken123
+      INFLUX_ORG: my-org
+      INFLUX_BUCKET: medical_data
+    depends_on:
+      db:
+        condition: service_healthy
+      influxdb:
+        condition: service_started
+    volumes:
+      - .:/app
+      - venv:/app/.venv
+    command: >
+      sh -c "uv sync --locked &&
+             uv run alembic upgrade head &&
+             uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  postgres_data:
+  influxdb_data:
+  venv:

@@ -44,7 +44,7 @@ from app.services.wearable_service import WearableService
 
 async def get_db() -> AsyncGenerator[AsyncSession]:
     """Provide a database session.
-    - Service write methods own transaction boundaries via `async with session.begin()`
+    - Service write methods own transaction boundaries via `async with <session>.begin()`
     - Services have to commit: rollback is enabled by default
     """
     async with AsyncSessionLocal() as session:
