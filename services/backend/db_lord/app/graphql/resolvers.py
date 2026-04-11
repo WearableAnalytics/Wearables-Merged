@@ -1,13 +1,13 @@
 import asyncio
 from collections import defaultdict
-from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
+from collections.abc import AsyncGenerator, Iterable
 from typing import Any
 from uuid import UUID
 
 import strawberry
 import strawberry.relay as relay
 from sqlalchemy import literal, select, union_all
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry import cast as strawberry_cast
 from strawberry.types.maybe import Some
 
@@ -48,22 +48,17 @@ from app.telemetry.tag_filters import merge_tag_filter
 from app.telemetry.types import TelemetryTags
 
 
-async def _with_db[TDbResult](info: strawberry.Info, fn: Callable[[AsyncSession], Awaitable[TDbResult]]) -> TDbResult:
-    """Run a DB callback inside the request session factory and semaphore guard."""
-    context = context_from_info(info)
-    session_factory: async_sessionmaker[AsyncSession] = context["session_factory"]
-    db_semaphore = context["db_semaphore"]
-    async with db_semaphore, session_factory() as db:
-        return await fn(db)
-
-
 def _keyset_source[TGraphQL](
     info: strawberry.Info, model: type[Any], graphql_type: type[TGraphQL], filter_input: FilterInput | None
 ) -> KeysetSource[TGraphQL]:
     context = context_from_info(info)
-    session_factory: async_sessionmaker[AsyncSession] = context["session_factory"]
-    db_semaphore = context["db_semaphore"]
-    return KeysetSource(session_factory, db_semaphore, model, graphql_type, apply_filter(model, filter_input))
+    return KeysetSource(
+        context.session_factory,
+        context.db_semaphore,
+        model,
+        graphql_type,
+        apply_filter(model, filter_input),
+    )
 
 
 def _enforce_telemetry_fanout_limits[TId](ids_by_key: dict[str, list[TId]]) -> dict[str, list[TId]]:
@@ -198,17 +193,12 @@ async def _resolve_telemetry_query_context(
     include_resolved_metadata: bool,
 ) -> tuple[TelemetryService, str, TelemetryTags, bool, TelemetryResolvedMetadata | None]:
     """Resolve telemetry repo, bucket, tags, result feasibility, and optional resolved metadata."""
-    telemetry_service: TelemetryService = context_from_info(info)["telemetry_service"]
+    telemetry_service: TelemetryService = context_from_info(info).telemetry_service
     bucket_name = resolve_bucket(settings.INFLUX_BUCKET, query.bucket)
 
-    async def _resolve_inputs(
-        db: AsyncSession,
-    ) -> tuple[TelemetryTags, bool, TelemetryResolvedMetadata | None]:
+    async with context_from_info(info).db_session() as db:
         tags, ids_by_key, has_results = await _prepare_telemetry_filters(db, query)
         resolved_metadata = await _build_resolved_metadata(db, ids_by_key) if include_resolved_metadata else None
-        return tags, has_results, resolved_metadata
-
-    tags, has_results, resolved_metadata = await _with_db(info, _resolve_inputs)
     return telemetry_service, bucket_name, tags, has_results, resolved_metadata
 
 
@@ -257,7 +247,7 @@ class Query:
         include_tag_values: bool = True,
         tag_value_limit: int | None = 500,
     ) -> InfluxDbIntrospection:
-        telemetry_service: TelemetryService = context_from_info(info)["telemetry_service"]
+        telemetry_service: TelemetryService = context_from_info(info).telemetry_service
         bucket_name = resolve_bucket(settings.INFLUX_BUCKET, bucket)
         if measurement is not None and measurement.strip() == "":
             raise ValueError("measurement must be a non-empty string when provided.")
@@ -267,29 +257,31 @@ class Query:
         measurement_names = (
             [measurement] if measurement is not None else await telemetry_service.list_measurements(bucket=bucket_name)
         )
+        introspection_semaphore = asyncio.Semaphore(max(1, settings.GRAPHQL_INFLUX_INTROSPECTION_MAX_CONCURRENCY))
 
         async def build_measurement(measurement_name: str) -> InfluxMeasurementIntrospection:
-            schema = await telemetry_service.describe_measurement(measurement_name, bucket=bucket_name)
-            tags: list[InfluxTagIntrospection] = []
-            for tag_key in schema.tag_keys:
-                tag_values = (
-                    await telemetry_service.get_measurement_tag_values(
-                        measurement_name,
-                        tag_key,
-                        tag_value_limit,
-                        bucket_name,
+            async with introspection_semaphore:
+                schema = await telemetry_service.describe_measurement(measurement_name, bucket=bucket_name)
+                tags: list[InfluxTagIntrospection] = []
+                for tag_key in schema.tag_keys:
+                    tag_values = (
+                        await telemetry_service.get_measurement_tag_values(
+                            measurement_name,
+                            tag_key,
+                            tag_value_limit,
+                            bucket_name,
+                        )
+                        if include_tag_values
+                        else []
                     )
-                    if include_tag_values
-                    else []
-                )
-                tags.append(InfluxTagIntrospection(key=tag_key, values=tag_values))
+                    tags.append(InfluxTagIntrospection(key=tag_key, values=tag_values))
 
-            return InfluxMeasurementIntrospection(
-                measurement=measurement_name,
-                tag_keys=list(schema.tag_keys),
-                field_keys=sorted(schema.field_keys),
-                tags=tags,
-            )
+                return InfluxMeasurementIntrospection(
+                    measurement=measurement_name,
+                    tag_keys=list(schema.tag_keys),
+                    field_keys=sorted(schema.field_keys),
+                    tags=tags,
+                )
 
         measurements = await asyncio.gather(
             *(build_measurement(measurement_name) for measurement_name in measurement_names),

@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     GRAPHQL_MAX_DEPTH: int = 12
     GRAPHQL_MAX_TOKENS: int = 5_000
     GRAPHQL_MAX_ALIASES: int = 15
+    GRAPHQL_INFLUX_INTROSPECTION_MAX_CONCURRENCY: int = 8
 
     # Health
     HEALTHCHECK_DB_TIMEOUT_MS: int = 5_000

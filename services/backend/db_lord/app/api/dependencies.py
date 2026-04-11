@@ -150,13 +150,13 @@ async def get_graphql_context(
 ) -> GraphQLContext:
     db_semaphore = request.app.state.graphql_db_semaphore
 
-    return {
-        "request": request,
-        "session_factory": AsyncSessionLocal,
-        "db_semaphore": db_semaphore,
-        "loaders": Loaders(AsyncSessionLocal, db_semaphore),
-        "telemetry_service": telemetry_service,
-    }
+    return GraphQLContext(
+        request=request,
+        session_factory=AsyncSessionLocal,
+        db_semaphore=db_semaphore,
+        loaders=Loaders(AsyncSessionLocal, db_semaphore),
+        telemetry_service=telemetry_service,
+    )
 
 
 PatientServiceDep = Annotated[PatientService, Depends(get_patient_service)]

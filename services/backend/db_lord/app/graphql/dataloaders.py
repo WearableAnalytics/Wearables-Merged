@@ -1,4 +1,5 @@
 from asyncio import Semaphore
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -68,6 +69,23 @@ class Loaders:
                 if graphql_entity is not None:
                     entities[entity.id] = graphql_entity
         return [entities.get(id) for id in ids]
+
+    def prime_entities(self, graphql_type: type[Any], entities: Iterable[Any]) -> None:
+        from app.graphql.types import Case, Context, Device, FHIRMapping, Patient, Wearable
+
+        loader_by_type = {
+            Patient: self.patient_by_id,
+            Case: self.case_by_id,
+            Device: self.device_by_id,
+            Wearable: self.wearable_by_id,
+            Context: self.context_by_id,
+            FHIRMapping: self.fhir_mapping_by_id,
+        }
+        loader = loader_by_type.get(graphql_type)
+        if loader is None:
+            return
+
+        loader.prime_many({entity.id: strawberry_cast(graphql_type, entity) for entity in entities})
 
     async def _load_patients_by_id(self, ids: list[UUID]) -> list[Patient | None]:
         from app.graphql.types import Patient

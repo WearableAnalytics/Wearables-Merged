@@ -364,12 +364,13 @@ class NestedKeysetConnection[NodeType: relay.Node](relay.ListConnection[NodeType
         max_allowed = max_results if max_results is not None else info.schema.config.relay_max_results
         window = resolve_pagination_window(first=first, last=last, max_allowed=max_allowed)
 
-        loaders: Loaders = context_from_info(info)["loaders"]
+        loaders: Loaders = context_from_info(info).loaders
         result = await loaders.nested_connections.load(
             NestedConnectionRequest(
                 nodes.field, nodes.parent_id, nodes.graphql_type, window.page_size, window.fetch_backward, after, before
             )
         )
+        loaders.prime_entities(nodes.graphql_type, result.nodes)
 
         edge_type = resolve_edge_type(cls)
         edges = [

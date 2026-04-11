@@ -86,10 +86,7 @@ async def _resolve_relay_nodes[TNode: relay.Node](
     if not valid_node_ids:
         return [None for _ in raw_node_ids]
 
-    context = context_from_info(info)
-    session_factory = context["session_factory"]
-    db_semaphore = context["db_semaphore"]
-    async with db_semaphore, session_factory() as db:
+    async with context_from_info(info).db_session() as db:
         result = await db.scalars(select(model).where(model.id.in_(valid_node_ids)))
         entities_by_id = {str(entity.id): strawberry_cast(graphql_type, entity) for entity in result}
 
@@ -235,7 +232,7 @@ class DotDependencyFile(UuidRelayNodeMixin, relay.Node):
 
     @strawberry.field
     async def mapping(self, info: strawberry.Info) -> FHIRMapping | None:
-        loaders: Loaders = context_from_info(info)["loaders"]
+        loaders: Loaders = context_from_info(info).loaders
         return await loaders.fhir_mapping_by_id.load(self.mapping_id)
 
 
@@ -267,10 +264,7 @@ class DeviceAssignment(relay.Node):
         if not keys:
             return [None for _ in raw_node_ids]
 
-        context = context_from_info(info)
-        session_factory = context["session_factory"]
-        db_semaphore = context["db_semaphore"]
-        async with db_semaphore, session_factory() as db:
+        async with context_from_info(info).db_session() as db:
             result = await db.scalars(
                 select(CaseDeviceModel).where(
                     tuple_(
@@ -298,12 +292,12 @@ class DeviceAssignment(relay.Node):
 
     @strawberry.field
     async def device(self, info: strawberry.Info) -> Device | None:
-        loaders: Loaders = context_from_info(info)["loaders"]
+        loaders: Loaders = context_from_info(info).loaders
         return await loaders.device_by_id.load(self.device_id)
 
     @strawberry.field
     async def case(self, info: strawberry.Info) -> Case | None:
-        loaders: Loaders = context_from_info(info)["loaders"]
+        loaders: Loaders = context_from_info(info).loaders
         return await loaders.case_by_id.load(self.case_id)
 
 
@@ -335,10 +329,7 @@ class WearableAssignment(relay.Node):
         if not keys:
             return [None for _ in raw_node_ids]
 
-        context = context_from_info(info)
-        session_factory = context["session_factory"]
-        db_semaphore = context["db_semaphore"]
-        async with db_semaphore, session_factory() as db:
+        async with context_from_info(info).db_session() as db:
             result = await db.scalars(
                 select(CaseWearableModel).where(
                     tuple_(
@@ -366,12 +357,12 @@ class WearableAssignment(relay.Node):
 
     @strawberry.field
     async def wearable(self, info: strawberry.Info) -> Wearable | None:
-        loaders: Loaders = context_from_info(info)["loaders"]
+        loaders: Loaders = context_from_info(info).loaders
         return await loaders.wearable_by_id.load(self.wearable_id)
 
     @strawberry.field
     async def case(self, info: strawberry.Info) -> Case | None:
-        loaders: Loaders = context_from_info(info)["loaders"]
+        loaders: Loaders = context_from_info(info).loaders
         return await loaders.case_by_id.load(self.case_id)
 
 
@@ -385,7 +376,7 @@ class Case(UuidRelayNodeMixin, relay.Node):
 
     @strawberry.field
     async def patient(self, info: strawberry.Info) -> Patient | None:
-        loaders: Loaders = context_from_info(info)["loaders"]
+        loaders: Loaders = context_from_info(info).loaders
         return await loaders.patient_by_id.load(self.patient_id)
 
     @relay.connection(NestedKeysetConnection[Device], description="Relay connection for active case devices.")

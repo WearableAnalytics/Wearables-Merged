@@ -11,6 +11,7 @@ schema = strawberry.Schema(
     subscription=Subscription,
     config=StrawberryConfig(
         relay_max_results=settings.GRAPHQL_RELAY_MAX_RESULTS,
+        disable_field_suggestions=settings.ENVIRONMENT == "production",
         scalar_map={AwareDateTime: AwareDateTimeScalar},
     ),
     extensions=[

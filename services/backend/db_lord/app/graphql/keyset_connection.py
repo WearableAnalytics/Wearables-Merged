@@ -15,6 +15,7 @@ from strawberry.relay.types import NodeIterableType
 from strawberry.relay.utils import to_base64
 from strawberry.types.base import StrawberryContainer, get_object_definition
 
+from app.graphql.context import context_from_info
 from app.graphql.cursor_codec import decode_base64_cursor, invalid_cursor_argument
 
 KEYSET_CURSOR_PREFIX = "keyset"
@@ -150,6 +151,8 @@ class KeysetConnection[NodeType: relay.Node](relay.ListConnection[NodeType]):
         async with nodes.db_semaphore, nodes.session_factory() as db:
             result = await db.execute(query)
             entities = list(result.scalars().all())
+
+        context_from_info(info).loaders.prime_entities(nodes.graphql_type, entities)
 
         if page_size == 0:
             has_extra = bool(entities)
