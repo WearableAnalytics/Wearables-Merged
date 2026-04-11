@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 0,
+  "id": 2,
   "links": [],
   "panels": [
     {
@@ -408,7 +408,7 @@
             "uid": "ffct924rz8flsa"
           },
           "editorMode": "builder",
-          "expr": "max by(topic) (kafka_cluster_partition_replicascount{topic=~\"wearables-raw|dlq|wearables-lp\"})",
+          "expr": "count by(topic) (kafka_cluster_partition_replicascount{topic=~\"wearables-raw|dlq|wearables-lp\"}) / 3",
           "instant": false,
           "interval": "",
           "legendFormat": "__auto",
@@ -416,7 +416,7 @@
           "refId": "A"
         }
       ],
-      "title": "Replication by topic",
+      "title": "Partitions by topic per replica",
       "type": "timeseries"
     },
     {
@@ -566,12 +566,12 @@
     "list": []
   },
   "time": {
-    "from": "now-7d",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Kafka Dashboard",
   "uid": "adwg4cd",
-  "version": 5
+  "version": 8
 }

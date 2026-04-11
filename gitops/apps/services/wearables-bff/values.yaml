@@ -2,13 +2,20 @@ replicaCount: 1
 
 image:
   # TODO: Move this image to the team/org repository later.
-  repository: gmsdaniil/wearables-bff
+  repository: wearables42/wearables-bff
   pullPolicy: Always
   tag: "latest"
 
 service:
   type: ClusterIP
   port: 3001
+
+ingress:
+  enabled: true
+  host: "wearables.charite.de"
+  pathPrefix: "/api"
+  httpOnly: true
+  certificateSecretName: "wearables-tls"
 
 configMap:
   create: true
@@ -19,10 +26,10 @@ env:
   API_PREFIX: "/api"
   USE_MOCK_DATA: "false"
   NODE_ENV: "production"
-  FRONTEND_ORIGINS: "http://localhost:8080,http://localhost:8081"
-  FRONTEND_REDIRECT_URL: "http://localhost:8080"
+  FRONTEND_ORIGINS: ""
+  FRONTEND_REDIRECT_URL: ""
   ADMIN_EMAILS: "linus.gustafsson@tu-berlin.de,j.moehler@posteo.de,admin@lukaszsztukiewicz.com,gmsdaniilplay@gmail.com"
-  BACKEND_URL: "http://localhost:3001"
+  BACKEND_URL: ""
   AUTH_SESSION_EXPIRY_SECONDS: "604800"
   MAGIC_LINK_EXPIRY_SECONDS: "900"
   CASE_TOKEN_EXPIRY_SECONDS: "691200"
@@ -32,7 +39,7 @@ env:
   LOG_LEVEL: "info"
   MAILER_FROM_NAME: "Wearables Platform"
   MAILER_FROM_EMAIL: "jmm123@posteo.de"
-  COOKIE_SECURE: ""
+  COOKIE_SECURE: "false"
 
 secret:
   enabled: true

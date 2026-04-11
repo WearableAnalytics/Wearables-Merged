@@ -1,0 +1,23 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: "{{ .Release.Name }}-http"
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`{{ .Values.ingress.pathPrefix }}`)"
+      kind: Rule
+{{- if .Values.ingress.httpOnly }}
+      middlewares:
+        - name: {{ .Release.Name }}-dedupe-api
+{{- else }}
+      middlewares:
+        - name: redirect-to-https
+          namespace: ingress
+{{- end }}
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}
+{{- end }}

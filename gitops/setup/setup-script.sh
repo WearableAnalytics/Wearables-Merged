@@ -9,6 +9,10 @@ NETWORK_DIR="$GITOPS_DIR/network"
 
 BFF_NAMESPACE="${BFF_NAMESPACE:-wearables-bff}"
 BFF_SECRET_NAME="${BFF_SECRET_NAME:-wearables-bff-secrets}"
+BFF_FRONTEND_ORIGINS="${BFF_FRONTEND_ORIGINS:-http://wearables.charite.de/}"
+BFF_FRONTEND_REDIRECT_URL="${BFF_FRONTEND_REDIRECT_URL:-http://wearables.charite.de/}"
+BFF_ADMIN_EMAILS="${BFF_ADMIN_EMAILS:-linus.gustafsson@tu-berlin.de,j.moehler@posteo.de,admin@lukaszsztukiewicz.com,gmsdaniilplay@gmail.com}"
+PUBLIC_API_BASE_URL="${PUBLIC_API_BASE_URL:-http://wearables.charite.de}"
 GRAFANA_NAMESPACE="${GRAFANA_NAMESPACE:-monitoring}"
 GRAFANA_SECRET_NAME="${GRAFANA_SECRET_NAME:-grafana-auth-secrets}"
 GRAFANA_JWT_PRIVATE_KEY_PATH="${GRAFANA_JWT_PRIVATE_KEY_PATH:-$REPO_ROOT/secrets/grafana-jwt-private.pem}"
@@ -18,6 +22,10 @@ PROD_POSTGRES_NAMESPACE="${PROD_POSTGRES_NAMESPACE:-prod-postgres}"
 DB_LORD_NAMESPACE="${DB_LORD_NAMESPACE:-db-lord}"
 
 EXTRACTION_SERVICE_NAMESPACE="${EXTRACTION_SERVICE_NAMESPACE:-extraction-service}"
+INGRESS_HTTP_ONLY="${INGRESS_HTTP_ONLY:-false}"
+GRAFANA_ADMIN_USER="${GRAFANA_ADMIN_USER:-admin}"
+GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-admin}"
+GRAFANA_SUBPATH="${GRAFANA_SUBPATH:-/grafana}"
 
 if ! command -v helm >/dev/null 2>&1; then
 	echo "helm is required but not installed."
@@ -51,6 +59,114 @@ require_file() {
 		echo "Missing required file: ${file_path}" >&2
 		exit 1
 	fi
+}
+
+configure_grafana_datasources() {
+	local grafana_namespace="grafana"
+	local grafana_service_name="grafana"
+	local influx_datasource_name="InfluxDB"
+	local prometheus_datasource_name="Prometheus"
+
+	echo "Waiting for Grafana deployment to become ready..."
+	kubectl wait -n "$grafana_namespace" deployment/"$grafana_service_name" --for=condition=Available --timeout=300s
+
+	echo "Configuring Grafana datasources via API..."
+	kubectl -n "$grafana_namespace" run grafana-datasource-bootstrap --rm -i --restart=Never \
+		--image=curlimages/curl:8.8.0 \
+		--env="INFLUX_ORG=$INFLUX_ORG" \
+		--env="INFLUX_BUCKET=$INFLUX_BUCKET" \
+		--env="INFLUX_TOKEN=$INFLUX_TOKEN" \
+		--env="GRAFANA_ADMIN_USER=$GRAFANA_ADMIN_USER" \
+		--env="GRAFANA_ADMIN_PASSWORD=$GRAFANA_ADMIN_PASSWORD" \
+		--env="GRAFANA_SUBPATH=$GRAFANA_SUBPATH" \
+		--env="INFLUX_DATASOURCE_NAME=$influx_datasource_name" \
+		--env="PROMETHEUS_DATASOURCE_NAME=$prometheus_datasource_name" \
+		--command -- sh -ceu '
+			subpath="${GRAFANA_SUBPATH%/}"
+			if [[ "$subpath" == "/" ]]; then
+				subpath=""
+			fi
+			api_base="http://grafana:3000${subpath}/api"
+			login_url="http://grafana:3000${subpath}/login"
+			cookie_jar="/tmp/grafana-cookies.txt"
+
+			cat > /tmp/influx-datasource.json <<JSON
+{
+	"name": "${INFLUX_DATASOURCE_NAME}",
+  "type": "influxdb",
+  "access": "proxy",
+  "url": "http://influxdb-service.influx.svc.cluster.local:8086",
+  "database": "${INFLUX_BUCKET}",
+  "user": "${INFLUX_ORG}",
+  "basicAuth": true,
+  "basicAuthUser": "${INFLUX_ORG}",
+  "isDefault": true,
+  "jsonData": {
+    "httpMode": "POST"
+  },
+  "secureJsonData": {
+    "basicAuthPassword": "${INFLUX_TOKEN}"
+  }
+}
+JSON
+
+			cat > /tmp/prometheus-datasource.json <<JSON
+{
+	"name": "${PROMETHEUS_DATASOURCE_NAME}",
+	"type": "prometheus",
+	"access": "proxy",
+	"url": "http://prometheus-service.monitoring.svc.cluster.local",
+	"isDefault": false,
+	"jsonData": {
+		"httpMethod": "POST"
+	}
+}
+JSON
+
+			login_status="$(curl -sS -L --post301 --post302 --post303 -o /tmp/login-response.json -w "%{http_code}" \
+				-c "$cookie_jar" \
+				-H "Content-Type: application/json" \
+				-X POST "$login_url" \
+				--data "{\"user\":\"${GRAFANA_ADMIN_USER}\",\"password\":\"${GRAFANA_ADMIN_PASSWORD}\"}")"
+
+			if [[ "$login_status" != "200" && "$login_status" != "204" ]]; then
+				echo "Grafana login failed (HTTP $login_status)." >&2
+				cat /tmp/login-response.json >&2
+				exit 1
+			fi
+
+			if ! grep -q "grafana_session" "$cookie_jar"; then
+				echo "Grafana login did not return a session cookie." >&2
+				echo "Check GRAFANA_ADMIN_USER/GRAFANA_ADMIN_PASSWORD and GRAFANA_SUBPATH (${GRAFANA_SUBPATH})." >&2
+				exit 1
+			fi
+
+			upsert_datasource() {
+				local ds_name="$1"
+				local ds_file="$2"
+
+				curl -sS -b "$cookie_jar" -X DELETE "$api_base/datasources/name/${ds_name}" >/dev/null || true
+
+				status="$(curl -sS -o /tmp/response.json -w "%{http_code}" -b "$cookie_jar" \
+					-H "Content-Type: application/json" \
+					-X POST "$api_base/datasources" \
+					--data @"$ds_file")"
+
+				if [[ "$status" == "200" || "$status" == "201" ]]; then
+					echo "Configured datasource: $ds_name"
+					return 0
+				fi
+
+				echo "Failed to configure datasource $ds_name (HTTP $status)." >&2
+				cat /tmp/response.json >&2
+				return 1
+			}
+
+			upsert_datasource "$INFLUX_DATASOURCE_NAME" /tmp/influx-datasource.json
+			upsert_datasource "$PROMETHEUS_DATASOURCE_NAME" /tmp/prometheus-datasource.json
+
+			echo "Grafana datasources configured successfully."
+		'
 }
 
 kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
@@ -222,6 +338,7 @@ done
 (
 	cd "$NETWORK_DIR"
 	ingress_args=(--values ./ingress/values.yaml)
+	ingress_args+=(--set ingress.httpOnly="$INGRESS_HTTP_ONLY")
 	if [[ -n "${INGRESS_HOST:-}" ]]; then
 		ingress_args+=(--set ingress.host="$INGRESS_HOST")
 	fi
@@ -238,13 +355,22 @@ done
 # --- importservice + grafana ---
 (
 	cd "$APPS_DIR/services"
-	helm upgrade --install importservice ./importservice --values ./importservice/values.yaml --namespace importservice --create-namespace
+	helm upgrade --install importservice ./importservice --values ./importservice/values.yaml --namespace importservice --create-namespace \
+		--set ingress.httpOnly="$INGRESS_HTTP_ONLY"
 )
 
 (
 	cd "$APPS_DIR/monitoring"
-	helm upgrade --install grafana ./grafana --values ./grafana/values.yaml --namespace grafana --create-namespace
+	helm upgrade --install grafana ./grafana --values ./grafana/values.yaml --namespace grafana --create-namespace \
+		--set ingress.httpOnly="$INGRESS_HTTP_ONLY"
 )
+
+(
+	cd "$APPS_DIR/monitoring"
+	helm upgrade --install prometheus ./prometheus --values ./prometheus/values.yaml --namespace monitoring --create-namespace
+)
+
+configure_grafana_datasources
 
 # --- prod-postgres ---
 
@@ -267,9 +393,7 @@ require_env DB_LORD_POSTGRES_DB
 require_env DB_LORD_POSTGRES_USER
 require_env DB_LORD_POSTGRES_PASSWORD
 require_env DB_LORD_INFLUX_URL
-require_env DB_LORD_INFLUX_ORG
-require_env DB_LORD_INFLUX_BUCKET
-require_env DB_LORD_INFLUX_TOKEN
+
 
 helm upgrade --install db-lord "$APPS_DIR/services/db-lord" \
 	--namespace "$DB_LORD_NAMESPACE" \
@@ -280,9 +404,9 @@ helm upgrade --install db-lord "$APPS_DIR/services/db-lord" \
 	--set env.POSTGRES_USER="$DB_LORD_POSTGRES_USER" \
 	--set env.POSTGRES_PASSWORD="$DB_LORD_POSTGRES_PASSWORD" \
 	--set env.INFLUX_URL="$DB_LORD_INFLUX_URL" \
-	--set env.INFLUX_ORG="$DB_LORD_INFLUX_ORG" \
-	--set env.INFLUX_BUCKET="$DB_LORD_INFLUX_BUCKET" \
-	--set env.INFLUX_TOKEN="$DB_LORD_INFLUX_TOKEN"
+	--set env.INFLUX_ORG="$INFLUX_ORG" \
+	--set env.INFLUX_BUCKET="$INFLUX_BUCKET" \
+	--set env.INFLUX_TOKEN="$INFLUX_TOKEN"
 
 # --- extraction-service ---
 require_env EXTRACTION_SERVICE_DB_LORD_BASE_URL
@@ -291,25 +415,35 @@ helm upgrade --install extraction-service "$APPS_DIR/services/extraction-service
 	--set env.DB_LORD_BASE_URL="$EXTRACTION_SERVICE_DB_LORD_BASE_URL"
 
 # --- runtime secrets + bff/grafana-proxy/frontend ---
+bash "$REPO_ROOT/scripts/bootstrap-runtime-secrets.sh"
+
+echo "Successfully executed bootrap script"
+
 require_env RESEARCHER_API_ACCESS_TOKEN
 require_file "$GRAFANA_JWT_PRIVATE_KEY_PATH"
-
-bash "$REPO_ROOT/scripts/bootstrap-runtime-secrets.sh"
 
 helm upgrade --install wearables-bff "$APPS_DIR/services/wearables-bff" \
 	--namespace "$BFF_NAMESPACE" \
 	--create-namespace \
 	--set secret.create=false \
 	--set secret.name="$BFF_SECRET_NAME" \
+	--set-string env.BACKEND_URL="$PUBLIC_API_BASE_URL" \
+	--set-string env.FRONTEND_ORIGINS="$BFF_FRONTEND_ORIGINS" \
+	--set-string env.FRONTEND_REDIRECT_URL="$BFF_FRONTEND_REDIRECT_URL" \
+	--set-string env.ADMIN_EMAILS="$BFF_ADMIN_EMAILS" \
+	--set ingress.httpOnly="$INGRESS_HTTP_ONLY" \
 	-f "$APPS_DIR/services/wearables-bff/values.yaml"
 
 helm upgrade --install grafana-proxy "$APPS_DIR/monitoring/grafana-proxy" \
 	-n "$GRAFANA_NAMESPACE" \
 	--create-namespace \
 	--set secret.name="$GRAFANA_SECRET_NAME" \
+	--set ingress.httpOnly="$INGRESS_HTTP_ONLY" \
 	-f "$APPS_DIR/monitoring/grafana-proxy/values.yaml"
 
 helm upgrade --install web "$APPS_DIR/web-frontend" \
 	-n web \
 	--create-namespace \
+	--set-string runtimeConfig.apiBaseUrl="$PUBLIC_API_BASE_URL/api" \
+	--set ingress.httpOnly="$INGRESS_HTTP_ONLY" \
 	-f "$APPS_DIR/web-frontend/values.yaml"

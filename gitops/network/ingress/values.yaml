@@ -1,5 +1,6 @@
 ingress:
   host: ""
+  httpOnly: true
 
 serversTransport:
   forwardingTimeouts:

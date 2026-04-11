@@ -7,3 +7,6 @@ container:
 
 configMap:
   name: prometheus-server-conf
+
+serviceAccount:
+  name: prometheus-server

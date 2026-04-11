@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 0,
+  "id": 1,
   "links": [],
   "panels": [
     {
@@ -37,7 +37,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-2"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -72,7 +72,7 @@
             },
             "showPoints": "auto",
             "showValues": false,
-            "spanNulls": false,
+            "spanNulls": 3600000,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -133,7 +133,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Heart Rate",
@@ -141,9 +141,48 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"HEART_RATE\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "refId": "A"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "heart-rate",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT mean(\"value\") FROM \"heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": false,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
       "title": "Heart Rate",
@@ -211,16 +250,55 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT last(\"value\") FROM \"HEART_RATE\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/",
-          "rawQuery": true,
-          "refId": "A"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "heart-rate",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT last(\"value\") FROM \"heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/",
+          "rawQuery": false,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
       "title": "Current Heart Rate",
@@ -288,16 +366,55 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT last(\"value\") FROM \"RESTING_HEART_RATE\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/",
-          "rawQuery": true,
-          "refId": "A"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "resting-heart-rate",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT last(\"value\") FROM \"resting-heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/",
+          "rawQuery": false,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
       "title": "Resting Heart Rate",
@@ -339,7 +456,7 @@
             },
             "showPoints": "never",
             "showValues": false,
-            "spanNulls": false,
+            "spanNulls": 3600000,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -384,7 +501,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "HRV",
@@ -392,9 +509,48 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"HEART_RATE_VARIABILITY\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "refId": "A"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "heart-rate-variability-sdnn",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT mean(\"value\") FROM \"heart-rate-variability\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": false,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
       "title": "Heart Rate Variability",
@@ -484,7 +640,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "SpO2",
@@ -492,9 +648,41 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"BLOOD_OXYGEN\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "refId": "A"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "blood-oxygen",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT mean(\"value\") FROM \"blood-oxygen\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": false,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ]
         }
       ],
       "title": "Blood Oxygen Saturation",
@@ -536,7 +724,7 @@
             },
             "showPoints": "never",
             "showValues": false,
-            "spanNulls": false,
+            "spanNulls": 3600000,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -582,7 +770,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Respiratory Rate",
@@ -590,9 +778,48 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"RESPIRATORY_RATE\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "refId": "A"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "respiratory-rate",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT mean(\"value\") FROM \"respiratory-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": false,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
       "title": "Respiratory Rate",
@@ -634,7 +861,7 @@
             },
             "showPoints": "never",
             "showValues": false,
-            "spanNulls": false,
+            "spanNulls": 3600000,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -679,7 +906,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Walking Heart Rate",
@@ -687,9 +914,48 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"WALKING_HEART_RATE\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "refId": "A"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "walking-heart-rate",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT mean(\"value\") FROM \"walking-heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": false,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
       "title": "Walking Heart Rate Average",
@@ -799,7 +1065,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Daily Steps",
@@ -821,10 +1087,11 @@
               "type": "fill"
             }
           ],
+          "measurement": "steps",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT sum(\"value\")\nFROM \"STEPS\"\nWHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/\nGROUP BY time(1d) fill(0)",
-          "rawQuery": true,
+          "query": "SELECT sum(\"value\")\nFROM \"steps\"\nWHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/\nGROUP BY time(1d) fill(0)",
+          "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -841,7 +1108,13 @@
               }
             ]
           ],
-          "tags": []
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
       "title": "Daily Steps",
@@ -858,6 +1131,7 @@
           "color": {
             "mode": "thresholds"
           },
+          "fieldMinMax": false,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -905,19 +1179,58 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") FROM \"STEPS\" WHERE \"deviceId\" =~ /^$deviceId$/ AND time >= now() - 1d",
-          "rawQuery": true,
-          "refId": "A"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "steps",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT sum(\"value\") FROM \"steps\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "rawQuery": false,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
-      "title": "Today's Steps",
+      "title": "Time period steps",
       "transparent": true,
       "type": "stat"
     },
@@ -978,14 +1291,14 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") FROM \"FLIGHTS_CLIMBED\" WHERE \"deviceId\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") FROM \"flights-climbed\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
           "rawQuery": true,
           "refId": "A"
         }
@@ -1074,7 +1387,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Walking/Running",
@@ -1082,9 +1395,48 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 1000 FROM \"DISTANCE_WALKING_RUNNING\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
-          "rawQuery": true,
-          "refId": "A"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "distance-walking-running",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT sum(\"value\") / 1000 FROM \"distance-walking-running\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "rawQuery": false,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         },
         {
           "alias": "Cycling",
@@ -1092,9 +1444,42 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 1000 FROM \"DISTANCE_CYCLING\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
-          "rawQuery": true,
-          "refId": "B"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "distance-cycling",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT sum(\"value\") / 1000 FROM \"distance-cycling\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "rawQuery": false,
+          "refId": "B",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": []
         }
       ],
       "title": "Distance by Activity Type (Daily)",
@@ -1136,7 +1521,7 @@
             },
             "showPoints": "never",
             "showValues": false,
-            "spanNulls": false,
+            "spanNulls": 3600000,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -1182,7 +1567,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Exercise Time",
@@ -1190,9 +1575,48 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 60 FROM \"EXERCISE_TIME\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
-          "rawQuery": true,
-          "refId": "A"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "exercise-time",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT sum(\"value\") / 60 FROM \"exercise-time\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "rawQuery": false,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
       "title": "Daily Exercise Time",
@@ -1324,7 +1748,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Basal Energy",
@@ -1332,9 +1756,42 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") FROM \"BASAL_ENERGY_BURNED\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
-          "rawQuery": true,
-          "refId": "B"
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "basal-energy-burned",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT sum(\"value\") FROM \"basal-energy-burned\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "rawQuery": false,
+          "refId": "B",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": []
         },
         {
           "alias": "Active Energy",
@@ -1342,10 +1799,48 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") FROM \"ACTIVE_ENERGY_BURNED\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
-          "rawQuery": true,
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "active-energy-burned",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT sum(\"value\") FROM \"active-energy-burned\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "rawQuery": false,
           "refId": "A",
-          "resultFormat": "time_series"
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id::tag",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
       "title": "Energy Burned (Active + Basal)",
@@ -1409,14 +1904,14 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") FROM \"ACTIVE_ENERGY_BURNED\" WHERE \"deviceId\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") FROM \"active-energy-burned\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
           "rawQuery": true,
           "refId": "A"
         }
@@ -1474,14 +1969,14 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") FROM \"BASAL_ENERGY_BURNED\" WHERE \"deviceId\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") FROM \"basal-energy-burned\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
           "rawQuery": true,
           "refId": "A"
         }
@@ -1645,7 +2140,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Deep Sleep",
@@ -1653,10 +2148,9 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"SLEEP_DEEP\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-deep\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
           "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series"
+          "refId": "A"
         },
         {
           "alias": "REM Sleep",
@@ -1664,7 +2158,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"SLEEP_REM\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-rem\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
           "rawQuery": true,
           "refId": "B"
         },
@@ -1674,7 +2168,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"SLEEP_ASLEEP_CORE\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-asleep-core\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
           "rawQuery": true,
           "refId": "C"
         },
@@ -1684,7 +2178,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"SLEEP_AWAKE\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-awake\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
           "rawQuery": true,
           "refId": "D"
         }
@@ -1750,14 +2244,14 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"SLEEP_ASLEEP\" WHERE \"deviceId\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-asleep\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
           "rawQuery": true,
           "refId": "A"
         }
@@ -1815,14 +2309,14 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"SLEEP_IN_BED\" WHERE \"deviceId\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-in-bed\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
           "rawQuery": true,
           "refId": "A"
         }
@@ -1992,7 +2486,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Awake",
@@ -2001,7 +2495,7 @@
             "uid": "${DS_INFLUXDB}"
           },
           "hide": false,
-          "query": "SELECT \"value\" *0+4 AS \"Awake\" FROM \"SLEEP_AWAKE\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ ",
+          "query": "SELECT \"value\" *0+4 AS \"Awake\" FROM \"sleep-awake\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ ",
           "rawQuery": true,
           "refId": "D",
           "resultFormat": "time_series"
@@ -2013,7 +2507,7 @@
             "uid": "${DS_INFLUXDB}"
           },
           "hide": false,
-          "query": "SELECT \"value\" *0+3 AS \"REM Sleep\" FROM \"SLEEP_ASLEEP_REM\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ ",
+          "query": "SELECT \"value\" *0+3 AS \"REM Sleep\" FROM \"sleep-asleep-rem\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ ",
           "rawQuery": true,
           "refId": "C",
           "resultFormat": "time_series"
@@ -2025,7 +2519,7 @@
             "uid": "${DS_INFLUXDB}"
           },
           "hide": false,
-          "query": "SELECT \"value\" *0+2  AS \"Core Sleep\" FROM \"SLEEP_ASLEEP_CORE\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ ",
+          "query": "SELECT \"value\" *0+2  AS \"Core Sleep\" FROM \"sleep-asleep-core\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ ",
           "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series"
@@ -2037,7 +2531,7 @@
             "uid": "${DS_INFLUXDB}"
           },
           "hide": false,
-          "query": "SELECT \"value\" *0+1 AS \"Deep Sleep\" FROM \"SLEEP_ASLEEP_DEEP\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ ",
+          "query": "SELECT \"value\" *0+1 AS \"Deep Sleep\" FROM \"sleep-asleep-deep\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ ",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"
@@ -2144,7 +2638,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Weight",
@@ -2152,7 +2646,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"WEIGHT\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"weight\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(null)",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2210,14 +2704,14 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT last(\"value\") FROM \"WEIGHT\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/",
+          "query": "SELECT last(\"value\") FROM \"weight\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2307,7 +2801,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "BMI",
@@ -2315,7 +2809,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"BODY_MASS_INDEX\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"body-mass-index\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(null)",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2405,7 +2899,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "alias": "Body Fat %",
@@ -2413,7 +2907,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"BODY_FAT_PERCENTAGE\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ GROUP BY time(1d) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"body-fat-percentage\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(null)",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2473,14 +2967,14 @@
           }
         ]
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.3.2",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT * FROM \"WORKOUT\" WHERE $timeFilter AND \"deviceId\" =~ /^$deviceId$/ ORDER BY time DESC LIMIT 20",
+          "query": "SELECT * FROM \"workout\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ ORDER BY time DESC LIMIT 20",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2501,8 +2995,8 @@
     "list": [
       {
         "current": {
-          "text": "influxdb-2",
-          "value": "cf5irkhmbkfswb"
+          "text": "influxdb",
+          "value": "dfa4opgnfgg00e"
         },
         "includeAll": false,
         "label": "Data Source",
@@ -2517,23 +3011,23 @@
         "allValue": ".*",
         "current": {
           "text": [
-            "ID_jakob"
+            "019c62a0-be4d-793f-9775-ec1f86c4e524"
           ],
           "value": [
-            "ID_jakob"
+            "019c62a0-be4d-793f-9775-ec1f86c4e524"
           ]
         },
         "datasource": {
           "type": "influxdb",
           "uid": "${DS_INFLUXDB}"
         },
-        "definition": "SHOW TAG VALUES FROM \"HEART_RATE\" WITH KEY = \"deviceId\"",
+        "definition": "SHOW TAG VALUES FROM \"heart-rate\" WITH KEY = \"device-id\"",
         "includeAll": true,
         "label": "Device / User ID",
         "multi": true,
         "name": "deviceId",
         "options": [],
-        "query": "SHOW TAG VALUES FROM \"HEART_RATE\" WITH KEY = \"deviceId\"",
+        "query": "SHOW TAG VALUES FROM \"heart-rate\" WITH KEY = \"device-id\"",
         "refresh": 2,
         "regex": "",
         "sort": 1,
@@ -2547,7 +3041,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Wearables Health Dashboard",
-  "uid": "wearables-health",
-  "version": 38
+  "title": "Wearables Dashboard Real",
+  "uid": "wearables-health-real",
+  "version": 27
 }

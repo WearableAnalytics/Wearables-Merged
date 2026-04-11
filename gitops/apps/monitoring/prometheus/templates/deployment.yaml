@@ -12,6 +12,7 @@ spec:
       labels:
         app: "{{ .Release.Name }}-server"
     spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
       containers:
         - name: {{ .Release.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

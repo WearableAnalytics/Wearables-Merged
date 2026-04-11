@@ -1,0 +1,10 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Release.Name }}-dedupe-api
+spec:
+  replacePathRegex:
+    regex: "^/api/api(?:(/.*))?$"
+    replacement: "/api$1"
+{{- end }}

@@ -22,7 +22,14 @@ proxy:
   port: 3002
   # Public path prefix where the proxy is exposed
   # Keep this aligned with frontend runtimeConfig.grafanaProxyUrl and your external route
-  prefix: "/grafana-proxy"
+  prefix: "/proxy"
+
+ingress:
+  enabled: true
+  host: "wearables.charite.de"
+  pathPrefix: "/proxy"
+  httpOnly: true
+  certificateSecretName: "wearables-tls"
 
 session:
   # Expected issuer of wearables-bff case tokens used as /embed deviceId

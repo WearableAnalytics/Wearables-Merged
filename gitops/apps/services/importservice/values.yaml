@@ -36,6 +36,7 @@ readinessProbe:
 ingress:
   host: "wearables.charite.de"
   prefix: "/import"
+  httpOnly: false
   regex: "^/import/?(.*)"
   replacement: /$1
   certificateSecret: wearables-tls

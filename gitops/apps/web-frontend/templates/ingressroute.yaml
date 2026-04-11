@@ -7,13 +7,19 @@ metadata:
     app: {{ .Release.Name }}
 spec:
   entryPoints:
+{{- if .Values.ingress.httpOnly }}
+    - web
+{{- else }}
     - websecure
+{{- end }}
   routes:
     - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`{{ .Values.ingress.path }}`)"
       kind: Rule
       services:
         - name: {{ .Release.Name }}
           port: {{ .Values.service.port }}
+{{- if not .Values.ingress.httpOnly }}
   tls:
     secretName: {{ .Values.ingress.certificateSecretName }}
+{{- end }}
 {{- end }}

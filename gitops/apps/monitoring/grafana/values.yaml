@@ -14,8 +14,9 @@ persistence:
 ingress: 
   host: "wearables.charite.de"
   prefix: "/grafana"
+  httpOnly: false
 certificate:
   name: wearables-cert
   secretName: wearables-tls
 security:
-  csrfTrustedOrigins: "http://localhost:3002,https://wearables.charite.de"
+  csrfTrustedOrigins: "http://localhost:3002,https://wearables.charite.de,http://wearables.charite.de"

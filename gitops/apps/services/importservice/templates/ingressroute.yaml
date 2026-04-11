@@ -6,11 +6,21 @@ spec:
   entryPoints:
     - web 
   routes:
-    - match: "Host(`{{ .Values.ingress.host }}`)"
+    - match: "Host(`{{ .Values.ingress.host }}`){{ if .Values.ingress.httpOnly }} && PathPrefix(`{{ .Values.ingress.prefix }}`){{ end }}"
       kind: Rule
+{{- if .Values.ingress.httpOnly }}
+      middlewares:
+        - name: ingest-rewrite-path
+{{- else }}
       middlewares:
       - name: redirect-to-https
         namespace: ingress
+{{- end }}
       services:
         - name: {{ .Release.Name }}
           port: {{ .Values.service.port }}
+{{- if .Values.ingress.httpOnly }}
+          # needs to be set for all middelware etc. thats not deployed in the same namespace
+          #format: namespace-name@providername
+          serversTransport: ingress-long-timeout@kubernetescrd
+{{- end }}

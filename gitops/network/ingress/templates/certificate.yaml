@@ -1,4 +1,4 @@
-{{- if .Values.ingress.host }}
+{{- if and .Values.ingress.host (not .Values.ingress.httpOnly) }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
