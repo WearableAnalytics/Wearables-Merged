@@ -145,7 +145,7 @@ uv sync --all-groups
 ### Start dependencies
 
 ```bash
-docker compose up -d db influxdb
+docker compose up --build
 ```
 
 ### Run migrations
@@ -158,12 +158,6 @@ uv run alembic upgrade head
 
 ```bash
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### Optional: run full stack in Compose
-
-```bash
-docker compose up --build
 ```
 
 ## API Surface
@@ -181,7 +175,7 @@ docker compose up --build
   - `/livez` (liveness)
   - `/readyz` (dependency readiness)
 
-FastAPI docs are available at `/docs` in non-production mode.
+FastAPI docs are available at `/docs`. 
 GraphiQL is enabled when `ENVIRONMENT != "production"`.
 
 ## Migrations
@@ -229,8 +223,6 @@ See `tests/README.md` for detailed fixture/test conventions.
 ## Configuration
 
 Main settings live in `app/core/config.py` and are loaded from `.env`.
-
-Key groups:
 
 - Postgres connection + pool tuning
 - Influx connection + schema cache
