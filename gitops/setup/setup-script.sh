@@ -12,6 +12,9 @@ BFF_SECRET_NAME="${BFF_SECRET_NAME:-wearables-bff-secrets}"
 BFF_FRONTEND_ORIGINS="${BFF_FRONTEND_ORIGINS:-http://wearables.charite.de/}"
 BFF_FRONTEND_REDIRECT_URL="${BFF_FRONTEND_REDIRECT_URL:-http://wearables.charite.de/}"
 BFF_ADMIN_EMAILS="${BFF_ADMIN_EMAILS:-linus.gustafsson@tu-berlin.de,j.moehler@posteo.de,admin@lukaszsztukiewicz.com,gmsdaniilplay@gmail.com}"
+BFF_USE_MOCK_DATA="${BFF_USE_MOCK_DATA:-false}"
+BFF_DATABASE_API_URL="${BFF_DATABASE_API_URL:-http://db-lord.db-lord.svc.cluster.local:8080}"
+BFF_DATABASE_API_TIMEOUT="${BFF_DATABASE_API_TIMEOUT:-30000}"
 PUBLIC_API_BASE_URL="${PUBLIC_API_BASE_URL:-http://wearables.charite.de}"
 GRAFANA_NAMESPACE="${GRAFANA_NAMESPACE:-monitoring}"
 GRAFANA_SECRET_NAME="${GRAFANA_SECRET_NAME:-grafana-auth-secrets}"
@@ -422,15 +425,20 @@ echo "Successfully executed bootrap script"
 require_env RESEARCHER_API_ACCESS_TOKEN
 require_file "$GRAFANA_JWT_PRIVATE_KEY_PATH"
 
+BFF_ADMIN_EMAILS_HELM_ESCAPED="${BFF_ADMIN_EMAILS//,/\\,}"
+
 helm upgrade --install wearables-bff "$APPS_DIR/services/wearables-bff" \
 	--namespace "$BFF_NAMESPACE" \
 	--create-namespace \
 	--set secret.create=false \
 	--set secret.name="$BFF_SECRET_NAME" \
+	--set-string env.USE_MOCK_DATA="$BFF_USE_MOCK_DATA" \
+	--set-string env.DATABASE_API_URL="$BFF_DATABASE_API_URL" \
+	--set-string env.DATABASE_API_TIMEOUT="$BFF_DATABASE_API_TIMEOUT" \
 	--set-string env.BACKEND_URL="$PUBLIC_API_BASE_URL" \
 	--set-string env.FRONTEND_ORIGINS="$BFF_FRONTEND_ORIGINS" \
 	--set-string env.FRONTEND_REDIRECT_URL="$BFF_FRONTEND_REDIRECT_URL" \
-	--set-string env.ADMIN_EMAILS="$BFF_ADMIN_EMAILS" \
+	--set-string env.ADMIN_EMAILS="$BFF_ADMIN_EMAILS_HELM_ESCAPED" \
 	--set ingress.httpOnly="$INGRESS_HTTP_ONLY" \
 	-f "$APPS_DIR/services/wearables-bff/values.yaml"
 

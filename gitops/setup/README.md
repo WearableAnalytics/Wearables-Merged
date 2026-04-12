@@ -19,6 +19,8 @@ This directory contains scripts and environment variables that are needed to set
 - images must be built for the correct architecture (here x86-64)
 - the system was built to be publicly reachable from a domain. To work around this dependency we had to "hack" a little
 - the guide describes how to use the system with traefik acting as a NodePort instead of a (publicly exposed) LoadBalancer
+- the BFF integration with the db-lord unfortunately broke in the final steps of the project and we did not have time to fix it. Hence to still provide the shown functionality, bff is running with fake data. This can be customized using .env vars.
+- If there is an issue during setup with an unclear rigin and it can not be resolved. Try purging minikube and restarting the deployment
 
 ## Usage
 
@@ -138,6 +140,9 @@ These are required to proceed past the Telegraf step.
 - BFF_FRONTEND_ORIGINS: Comma-separated CORS origins for wearables-bff. Default is http://wearables.charite.de/.
 - BFF_FRONTEND_REDIRECT_URL: Frontend redirect URL for wearables-bff links. Default is http://wearables.charite.de/.
 - BFF_ADMIN_EMAILS: Comma-separated admin emails passed to wearables-bff `ADMIN_EMAILS`. Default is the maintainers list in `gitops/setup/.env.example`.
+- BFF_USE_MOCK_DATA: Set `true` to run wearables-bff with local fake/mock data instead of the database API. Default is `false`.
+- BFF_DATABASE_API_URL: Value passed to wearables-bff `DATABASE_API_URL`. Must be a valid absolute URL even when `BFF_USE_MOCK_DATA=true` due to strict startup validation.
+- BFF_DATABASE_API_TIMEOUT: Value passed to wearables-bff `DATABASE_API_TIMEOUT` (milliseconds). Must be a positive integer.
 - PUBLIC_API_BASE_URL: Shared public API base URL used for both wearables-bff `BACKEND_URL` and web-frontend `runtimeConfig.apiBaseUrl`. Default is http://wearables.charite.de/api.
 - GRAFANA_NAMESPACE: Namespace for grafana-proxy. Default is monitoring.
 - GRAFANA_SECRET_NAME: Secret name for grafana-proxy. Default is grafana-auth-secrets.

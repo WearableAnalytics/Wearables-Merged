@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: wearables42/wearables-db-lord
   pullPolicy: Always
-  tag: "2026-03-29"
+  tag: "latest"
 
 service:
   type: ClusterIP
