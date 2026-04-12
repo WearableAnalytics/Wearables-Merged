@@ -17,21 +17,23 @@ from .common import TunedBase, TunedUpdateBase
 
 
 class PatientBase(TunedBase):
-    charite_id: UUID
-    name: str = Field(..., min_length=1, max_length=PATIENT_NAME_MAX_LEN)
-    sex: str | None = Field(None, max_length=PATIENT_SEX_MAX_LEN)
-    dob: date | None = None
+    charite_id: UUID = Field(description="Charité patient identifier.")
+    name: str = Field(..., min_length=1, max_length=PATIENT_NAME_MAX_LEN, description="Patient full name.")
+    sex: str | None = Field(None, max_length=PATIENT_SEX_MAX_LEN, description="Patient sex.")
+    dob: date | None = Field(default=None, description="Patient date of birth.")
     weight: Decimal | None = Field(
         None,
         gt=0,
         max_digits=PATIENT_WEIGHT_PRECISION,
         decimal_places=PATIENT_WEIGHT_SCALE,
+        description="Patient weight in kilograms.",
     )
     height: Decimal | None = Field(
         None,
         gt=0,
         max_digits=PATIENT_HEIGHT_PRECISION,
         decimal_places=PATIENT_HEIGHT_SCALE,
+        description="Patient height in centimeters.",
     )
 
 

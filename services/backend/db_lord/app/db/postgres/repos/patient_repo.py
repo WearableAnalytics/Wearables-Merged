@@ -14,5 +14,6 @@ class PatientRepo(BaseRepo[Patient, PatientCreate, PatientUpdate]):
         super().__init__(Patient, db)
 
     async def get_with_cases(self, id: UUID) -> Patient | None:
+        """Fetch a patient with related cases preloaded for expanded reads."""
         query = select(Patient).where(Patient.id == id).options(selectinload(Patient.cases))
         return await self.db.scalar(query)

@@ -1,18 +1,23 @@
-from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi_pagination.cursor import CursorPage
+from pydantic import AwareDatetime
 
 from app.api.dependencies import AssignmentServiceDep, CaseFiltersDep, CaseServiceDep, CaseSortingDep
-from app.api.params import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam
-from app.api.streaming import stream_as_ndjson
+from app.api.streaming import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam, stream_as_ndjson
 from app.schemas.assignment import ContextAssignmentResponse, DeviceAssignmentResponse, WearableAssignmentResponse
 from app.schemas.case import CaseCreate, CaseExpandableFields, CaseExpanded, CaseResponse, CaseUpdate
 
 router = APIRouter()
-OptionalDateTimeQuery = Annotated[datetime | None, Query()]
+OptionalDateTimeQuery = Annotated[
+    AwareDatetime | None,
+    Query(
+        description="Optional datetime parameter, e.g. for end_time of an assignment. "
+        "If not provided, defaults to current time or open ended depending on context."
+    ),
+]
 
 
 @router.post("/", response_model=CaseResponse, status_code=status.HTTP_201_CREATED)
@@ -35,7 +40,12 @@ async def get_case(id: UUID, service: CaseServiceDep):
     return await service.get(id)
 
 
-@router.get("/{id:uuid}/expanded", response_model=CaseExpanded, response_model_exclude_unset=True)
+@router.get(
+    "/{id:uuid}/expanded",
+    response_model=CaseExpanded,
+    response_model_exclude_unset=True,
+    description="Return one case with selected related entities expanded into the response body.",
+)
 async def get_case_expanded(
     id: UUID, service: CaseServiceDep, expand: Annotated[list[CaseExpandableFields], Query(min_length=1)]
 ):
@@ -47,7 +57,7 @@ async def list_cases(service: CaseServiceDep, filters: CaseFiltersDep, sorting: 
     return await service.list(filters, sorting)
 
 
-@router.get("/stream")
+@router.get("/stream", summary="Stream cases as NDJSON")
 async def stream_cases(
     service: CaseServiceDep,
     filters: CaseFiltersDep,
@@ -59,7 +69,10 @@ async def stream_cases(
 
 # Assignment Endpoints
 @router.post(
-    "/{case_id}/devices/{device_id}", response_model=DeviceAssignmentResponse, status_code=status.HTTP_201_CREATED
+    "/{case_id}/devices/{device_id}",
+    response_model=DeviceAssignmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Assign a device to a case",
 )
 async def assign_device(
     case_id: UUID,
@@ -71,7 +84,11 @@ async def assign_device(
     return await service.assign_device(case_id, device_id, start_time, end_time)
 
 
-@router.get("/{case_id}/devices/{device_id}/active-assignment", response_model=DeviceAssignmentResponse)
+@router.get(
+    "/{case_id}/devices/{device_id}/active-assignment",
+    response_model=DeviceAssignmentResponse,
+    summary="Get the currently assigned device for a case",
+)
 async def get_active_device_assignment(case_id: UUID, device_id: UUID, service: AssignmentServiceDep):
     return await service.get_active_device_assignment(case_id, device_id)
 
@@ -82,7 +99,10 @@ async def get_last_device_assignment(case_id: UUID, service: AssignmentServiceDe
 
 
 @router.post(
-    "/{case_id}/wearables/{wearable_id}", response_model=WearableAssignmentResponse, status_code=status.HTTP_201_CREATED
+    "/{case_id}/wearables/{wearable_id}",
+    response_model=WearableAssignmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Assign a wearable to a case",
 )
 async def assign_wearable(
     case_id: UUID,
@@ -94,7 +114,11 @@ async def assign_wearable(
     return await service.assign_wearable(case_id, wearable_id, start_time, end_time)
 
 
-@router.get("/{case_id}/wearables/{wearable_id}/active-assignment", response_model=WearableAssignmentResponse)
+@router.get(
+    "/{case_id}/wearables/{wearable_id}/active-assignment",
+    response_model=WearableAssignmentResponse,
+    summary="Get the currently assigned wearable for a case",
+)
 async def get_active_wearable_assignment(case_id: UUID, wearable_id: UUID, service: AssignmentServiceDep):
     return await service.get_active_wearable_assignment(case_id, wearable_id)
 
@@ -105,7 +129,10 @@ async def get_last_wearable_assignment(case_id: UUID, service: AssignmentService
 
 
 @router.post(
-    "/{case_id}/contexts/{context_id}", response_model=ContextAssignmentResponse, status_code=status.HTTP_201_CREATED
+    "/{case_id}/contexts/{context_id}",
+    response_model=ContextAssignmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Link a context to a case",
 )
 async def link_context(case_id: UUID, context_id: UUID, service: AssignmentServiceDep):
     return await service.link_context(case_id, context_id)
@@ -140,7 +167,13 @@ async def unassign_wearable(
     await service.unassign_wearable(case_id, wearable_id, end_time)
 
 
-@router.delete("/{case_id}/devices/{device_id}/assignments", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{case_id}/devices/{device_id}/assignments",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Completely remove device assignment history for a specific device and case.",
+    description="Permanently delete an assignment of a device to a case. If the device was assigned multiple times"
+    " to the same case an assigned_from timestamp is required to disambiguate which assignment to delete. ",
+)
 async def delete_device_assignment(
     case_id: UUID, device_id: UUID, service: AssignmentServiceDep, assigned_from: OptionalDateTimeQuery = None
 ):
@@ -152,7 +185,13 @@ async def delete_device_assignment(
         )
 
 
-@router.delete("/{case_id}/wearables/{wearable_id}/assignments", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{case_id}/wearables/{wearable_id}/assignments",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Completely remove wearable assignment history for a specific wearable and case.",
+    description="Permanently delete an assignment of a wearable to a case. If the wearable was assigned multiple times"
+    " to the same case an assigned_from timestamp is required to disambiguate which assignment to delete. ",
+)
 async def delete_wearable_assignment(
     case_id: UUID, wearable_id: UUID, service: AssignmentServiceDep, assigned_from: OptionalDateTimeQuery = None
 ):

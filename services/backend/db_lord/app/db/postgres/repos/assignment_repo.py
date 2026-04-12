@@ -1,50 +1,57 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, delete, func, insert, or_, select, tuple_, update
+from sqlalchemy import and_, delete, func, insert, literal, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.core.utils import ordered_unique
 from app.db.postgres.orm import CaseContext, CaseDevice, CaseWearable, Device, Wearable
-from app.db.postgres.repos.base import GroupedConnectionPage, grouped_page_from_ranked_subquery, ordered_unique
-from app.db.postgres.repos.types import AssignmentCursorKey
+from app.db.postgres.repos.base import GroupedConnectionPage, grouped_page_from_ranked_subquery
+
+type AssignmentCursorKey = tuple[datetime, UUID]
 
 
 def _active_assignment_window(
     model: type[CaseDevice] | type[CaseWearable], now_ref: datetime | ColumnElement[datetime]
-):
-    return or_(
-        model.assigned_to.is_(None),
-        and_(model.assigned_from <= now_ref, model.assigned_to > now_ref),
+) -> ColumnElement[bool]:
+    """Predicate for assignments active at `now_ref`."""
+    return and_(
+        model.assigned_from <= now_ref,
+        or_(
+            model.assigned_to.is_(None),
+            model.assigned_to > now_ref,
+        ),
     )
 
 
-def _seek_datetime_uuid(
+def _seek_lt_datetime_uuid(
     dt_col: ColumnElement[datetime] | InstrumentedAttribute[datetime],
     uuid_col: ColumnElement[UUID] | InstrumentedAttribute[UUID],
     key: AssignmentCursorKey,
-    *,
-    direction: str,
 ) -> ColumnElement[bool]:
+    """Keyset seek predicate for rows before a (datetime, uuid) cursor."""
     dt_value, uuid_value = key
-    if direction == "lt":
-        return or_(dt_col < dt_value, and_(dt_col == dt_value, uuid_col < uuid_value))
-    if direction == "gt":
-        return or_(dt_col > dt_value, and_(dt_col == dt_value, uuid_col > uuid_value))
-    raise ValueError("direction must be 'lt' or 'gt'.")
+    return tuple_(dt_col, uuid_col) < tuple_(literal(dt_value), literal(uuid_value))
+
+
+def _seek_gt_datetime_uuid(
+    dt_col: ColumnElement[datetime] | InstrumentedAttribute[datetime],
+    uuid_col: ColumnElement[UUID] | InstrumentedAttribute[UUID],
+    key: AssignmentCursorKey,
+) -> ColumnElement[bool]:
+    """Keyset seek predicate for rows after a (datetime, uuid) cursor."""
+    dt_value, uuid_value = key
+    return tuple_(dt_col, uuid_col) > tuple_(literal(dt_value), literal(uuid_value))
 
 
 class AssignmentRepo:
+    """Operations for case-device/wearable assignment history and active links."""
+
     def __init__(self, db: AsyncSession):
         self.db = db
-
-    def _db_now_expr(self) -> ColumnElement[datetime]:
-        return func.clock_timestamp()
-
-    def _effective_end_time(self, end_time: datetime | None) -> datetime | ColumnElement[datetime]:
-        return end_time if end_time is not None else self._db_now_expr()
 
     async def _get_active_assignment[TAssignment: CaseDevice | CaseWearable](
         self,
@@ -55,11 +62,12 @@ class AssignmentRepo:
         case_id: UUID,
         asset_id: UUID,
     ) -> TAssignment | None:
-        now_expr = self._db_now_expr()
+        now_expr = func.clock_timestamp()
         query = select(model).where(
             and_(case_id_column == case_id, asset_id_column == asset_id, _active_assignment_window(model, now_expr))
         )
-        return await self.db.scalar(query)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
 
     async def _get_last_assignment[TAssignment: CaseDevice | CaseWearable](
         self,
@@ -75,7 +83,8 @@ class AssignmentRepo:
             .order_by(model.assigned_from.desc(), tie_breaker_column.desc())
             .limit(1)
         )
-        return await self.db.scalar(query)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
 
     async def _list_assignments_connection[TAssignment: CaseDevice | CaseWearable](
         self,
@@ -91,6 +100,7 @@ class AssignmentRepo:
         after_key: AssignmentCursorKey | None = None,
         before_key: AssignmentCursorKey | None = None,
     ) -> GroupedConnectionPage[TAssignment]:
+        """GraphQL connection helper: paginate assignment history by parent entity."""
         if not parent_ids:
             return GroupedConnectionPage(items_by_parent={}, has_extra_by_parent={})
 
@@ -107,13 +117,9 @@ class AssignmentRepo:
         ).where(parent_column.in_(parent_ids))
 
         if after_key is not None:
-            ranked = ranked.where(
-                _seek_datetime_uuid(model.assigned_from, cursor_tie_column, after_key, direction="lt")
-            )
+            ranked = ranked.where(_seek_lt_datetime_uuid(model.assigned_from, cursor_tie_column, after_key))
         if before_key is not None:
-            ranked = ranked.where(
-                _seek_datetime_uuid(model.assigned_from, cursor_tie_column, before_key, direction="gt")
-            )
+            ranked = ranked.where(_seek_gt_datetime_uuid(model.assigned_from, cursor_tie_column, before_key))
 
         ranked_subquery = ranked.subquery()
 
@@ -160,7 +166,7 @@ class AssignmentRepo:
                 **{
                     case_id_column.key: case_id,
                     asset_id_column.key: asset_id,
-                    "assigned_from": start_time if start_time is not None else self._db_now_expr(),
+                    "assigned_from": start_time if start_time is not None else func.clock_timestamp(),
                     "assigned_to": end_time,
                 }
             )
@@ -181,8 +187,8 @@ class AssignmentRepo:
         asset_id: UUID,
         end_time: datetime | None = None,
     ) -> TAssignment | None:
-        now_expr = self._db_now_expr()
-        effective_end_time = self._effective_end_time(end_time)
+        now_expr = func.clock_timestamp()
+        effective_end_time = end_time if end_time is not None else func.clock_timestamp()
         query = (
             update(model)
             .where(
@@ -195,7 +201,8 @@ class AssignmentRepo:
             .values(assigned_to=effective_end_time)
             .returning(model)
         )
-        return await self.db.scalar(query)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
 
     async def _unassign_last[TAssignment: CaseDevice | CaseWearable](
         self,
@@ -206,8 +213,8 @@ class AssignmentRepo:
         case_id: UUID,
         end_time: datetime | None = None,
     ) -> TAssignment | None:
-        now_expr = self._db_now_expr()
-        effective_end_time = self._effective_end_time(end_time)
+        now_expr = func.clock_timestamp()
+        effective_end_time = end_time if end_time is not None else func.clock_timestamp()
         subquery = (
             select(asset_id_column)
             .where(case_id_column == case_id, _active_assignment_window(model, now_expr))
@@ -239,6 +246,8 @@ class AssignmentRepo:
         asset_id: UUID,
         assigned_from: datetime | None = None,
     ) -> TAssignment | None:
+        """Delete a specific assignment row, or delete only when exactly one row matches
+        when `assigned_from` key is not provided."""
         if assigned_from is not None:
             stmt = (
                 delete(model)
@@ -251,7 +260,8 @@ class AssignmentRepo:
                 )
                 .returning(model)
             )
-            return await self.db.scalar(stmt)
+            result = await self.db.execute(stmt)
+            return result.scalar_one_or_none()
 
         candidates_cte = (
             select(
@@ -272,7 +282,8 @@ class AssignmentRepo:
             .where(select(func.count()).select_from(candidates_cte).scalar_subquery() == 1)
             .returning(model)
         )
-        return await self.db.scalar(stmt)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
 
     # Devices
     async def get_active_device(self, case_id: UUID, device_id: UUID) -> CaseDevice | None:
@@ -295,12 +306,12 @@ class AssignmentRepo:
     async def list_device_assignments_by_case_ids_connection(
         self,
         case_ids: list[UUID],
-        *,
         page_size: int,
         fetch_backward: bool,
         after_key: AssignmentCursorKey | None = None,
         before_key: AssignmentCursorKey | None = None,
     ) -> GroupedConnectionPage[CaseDevice]:
+        """GraphQL connection helper: device assignment history grouped by case id."""
         return await self._list_assignments_connection(
             model=CaseDevice,
             parent_ids=case_ids,
@@ -317,12 +328,12 @@ class AssignmentRepo:
     async def list_device_assignments_by_device_ids_connection(
         self,
         device_ids: list[UUID],
-        *,
         page_size: int,
         fetch_backward: bool,
         after_key: AssignmentCursorKey | None = None,
         before_key: AssignmentCursorKey | None = None,
     ) -> GroupedConnectionPage[CaseDevice]:
+        """GraphQL connection helper: device assignment history grouped by device id."""
         return await self._list_assignments_connection(
             model=CaseDevice,
             parent_ids=device_ids,
@@ -403,12 +414,12 @@ class AssignmentRepo:
     async def list_wearable_assignments_by_case_ids_connection(
         self,
         case_ids: list[UUID],
-        *,
         page_size: int,
         fetch_backward: bool,
         after_key: AssignmentCursorKey | None = None,
         before_key: AssignmentCursorKey | None = None,
     ) -> GroupedConnectionPage[CaseWearable]:
+        """GraphQL connection helper: wearable assignment history grouped by case id."""
         return await self._list_assignments_connection(
             model=CaseWearable,
             parent_ids=case_ids,
@@ -425,12 +436,12 @@ class AssignmentRepo:
     async def list_wearable_assignments_by_wearable_ids_connection(
         self,
         wearable_ids: list[UUID],
-        *,
         page_size: int,
         fetch_backward: bool,
         after_key: AssignmentCursorKey | None = None,
         before_key: AssignmentCursorKey | None = None,
     ) -> GroupedConnectionPage[CaseWearable]:
+        """GraphQL connection helper: wearable assignment history grouped by wearable id."""
         return await self._list_assignments_connection(
             model=CaseWearable,
             parent_ids=wearable_ids,
@@ -447,12 +458,12 @@ class AssignmentRepo:
     async def list_active_devices_by_case_ids_connection(
         self,
         case_ids: list[UUID],
-        *,
         page_size: int,
         fetch_backward: bool,
         after_key: AssignmentCursorKey | None = None,
         before_key: AssignmentCursorKey | None = None,
     ) -> GroupedConnectionPage[Device]:
+        """GraphQL connection helper: active devices grouped by case id."""
         return await self._list_active_assets_by_case_ids_connection(
             case_ids=case_ids,
             page_size=page_size,
@@ -468,12 +479,12 @@ class AssignmentRepo:
     async def list_active_wearables_by_case_ids_connection(
         self,
         case_ids: list[UUID],
-        *,
         page_size: int,
         fetch_backward: bool,
         after_key: AssignmentCursorKey | None = None,
         before_key: AssignmentCursorKey | None = None,
     ) -> GroupedConnectionPage[Wearable]:
+        """GraphQL connection helper: active wearables grouped by case id."""
         return await self._list_active_assets_by_case_ids_connection(
             case_ids=case_ids,
             page_size=page_size,
@@ -488,7 +499,6 @@ class AssignmentRepo:
 
     async def _list_active_assets_by_case_ids_connection[TNode](
         self,
-        *,
         case_ids: list[UUID],
         page_size: int,
         fetch_backward: bool,
@@ -499,10 +509,11 @@ class AssignmentRepo:
         node_id_column: InstrumentedAttribute[UUID],
         node_pk_column: InstrumentedAttribute[UUID],
     ) -> GroupedConnectionPage[TNode]:
+        """GraphQL connection helper: active assets per case using latest active assignment cursor."""
         if not case_ids:
             return GroupedConnectionPage(items_by_parent={}, has_extra_by_parent={})
 
-        now_expr = self._db_now_expr()
+        now_expr = func.clock_timestamp()
         latest_assignments = (
             select(
                 assignment_model.case_id.label("parent_id"),
@@ -534,20 +545,18 @@ class AssignmentRepo:
 
         if after_key is not None:
             ranked = ranked.where(
-                _seek_datetime_uuid(
+                _seek_lt_datetime_uuid(
                     latest_subquery.c.latest_assigned_from,
                     latest_subquery.c.node_id,
                     after_key,
-                    direction="lt",
                 )
             )
         if before_key is not None:
             ranked = ranked.where(
-                _seek_datetime_uuid(
+                _seek_gt_datetime_uuid(
                     latest_subquery.c.latest_assigned_from,
                     latest_subquery.c.node_id,
                     before_key,
-                    direction="gt",
                 )
             )
 
@@ -626,17 +635,21 @@ class AssignmentRepo:
 
     # Contexts
     async def link_context(self, case_id: UUID, context_id: UUID) -> CaseContext | None:
+        """Create a case-context link if it does not already exist."""
         query = (
             pg_insert(CaseContext)
             .values(case_id=case_id, context_id=context_id)
             .on_conflict_do_nothing(index_elements=["case_id", "context_id"])
         ).returning(CaseContext)
-        return await self.db.scalar(query)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
 
     async def unlink_context(self, case_id: UUID, context_id: UUID) -> CaseContext | None:
+        """Remove a case-context link if present."""
         query = (
             delete(CaseContext)
             .where(and_(CaseContext.case_id == case_id, CaseContext.context_id == context_id))
             .returning(CaseContext)
         )
-        return await self.db.scalar(query)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()

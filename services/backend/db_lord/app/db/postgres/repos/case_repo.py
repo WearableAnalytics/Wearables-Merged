@@ -5,11 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.db.postgres.orm import Case, CaseContext, CaseDevice, CaseWearable
-from app.db.postgres.repos.base import (
-    BaseRepo,
-    GroupedConnectionPage,
-    grouped_page_from_ranked_subquery,
-)
+from app.db.postgres.repos.base import BaseRepo, GroupedConnectionPage, grouped_page_from_ranked_subquery
 from app.schemas.case import CaseCreate, CaseExpandableFields, CaseUpdate
 
 
@@ -42,12 +38,12 @@ class CaseRepo(BaseRepo[Case, CaseCreate, CaseUpdate]):
     async def list_by_patient_ids_connection(
         self,
         patient_ids: list[UUID],
-        *,
         page_size: int,
         fetch_backward: bool,
         after_id: UUID | None = None,
         before_id: UUID | None = None,
     ) -> GroupedConnectionPage[Case]:
+        """GraphQL connection helper: list cases grouped by patient id."""
         if not patient_ids:
             return GroupedConnectionPage(items_by_parent={}, has_extra_by_parent={})
 
@@ -72,18 +68,18 @@ class CaseRepo(BaseRepo[Case, CaseCreate, CaseUpdate]):
             fetch_backward=fetch_backward,
             value_from_row=lambda row: row.node_id,
             load_nodes_by_value=self.map_by_ids,
-            cursor_values_from=lambda node, _node_id: (node.id,),
+            cursor_values_from=lambda _node, node_id: (node_id,),
         )
 
     async def list_by_context_ids_connection(
         self,
         context_ids: list[UUID],
-        *,
         page_size: int,
         fetch_backward: bool,
         after_id: UUID | None = None,
         before_id: UUID | None = None,
     ) -> GroupedConnectionPage[Case]:
+        """GraphQL connection helper: list cases grouped by context id."""
         if not context_ids:
             return GroupedConnectionPage(items_by_parent={}, has_extra_by_parent={})
 
@@ -108,5 +104,5 @@ class CaseRepo(BaseRepo[Case, CaseCreate, CaseUpdate]):
             fetch_backward=fetch_backward,
             value_from_row=lambda row: row.node_id,
             load_nodes_by_value=self.map_by_ids,
-            cursor_values_from=lambda node, _node_id: (node.id,),
+            cursor_values_from=lambda _node, node_id: (node_id,),
         )

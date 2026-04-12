@@ -14,10 +14,12 @@ class DeviceRepo(BaseRepo[Device, DeviceCreate, DeviceUpdate]):
         super().__init__(Device, db)
 
     async def get_with_assignments(self, id: UUID) -> Device | None:
+        """Fetch a device with assignment rows preloaded for expanded reads."""
         query = select(Device).where(Device.id == id).options(selectinload(Device.case_assignments))
         return await self.db.scalar(query)
 
     async def update_status(self, id: UUID, status: str, expected_status: str | None = None) -> bool:
+        """Update status optionally using optimistic semantics."""
         stmt = update(Device).where(Device.id == id)
         if expected_status is not None:
             stmt = stmt.where(Device.status == expected_status)

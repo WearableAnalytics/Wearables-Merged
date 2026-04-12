@@ -8,6 +8,9 @@ from typing import Any
 from sqlalchemy import ColumnElement, and_, not_, or_
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import DeclarativeBase, InstrumentedAttribute
+from sqlalchemy.sql.sqltypes import Enum as SAEnumType
+from sqlalchemy.sql.type_api import TypeEngine
+from sqlalchemy.types import String
 from strawberry.types.maybe import Some
 
 from app.graphql.inputs import FilterCondition, FilterInput, FilterOperator, FilterValue
@@ -34,6 +37,11 @@ def _extract_filter_value(value: FilterValue) -> object:
             return maybe_value.value
 
     raise ValueError("FilterValue must specify exactly one value")
+
+
+def _is_text_column(column: InstrumentedAttribute[Any]) -> bool:
+    column_type: TypeEngine[Any] = column.property.columns[0].type
+    return isinstance(column_type, String) and not isinstance(column_type, SAEnumType)
 
 
 class FilterBuilder:
@@ -86,7 +94,6 @@ class FilterBuilder:
 
         value = _extract_filter_value(cond.value) if cond.value else None
 
-        # Build expression based on operator
         match cond.op:
             case FilterOperator.EQ:
                 return column == value
@@ -104,24 +111,37 @@ class FilterBuilder:
                 if not isinstance(value, (list, tuple, set, frozenset)):
                     raise ValueError("Filter operator IN requires a list-like value")
                 iterable_values = list(value)
+                if not iterable_values:
+                    raise ValueError("Filter operator IN requires a non-empty list-like value")
                 return column.in_(iterable_values)
             case FilterOperator.NOT_IN:
                 if not isinstance(value, (list, tuple, set, frozenset)):
                     raise ValueError("Filter operator NOT_IN requires a list-like value")
                 iterable_values = list(value)
+                if not iterable_values:
+                    raise ValueError("Filter operator NOT_IN requires a non-empty list-like value")
                 return column.not_in(iterable_values)
             case FilterOperator.IS_NULL:
                 if value is True or value is None:
                     return column.is_(None)
                 return column.is_not(None)
             case FilterOperator.ILIKE:
-                return column.ilike(value) if value else column.ilike("")
+                if not _is_text_column(column):
+                    raise ValueError(
+                        f"Filter operator ILIKE is only supported for string fields on {self.model.__name__}."
+                    )
+                if not isinstance(value, str) or value == "":
+                    raise ValueError("Filter operator ILIKE requires a non-empty string value")
+                return column.ilike(value)
             case FilterOperator.CONTAINS:
-                # Probably disallow this cause it can lead to very expensive queries. Probably better to just use ILIKE
-                pattern = f"%{value}%" if value else "%%"
+                if not _is_text_column(column):
+                    raise ValueError(
+                        f"Filter operator CONTAINS is only supported for string fields on {self.model.__name__}."
+                    )
+                if not isinstance(value, str) or value == "":
+                    raise ValueError("Filter operator CONTAINS requires a non-empty string value")
+                pattern = f"%{value}%"
                 return column.ilike(pattern)
-            case _:
-                raise ValueError(f"Unsupported operator: {cond.op}")
 
 
 def apply_filter(model: type[DeclarativeBase], filter_input: FilterInput | None) -> ColumnElement[bool] | None:

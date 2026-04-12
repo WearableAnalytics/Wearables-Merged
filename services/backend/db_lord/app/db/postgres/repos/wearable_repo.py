@@ -14,10 +14,12 @@ class WearableRepo(BaseRepo[Wearable, WearableCreate, WearableUpdate]):
         super().__init__(Wearable, db)
 
     async def get_with_assignments(self, id: UUID) -> Wearable | None:
+        """Fetch a wearable with assignment rows preloaded for expanded reads."""
         query = select(Wearable).where(Wearable.id == id).options(selectinload(Wearable.case_assignments))
         return await self.db.scalar(query)
 
     async def update_status(self, id: UUID, status: str, expected_status: str | None = None) -> bool:
+        """Update status optionally using optimistic semantics."""
         stmt = update(Wearable).where(Wearable.id == id)
         if expected_status is not None:
             stmt = stmt.where(Wearable.status == expected_status)

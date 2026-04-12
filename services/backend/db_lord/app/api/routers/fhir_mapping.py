@@ -11,8 +11,7 @@ from app.api.dependencies import (
     FHIRMappingServiceDep,
     FHIRMappingSortingDep,
 )
-from app.api.params import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam
-from app.api.streaming import stream_as_ndjson
+from app.api.streaming import STREAM_BATCH_SIZE_DEFAULT, StreamBatchSizeParam, stream_as_ndjson
 from app.schemas.fhir_mapping import (
     DotDependencyFileCreate,
     DotDependencyFileResponse,
@@ -25,8 +24,12 @@ from app.schemas.fhir_mapping import (
 router = APIRouter()
 
 
-# FHIR Mappings (Parent)
-@router.post("/", response_model=FHIRMappingResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=FHIRMappingResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a mapping between FHIR resources and database entities.",
+)
 async def create_fhir_mapping(item_in: FHIRMappingCreate, service: FHIRMappingServiceDep):
     return await service.create(item_in)
 
@@ -53,7 +56,7 @@ async def list_fhir_mappings(
     return await service.list(filters, sorting)
 
 
-@router.get("/stream")
+@router.get("/stream", summary="Stream FHIR mappings as NDJSON")
 async def stream_fhir_mappings(
     service: FHIRMappingServiceDep,
     filters: FHIRMappingFiltersDep,
@@ -65,8 +68,12 @@ async def stream_fhir_mappings(
     )
 
 
-# Dot dependency file (Child)
-@router.post("/dot_dependency_file", response_model=DotDependencyFileResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/dot_dependency_file",
+    response_model=DotDependencyFileResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a dot dependency file representing concrete mapping information for a specific FHIR resource.",
+)
 async def create_dot_dependency_file(item_in: DotDependencyFileCreate, service: DotDependencyFileServiceDep):
     return await service.create(item_in)
 
@@ -93,7 +100,7 @@ async def list_dot_dependency_files(
     return await service.list(filters, sorting)
 
 
-@router.get("/dot_dependency_file/stream")
+@router.get("/dot_dependency_file/stream", summary="Stream dot dependency files as NDJSON")
 async def stream_dot_dependency_files(
     service: DotDependencyFileServiceDep,
     filters: DotDependencyFileFiltersDep,

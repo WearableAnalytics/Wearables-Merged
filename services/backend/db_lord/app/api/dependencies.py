@@ -4,10 +4,8 @@ from typing import Annotated
 from fastapi import Depends, Request
 from fastapi_filters.filter_set import FilterSet
 from fastapi_filters.types import SortingValues
-from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.influx.repos.telemetry_repo import TelemetryRepo
 from app.db.postgres.engine import AsyncSessionLocal
 from app.db.postgres.repos.assignment_repo import AssignmentRepo
 from app.db.postgres.repos.case_repo import CaseRepo
@@ -46,7 +44,7 @@ from app.services.wearable_service import WearableService
 
 async def get_db() -> AsyncGenerator[AsyncSession]:
     """Provide a database session.
-    - Service write methods own transaction boundaries via `async with session.begin()`
+    - Service write methods own transaction boundaries via `async with <session>.begin()`
     - Services have to commit: rollback is enabled by default
     """
     async with AsyncSessionLocal() as session:
@@ -57,15 +55,10 @@ async def get_db() -> AsyncGenerator[AsyncSession]:
                 await session.rollback()
 
 
-def get_influx_client(request: Request) -> InfluxDBClientAsync:
-    return request.app.state.influx_client
-
-
 PgSessionDep = Annotated[AsyncSession, Depends(get_db)]
-InfluxClientDep = Annotated[InfluxDBClientAsync, Depends(get_influx_client)]
 
 
-# Repository Dependencies
+# Repository dependencies
 def get_patient_repo(db: PgSessionDep) -> PatientRepo:
     return PatientRepo(db)
 
@@ -90,10 +83,6 @@ def get_assignment_repo(db: PgSessionDep) -> AssignmentRepo:
     return AssignmentRepo(db)
 
 
-def get_telemetry_repo(request: Request) -> TelemetryRepo:
-    return request.app.state.telemetry_repo
-
-
 def get_fhir_mapping_repo(db: PgSessionDep) -> FHIRMappingRepo:
     return FHIRMappingRepo(db)
 
@@ -108,12 +97,11 @@ DeviceRepoDep = Annotated[DeviceRepo, Depends(get_device_repo)]
 WearableRepoDep = Annotated[WearableRepo, Depends(get_wearable_repo)]
 ContextRepoDep = Annotated[ContextRepo, Depends(get_context_repo)]
 AssignmentRepoDep = Annotated[AssignmentRepo, Depends(get_assignment_repo)]
-TelemetryRepoDep = Annotated[TelemetryRepo, Depends(get_telemetry_repo)]
 FHIRMappingRepoDep = Annotated[FHIRMappingRepo, Depends(get_fhir_mapping_repo)]
 DotDependencyFileRepoDep = Annotated[DotDependencyFileRepo, Depends(get_dot_dependency_file_repo)]
 
 
-# Service Dependencies
+# Service dependencies
 def get_patient_service(repo: PatientRepoDep) -> PatientService:
     return PatientService(repo)
 
@@ -144,8 +132,8 @@ def get_assignment_service(
     return AssignmentService(db, device_repo, wearable_repo, case_repo, assignment_repo)
 
 
-def get_telemetry_service(repo: TelemetryRepoDep) -> TelemetryService:
-    return TelemetryService(repo)
+def get_telemetry_service(request: Request) -> TelemetryService:
+    return request.app.state.telemetry_service
 
 
 def get_fhir_mapping_service(repo: FHIRMappingRepoDep) -> FHIRMappingService:
@@ -156,16 +144,19 @@ def get_dot_dependency_file_service(repo: DotDependencyFileRepoDep) -> DotDepend
     return DotDependencyFileService(repo)
 
 
-async def get_graphql_context(request: Request, telemetry_repo: TelemetryRepoDep) -> GraphQLContext:
+async def get_graphql_context(
+    request: Request,
+    telemetry_service: Annotated[TelemetryService, Depends(get_telemetry_service)],
+) -> GraphQLContext:
     db_semaphore = request.app.state.graphql_db_semaphore
 
-    return {
-        "request": request,
-        "session_factory": AsyncSessionLocal,
-        "db_semaphore": db_semaphore,
-        "loaders": Loaders(AsyncSessionLocal, db_semaphore),
-        "telemetry_repo": telemetry_repo,
-    }
+    return GraphQLContext(
+        request=request,
+        session_factory=AsyncSessionLocal,
+        db_semaphore=db_semaphore,
+        loaders=Loaders(AsyncSessionLocal, db_semaphore),
+        telemetry_service=telemetry_service,
+    )
 
 
 PatientServiceDep = Annotated[PatientService, Depends(get_patient_service)]
@@ -178,7 +169,7 @@ TelemetryServiceDep = Annotated[TelemetryService, Depends(get_telemetry_service)
 FHIRMappingServiceDep = Annotated[FHIRMappingService, Depends(get_fhir_mapping_service)]
 DotDependencyFileServiceDep = Annotated[DotDependencyFileService, Depends(get_dot_dependency_file_service)]
 
-# Filter and Sorting Dependencies
+# Filter and sorting dependencies
 PatientFiltersDep = Annotated[FilterSet, Depends(PatientFilters)]
 PatientSortingDep = Annotated[SortingValues, Depends(PatientSorting)]
 CaseFiltersDep = Annotated[FilterSet, Depends(CaseFilters)]

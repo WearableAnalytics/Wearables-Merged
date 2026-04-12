@@ -10,6 +10,8 @@ from app.model_constants import (
 )
 
 
+# this probably needs to be handled differently because it only accounts for the current status...
+# but what if hardware is assigned in the future? current status enum fails 
 class HardwareStatus(StrEnum):
     AVAILABLE = "AVAILABLE"
     ASSIGNED = "ASSIGNED"
@@ -25,7 +27,7 @@ class TunedBase(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,  # Required for ORM model serialization
         str_strip_whitespace=True,
-        extra="forbid",
+        extra="forbid", # security + to prevent silently ignoring typos in field names
     )
 
 

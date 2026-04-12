@@ -11,7 +11,7 @@ from uuid import UUID
 
 import strawberry
 
-from app.telemetry.constants import TELEMETRY_DEFAULT_PAGE_SIZE
+from app.graphql.scalars import AwareDateTime
 
 
 @strawberry.enum
@@ -113,8 +113,8 @@ class TelemetryQueryInput:
 
     measurement: str | None = strawberry.field(default=None, description="Optional InfluxDB measurement name.")
     bucket: str | None = strawberry.field(default=None, description="Optional InfluxDB bucket override.")
-    start: datetime | None = strawberry.field(default=None, description="Start of time range.")
-    end: datetime | None = strawberry.field(default=None, description="End of time range.")
+    start: AwareDateTime | None = strawberry.field(default=None, description="Start of time range.")
+    end: AwareDateTime | None = strawberry.field(default=None, description="End of time range.")
     tags: list[TelemetryTagInput] | None = strawberry.field(
         default=None, description="Direct Influx tag filters as key/value entries."
     )
@@ -136,14 +136,20 @@ class TelemetryQueryInput:
     mapping_filter: FilterInput | None = strawberry.field(
         default=None, description="Optional PostgreSQL mapping filter resolved to telemetry mapping_id IN."
     )
+    dot_dependency_file_filter: FilterInput | None = strawberry.field(
+        default=None,
+        description="Optional PostgreSQL dot dependency file filter resolved to telemetry dot_dependency_file_id IN.",
+    )
     include_resolved_metadata: bool = strawberry.field(
         default=False, description="When true, include PostgreSQL entities resolved from cross-db filters."
     )
-    dot_dependency_file_ids: list[str] | None = strawberry.field(
+    # Could be a shortcut to filter for data types without havving to write a giant filter tree
+    dot_dependency_file_ids: list[UUID] | None = strawberry.field(
         default=None, description="Telemetry dot_dependency_file_id tags (OR logic)."
     )
     fields: list[str] | None = strawberry.field(default=None, description="Specific fields to return (None = all).")
-    page_size: int = strawberry.field(
-        default=TELEMETRY_DEFAULT_PAGE_SIZE, description="Number of points to return (max 10000)."
+    limit: int | None = strawberry.field(
+        default=None,
+        description="Optional lower bound target number of items to return. "
+        "Omit on stream/export queries to read the full range.",
     )
-    cursor: str | None = strawberry.field(default=None, description="Opaque telemetry cursor for pagination.")

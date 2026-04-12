@@ -6,7 +6,7 @@ from asyncpg.exceptions import (
     UniqueViolationError,
 )
 from fastapi import Request, status
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import JSONResponse
 from influxdb_client.rest import ApiException as InfluxApiException
 from sqlalchemy.exc import DBAPIError, IntegrityError, InvalidRequestError, OperationalError
 
@@ -28,7 +28,7 @@ INTEGRITY_BY_EXCEPTION: tuple[tuple[type[Exception], IntegrityMapping], ...] = (
     (
         ForeignKeyViolationError,
         (
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "foreign_key_violation",
             "Invalid reference: The referenced entity does not exist.",
         ),
@@ -36,7 +36,7 @@ INTEGRITY_BY_EXCEPTION: tuple[tuple[type[Exception], IntegrityMapping], ...] = (
     (
         NotNullViolationError,
         (
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "not_null_violation",
             "Missing data: A required field was missing.",
         ),
@@ -54,10 +54,10 @@ DEFAULT_INTEGRITY_ERROR: IntegrityMapping = (
 )
 
 
-def _json_error(status_code: int, code: str, detail: str, **extra: JsonValue) -> ORJSONResponse:
+def _json_error(status_code: int, code: str, detail: str, **extra: JsonValue) -> JSONResponse:
     payload: JsonObject = {"detail": detail, "code": code}
     payload.update(extra)
-    return ORJSONResponse(status_code=status_code, content=payload)
+    return JSONResponse(status_code=status_code, content=payload)
 
 
 def _unwrap_asyncpg_exc(err: DBAPIError) -> Exception:
@@ -73,7 +73,7 @@ def _unwrap_asyncpg_exc(err: DBAPIError) -> Exception:
     return orig
 
 
-async def entity_not_found_handler(_: Request, exc: EntityNotFoundError) -> ORJSONResponse:
+async def entity_not_found_handler(_: Request, exc: EntityNotFoundError) -> JSONResponse:
     return _json_error(
         status.HTTP_404_NOT_FOUND,
         "not_found",
@@ -82,7 +82,7 @@ async def entity_not_found_handler(_: Request, exc: EntityNotFoundError) -> ORJS
     )
 
 
-async def duplicate_entity_handler(_: Request, exc: DuplicateEntityError) -> ORJSONResponse:
+async def duplicate_entity_handler(_: Request, exc: DuplicateEntityError) -> JSONResponse:
     return _json_error(
         status.HTTP_409_CONFLICT,
         "duplicate_entity",
@@ -91,15 +91,15 @@ async def duplicate_entity_handler(_: Request, exc: DuplicateEntityError) -> ORJ
     )
 
 
-async def bad_request_handler(_: Request, exc: BadRequestError) -> ORJSONResponse:
+async def bad_request_handler(_: Request, exc: BadRequestError) -> JSONResponse:
     return _json_error(status.HTTP_400_BAD_REQUEST, "bad_request", exc.detail)
 
 
-async def conflict_error_handler(_: Request, exc: ConflictError) -> ORJSONResponse:
+async def conflict_error_handler(_: Request, exc: ConflictError) -> JSONResponse:
     return _json_error(status.HTTP_409_CONFLICT, "conflict", exc.detail)
 
 
-async def postgres_unavailable_handler(_: Request, exc: OperationalError) -> ORJSONResponse:
+async def postgres_unavailable_handler(_: Request, exc: OperationalError) -> JSONResponse:
     is_disconnect = getattr(exc, "connection_invalidated", False)
 
     extra: JsonObject = {}
@@ -115,7 +115,7 @@ async def postgres_unavailable_handler(_: Request, exc: OperationalError) -> ORJ
     )
 
 
-async def postgres_integrity_error_handler(_: Request, exc: IntegrityError) -> ORJSONResponse:
+async def postgres_integrity_error_handler(_: Request, exc: IntegrityError) -> JSONResponse:
     e = _unwrap_asyncpg_exc(exc)
 
     http_status, app_code, message = next(
@@ -138,7 +138,7 @@ async def postgres_integrity_error_handler(_: Request, exc: IntegrityError) -> O
 
 
 # SQLAlchemy InvalidRequestError (lazy='raise')
-async def sqlalchemy_invalid_request_handler(_: Request, exc: InvalidRequestError) -> ORJSONResponse:
+async def sqlalchemy_invalid_request_handler(_: Request, exc: InvalidRequestError) -> JSONResponse:
     msg = str(exc)
     if "lazy='raise'" in msg or "is not available due to lazy" in msg:
         return _json_error(
@@ -150,7 +150,7 @@ async def sqlalchemy_invalid_request_handler(_: Request, exc: InvalidRequestErro
 
 
 # InfluxDB handler
-async def influx_api_exception_handler(_: Request, exc: InfluxApiException) -> ORJSONResponse:
+async def influx_api_exception_handler(_: Request, exc: InfluxApiException) -> JSONResponse:
     s = getattr(exc, "status", None)
     body = getattr(exc, "body", None)
     reason = getattr(exc, "reason", None)
