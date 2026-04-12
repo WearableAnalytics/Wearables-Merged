@@ -11,24 +11,25 @@ provider "hcloud" {
   token = var.hcloud_token
 }
 
-# Register SSH keys in Hetzner Cloud
+# Register each team member's SSH key in Hetzner Cloud so they can access the server
 resource "hcloud_ssh_key" "keys" {
   for_each   = var.users
   name       = each.key
   public_key = each.value.ssh_key
 }
 
-# Reference existing SSH keys by name
+# Reference SSH keys that already exist in the Hetzner project (optional)
 data "hcloud_ssh_key" "existing_keys" {
   for_each = toset(var.existing_ssh_key_names)
   name     = each.value
 }
 
-# Firewall (even if docker fucks up IPTables ;)
+# Cloud firewall – controls inbound traffic at the network edge
+# Note: Docker may interfere with local iptables rules, so relying on this is safer
 resource "hcloud_firewall" "firewall" {
   name = "${var.server_name}-firewall"
 
-  # SSH
+  # Allow SSH from anywhere
   rule {
     direction = "in"
     protocol  = "tcp"
@@ -39,7 +40,7 @@ resource "hcloud_firewall" "firewall" {
     ]
   }
 
-  # HTTP
+  # Allow plain HTTP (used for Let's Encrypt challenge / ingress)
   rule {
     direction = "in"
     protocol  = "tcp"
@@ -50,7 +51,7 @@ resource "hcloud_firewall" "firewall" {
     ]
   }
 
-  # HTTPS
+  # Allow HTTPS traffic
   rule {
     direction = "in"
     protocol  = "tcp"
@@ -61,7 +62,7 @@ resource "hcloud_firewall" "firewall" {
     ]
   }
 
-  # K3s API
+  # Allow K3s API server access (needed for kubectl from outside)
   rule {
     direction = "in"
     protocol  = "tcp"
@@ -73,18 +74,20 @@ resource "hcloud_firewall" "firewall" {
   }
 }
 
-# Create Hetzner Cloud Server
+# Single K3s server (single-node setup)
+# For multi-node, see infra/README.md – Upgrading to Multi-Node
 resource "hcloud_server" "server" {
   name        = var.server_name
   server_type = var.server_type
   location    = var.location
   image       = "ubuntu-24.04"
-  
+
+  # Attach all SSH keys (both newly registered and pre-existing)
   ssh_keys = concat(
     [for key in hcloud_ssh_key.keys : key.id],
     [for key in data.hcloud_ssh_key.existing_keys : key.id]
   )
-  
+
   firewall_ids = [hcloud_firewall.firewall.id]
 
   public_net {
@@ -93,7 +96,7 @@ resource "hcloud_server" "server" {
   }
 
   labels = {
-    managed_by = "terraform"
+    managed_by  = "terraform"
     environment = "production"
   }
 }

@@ -1,0 +1,129 @@
+---
+# K3s server (master node) installation
+# Used in multi-node setups. The master runs the control plane and exposes the
+# K3s API on port 6443. Workers connect via the private Hetzner network.
+# For single-node setup use the `k3s` role instead.
+
+# ── Kernel preparation ─────────────────────────────────────────────────────────
+
+- name: Load kernel modules required by K3s
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+
+- name: Make kernel modules persistent across reboots
+  copy:
+    dest: /etc/modules-load.d/k3s.conf
+    content: |
+      br_netfilter
+      overlay
+
+- name: Configure sysctl settings required by K3s networking
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  loop:
+    - { key: 'net.bridge.bridge-nf-call-iptables',  value: '1' }
+    - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+    - { key: 'net.ipv4.ip_forward',                 value: '1' }
+
+# ── K3s server installation ────────────────────────────────────────────────────
+
+- name: Install K3s as server (control plane)
+  # --advertise-address / --node-ip use the private network IP so worker traffic
+  # stays on the internal Hetzner network rather than going through the public NIC.
+  shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server \
+      --write-kubeconfig-mode 644 \
+      --disable traefik \
+      --disable servicelb \
+      --flannel-iface {{ k3s_flannel_iface }} \
+      --advertise-address {{ k3s_master_private_ip }} \
+      --node-ip {{ k3s_master_private_ip }}
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: Wait for K3s API server to be reachable
+  wait_for:
+    port: 6443
+    delay: 5
+    timeout: 300
+
+# ── Node token – shared with worker nodes ─────────────────────────────────────
+
+- name: Read the node join token
+  slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_raw
+
+- name: Expose token as a host fact (accessible by worker plays via hostvars)
+  set_fact:
+    k3s_node_token: "{{ k3s_token_raw['content'] | b64decode | trim }}"
+
+# ── Kubeconfig distribution ────────────────────────────────────────────────────
+
+- name: Create .kube directory for each sudo user
+  file:
+    path: "/home/{{ item.name }}/.kube"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0755'
+  when: item.sudo
+  loop: "{{ users }}"
+
+- name: Patch kubeconfig with public master IP and copy to each sudo user
+  block:
+    - name: Read kubeconfig from disk
+      slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      register: kubeconfig_raw
+
+    - name: Write patched kubeconfig for each sudo user
+      copy:
+        content: "{{ kubeconfig_raw['content'] | b64decode | replace('127.0.0.1', k3s_master_public_ip) }}"
+        dest: "/home/{{ item.name }}/.kube/config"
+        owner: "{{ item.name }}"
+        group: "{{ item.name }}"
+        mode: '0600'
+      when: item.sudo
+      loop: "{{ users }}"
+
+- name: Fetch kubeconfig to local machine
+  fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ playbook_dir }}/../kubeconfig.yaml"
+    flat: yes
+
+- name: Patch local kubeconfig to use the public master IP
+  delegate_to: localhost
+  become: no
+  replace:
+    path: "{{ playbook_dir }}/../kubeconfig.yaml"
+    regexp: 'https://127\.0\.0\.1:6443'
+    replace: "https://{{ k3s_master_public_ip }}:6443"
+
+# ── Convenience ───────────────────────────────────────────────────────────────
+
+- name: Add kubectl alias for all users
+  lineinfile:
+    path: "/home/{{ item.name }}/.bashrc"
+    line: "alias k='kubectl'"
+    create: yes
+  loop: "{{ users }}"
+
+- name: List cluster nodes to verify master is Ready
+  command: kubectl get nodes
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: nodes_output
+  changed_when: false
+
+- name: Print cluster node list
+  debug:
+    msg: "{{ nodes_output.stdout_lines }}"

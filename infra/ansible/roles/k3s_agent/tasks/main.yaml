@@ -1,0 +1,65 @@
+---
+# K3s agent (worker node) installation
+# Used in multi-node setups. The agent connects to the master via the private
+# Hetzner network and registers itself as a worker node.
+# Must run AFTER the k3s_server play so the node token is available via hostvars.
+
+# ── Kernel preparation ─────────────────────────────────────────────────────────
+
+- name: Load kernel modules required by K3s
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+
+- name: Make kernel modules persistent across reboots
+  copy:
+    dest: /etc/modules-load.d/k3s.conf
+    content: |
+      br_netfilter
+      overlay
+
+- name: Configure sysctl settings required by K3s networking
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  loop:
+    - { key: 'net.bridge.bridge-nf-call-iptables',  value: '1' }
+    - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+    - { key: 'net.ipv4.ip_forward',                 value: '1' }
+
+# ── K3s agent installation ────────────────────────────────────────────────────
+
+- name: Read node join token from master (via hostvars)
+  # The master play sets k3s_node_token as a host fact – we pull it here so the
+  # agent can join without us having to copy the token file manually.
+  set_fact:
+    k3s_node_token: "{{ hostvars[groups['k3s_master'][0]]['k3s_node_token'] }}"
+
+- name: Install K3s agent and join the cluster
+  # Uses the private IP of the master so all control-plane traffic stays on the
+  # internal Hetzner network.
+  shell: |
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_VERSION="{{ k3s_version }}" \
+      K3S_URL="https://{{ k3s_master_private_ip }}:6443" \
+      K3S_TOKEN="{{ k3s_node_token }}" \
+      sh -s - agent \
+        --flannel-iface {{ k3s_flannel_iface }} \
+        --node-ip {{ ansible_host }}
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: Ensure k3s-agent service is started and enabled
+  systemd:
+    name: k3s-agent
+    state: started
+    enabled: yes
+
+- name: Confirm worker joined the cluster
+  debug:
+    msg: "Worker {{ inventory_hostname }} successfully joined the cluster."

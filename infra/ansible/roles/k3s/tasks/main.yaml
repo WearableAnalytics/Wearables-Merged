@@ -1,5 +1,11 @@
 ---
-- name: Load kernel modules for K3s
+# K3s single-node installation
+# Installs K3s as a combined server+agent, disables the default Traefik and
+# ServiceLB so we can install our own ingress/load-balancer later.
+
+# ── Kernel preparation ─────────────────────────────────────────────────────────
+
+- name: Load kernel modules required by K3s
   modprobe:
     name: "{{ item }}"
     state: present
@@ -7,25 +13,27 @@
     - br_netfilter
     - overlay
 
-- name: Make kernel modules persistent
+- name: Make kernel modules persistent across reboots
   copy:
     dest: /etc/modules-load.d/k3s.conf
     content: |
       br_netfilter
       overlay
 
-- name: Sysctl für K3s konfigurieren
+- name: Configure sysctl settings required by K3s networking
   sysctl:
     name: "{{ item.key }}"
     value: "{{ item.value }}"
     state: present
     reload: yes
   loop:
-    - { key: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+    - { key: 'net.bridge.bridge-nf-call-iptables',  value: '1' }
     - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
-    - { key: 'net.ipv4.ip_forward', value: '1' }
+    - { key: 'net.ipv4.ip_forward',                 value: '1' }
 
-- name: K3s installieren
+# ── K3s installation ───────────────────────────────────────────────────────────
+
+- name: Install K3s (skipped if /usr/local/bin/k3s already exists)
   shell: |
     curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - \
       --write-kubeconfig-mode 644 \
@@ -34,55 +42,75 @@
   args:
     creates: /usr/local/bin/k3s
 
-- name: Docker-Gruppe für kubectl erstellen
+- name: Create docker group (required by some workloads that check group membership)
   group:
     name: docker
     state: present
 
-- name: Warten bis K3s läuft
+- name: Wait for K3s API server to become available
   wait_for:
     port: 6443
     delay: 5
     timeout: 300
 
-- name: Kubeconfig für alle Sudo-User kopieren
-  block:
-    - name: .kube Verzeichnis erstellen
-      file:
-        path: "/home/{{ item.name }}/.kube"
-        state: directory
-        owner: "{{ item.name }}"
-        group: "{{ item.name }}"
-        mode: '0755'
-      when: item.sudo
-      loop: "{{ users }}"
+# ── Kubeconfig distribution ────────────────────────────────────────────────────
 
-    - name: Kubeconfig kopieren
-      copy:
-        src: /etc/rancher/k3s/k3s.yaml
-        dest: "/home/{{ item.name }}/.kube/config"
-        owner: "{{ item.name }}"
-        group: "{{ item.name }}"
-        mode: '0600'
-        remote_src: yes
-      when: item.sudo
-      loop: "{{ users }}"
+- name: Create .kube directory for each sudo user
+  file:
+    path: "/home/{{ item.name }}/.kube"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0755'
+  when: item.sudo
+  loop: "{{ users }}"
 
-- name: kubectl Alias für alle User
+- name: Copy kubeconfig for each sudo user
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/{{ item.name }}/.kube/config"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0600'
+    remote_src: yes
+  when: item.sudo
+  loop: "{{ users }}"
+
+# ── Local kubeconfig ───────────────────────────────────────────────────────────
+
+- name: Fetch kubeconfig to local machine
+  fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ playbook_dir }}/../kubeconfig.yaml"
+    flat: yes
+
+- name: Patch local kubeconfig to use the public server IP
+  # The default kubeconfig points to 127.0.0.1 – we rewrite it to the public IP
+  # so kubectl works from the developer's machine without SSH tunnelling.
+  delegate_to: localhost
+  become: no
+  replace:
+    path: "{{ playbook_dir }}/../kubeconfig.yaml"
+    regexp: 'https://127\.0\.0\.1:6443'
+    replace: "https://{{ ansible_host }}:6443"
+
+# ── Convenience ───────────────────────────────────────────────────────────────
+
+- name: Add kubectl alias for all users
   lineinfile:
     path: "/home/{{ item.name }}/.bashrc"
     line: "alias k='kubectl'"
     create: yes
   loop: "{{ users }}"
 
-- name: K3s Status anzeigen
+- name: Get K3s service status
   command: systemctl status k3s
   register: k3s_status
   changed_when: false
 
-- name: K3s Info ausgeben
+- name: Print K3s installation summary
   debug:
     msg:
-      - "K3s erfolgreich installiert!"
-      - "Kubeconfig: /etc/rancher/k3s/k3s.yaml"
-      - "kubectl ist verfügbar"
+      - "K3s installed successfully!"
+      - "Local kubeconfig saved to: infra/kubeconfig.yaml"
+      - "Test with: KUBECONFIG=infra/kubeconfig.yaml kubectl get nodes"
