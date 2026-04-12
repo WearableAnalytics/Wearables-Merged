@@ -598,6 +598,7 @@ main() {
     # Run deployment steps
     check_prerequisites
     create_all_namespaces
+    deploy_argo
     sync_infisical_secrets
     deploy_postgres
     deploy_seaweedfs

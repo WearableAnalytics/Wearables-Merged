@@ -21,6 +21,7 @@ spec:
         - name: notebook
           image: wearables42/spark-notebook:latest
           imagePullPolicy: Always
+          command: ["start-notebook.sh"]
           ports:
             - containerPort: 8888
           env:
