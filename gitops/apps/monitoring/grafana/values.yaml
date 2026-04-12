@@ -9,13 +9,14 @@ resourceRequests:
   mem: 2Gi
 persistence:
   storage: 1Gi
-  storageClassName: cinder-csi
+  storageClassName: local-path # may need to be changed accordingly
   accessModes: ["ReadWriteOnce"]
 ingress: 
   host: "wearables.charite.de"
   prefix: "/grafana"
+  httpOnly: false
 certificate:
   name: wearables-cert
   secretName: wearables-tls
 security:
-  csrfTrustedOrigins: "http://localhost:3002,https://wearables.charite.de"
+  csrfTrustedOrigins: "http://localhost:3002,https://wearables.charite.de,http://wearables.charite.de"

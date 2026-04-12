@@ -186,7 +186,7 @@ if (isProduction && mailerFromEmail && !mailerFromEmail.includes('@')) {
 }
 
 if (isProduction && !brevoApiKey) {
-  throw new Error('Invalid configuration: BREVO_API_KEY is required when NODE_ENV=production.');
+  throw new Error('Invalid configuration: BREVO_API_KEY is re§quired when NODE_ENV=production.');
 }
 
 export const config = {

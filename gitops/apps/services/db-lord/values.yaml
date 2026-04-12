@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: gmsdaniil/wearables-db-lord
+  repository: wearables42/wearables-db-lord
   pullPolicy: Always
   tag: "latest"
 

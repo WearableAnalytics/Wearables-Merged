@@ -12,4 +12,4 @@ image:
 
 persistence:
   size: 10Gi
-  storageClass: cinder-csi
+  storageClass: local-path # may need to be changed accordingly

@@ -1,0 +1,31 @@
+auth:
+  postgresPassword: Xk9mPqL2vNwR7sYhT4jB6cAeF8gU3iZo
+
+databases:
+  - name: dblord
+    user: dblord
+    password: k052oFSjXuDZjiYcweA5lAb2
+  - name: lakefs
+    user: lakefs_user
+    password: "ji5VGo7BeAY3DBWa$Yjb"
+
+image:
+  repository: postgres
+  tag: 18-alpine
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+service:
+  port: 5432
+  type: ClusterIP
+
+storage:
+  size: 20Gi
+  storageClassName: local-path

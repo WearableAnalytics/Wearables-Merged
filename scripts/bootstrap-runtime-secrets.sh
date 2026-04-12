@@ -9,6 +9,7 @@ BFF_SECRET_NAME="${BFF_SECRET_NAME:-wearables-bff-secrets}"
 GRAFANA_NAMESPACE="${GRAFANA_NAMESPACE:-monitoring}"
 GRAFANA_SECRET_NAME="${GRAFANA_SECRET_NAME:-grafana-auth-secrets}"
 GRAFANA_JWT_PRIVATE_KEY_PATH="${GRAFANA_JWT_PRIVATE_KEY_PATH:-${REPO_ROOT}/secrets/grafana-jwt-private.pem}"
+GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING="${GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING:-true}"
 
 BREVO_API_KEY="${BREVO_API_KEY:-}"
 RESEARCHER_API_ACCESS_TOKEN="${RESEARCHER_API_ACCESS_TOKEN:-}"
@@ -26,6 +27,7 @@ Environment variables:
   GRAFANA_NAMESPACE                   (default: monitoring)
   GRAFANA_SECRET_NAME                 (default: grafana-auth-secrets)
   GRAFANA_JWT_PRIVATE_KEY_PATH        (default: ./secrets/grafana-jwt-private.pem)
+  GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING (default: false; set true to generate RSA key if missing)
   BREVO_API_KEY                       (optional)
   RESEARCHER_API_ACCESS_TOKEN         (required)
   SHARED_APP_JWT_SECRET               (optional; overrides auto-discovery/generation)
@@ -38,6 +40,7 @@ Behavior:
       * wearables-bff secret key: JWT_SECRET
       * grafana-auth secret key: APP_JWT_SECRET
   - Applies grafana private key from GRAFANA_JWT_PRIVATE_KEY_PATH.
+  - Optionally generates a new RSA private key at GRAFANA_JWT_PRIVATE_KEY_PATH when missing.
 EOF
 }
 
@@ -56,10 +59,25 @@ if ! command -v openssl >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -f "${GRAFANA_JWT_PRIVATE_KEY_PATH}" ]]; then
+ensure_grafana_private_key_file() {
+  if [[ -f "${GRAFANA_JWT_PRIVATE_KEY_PATH}" ]]; then
+    return 0
+  fi
+
+  if [[ "${GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING}" == "true" ]]; then
+    mkdir -p "$(dirname "${GRAFANA_JWT_PRIVATE_KEY_PATH}")"
+    echo "Grafana private key not found; generating RSA key at ${GRAFANA_JWT_PRIVATE_KEY_PATH}." >&2
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "${GRAFANA_JWT_PRIVATE_KEY_PATH}" >/dev/null
+    chmod 600 "${GRAFANA_JWT_PRIVATE_KEY_PATH}"
+    return 0
+  fi
+
   echo "Error: Grafana private key file not found: ${GRAFANA_JWT_PRIVATE_KEY_PATH}" >&2
+  echo "Set GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING=true to create it automatically." >&2
   exit 1
-fi
+}
+
+ensure_grafana_private_key_file
 
 if [[ -z "${RESEARCHER_API_ACCESS_TOKEN}" ]]; then
   echo "Error: RESEARCHER_API_ACCESS_TOKEN is required." >&2

@@ -1,12 +1,21 @@
 # export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 # eval $(minikube -p minikube docker-env)
 # These two commands need to be executed in the terminal before executing the just command
-build-push tag log-level:
+build-push-x86 tag log-level:
     docker buildx build \
       --platform linux/amd64 \
       --build-arg LOG_LEVEL={{log-level}} \
-      -t lndocker3s/mapper-validator:{{tag}} \
+      -t wearables42/mapper-validator:{{tag}} \
       --push .
+
+build-push-arm tag log-level:
+    docker buildx build \
+      --platform linux/arm64 \
+      --build-arg LOG_LEVEL={{log-level}} \
+      -t wearables42/mapper-validator-arm:{{tag}} \
+      --push .
+
+
 
 set-testing-env:
     export MAPPING_YAML_PATH="config/json-tp-fhir-new.yaml"

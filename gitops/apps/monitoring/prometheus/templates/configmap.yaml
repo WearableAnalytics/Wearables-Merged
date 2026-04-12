@@ -12,5 +12,20 @@ data:
         static_configs:
           - targets: ['localhost:9090']
       - job_name: 'kafka'
-        static_configs:
-          - targets: ['172.25.1.57:9404']
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - kafka
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_strimzi_io_kind]
+            regex: Kafka
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            regex: .*-kafka-[0-9]+
+            action: keep
+          - source_labels: [__address__]
+            target_label: __address__
+            regex: ([^:]+)(?::\d+)?
+            replacement: ${1}:9404
+            action: replace

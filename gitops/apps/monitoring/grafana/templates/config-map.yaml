@@ -6,9 +6,21 @@ data:
   grafana.ini: |
     [security]
     allow_embedding = true
+{{- if .Values.ingress.httpOnly }}
+    cookie_samesite = lax
+    cookie_secure = false
+{{- else }}
     cookie_samesite = none
     cookie_secure = true
+{{- end }}
 
     [auth.anonymous]
     enabled = true
     org_role = Viewer
+{{- if .Values.ingress.httpOnly }}
+    [auth.proxy]
+    enabled = false
+
+    [server]
+    enable_gzip = true
+{{- end }}

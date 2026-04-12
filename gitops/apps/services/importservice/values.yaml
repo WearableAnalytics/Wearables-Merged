@@ -1,8 +1,8 @@
 replicaCount: 1
 
 image:
-  repository: gmsdaniil/wearables-ingestion
-  tag: "latest"
+  repository: wearables42/wearables-ingestion
+  tag: "2026-03-29"
   pullPolicy: Always
 
 service:
@@ -36,6 +36,7 @@ readinessProbe:
 ingress:
   host: "wearables.charite.de"
   prefix: "/import"
+  httpOnly: false
   regex: "^/import/?(.*)"
   replacement: /$1
   certificateSecret: wearables-tls

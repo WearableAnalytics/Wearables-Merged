@@ -1,6 +1,6 @@
 image:
-  repository: wearables42/web-frontend
-  tag: "1.0.0"
+  repository: wearables42/wearables-web-frontend
+  tag: "latest"
   pullPolicy: Always
 
 runtimeConfigMap:
@@ -8,8 +8,8 @@ runtimeConfigMap:
   name: ""
 
 runtimeConfig:
-  apiBaseUrl: "http://localhost:3001/api"
-  grafanaProxyUrl: "http://localhost:3002/grafana-proxy"
+  apiBaseUrl: "http://wearables.charite.de/"
+  grafanaProxyUrl: "http://wearables.charite.de/proxy"
 
 # Service configuration
 service:
@@ -18,9 +18,10 @@ service:
 
 # Ingress configuration
 ingress:
-  enabled: false
+  enabled: true
   host: "wearables.charite.de"
   path: "/"
+  httpOnly: true
   certificateSecretName: "wearables-tls"
 
 # Resource requests and limits

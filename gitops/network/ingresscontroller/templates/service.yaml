@@ -2,14 +2,26 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}
+  {{- if or .Values.service.annotations .Values.service.lbNetworkId .Values.service.lbSubnetId .Values.service.workerNodeSubnetId }}
   annotations:
-    loadbalancer.openstack.org/network-id: {{ .Values.service.lbNetworkId }}
-    loadbalancer.openstack.org/subnet-id: {{ .Values.service.lbSubnetId }}
-    loadbalancer.openstack.org/member-subnet-id: {{ .Values.service.workerNodeSubnetId }}
+    {{- range $key, $value := .Values.service.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+    {{- if .Values.service.lbNetworkId }}
+    loadbalancer.openstack.org/network-id: {{ .Values.service.lbNetworkId | quote }}
+    {{- end }}
+    {{- if .Values.service.lbSubnetId }}
+    loadbalancer.openstack.org/subnet-id: {{ .Values.service.lbSubnetId | quote }}
+    {{- end }}
+    {{- if .Values.service.workerNodeSubnetId }}
+    loadbalancer.openstack.org/member-subnet-id: {{ .Values.service.workerNodeSubnetId | quote }}
+    {{- end }}
+  {{- end }}
 spec:
-  type: LoadBalancer
-  # public IPv4 from openstack
+  type: {{ .Values.service.type }}
+  {{- if .Values.service.lbIP }}
   loadBalancerIP: {{ .Values.service.lbIP }}
+  {{- end }}
   selector:
     app: {{ .Release.Name }}
   ports:

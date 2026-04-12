@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: gmsdaniil/wearables-extraction-service
+  repository: wearables42/wearables-extraction-service
   pullPolicy: Always
   tag: "latest"
 

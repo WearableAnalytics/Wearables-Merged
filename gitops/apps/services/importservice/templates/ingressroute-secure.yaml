@@ -1,3 +1,4 @@
+{{- if not .Values.ingress.httpOnly }}
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -18,3 +19,4 @@ spec:
           serversTransport: ingress-long-timeout@kubernetescrd
   tls:
     secretName: {{ .Values.certificate.secretName }}
+{{- end }}
