@@ -45,5 +45,5 @@ class ContextRepo(BaseRepo[Context, ContextCreate, ContextUpdate]):
             fetch_backward=fetch_backward,
             value_from_row=lambda row: row.node_id,
             load_nodes_by_value=self.map_by_ids,
-            cursor_values_from=lambda node, node_id: (node_id if node.id == node_id else node.id,),
+            cursor_values_from=lambda _node, node_id: (node_id,),
         )

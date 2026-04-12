@@ -10,7 +10,7 @@ from app.model_constants import (
 )
 
 
-# this probaly needs to be handeld differently because it only accounts for the current status...
+# this probably needs to be handled differently because it only accounts for the current status...
 # but what if hardware is assigned in the future? current status enum fails 
 class HardwareStatus(StrEnum):
     AVAILABLE = "AVAILABLE"

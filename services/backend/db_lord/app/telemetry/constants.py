@@ -1,5 +1,5 @@
 """
-Kind of a leftover from when we defrenciated between the different types of tags (core vs non core).
+Kind of a leftover from when we differentiated between the different types of tags (core vs non core).
 Should probably be moved somewhere else.
 """
 
