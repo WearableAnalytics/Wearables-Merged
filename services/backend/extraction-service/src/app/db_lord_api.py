@@ -18,22 +18,19 @@ class DbLordApi:
         measurement: str,
         start: datetime | None = None,
         end: datetime | None = None,
-        page_size: int = 100,
-        cursor: str | None = None,
+        limit: int = 100,
         patient_id: str | None = None,
         device_id: str | None = None,
         case_id: str | None = None,
     ) -> TelemetryPageResponse:
         params: dict[str, Any] = {
             "measurement": measurement,
-            "size": page_size,
+            "limit": limit,
         }
         if start:
             params["start"] = start.isoformat()
         if end:
             params["end"] = end.isoformat()
-        if cursor:
-            params["cursor"] = cursor
         if patient_id:
             params["patient_id"] = patient_id
         if device_id:
@@ -46,11 +43,11 @@ class DbLordApi:
         return TelemetryPageResponse.model_validate(r.json())
 
     async def get_fhir_mapping(self, mapping_id: str) -> FhirMappingResponse:
-        r = await self._client.get(f"/fhir_mapping/{mapping_id}")
+        r = await self._client.get(f"/fhir-mappings/{mapping_id}")
         r.raise_for_status()
         return FhirMappingResponse.model_validate(r.json())
 
     async def get_dot_dependency_file(self, file_id: str) -> DotDependencyFileResponse:
-        r = await self._client.get(f"/fhir_mapping/dot_dependency_file/{file_id}")
+        r = await self._client.get(f"/fhir-mappings/dot_dependency_file/{file_id}")
         r.raise_for_status()
         return DotDependencyFileResponse.model_validate(r.json())

@@ -12,7 +12,7 @@ from .clients import create_db_lord_client
 from .db_lord_api import DbLordApi
 from .schemas import TelemetryPageResponse, TelemetryPoint
 
-from src.fhir_serde.dot_parser import parse_file, Graph
+from src.fhir_serde.dot_parser import Graph, parse_file
 from src.fhir_serde.fhir_builder import FhirParser
 from src.fhir_serde.model import FhirYamlConfig
 
@@ -44,8 +44,7 @@ async def get_measurements(
     measurement: str,
     start: datetime | None = None,
     end: datetime | None = None,
-    page_size: int = Query(100, ge=1, le=5000),
-    cursor: str | None = None,
+    limit: int = Query(100, ge=1, le=5000),
     patient_id: str | None = None,
     device_id: str | None = None,
     case_id: str | None = None,
@@ -55,8 +54,7 @@ async def get_measurements(
         measurement=measurement,
         start=start,
         end=end,
-        page_size=page_size,
-        cursor=cursor,
+        limit=limit,
         patient_id=patient_id,
         device_id=device_id,
         case_id=case_id,
@@ -68,13 +66,13 @@ async def export_measurements_csv(
     measurement: str,
     start: datetime | None = None,
     end: datetime | None = None,
-    page_size: int = Query(5000, ge=1, le=5000),
+    limit: int = Query(5000, ge=1, le=5000),
     patient_id: str | None = None,
     device_id: str | None = None,
     case_id: str | None = None,
 ):
     async def row_iter():
-        cursor: str | None = None
+        page_end = end
         yield "timestamp,measurement,patient_id,case_id,device_id,fields\n"
         async with create_db_lord_client() as client:
             api = DbLordApi(client)
@@ -82,9 +80,8 @@ async def export_measurements_csv(
                 page = await api.read_telemetry(
                     measurement=measurement,
                     start=start,
-                    end=end,
-                    page_size=page_size,
-                    cursor=cursor,
+                    end=page_end,
+                    limit=limit,
                     patient_id=patient_id,
                     device_id=device_id,
                     case_id=case_id,
@@ -98,9 +95,9 @@ async def export_measurements_csv(
                     fields_s = json.dumps(item.fields, ensure_ascii=False).replace('"', '""')
                     yield f"{ts},{item.measurement},{pid},{cid},{did},\"{fields_s}\"\n"
 
-                cursor = page.next_page
-                if not cursor or not page.items:
+                if not page.has_more or page.next_end is None or not page.items:
                     break
+                page_end = page.next_end
 
     return StreamingResponse(row_iter(), media_type="text/csv")
 
@@ -110,7 +107,7 @@ async def export_measurements_fhir(
     measurement: str,
     start: datetime | None = None,
     end: datetime | None = None,
-    page_size: int = Query(1000, ge=1, le=5000),
+    limit: int = Query(1000, ge=1, le=5000),
     patient_id: str | None = None,
     device_id: str | None = None,
     case_id: str | None = None,
@@ -121,7 +118,7 @@ async def export_measurements_fhir(
         graph_cache: dict[str, dict[str, Graph]] = {}
 
         entries: list[dict[str, Any]] = []
-        cursor: str | None = None
+        page_end = end
 
         async with create_db_lord_client() as client:
             api = DbLordApi(client)
@@ -129,9 +126,8 @@ async def export_measurements_fhir(
                 page = await api.read_telemetry(
                     measurement=measurement,
                     start=start,
-                    end=end,
-                    page_size=page_size,
-                    cursor=cursor,
+                    end=page_end,
+                    limit=limit,
                     patient_id=patient_id,
                     device_id=device_id,
                     case_id=case_id,
@@ -141,13 +137,13 @@ async def export_measurements_fhir(
                     fhir_resource = await _telemetry_to_fhir(api, item, mapping_cache, graph_cache)
                     if fhir_resource:
                         entries.append({
-                            "fullUrl": f"urn:uuid:{item.patient_id}:{item.timestamp.isoformat()}",
+                            "fullUrl": f"urn:uuid:{item.patient_id or 'unknown'}:{item.timestamp.isoformat()}",
                             "resource": fhir_resource,
                         })
 
-                cursor = page.next_page
-                if not cursor or not page.items:
+                if not page.has_more or page.next_end is None or not page.items:
                     break
+                page_end = page.next_end
 
         return {
             "resourceType": "Bundle",
@@ -166,7 +162,10 @@ async def _telemetry_to_fhir(
     graph_cache: dict[str, dict[str, Graph]],
 ) -> dict | None:
     """Convert a single telemetry point to a FHIR Observation using its linked mapping."""
-    mapping_key = str(item.mapping_id)
+    mapping_key = item.mapping_id
+    dot_key = item.dot_dependency_file_id
+    if mapping_key is None or dot_key is None:
+        return None
 
     if mapping_key not in mapping_cache:
         try:
@@ -176,7 +175,6 @@ async def _telemetry_to_fhir(
         except Exception:
             return None
 
-    dot_key = item.dot_dependency_file_id
     if dot_key not in graph_cache:
         try:
             dot_resp = await api.get_dot_dependency_file(dot_key)
@@ -199,17 +197,9 @@ async def _telemetry_to_fhir(
 
     parser = FhirParser(yaml_config, category_name, nodes)
 
-    tags = {
-        "patient_id": str(item.patient_id),
-        "case_id": str(item.case_id),
-        "device_id": str(item.device_id),
-        "wearable_id": str(item.wearable_id),
-        **item.other_tags,
-    }
-
     return parser.build_fhir_from_telemetry(
         fields=item.fields,
-        tags=tags,
+        tags=item.tags,
         measurement=item.measurement,
         timestamp=item.timestamp.isoformat(),
     )
