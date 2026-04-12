@@ -9,7 +9,7 @@ seaweedfs:
     replicas: 2
     data:
       type: "persistentVolumeClaim" # automatic PVC creation
-      storageClass: local-path #may need to be changed accordingly, local-path for setup-script using minikube on one node
+      storageClass: cinder-csi
       size: 40Gi
 
   filer:
