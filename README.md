@@ -2,7 +2,7 @@
   <img src=".github/assets/wearables-logo-horizontal.png" alt="Wearables logo" width="720" />
 </p>
 
-<h1 align="center">Wearables Platform Monorepo</h1>
+<h1 align="center">Cloud-Native Wearable Analytics Framework</h1>
 
 <p align="center">
   Clinical wearable data platform: ingestion, mapping, storage, extraction, and web/mobile experience in one repository.
