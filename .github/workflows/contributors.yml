@@ -1,11 +1,6 @@
 name: Add contributors
 on:
-  schedule:
-    - cron:  '19 18 * * *'
-# push:
-#   branches:
-#     - master
-
+  workflow_dispatch:
 jobs:
   add-contributors:
     runs-on: ubuntu-latest
