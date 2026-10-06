@@ -1,0 +1,14 @@
+# Helm post-renderer: pins every BayesPlatform workload (including the
+# migration hook Job) to the dedicated bayes-node. The chart only exposes a
+# nodeSelector for the API and the CPU workers, and the app image is too large
+# for the 19 GB disks of the wearables nodes.
+resources:
+  - all.yaml
+patches:
+  - target:
+      kind: (Deployment|StatefulSet|Job)
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          workload: bayes

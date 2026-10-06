@@ -48,11 +48,19 @@ storage:
 
 api:
   replicas: 1
+  # Small requests so everything fits on the 2 vCPU / 4 GB bayes-node.
+  resources:
+    requests: { cpu: 250m, memory: 768Mi }
+    limits: { memory: 2Gi }
   nodeSelector:
     workload: bayes
 
 cpuWorkers:
   replicas: 1
+  # Small requests so everything fits on the 2 vCPU / 4 GB bayes-node.
+  resources:
+    requests: { cpu: 250m, memory: 768Mi }
+    limits: { memory: 2Gi }
   nodeSelector:
     workload: bayes
 
