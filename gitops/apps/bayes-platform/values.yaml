@@ -38,7 +38,8 @@ redis:
 
 # Cinder volumes are ReadWriteOnce, so the API and the workers that share the
 # document volume are pinned to one node: the dedicated bayes-node (Kubermatic
-# MachineDeployment `bayes-node`, 2 vCPU / 4 GB, 100 GB root disk). The other
+# MachineDeployment `bayes-node`, flavor de.NBI small: 8 vCPU / 16 GB,
+# 100 GB root disk). The other
 # nodes only have 19 GB disks, too small for these images.
 storage:
   local:
@@ -48,19 +49,11 @@ storage:
 
 api:
   replicas: 1
-  # Small requests so everything fits on the 2 vCPU / 4 GB bayes-node.
-  resources:
-    requests: { cpu: 250m, memory: 768Mi }
-    limits: { memory: 2Gi }
   nodeSelector:
     workload: bayes
 
 cpuWorkers:
   replicas: 1
-  # Small requests so everything fits on the 2 vCPU / 4 GB bayes-node.
-  resources:
-    requests: { cpu: 250m, memory: 768Mi }
-    limits: { memory: 2Gi }
   nodeSelector:
     workload: bayes
 

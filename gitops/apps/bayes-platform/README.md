@@ -41,4 +41,4 @@ When the chart version changes, run the migration Job by hand on bayes-node (`he
 
 ## Node
 
-The `wearables-node` machines have 19 GB disks: pulling the API and worker images put one of them into `DiskPressure` on the first install. The API and the CPU workers therefore run on a dedicated node, added as the Kubermatic MachineDeployment `bayes-node` in `kube-system` (flavor `de.NBI default`: 2 vCPU / 4 GB, 100 GB root disk, node label `workload=bayes`). Postgres, Redis, web-embed and help use small images and run on the existing nodes.
+The `wearables-node` machines have 19 GB disks: pulling the API and worker images put one of them into `DiskPressure` on the first install. All BayesPlatform workloads therefore run on a dedicated node, added as the Kubermatic MachineDeployment `bayes-node` in `kube-system` (flavor `de.NBI small`: 8 vCPU / 16 GB, 100 GB root disk, node label `workload=bayes`; the chart asks for at least 4 vCPU, 8 GiB and 80 GiB free).
