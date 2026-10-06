@@ -1,0 +1,105 @@
+# Temporary path from the cluster to Clé, which is only reachable inside the
+# Charité network. Elias's Mac (on that network) opens a reverse SSH tunnel
+# into this pod through `kubectl port-forward`, so nothing is opened on the
+# shared jumphost and TLS to cle.charite.de stays end-to-end:
+#
+#   cle-gateway --TLS--> cle-relay:443 (pod 8443) ==ssh -R==> Mac --> cle.charite.de:443
+# (8443 in the pod: the unprivileged ssh user cannot bind ports below 1024.)
+#
+# On the Mac (tunnel + HTTPS_PROXY as usual):
+#   kubectl -n bayes-platform port-forward svc/cle-relay 2222:22 &
+#   ssh -N -i ~/.ssh/bayes_cle_relay -p 2222 -o StrictHostKeyChecking=no \
+#     -o UserKnownHostsFile=/dev/null -R 0.0.0.0:8443:cle.charite.de:443 tunnel@127.0.0.1
+#
+# The ConfigMap holds only the public key of ~/.ssh/bayes_cle_relay.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cle-relay
+  namespace: bayes-platform
+data:
+  start.sh: |
+    set -eu
+    apk add --no-cache openssh-server >/dev/null
+    adduser -D -s /bin/sh tunnel
+    passwd -u tunnel >/dev/null 2>&1 || true
+    mkdir -p /home/tunnel/.ssh
+    cp /config/authorized_keys /home/tunnel/.ssh/authorized_keys
+    chown -R tunnel:tunnel /home/tunnel/.ssh
+    chmod 700 /home/tunnel/.ssh && chmod 600 /home/tunnel/.ssh/authorized_keys
+    ssh-keygen -A >/dev/null
+    cat > /etc/ssh/sshd_config <<'EOF'
+    Port 22
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    PermitRootLogin no
+    AllowUsers tunnel
+    AllowTcpForwarding remote
+    GatewayPorts yes
+    PermitTTY no
+    X11Forwarding no
+    ForceCommand /bin/false
+    PermitListen 0.0.0.0:8443
+    EOF
+    exec /usr/sbin/sshd -D -e
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cle-relay
+  namespace: bayes-platform
+  labels:
+    app: cle-relay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cle-relay
+  template:
+    metadata:
+      labels:
+        app: cle-relay
+    spec:
+      nodeSelector:
+        workload: bayes
+      containers:
+        - name: sshd
+          image: alpine:3.20
+          command: ["sh", "/config/start.sh"]
+          ports:
+            - name: ssh
+              containerPort: 22
+            - name: cle
+              containerPort: 8443
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      volumes:
+        - name: config
+          projected:
+            sources:
+              - configMap:
+                  name: cle-relay
+                  items: [{ key: start.sh, path: start.sh }]
+              - configMap:
+                  name: cle-relay-key
+                  items: [{ key: authorized_keys, path: authorized_keys }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cle-relay
+  namespace: bayes-platform
+spec:
+  selector:
+    app: cle-relay
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: ssh
+    - name: cle
+      port: 443
+      targetPort: cle

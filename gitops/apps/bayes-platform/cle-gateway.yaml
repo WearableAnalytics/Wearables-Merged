@@ -94,6 +94,11 @@ spec:
     spec:
       nodeSelector:
         workload: bayes
+      # cle.charite.de resolves to the cle-relay Service (see cle-relay.yaml),
+      # so TLS still terminates at Clé itself. Update if that Service changes.
+      hostAliases:
+        - ip: 10.240.18.254
+          hostnames: ["cle.charite.de"]
       containers:
         - name: gateway
           image: node:24-slim
