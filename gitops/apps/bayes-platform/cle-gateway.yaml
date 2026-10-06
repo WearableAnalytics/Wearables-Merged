@@ -40,9 +40,11 @@ data:
       const chunks = []
       for await (const chunk of req) chunks.push(chunk)
       let body = Buffer.concat(chunks)
-      if (body.length && model) {
+      // x-cle-model lets a test pick another Clé model; BayesPlatform never sends it.
+      const requested = req.headers['x-cle-model'] || model
+      if (body.length && requested) {
         const json = JSON.parse(body.toString('utf8'))
-        json.model = model
+        json.model = requested
         body = Buffer.from(JSON.stringify(json))
       }
       const target = base + req.url.replace(/^\/v1/, '')
