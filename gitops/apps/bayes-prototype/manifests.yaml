@@ -96,9 +96,6 @@ spec:
           env:
             - name: HOME
               value: /tmp
-            # Vite's host check would otherwise answer 403 for the public host.
-            - name: __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
-              value: wearables.charite.de
           ports:
             - name: http
               containerPort: 4173

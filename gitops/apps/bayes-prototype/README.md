@@ -23,13 +23,7 @@ export HTTPS_PROXY=socks5://127.0.0.1:18080
 | `mcp-server` | 127.0.0.1:3333 | MCP server; binds loopback only |
 | `mcp-proxy` | 8080 (`svc/bayes-prototype:3333`) | socat, exposes the MCP server on the pod IP |
 
-The Service is ClusterIP only. Open it locally with:
-
-```sh
-kubectl -n bayes-prototype port-forward svc/bayes-prototype 8081:80 3333:3333
-# UI:  http://127.0.0.1:8081/dotbase
-# MCP: http://127.0.0.1:3333/mcp
-```
+The Service is ClusterIP only (see Access below).
 
 ## InfluxDB token
 
@@ -50,12 +44,12 @@ kubectl -n bayes-prototype rollout restart deploy/bayes-prototype
 - Patients come from the prototype's fake SQLite DB, not from db-lord.
 - No `VITE_BAYES_EMBED_*`, so the assistant chat panel shows its configuration message.
 
+## Access
 
-## Public route
-
-`ingressroute.yaml` publishes the UI at https://wearables.charite.de/bayes/. It needs the prototype built with `--base=/bayes/` (branch `wearables-integration` of the Bayes repo; `deploy.sh` passes `BAYES_BASE`). The MCP server is not routed: it reads real wearable data and has no authentication.
+Nothing is exposed publicly; use port-forward only. The UI is built with `--base=/bayes/` (branch `wearables-integration` of the Bayes repo; `deploy.sh` passes `BAYES_BASE`):
 
 ```sh
-BAYES_REPO=~/Desktop/charite BAYES_REF=wearables-integration ./deploy.sh
-kubectl apply -f ingressroute.yaml
+kubectl -n bayes-prototype port-forward svc/bayes-prototype 8081:80 3333:3333
+# UI:  http://127.0.0.1:8081/bayes/dotbase
+# MCP: http://127.0.0.1:3333/mcp
 ```
