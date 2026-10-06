@@ -1,0 +1,127 @@
+# Bayes prototype (github.com/bayesimpact/charite), deployed side by side with
+# the wearables platform. The source repo is private, so there is no public
+# image: deploy.sh copies a `git archive` of the repo onto the PVC, builds it
+# in the cluster, then the Deployment runs from that volume.
+# Not yet wired to wearables data: no INFLUX_TOKEN, fake SQLite patients only.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bayes-prototype
+  labels:
+    app.kubernetes.io/part-of: bayes-prototype
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bayes-app
+  namespace: bayes-prototype
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: cinder-csi
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bayes-prototype
+  namespace: bayes-prototype
+  labels:
+    app: bayes-prototype
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # RWO volume
+  selector:
+    matchLabels:
+      app: bayes-prototype
+  template:
+    metadata:
+      labels:
+        app: bayes-prototype
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        # MCP server (Streamable HTTP). It binds 127.0.0.1:3333 only.
+        - name: mcp-server
+          image: node:24-slim
+          workingDir: /work/app
+          command: ["node_modules/.bin/tsx", "src/server/index.ts"]
+          env:
+            - name: PORT
+              value: "3333"
+            - name: INFLUX_URL
+              value: http://influxdb-service.influx.svc.cluster.local:8086
+            - name: INFLUX_ORG
+              value: wearables-project
+            - name: INFLUX_BUCKET
+              value: measurements
+            - name: HOME
+              value: /tmp
+          # INFLUX_TOKEN: read-only token for the measurements bucket, created
+          # out of band (see README). Optional so the app runs without it.
+          envFrom:
+            - secretRef:
+                name: bayes-influx
+                optional: true
+          volumeMounts:
+            - name: app
+              mountPath: /work
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+        # Exposes the loopback-only MCP server on the pod IP without patching
+        # the prototype's code.
+        - name: mcp-proxy
+          image: alpine/socat:1.8.0.3
+          args: ["TCP-LISTEN:8080,fork,reuseaddr", "TCP:127.0.0.1:3333"]
+          ports:
+            - name: mcp
+              containerPort: 8080
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+        # Built Vite UI (fake dotbase + assistant shell).
+        - name: web
+          image: node:24-slim
+          workingDir: /work/app
+          command: ["node_modules/.bin/vite", "preview", "--host", "0.0.0.0", "--port", "4173", "--strictPort"]
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: http
+              containerPort: 4173
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          volumeMounts:
+            - name: app
+              mountPath: /work
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+      volumes:
+        - name: app
+          persistentVolumeClaim:
+            claimName: bayes-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bayes-prototype
+  namespace: bayes-prototype
+spec:
+  selector:
+    app: bayes-prototype
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: mcp
+      port: 3333
+      targetPort: mcp

@@ -1,0 +1,58 @@
+# BayesPlatform (github.com/bayesimpact/bayes-platform), self-contained install
+# next to the wearables platform:
+#   helm upgrade --install bayes-platform oci://ghcr.io/bayesimpact/charts/bayes-platform \
+#     --version 26.9.4 -n bayes-platform -f values.yaml
+# Secrets live in the bayes-platform-secrets Secret, created out of band (README).
+# Not usable yet: no OIDC provider, no LLM, no Vertex embeddings, no ingress.
+
+global:
+  image:
+    tag: "26.09.4"
+
+# Internal placeholders until the public paths on wearables.charite.de are
+# decided. No external or third-party hostnames.
+urls:
+  api: http://bayes-platform-api.bayes-platform.svc.cluster.local
+  web: http://bayes-platform-api.bayes-platform.svc.cluster.local
+  webEmbed: http://bayes-platform-web-embed.bayes-platform.svc.cluster.local
+  help: http://bayes-platform-help.bayes-platform.svc.cluster.local
+
+secrets:
+  existingSecret: bayes-platform-secrets
+
+config:
+  # Placeholder until an OIDC provider is chosen; sign-in does not work yet.
+  OIDC_ISSUER_URL: https://idp.invalid/realms/platform
+  ORGANIZATION_CREATOR_EMAIL_DOMAIN: "@charite.de"
+  BACKOFFICE_AUTHORIZED_DOMAIN: "@charite.de"
+  BACKOFFICE_AUTHORIZED_EMAILS: "elias.gruenewald@charite.de"
+  BULL_BOARD_ALLOWED_EMAIL_DOMAIN: "@charite.de"
+
+postgresql:
+  persistence:
+    storageClass: cinder-csi
+
+redis:
+  persistence:
+    storageClass: cinder-csi
+
+# Cinder volumes are ReadWriteOnce, so the API and the workers that share the
+# document volume are pinned to one node.
+storage:
+  local:
+    storageClass: cinder-csi
+    accessModes: ["ReadWriteOnce"]
+    size: 20Gi
+
+api:
+  replicas: 0 # see README "Node disk"
+  nodeSelector:
+    kubernetes.io/hostname: wearables-node-5776c9586d-b8dbk
+
+cpuWorkers:
+  replicas: 0 # see README "Node disk"
+  nodeSelector:
+    kubernetes.io/hostname: wearables-node-5776c9586d-b8dbk
+
+ingress:
+  enabled: false
