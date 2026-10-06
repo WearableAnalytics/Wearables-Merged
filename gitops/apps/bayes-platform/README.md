@@ -42,3 +42,24 @@ When the chart version changes, run the migration Job by hand on bayes-node (`he
 ## Node
 
 The `wearables-node` machines have 19 GB disks: pulling the API and worker images put one of them into `DiskPressure` on the first install. All BayesPlatform workloads therefore run on a dedicated node, added as the Kubermatic MachineDeployment `bayes-node` in `kube-system` (flavor `de.NBI small`: 8 vCPU / 16 GB, 100 GB root disk, node label `workload=bayes`; the chart asks for at least 4 vCPU, 8 GiB and 80 GiB free).
+
+## Keycloak (temporary login provider)
+
+`keycloak.yaml` runs Keycloak 26.2 in dev mode in this namespace, with a `platform` realm (client `platform-web`, one user) imported on every start. It will be replaced by another Keycloak later. Secrets, created once and never in the repo (letters and digits only, so they copy cleanly):
+
+```sh
+pw() { LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20; }
+kubectl -n bayes-platform create secret generic bayes-keycloak \
+  --from-literal=KC_BOOTSTRAP_ADMIN_PASSWORD="$(pw)" \
+  --from-literal=BAYES_USER_EMAIL=<your email> \
+  --from-literal=BAYES_USER_PASSWORD="$(pw)"
+kubectl apply -f keycloak.yaml
+```
+
+Everything is reached through port-forward for now; the OIDC issuer is fixed to `http://localhost:8180/realms/platform`, and a sidecar in the API pod makes that URL work inside the cluster:
+
+```sh
+kubectl -n bayes-platform port-forward svc/keycloak 8180:8080             # admin console: http://localhost:8180/admin/
+kubectl -n bayes-platform port-forward svc/bayes-platform-api 8181:3000   # BayesPlatform: http://localhost:8181
+kubectl -n bayes-platform get secret bayes-keycloak -o jsonpath='{.data.BAYES_USER_PASSWORD}' | base64 -d; echo
+```
