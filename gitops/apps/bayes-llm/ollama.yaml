@@ -1,0 +1,84 @@
+# Small local LLM for BayesPlatform, on its own node so it is easy to remove:
+#   kubectl delete namespace bayes-llm
+#   kubectl -n kube-system delete machinedeployment llm-node
+# llm-node: Kubermatic MachineDeployment in kube-system (de.NBI small,
+# 8 vCPU / 16 GB, 50 GB root disk), label workload=llm, taint dedicated=llm.
+# Ollama serves an OpenAI-compatible API with tool calling on :11434/v1.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bayes-llm
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+  namespace: bayes-llm
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: cinder-csi
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: bayes-llm
+  labels:
+    app: ollama
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      nodeSelector:
+        workload: llm
+      tolerations:
+        - key: dedicated
+          value: llm
+          effect: NoSchedule
+      containers:
+        - name: ollama
+          image: ollama/ollama:0.12.3
+          env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: "24h"
+            - name: OLLAMA_CONTEXT_LENGTH
+              value: "16384"
+          ports:
+            - name: http
+              containerPort: 11434
+          readinessProbe:
+            httpGet: { path: /api/version, port: http }
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+          resources:
+            requests: { cpu: "6", memory: 10Gi }
+            limits: { memory: 14Gi }
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-models
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: bayes-llm
+spec:
+  selector:
+    app: ollama
+  ports:
+    - name: http
+      port: 11434
+      targetPort: http

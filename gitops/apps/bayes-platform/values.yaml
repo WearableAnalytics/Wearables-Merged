@@ -26,11 +26,12 @@ config:
   # Temporary in-namespace Keycloak (keycloak.yaml). The issuer is the
   # port-forward URL; the API pod reaches it through a sidecar (post-render/).
   OIDC_ISSUER_URL: http://localhost:8180/realms/platform
-  # Clé test shim (cle-gateway.yaml): the "Mistral Small 3.1" slot is routed to
-  # Clé, and the Google token it asks for comes from the gateway.
-  VLLM_MISTRALSMALL31_24B_URL: http://cle-gateway.bayes-platform.svc.cluster.local:8080/v1
+  # Local model (gitops/apps/bayes-llm) behind llm-gateway.yaml: the "Mistral
+  # Small 3.1" slot is routed there, and the Google token it asks for comes
+  # from the gateway. Needs the back-office flags `mistral` and `agent-mcp`.
+  VLLM_MISTRALSMALL31_24B_URL: http://llm-gateway.bayes-platform.svc.cluster.local:8080/v1
   VLLM_MISTRALSMALL31_24B_APIKEY: unused
-  GCE_METADATA_HOST: cle-gateway.bayes-platform.svc.cluster.local:8080
+  GCE_METADATA_HOST: llm-gateway.bayes-platform.svc.cluster.local:8080
   METADATA_SERVER_DETECTION: assume-present
   ORGANIZATION_CREATOR_EMAIL_DOMAIN: "@charite.de"
   BACKOFFICE_AUTHORIZED_DOMAIN: "@charite.de"

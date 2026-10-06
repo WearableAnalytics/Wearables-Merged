@@ -1,38 +1,35 @@
-# Test shim: lets BayesPlatform use Clé (Charité's OpenAI-compatible LLM)
-# without changing BayesPlatform's code.
+# Adapter between BayesPlatform and the local model (gitops/apps/bayes-llm).
 #
 # BayesPlatform's OpenAI-compatible "Mistral Small 3.1" slot calls
 #   $VLLM_MISTRALSMALL31_24B_URL/chat/completions
-# with a Google Cloud access token. This gateway
+# and always fetches a Google Cloud token first. This gateway
 #   - answers the GCE metadata token request with a dummy token
 #     (BayesPlatform points GCE_METADATA_HOST here),
-#   - forwards /v1/* to CLE_BASE_URL with the Clé key and CLE_MODEL.
-# Replace with a proper provider in BayesPlatform once Clé works.
-#
-# Secret (created by Elias, never in the repo): cle-api / CLE_API_KEY.
+#   - forwards /v1/* to UPSTREAM_BASE_URL with UPSTREAM_MODEL.
+# The same adapter was used for Clé (branch cle-connection, CLE.md).
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cle-gateway
+  name: llm-gateway
   namespace: bayes-platform
 data:
-  CLE_BASE_URL: https://cle.charite.de/api
-  CLE_MODEL: eu # Mistral
+  UPSTREAM_BASE_URL: http://ollama.bayes-llm.svc.cluster.local:11434/v1
+  UPSTREAM_MODEL: qwen2.5:7b
   server.mjs: |
     import http from 'node:http'
 
-    const base = (process.env.CLE_BASE_URL ?? '').replace(/\/+$/, '')
-    const model = process.env.CLE_MODEL ?? ''
-    const key = process.env.CLE_API_KEY ?? ''
+    const base = (process.env.UPSTREAM_BASE_URL ?? '').replace(/\/+$/, '')
+    const model = process.env.UPSTREAM_MODEL ?? ''
+    const key = process.env.UPSTREAM_API_KEY ?? 'unused'
 
     function metadata(req, res) {
       res.setHeader('Metadata-Flavor', 'Google')
       if (req.url.includes('/service-accounts/default/token')) {
         res.setHeader('content-type', 'application/json')
-        return res.end(JSON.stringify({ access_token: 'cle-gateway', expires_in: 3600, token_type: 'Bearer' }))
+        return res.end(JSON.stringify({ access_token: 'llm-gateway', expires_in: 3600, token_type: 'Bearer' }))
       }
-      if (req.url.includes('/project/project-id')) return res.end('cle-gateway')
-      if (req.url.includes('/service-accounts/default/email')) return res.end('cle-gateway@local')
+      if (req.url.includes('/project/project-id')) return res.end('llm-gateway')
+      if (req.url.includes('/service-accounts/default/email')) return res.end('llm-gateway@local')
       res.end('')
     }
 
@@ -40,8 +37,8 @@ data:
       const chunks = []
       for await (const chunk of req) chunks.push(chunk)
       let body = Buffer.concat(chunks)
-      // x-cle-model lets a test pick another Clé model; BayesPlatform never sends it.
-      const requested = req.headers['x-cle-model'] || model
+      // x-llm-model lets a test pick another model; BayesPlatform never sends it.
+      const requested = req.headers['x-llm-model'] || model
       if (body.length && requested) {
         const json = JSON.parse(body.toString('utf8'))
         json.model = requested
@@ -64,7 +61,7 @@ data:
       } catch (error) {
         console.log(`${req.method} ${req.url} -> error ${error.cause?.code ?? error.message}`)
         res.writeHead(502, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ error: { message: `Clé unreachable: ${error.cause?.code ?? error.message}` } }))
+        res.end(JSON.stringify({ error: { message: `LLM unreachable: ${error.cause?.code ?? error.message}` } }))
       }
     }
 
@@ -75,43 +72,34 @@ data:
         if (req.url.startsWith('/v1/')) return void forward(req, res)
         res.writeHead(404).end()
       })
-      .listen(8080, () => console.log('cle-gateway on :8080'))
+      .listen(8080, () => console.log('llm-gateway on :8080'))
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cle-gateway
+  name: llm-gateway
   namespace: bayes-platform
   labels:
-    app: cle-gateway
+    app: llm-gateway
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cle-gateway
+      app: llm-gateway
   template:
     metadata:
       labels:
-        app: cle-gateway
+        app: llm-gateway
     spec:
       nodeSelector:
         workload: bayes
-      # cle.charite.de resolves to the cle-relay Service (see cle-relay.yaml),
-      # so TLS still terminates at Clé itself. Update if that Service changes.
-      hostAliases:
-        - ip: 10.240.18.254
-          hostnames: ["cle.charite.de"]
       containers:
         - name: gateway
           image: node:24-slim
           command: ["node", "/srv/server.mjs"]
-          env:
-            - name: CLE_BASE_URL
-              valueFrom: { configMapKeyRef: { name: cle-gateway, key: CLE_BASE_URL } }
-            - name: CLE_MODEL
-              valueFrom: { configMapKeyRef: { name: cle-gateway, key: CLE_MODEL } }
-            - name: CLE_API_KEY
-              valueFrom: { secretKeyRef: { name: cle-api, key: CLE_API_KEY } }
+          envFrom:
+            - configMapRef:
+                name: llm-gateway
           ports:
             - name: http
               containerPort: 8080
@@ -126,17 +114,17 @@ spec:
       volumes:
         - name: code
           configMap:
-            name: cle-gateway
+            name: llm-gateway
             items: [{ key: server.mjs, path: server.mjs }]
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: cle-gateway
+  name: llm-gateway
   namespace: bayes-platform
 spec:
   selector:
-    app: cle-gateway
+    app: llm-gateway
   ports:
     - name: http
       port: 8080
