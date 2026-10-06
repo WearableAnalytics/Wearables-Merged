@@ -49,4 +49,13 @@ kubectl -n bayes-prototype rollout restart deploy/bayes-prototype
 
 - Patients come from the prototype's fake SQLite DB, not from db-lord.
 - No `VITE_BAYES_EMBED_*`, so the assistant chat panel shows its configuration message.
-- No public route on `wearables.charite.de`.
+
+
+## Public route
+
+`ingressroute.yaml` publishes the UI at https://wearables.charite.de/bayes/. It needs the prototype built with `--base=/bayes/` (branch `wearables-integration` of the Bayes repo; `deploy.sh` passes `BAYES_BASE`). The MCP server is not routed: it reads real wearable data and has no authentication.
+
+```sh
+BAYES_REPO=~/Desktop/charite BAYES_REF=wearables-integration ./deploy.sh
+kubectl apply -f ingressroute.yaml
+```

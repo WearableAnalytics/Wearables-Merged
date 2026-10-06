@@ -1,0 +1,39 @@
+# Public route for the prototype UI only: https://wearables.charite.de/bayes/
+# Lives in the shared `ingress` namespace so it can use its wearables-tls
+# certificate; Traefik runs with allowCrossNamespace, so it can reach the
+# Service in bayes-prototype. The MCP port is deliberately NOT exposed: it
+# reads real wearable data and has no authentication.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: bayes-prototype-https
+  namespace: ingress
+spec:
+  entryPoints: [websecure]
+  routes:
+    - kind: Rule
+      match: Host(`wearables.charite.de`) && (Path(`/bayes`) || PathPrefix(`/bayes/`))
+      services:
+        - name: bayes-prototype
+          namespace: bayes-prototype
+          port: 80
+  tls:
+    secretName: wearables-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: bayes-prototype-http
+  namespace: ingress
+spec:
+  entryPoints: [web]
+  routes:
+    - kind: Rule
+      match: Host(`wearables.charite.de`) && (Path(`/bayes`) || PathPrefix(`/bayes/`))
+      middlewares:
+        - name: redirect-to-https
+          namespace: ingress
+      services:
+        - name: bayes-prototype
+          namespace: bayes-prototype
+          port: 80

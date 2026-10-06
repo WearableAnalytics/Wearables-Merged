@@ -32,6 +32,6 @@ helm upgrade --install bayes-platform oci://ghcr.io/bayesimpact/charts/bayes-pla
 - LLM access and Vertex embeddings: not configured.
 - Ingress: disabled. The `urls` are in-cluster placeholders until the public paths on wearables.charite.de are decided.
 
-## Node disk
+## Node
 
-The cluster nodes have 19 GB disks. Pulling the API and worker images put one node into `DiskPressure` on the first install, so `api.replicas` and `cpuWorkers.replicas` are 0 in `values.yaml`. Add disk or a dedicated node before raising them.
+The `wearables-node` machines have 19 GB disks: pulling the API and worker images put one of them into `DiskPressure` on the first install. The API and the CPU workers therefore run on a dedicated node, added as the Kubermatic MachineDeployment `bayes-node` in `kube-system` (flavor `de.NBI default`: 2 vCPU / 4 GB, 100 GB root disk, node label `workload=bayes`). Postgres, Redis, web-embed and help use small images and run on the existing nodes.

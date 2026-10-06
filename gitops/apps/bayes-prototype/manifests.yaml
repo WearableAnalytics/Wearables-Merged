@@ -89,15 +89,18 @@ spec:
         - name: web
           image: node:24-slim
           workingDir: /work/app
-          command: ["node_modules/.bin/vite", "preview", "--host", "0.0.0.0", "--port", "4173", "--strictPort"]
+          command: ["node_modules/.bin/vite", "preview", "--host", "0.0.0.0", "--port", "4173", "--strictPort", "--base", "/bayes/"]
           env:
             - name: HOME
               value: /tmp
+            # Vite's host check would otherwise answer 403 for the public host.
+            - name: __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
+              value: wearables.charite.de
           ports:
             - name: http
               containerPort: 4173
           readinessProbe:
-            httpGet: { path: /, port: http }
+            httpGet: { path: /bayes/, port: http }
             periodSeconds: 10
           volumeMounts:
             - name: app

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy (or redeploy) the Bayes prototype next to the wearables platform.
 #
-# Usage: BAYES_REPO=~/Desktop/charite [BAYES_REF=main] ./deploy.sh
+# Usage: BAYES_REPO=~/Desktop/charite [BAYES_REF=main] [BAYES_BASE=/bayes/] ./deploy.sh
 #
 # Copies a `git archive` of BAYES_REF (tracked files only, so no .env) onto the
 # bayes-app PVC, builds it inside the cluster, then (re)starts the Deployment.
@@ -13,6 +13,8 @@ NS=bayes-prototype
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BAYES_REPO="${BAYES_REPO:?set BAYES_REPO to a local clone of bayesimpact/charite}"
 BAYES_REF="${BAYES_REF:-main}"
+# Sub-path the UI is served under (must match the web container and ingress).
+BAYES_BASE="${BAYES_BASE:-/bayes/}"
 
 kubectl apply -f "$HERE/manifests.yaml"
 kubectl -n "$NS" scale deploy/bayes-prototype --replicas=0
@@ -47,11 +49,11 @@ kubectl -n "$NS" exec bayes-builder -- sh -c 'rm -rf /work/app /work/src.tar && 
 kubectl -n "$NS" cp "$archive" bayes-builder:/work/src.tar
 rm -f "$archive"
 
-kubectl -n "$NS" exec bayes-builder -- sh -c '
+kubectl -n "$NS" exec bayes-builder -- env BAYES_BASE="$BAYES_BASE" sh -c '
   set -e
   cd /work/app && tar -xf /work/src.tar && rm /work/src.tar
   npm ci --no-audit --no-fund
-  npm run build
+  npm run build -- --base="$BAYES_BASE"
   npm run build:mcp-apps
   npm run db:setup
 '

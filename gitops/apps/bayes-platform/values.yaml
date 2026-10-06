@@ -37,7 +37,9 @@ redis:
     storageClass: cinder-csi
 
 # Cinder volumes are ReadWriteOnce, so the API and the workers that share the
-# document volume are pinned to one node.
+# document volume are pinned to one node: the dedicated bayes-node (Kubermatic
+# MachineDeployment `bayes-node`, 2 vCPU / 4 GB, 100 GB root disk). The other
+# nodes only have 19 GB disks, too small for these images.
 storage:
   local:
     storageClass: cinder-csi
@@ -45,14 +47,14 @@ storage:
     size: 20Gi
 
 api:
-  replicas: 0 # see README "Node disk"
+  replicas: 1
   nodeSelector:
-    kubernetes.io/hostname: wearables-node-5776c9586d-b8dbk
+    workload: bayes
 
 cpuWorkers:
-  replicas: 0 # see README "Node disk"
+  replicas: 1
   nodeSelector:
-    kubernetes.io/hostname: wearables-node-5776c9586d-b8dbk
+    workload: bayes
 
 ingress:
   enabled: false
