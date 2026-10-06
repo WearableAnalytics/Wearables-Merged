@@ -60,6 +60,9 @@ spec:
               value: wearables-project
             - name: INFLUX_BUCKET
               value: measurements
+            # In-cluster names BayesPlatform uses to reach the MCP server.
+            - name: MCP_ALLOWED_HOSTS
+              value: bayes-prototype.bayes-prototype.svc.cluster.local,bayes-prototype.bayes-prototype.svc,bayes-prototype.bayes-prototype
             - name: HOME
               value: /tmp
           # INFLUX_TOKEN: read-only token for the measurements bucket, created

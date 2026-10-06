@@ -1,0 +1,119 @@
+# Temporary OIDC provider for BayesPlatform (to be replaced by another Keycloak).
+# Dev mode, in-memory store: the realm below is re-imported on every start.
+# Reached only through port-forward, so the issuer is fixed to
+# http://localhost:8180 (`kubectl port-forward svc/keycloak 8180:8080`); the API
+# pod reaches the same URL through a sidecar (see post-render/).
+# Secrets (bayes-keycloak): KC_BOOTSTRAP_ADMIN_PASSWORD, BAYES_USER_EMAIL,
+# BAYES_USER_PASSWORD. Created out of band, never in the repo.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+  namespace: bayes-platform
+data:
+  realm-platform.json: |
+    {
+      "realm": "platform",
+      "enabled": true,
+      "registrationAllowed": false,
+      "loginWithEmailAllowed": true,
+      "duplicateEmailsAllowed": false,
+      "clients": [
+        {
+          "clientId": "platform-web",
+          "name": "Platform web app",
+          "enabled": true,
+          "publicClient": true,
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": false,
+          "redirectUris": ["http://localhost:8181/*"],
+          "webOrigins": ["+"],
+          "attributes": {
+            "pkce.code.challenge.method": "S256",
+            "post.logout.redirect.uris": "+"
+          },
+          "defaultClientScopes": ["basic", "web-origins", "acr", "profile", "roles", "email"],
+          "optionalClientScopes": ["offline_access"]
+        }
+      ],
+      "users": [
+        {
+          "username": "${BAYES_USER_EMAIL}",
+          "email": "${BAYES_USER_EMAIL}",
+          "emailVerified": true,
+          "enabled": true,
+          "firstName": "Bayes",
+          "lastName": "Admin",
+          "credentials": [
+            { "type": "password", "value": "${BAYES_USER_PASSWORD}", "temporary": false }
+          ],
+          "realmRoles": ["default-roles-platform"]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: bayes-platform
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      nodeSelector:
+        workload: bayes
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.2
+          args: ["start-dev", "--import-realm"]
+          env:
+            - name: KC_HOSTNAME
+              value: http://localhost:8180
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: admin
+          envFrom:
+            - secretRef:
+                name: bayes-keycloak
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 9000 }
+            periodSeconds: 10
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          resources:
+            requests: { cpu: 250m, memory: 768Mi }
+            limits: { memory: 1536Mi }
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: bayes-platform
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

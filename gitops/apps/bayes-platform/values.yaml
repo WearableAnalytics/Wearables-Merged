@@ -7,22 +7,25 @@
 
 global:
   image:
-    tag: "26.09.4"
+    # Current main: generic OIDC login landed after the 26.09.4 release.
+    tag: "sha-39bc9f1"
 
-# Internal placeholders until the public paths on wearables.charite.de are
-# decided. No external or third-party hostnames.
+# Reached through port-forward for now (no public hostname yet):
+#   kubectl -n bayes-platform port-forward svc/bayes-platform-api 8181:3000
+#   kubectl -n bayes-platform port-forward svc/keycloak 8180:8080
 urls:
-  api: http://bayes-platform-api.bayes-platform.svc.cluster.local
-  web: http://bayes-platform-api.bayes-platform.svc.cluster.local
-  webEmbed: http://bayes-platform-web-embed.bayes-platform.svc.cluster.local
-  help: http://bayes-platform-help.bayes-platform.svc.cluster.local
+  api: http://localhost:8181
+  web: http://localhost:8181
+  webEmbed: http://localhost:8182
+  help: http://localhost:8183
 
 secrets:
   existingSecret: bayes-platform-secrets
 
 config:
-  # Placeholder until an OIDC provider is chosen; sign-in does not work yet.
-  OIDC_ISSUER_URL: https://idp.invalid/realms/platform
+  # Temporary in-namespace Keycloak (keycloak.yaml). The issuer is the
+  # port-forward URL; the API pod reaches it through a sidecar (post-render/).
+  OIDC_ISSUER_URL: http://localhost:8180/realms/platform
   ORGANIZATION_CREATOR_EMAIL_DOMAIN: "@charite.de"
   BACKOFFICE_AUTHORIZED_DOMAIN: "@charite.de"
   BACKOFFICE_AUTHORIZED_EMAILS: "elias.gruenewald@charite.de"
