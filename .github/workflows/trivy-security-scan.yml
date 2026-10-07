@@ -87,6 +87,10 @@ jobs:
             context: services/backend/wearables-bff
             dockerfile: services/backend/wearables-bff/Dockerfile
 
+          - service: extraction-service
+            context: services/backend/extraction-service
+            dockerfile: services/backend/extraction-service/Dockerfile
+
           - service: fhir-mapper-validator
             context: services/backend/fhir-mapper-validator
             dockerfile: services/backend/fhir-mapper-validator/Dockerfile

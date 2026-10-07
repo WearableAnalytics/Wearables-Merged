@@ -237,9 +237,6 @@ class CaseService {
       const newCase = await databaseApiClient.createCase({
         status: 'PLANNED',
         patient_id: patient.patientId,
-        devices: [],
-        wearables: [],
-        contexts: [],
       });
 
       const caseToken = tokenService.generateCaseToken(
