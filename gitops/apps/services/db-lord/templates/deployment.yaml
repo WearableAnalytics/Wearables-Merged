@@ -20,7 +20,15 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.service.port }}
+              # The image's uvicorn listens on 8000; the Service keeps port {{ .Values.service.port }}.
+              containerPort: {{ .Values.containerPort }}
           envFrom:
             - secretRef:
                 name: {{ .Values.secretRef }}
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /livez, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 20

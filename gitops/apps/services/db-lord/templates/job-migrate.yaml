@@ -1,26 +1,24 @@
+# Runs `alembic upgrade head` before every install and upgrade, with the same
+# image as the deployment and the credentials from the existing secret.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: db-lord-migrate
+  name: {{ .Release.Name }}-migrate
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
 spec:
+  backoffLimit: 0
   template:
     spec:
-      restartPolicy: OnFailure
+      restartPolicy: Never
       containers:
         - name: migrate
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-          command: ["alembic", "upgrade", "head"]
-          env:
-            - name: POSTGRES_SERVER
-              value: {{ .Values.env.POSTGRES_SERVER | quote }}
-            - name: POSTGRES_PORT
-              value: {{ .Values.env.POSTGRES_PORT | quote }}
-            - name: POSTGRES_DB
-              value: {{ .Values.env.POSTGRES_DB | quote }}
-            - name: POSTGRES_USER
-              value: {{ .Values.env.POSTGRES_USER | quote }}
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secretRef }}
-                  key: POSTGRES_PASSWORD
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          workingDir: /app
+          command: ["/app/.venv/bin/alembic", "upgrade", "head"]
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretRef }}

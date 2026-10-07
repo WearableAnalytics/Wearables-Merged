@@ -7,12 +7,17 @@ image:
   pullPolicy: IfNotPresent
   tag: "latest"
 
+# Port uvicorn listens on inside the image (services/backend/db_lord/Dockerfile).
+containerPort: 8000
+
 service:
   type: ClusterIP
   port: 8080
 
 secretRef: "db-lord-secrets"
 
+# Only used to create db-lord-secrets the first time (templates/db-lord-secrets.yaml);
+# an existing secret is never overwritten.
 env:
   POSTGRES_SERVER: "prod-postgres.prod-postgres.svc.cluster.local"
   POSTGRES_PORT: "5432"
