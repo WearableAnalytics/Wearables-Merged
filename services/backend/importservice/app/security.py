@@ -21,6 +21,11 @@ def verify_case_verification_token(
             detail="JWT verification not configured (JWT_SECRET)",
         )
     token = credentials.credentials
+    if not token or len(token.split(".")) != 3:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token format: expected a JWT (Authorization: Bearer <jwt>)",
+        )
     try:
         claims = _jwt_hs256.decode(token, settings.jwt_secret)
         claims.validate()

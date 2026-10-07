@@ -1,7 +1,7 @@
-name: Publish backend images
+name: Publish service images
 
-# Builds db-lord, wearables-bff and extraction-service and publishes them to
-# GitHub Container Registry (ghcr.io/wearableanalytics/<image>).
+# Builds db-lord, wearables-bff, extraction-service, importservice and web and
+# publishes them to GitHub Container Registry (ghcr.io/wearableanalytics/<image>).
 # - Pull requests: build only, to catch broken Dockerfiles early.
 # - Pushes to main: build and publish, tagged with the commit SHA and `latest`.
 # The images contain no secrets; those are injected by Kubernetes at runtime.
@@ -13,12 +13,16 @@ on:
       - "services/backend/db_lord/**"
       - "services/backend/wearables-bff/**"
       - "services/backend/extraction-service/**"
+      - "services/backend/importservice/**"
+      - "services/web/**"
       - ".github/workflows/publish-images.yml"
   pull_request:
     paths:
       - "services/backend/db_lord/**"
       - "services/backend/wearables-bff/**"
       - "services/backend/extraction-service/**"
+      - "services/backend/importservice/**"
+      - "services/web/**"
       - ".github/workflows/publish-images.yml"
   workflow_dispatch:
 
@@ -39,6 +43,10 @@ jobs:
             context: services/backend/wearables-bff
           - image: wearables-extraction-service
             context: services/backend/extraction-service
+          - image: wearables-importservice
+            context: services/backend/importservice
+          - image: wearables-web
+            context: services/web
     steps:
       - uses: actions/checkout@v4
 

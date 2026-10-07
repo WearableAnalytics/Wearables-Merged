@@ -22,7 +22,7 @@ export function CaseQrModal({ isOpen, caseToken, onClose }: Props) {
 
     QRCode.toCanvas(canvasEl, caseToken, {
       width: renderSize,
-      margin: 0,
+      margin: 4,
       color: {
         dark: '#0f172a',
         light: '#ffffff',
