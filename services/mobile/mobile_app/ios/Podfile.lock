@@ -111,7 +111,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   background_fetch: 7457cb2c7be3086b37d87207866f30bed2f9fb58
   device_info_plus: 21fcca2080fbcd348be798aa36c3e5ed849eefbe
-  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
   flutter_local_notifications: ad39620c743ea4c15127860f4b5641649a988100
   GoogleDataTransport: 6c09b596d841063d76d4288cc2d2f42cc36e1e2a
   GoogleMLKit: 97ac7af399057e99182ee8edfa8249e3226a4065
@@ -130,6 +130,6 @@ SPEC CHECKSUMS:
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
   TSBackgroundFetch: e91020924db32f27d0a43df7dec6f73f10743571
 
-PODFILE CHECKSUM: 7cfb691a8e67656ad6fbc98d86eaee5b4a459abc
+PODFILE CHECKSUM: 263a3e327ec8c049d1083c4cdd9efcd73625e571
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.17.0
