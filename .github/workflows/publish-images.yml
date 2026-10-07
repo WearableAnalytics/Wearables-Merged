@@ -61,7 +61,28 @@ jobs:
             type=sha,format=long,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - uses: docker/build-push-action@v6
+      # The images are public, so refuse to publish one that contains a secret.
+      # (Vulnerability scanning stays in trivy-security-scan.yml.)
+      - name: Build for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64
+          load: true
+          tags: scan/${{ matrix.image }}:ci
+          cache-from: type=gha,scope=${{ matrix.image }}
+
+      - name: Trivy secret scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: image
+          image-ref: scan/${{ matrix.image }}:ci
+          scanners: secret
+          exit-code: "1"
+          format: table
+
+      - name: Build and publish
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           platforms: linux/amd64
