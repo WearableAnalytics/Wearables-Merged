@@ -89,7 +89,9 @@ class DatabaseApiClient {
         );
       }
 
-      return await response.json();
+      // db_lord answers deletes with 204 No Content.
+      const text = await response.text();
+      return (text ? JSON.parse(text) : undefined) as T;
     } catch (error) {
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
@@ -135,7 +137,11 @@ class DatabaseApiClient {
     return this.request<Patient>(`/patients/${patientId}`);
   }
 
-  async updatePatient(patientId: string, patient: PatientBase): Promise<void> {
+  // charite_id is immutable in db_lord; send only the fields that change.
+  async updatePatient(
+    patientId: string,
+    patient: Partial<Omit<PatientBase, 'charite_id'>>
+  ): Promise<void> {
     await this.request<void>(`/patients/${patientId}`, {
       method: 'PATCH',
       body: JSON.stringify(patient),
