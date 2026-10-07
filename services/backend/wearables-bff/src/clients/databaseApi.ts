@@ -52,6 +52,9 @@ export interface PatientQueryParams {
   weightRangeEnd?: number;
 }
 
+const LIST_PAGE_SIZE = 100;
+const MAX_LIST_PAGES = 50;
+
 class DatabaseApiClient {
   private baseUrl: string;
   private timeout: number;
@@ -102,26 +105,30 @@ class DatabaseApiClient {
 
   // Patient Operations
   async createPatient(patient: PatientBase): Promise<Patient> {
-    return this.request<Patient>('/patients', {
+    return this.request<Patient>('/patients/', {
       method: 'POST',
       body: JSON.stringify(patient),
     });
   }
 
   async getPatients(params?: PatientQueryParams): Promise<Patient[]> {
+    // db_lord filters: name__ilike, sex, dob__ge / dob__le. Weight is not a
+    // server-side filter, so it is applied here.
     const queryParams = new URLSearchParams();
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined) {
-          queryParams.append(key, String(value));
-        }
-      });
-    }
-    
-    const query = queryParams.toString();
-    const endpoint = query ? `/patients?${query}` : '/patients';
-    
-    return this.request<Patient[]>(endpoint);
+    const name = [params?.firstname, params?.lastname].filter(Boolean).join(' ');
+    if (name) queryParams.set('name__ilike', `%${name}%`);
+    if (params?.sex) queryParams.set('sex', params.sex);
+    if (params?.birthRangeStart) queryParams.set('dob__ge', params.birthRangeStart);
+    if (params?.birthRangeEnd) queryParams.set('dob__le', params.birthRangeEnd);
+
+    const patients = await this.listAll<Patient>('/patients/', queryParams);
+    return patients.filter(
+      (patient) =>
+        (params?.weightRangeStart === undefined ||
+          (patient.weight !== undefined && patient.weight >= params.weightRangeStart)) &&
+        (params?.weightRangeEnd === undefined ||
+          (patient.weight !== undefined && patient.weight <= params.weightRangeEnd))
+    );
   }
 
   async getPatient(patientId: string): Promise<Patient> {
@@ -130,7 +137,7 @@ class DatabaseApiClient {
 
   async updatePatient(patientId: string, patient: PatientBase): Promise<void> {
     await this.request<void>(`/patients/${patientId}`, {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(patient),
     });
   }
@@ -147,14 +154,10 @@ class DatabaseApiClient {
   }
 
   // Case Operations
-  async createCase(caseData: {
-    status: string;
-    patient_id: string;
-    devices: CaseDevice[];
-    wearables: CaseWearable[];
-    contexts: string[];
-  }): Promise<Case> {
-    return this.request<Case>('/cases', {
+  // db_lord rejects unknown fields; devices, wearables and contexts are linked
+  // through the /cases/{id}/devices|wearables|contexts/{itemId} endpoints.
+  async createCase(caseData: { status: string; patient_id: string }): Promise<Case> {
+    return this.request<Case>('/cases/', {
       method: 'POST',
       body: JSON.stringify(caseData),
     });
@@ -164,15 +167,9 @@ class DatabaseApiClient {
     return this.request<Case>(`/cases/${caseId}`);
   }
 
-  async updateCase(caseId: string, caseData: {
-    status: string;
-    patientId: string;
-    devices: CaseDevice[];
-    wearables: CaseWearable[];
-    contexts: string[];
-  }): Promise<void> {
+  async updateCase(caseId: string, caseData: { status?: string; patient_id?: string }): Promise<void> {
     await this.request<void>(`/cases/${caseId}`, {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(caseData),
     });
   }
@@ -184,7 +181,31 @@ class DatabaseApiClient {
   }
 
   async getCases(): Promise<Case[]> {
-    return this.request<Case[]>('/cases');
+    return this.listAll<Case>('/cases/');
+  }
+
+  /**
+   * Reads every page of a db_lord list endpoint ({ items, next_page }).
+   * Older db_lord images answered with a plain array; that still works.
+   */
+  private async listAll<T>(endpoint: string, params = new URLSearchParams()): Promise<T[]> {
+    const items: T[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < MAX_LIST_PAGES; page++) {
+      const query = new URLSearchParams(params);
+      query.set('size', String(LIST_PAGE_SIZE));
+      if (cursor) query.set('cursor', cursor);
+
+      const body = await this.request<T[] | { items: T[]; next_page: string | null }>(
+        `${endpoint}?${query}`
+      );
+      if (Array.isArray(body)) return body;
+
+      items.push(...body.items);
+      cursor = body.next_page;
+      if (!cursor) break;
+    }
+    return items;
   }
 }
 
