@@ -14,7 +14,7 @@ metadata:
   namespace: bayes-platform
 data:
   UPSTREAM_BASE_URL: http://ollama.bayes-llm.svc.cluster.local:11434/v1
-  UPSTREAM_MODEL: qwen2.5:7b
+  UPSTREAM_MODEL: gemma4:26b-a4b
   server.mjs: |
     import http from 'node:http'
 
@@ -39,12 +39,16 @@ data:
       let body = Buffer.concat(chunks)
       // x-llm-model lets a test pick another model; BayesPlatform never sends it.
       const requested = req.headers['x-llm-model'] || model
+      let info = ''
       if (body.length && requested) {
         const json = JSON.parse(body.toString('utf8'))
         json.model = requested
+        // Sizes only, never content.
+        info = ` msgs=${json.messages?.length ?? 0} tools=${json.tools?.length ?? 0} chars=${JSON.stringify(json.messages ?? []).length}+${JSON.stringify(json.tools ?? []).length} stream=${!!json.stream}`
         body = Buffer.from(JSON.stringify(json))
       }
       const target = base + req.url.replace(/^\/v1/, '')
+      const started = Date.now()
       try {
         const upstream = await fetch(target, {
           method: req.method,
@@ -57,7 +61,7 @@ data:
         if (!upstream.body) return res.end()
         for await (const chunk of upstream.body) res.write(chunk)
         res.end()
-        console.log(`${req.method} ${req.url} -> ${upstream.status}`)
+        console.log(`${req.method} ${req.url} -> ${upstream.status} in ${((Date.now() - started) / 1000).toFixed(1)}s${info}`)
       } catch (error) {
         console.log(`${req.method} ${req.url} -> error ${error.cause?.code ?? error.message}`)
         res.writeHead(502, { 'content-type': 'application/json' })

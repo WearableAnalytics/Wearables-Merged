@@ -1,8 +1,9 @@
 # Small local LLM for BayesPlatform, on its own node so it is easy to remove:
 #   kubectl delete namespace bayes-llm
 #   kubectl -n kube-system delete machinedeployment llm-node
-# llm-node: Kubermatic MachineDeployment in kube-system (de.NBI small,
-# 8 vCPU / 16 GB, 50 GB root disk), label workload=llm, taint dedicated=llm.
+# llm-node: Kubermatic MachineDeployment in kube-system (de.NBI large,
+# 32 vCPU / 64 GB, 50 GB root disk), label workload=llm, taint dedicated=llm.
+# Model: gemma4:26b-a4b (mixture of experts, ~4B active parameters per token).
 # Ollama serves an OpenAI-compatible API with tool calling on :11434/v1.
 apiVersion: v1
 kind: Namespace
@@ -19,7 +20,7 @@ spec:
   storageClassName: cinder-csi
   resources:
     requests:
-      storage: 20Gi
+      storage: 40Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -48,7 +49,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: ollama
-          image: ollama/ollama:0.12.3
+          image: ollama/ollama:0.40.0
           env:
             - name: OLLAMA_KEEP_ALIVE
               value: "24h"
@@ -63,8 +64,8 @@ spec:
             - name: models
               mountPath: /root/.ollama
           resources:
-            requests: { cpu: "6", memory: 10Gi }
-            limits: { memory: 14Gi }
+            requests: { cpu: "28", memory: 40Gi }
+            limits: { memory: 56Gi }
       volumes:
         - name: models
           persistentVolumeClaim:

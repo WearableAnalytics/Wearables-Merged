@@ -31,6 +31,10 @@ config:
   # from the gateway. Needs the back-office flags `mistral` and `agent-mcp`.
   VLLM_MISTRALSMALL31_24B_URL: http://llm-gateway.bayes-platform.svc.cluster.local:8080/v1
   VLLM_MISTRALSMALL31_24B_APIKEY: unused
+  # Same local model also behind BayesPlatform's native Gemma 4 slot
+  # (back-office flag `gemma`).
+  VLLM_GEMMA4_26B_URL: http://llm-gateway.bayes-platform.svc.cluster.local:8080/v1
+  VLLM_GEMMA4_26B_APIKEY: unused
   GCE_METADATA_HOST: llm-gateway.bayes-platform.svc.cluster.local:8080
   METADATA_SERVER_DETECTION: assume-present
   ORGANIZATION_CREATOR_EMAIL_DOMAIN: "@charite.de"
