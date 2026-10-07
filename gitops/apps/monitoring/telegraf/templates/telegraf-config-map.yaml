@@ -37,5 +37,10 @@ data:
     load("time.star", "time")
     def apply(metric):
       metric.fields["t_ingested"] = time.now().unix_nano
+      # The mapper currently writes the patient only as device-id-reference
+      # ("Patient/<id>"); dashboards and tools filter on device-id.
+      ref = metric.tags.get("device-id-reference")
+      if "device-id" not in metric.tags and ref and ref.startswith("Patient/"):
+        metric.tags["device-id"] = ref[len("Patient/"):]
       return metric
      '''
