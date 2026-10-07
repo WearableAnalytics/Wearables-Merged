@@ -1,0 +1,72 @@
+name: Publish backend images
+
+# Builds db-lord, wearables-bff and extraction-service and publishes them to
+# GitHub Container Registry (ghcr.io/wearableanalytics/<image>).
+# - Pull requests: build only, to catch broken Dockerfiles early.
+# - Pushes to main: build and publish, tagged with the commit SHA and `latest`.
+# The images contain no secrets; those are injected by Kubernetes at runtime.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/backend/db_lord/**"
+      - "services/backend/wearables-bff/**"
+      - "services/backend/extraction-service/**"
+      - ".github/workflows/publish-images.yml"
+  pull_request:
+    paths:
+      - "services/backend/db_lord/**"
+      - "services/backend/wearables-bff/**"
+      - "services/backend/extraction-service/**"
+      - ".github/workflows/publish-images.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: wearables-db-lord
+            context: services/backend/db_lord
+          - image: wearables-bff
+            context: services/backend/wearables-bff
+          - image: wearables-extraction-service
+            context: services/backend/extraction-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/wearableanalytics/${{ matrix.image }}
+          tags: |
+            type=sha,format=long,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}

@@ -1,8 +1,10 @@
 replicaCount: 1
 
 image:
-  repository: wearables42/wearables-extraction-service
-  pullPolicy: Always
+  # Built by .github/workflows/publish-images.yml. Pin a commit SHA tag at
+  # deploy time (--set image.tag=<sha>) instead of relying on latest.
+  repository: ghcr.io/wearableanalytics/wearables-extraction-service
+  pullPolicy: IfNotPresent
   tag: "latest"
 
 service:
