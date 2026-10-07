@@ -50,7 +50,7 @@ class HealthSyncService {
   static const _endpoint = 'https://wearables.charite.de/import/ingest';
 
   Future<HealthSyncResult> sendSinceLastSync({
-    Duration fallbackWindow = const Duration(days: 7),
+    Duration fallbackWindow = const Duration(days: 30),
     bool requestPermissions = true,
   }) async {
     final now = DateTime.now();
