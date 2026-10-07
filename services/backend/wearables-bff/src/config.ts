@@ -82,7 +82,6 @@ const requiredEnvVars = [
 const productionOnlyRequiredEnvVars = [
   'MAILER_FROM_NAME',
   'MAILER_FROM_EMAIL',
-  'BREVO_API_KEY',
 ] as const;
 
 const nodeEnvRaw = optionalEnv('NODE_ENV');
@@ -165,7 +164,9 @@ const cookieSecure =
 const adminEmails = parseCsv(optionalEnv('ADMIN_EMAILS') ?? '');
 const mailerFromName = optionalEnv('MAILER_FROM_NAME');
 const mailerFromEmail = optionalEnv('MAILER_FROM_EMAIL');
-const brevoApiKey = optionalEnv('BREVO_API_KEY');
+const brevoApiKeyRaw = optionalEnv('BREVO_API_KEY');
+const brevoApiKey =
+  brevoApiKeyRaw && brevoApiKeyRaw !== 'disabled' ? brevoApiKeyRaw : undefined;
 
 if (isProduction && !mailerFromName) {
   throw new Error(
@@ -185,8 +186,13 @@ if (isProduction && mailerFromEmail && !mailerFromEmail.includes('@')) {
   );
 }
 
+// BREVO_API_KEY is optional: without it (or with the value `disabled`) no
+// emails are sent and magic links are written to the log instead (see
+// services/mailer.ts), e.g. for deployments only reachable via port-forward.
 if (isProduction && !brevoApiKey) {
-  throw new Error('Invalid configuration: BREVO_API_KEY is re§quired when NODE_ENV=production.');
+  console.warn(
+    'BREVO_API_KEY is not set: emails are disabled and magic links are logged instead.',
+  );
 }
 
 export const config = {
