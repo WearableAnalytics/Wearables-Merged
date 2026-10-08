@@ -12,6 +12,8 @@ spec:
     metadata:
       labels:
         app: {{ .Release.Name }}
+      annotations:
+        checksum/provisioning: {{ include (print $.Template.BasePath "/provisioning.yaml") . | sha256sum }}
     spec:
       securityContext:
         fsGroup: 472
@@ -23,7 +25,7 @@ spec:
           imagePullPolicy: {{ .Values.image.imagePullPolicy }}
           env:
             - name: GF_SERVER_ROOT_URL
-              value: http://{{ .Values.ingress.host }}{{ .Values.ingress.prefix }}
+              value: {{ if .Values.ingress.httpOnly }}http{{ else }}https{{ end }}://{{ .Values.ingress.host }}{{ .Values.ingress.prefix }}
             - name: GF_SERVER_SERVE_FROM_SUB_PATH
               value: "true"
             - name: GF_SECURITY_ALLOW_EMBEDDING
@@ -79,6 +81,17 @@ spec:
               mountPath: /etc/grafana/grafana.ini
               subPath: grafana.ini
               readOnly: true
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+              subPath: dashboards.yaml
+              readOnly: true
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+              readOnly: true
+            - name: dashboards
+              mountPath: /var/lib/grafana-dashboards
+              readOnly: true
       volumes:
         - name: "{{ .Release.Name }}-storage"
           persistentVolumeClaim:
@@ -88,4 +101,10 @@ spec:
             name: grafana-config
             items:
               - key: grafana.ini
-                path: grafana.ini 
+                path: grafana.ini
+        - name: provisioning
+          configMap:
+            name: grafana-provisioning
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards 

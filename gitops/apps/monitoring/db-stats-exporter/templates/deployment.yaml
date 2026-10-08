@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: sql-exporter
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args:
+            - -config.file=/etc/sql_exporter/sql_exporter.yml
+            - -config.data-source-name=postgres://$(PGHOST):$(PGPORT)/$(PGDATABASE)?sslmode=disable
+            - -web.listen-address=:{{ .Values.port }}
+          env:
+            {{- range $env, $key := dict "PGHOST" "POSTGRES_SERVER" "PGPORT" "POSTGRES_PORT" "PGDATABASE" "POSTGRES_DB" "PGUSER" "POSTGRES_USER" "PGPASSWORD" "POSTGRES_PASSWORD" }}
+            - name: {{ $env }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.databaseSecret }}
+                  key: {{ $key }}
+            {{- end }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.port }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 60
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/sql_exporter
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}

@@ -21,13 +21,18 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
           env:
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: "{{ .Values.env.KAFKA_BOOTSTRAP_SERVERS }}"
             - name: KAFKA_TOPIC
               value: "{{ .Values.env.KAFKA_TOPIC }}"
             - name: JWT_SECRET
-              value: "{{ .Values.env.JWT_SECRET }}"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.jwtSecret.secretName }}
+                  key: {{ .Values.jwtSecret.key }}
             - name: JWT_ISSUER
               value: "{{ .Values.env.JWT_ISSUER }}"
           livenessProbe:

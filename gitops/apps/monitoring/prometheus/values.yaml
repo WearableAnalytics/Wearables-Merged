@@ -1,6 +1,6 @@
 image:
   repository: prom/prometheus
-  tag: latest
+  tag: v3.13.2
 
 container:
   port: 9090
@@ -10,3 +10,33 @@ configMap:
 
 serviceAccount:
   name: prometheus-server
+
+# The TSDB lives on a volume so history (e.g. the device count over time)
+# survives restarts and node replacements.
+persistence:
+  size: 5Gi
+  storageClassName: cinder-csi
+retention: 90d
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# Scrape intervals are deliberately long: the dashboards show trends, not
+# second-by-second detail, and this keeps the load on the brokers and the
+# database negligible.
+scrape:
+  defaultInterval: 60s
+  importservice:
+    namespace: importservice
+    interval: 30s
+  kafka:
+    namespace: kafka
+    interval: 60s
+  dbStats:
+    target: db-stats-exporter.db-lord.svc.cluster.local:9399
+    # The exporter only queries Postgres when it is scraped.
+    interval: 15m

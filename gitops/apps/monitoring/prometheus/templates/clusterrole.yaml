@@ -3,6 +3,7 @@ kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}-discovery
 rules:
+  # Read-only pod discovery for the kubernetes_sd_configs scrape jobs.
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
