@@ -1,51 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../app_config.dart';
 import '../theme/app_theme.dart';
 
-/// Logo + institution line shown at the top of the main screens.
+/// Charité logo with the study band below it, in the style of Charité
+/// newsletters (white logo area, blue title band).
 class BrandHeader extends StatelessWidget {
-  const BrandHeader({super.key, this.trailing});
-
-  final Widget? trailing;
+  const BrandHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 44,
-          height: 44,
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outline),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+          child: SvgPicture.asset(
+            'assets/branding/charite_logo.svg',
+            height: 44,
+            semanticsLabel: AppConfig.institution,
           ),
-          // Placeholder until the official Charité logo is added.
-          child: Image.asset('assets/branding/wearables_mark.png'),
         ),
-        const SizedBox(width: 12),
-        Expanded(
+        Container(
+          margin: const EdgeInsets.only(right: 72),
+          padding: const EdgeInsets.fromLTRB(24, 12, 16, 12),
+          color: AppColors.blue,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                AppConfig.appName,
+                '${AppConfig.appName} Study',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               Text(
-                AppConfig.institution,
-                style: Theme.of(context).textTheme.bodySmall,
-                overflow: TextOverflow.ellipsis,
+                AppConfig.institute,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.85),
+                ),
               ),
             ],
           ),
         ),
-        if (trailing != null) trailing!,
       ],
+    );
+  }
+}
+
+/// A Charité outline icon from assets/branding, tinted in a CD colour.
+class CharitePictogram extends StatelessWidget {
+  const CharitePictogram(
+    this.asset, {
+    super.key,
+    this.size = 96,
+    this.color = AppColors.blue,
+  });
+
+  final String asset;
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SvgPicture.asset(
+      'assets/branding/$asset.svg',
+      width: size,
+      height: size,
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
     );
   }
 }

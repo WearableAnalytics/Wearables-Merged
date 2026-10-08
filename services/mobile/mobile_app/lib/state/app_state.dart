@@ -7,7 +7,7 @@ import '../storage_service.dart';
 /// Shared, listenable view of the study link and sync state for all tabs.
 class AppState extends ChangeNotifier {
   AppState({HealthSyncService? syncService})
-      : _syncService = syncService ?? HealthSyncService() {
+    : _syncService = syncService ?? HealthSyncService() {
     SyncActivityNotifier.isSyncing.addListener(_onSyncActivity);
   }
 

@@ -18,6 +18,8 @@ dependencies:
   mobile_scanner: ^5.1.1
   url_launcher: ^6.3.3
   package_info_plus: ^10.2.2
+  flutter_svg: ^2.3.0
+  material_symbols_icons: ^4.2960.0
 
 dev_dependencies:
   flutter_test:

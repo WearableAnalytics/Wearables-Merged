@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../data_view_page.dart';
 import '../state/app_state.dart';
@@ -61,18 +62,15 @@ class _MainPageState extends State<MainPage> {
               onDestinationSelected: (i) => setState(() => _tab = i),
               destinations: const [
                 NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home_rounded),
+                  icon: Icon(Symbols.home_sharp),
                   label: 'Home',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.insights_outlined),
-                  selectedIcon: Icon(Icons.insights_rounded),
+                  icon: Icon(Symbols.insights_sharp),
                   label: 'My data',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.badge_outlined),
-                  selectedIcon: Icon(Icons.badge_rounded),
+                  icon: Icon(Symbols.badge_sharp),
                   label: 'Study',
                 ),
               ],

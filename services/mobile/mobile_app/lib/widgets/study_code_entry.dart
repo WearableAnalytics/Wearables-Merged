@@ -6,9 +6,9 @@ import '../theme/app_theme.dart';
 
 /// Opens the camera scanner and returns a valid study code, or null.
 Future<String?> scanStudyCode(BuildContext context) async {
-  final value = await Navigator.of(context).push<String>(
-    MaterialPageRoute(builder: (_) => const QrScanPage()),
-  );
+  final value = await Navigator.of(
+    context,
+  ).push<String>(MaterialPageRoute(builder: (_) => const QrScanPage()));
   if (!context.mounted || value == null) return null;
   return _validated(context, value);
 }
@@ -37,9 +37,9 @@ Future<String?> enterStudyCodeManually(BuildContext context) async {
           Text(
             'Paste the code from your study information sheet or the study '
             'portal. It is a long sequence of letters and numbers.',
-            style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textMuted,
-                ),
+            style: Theme.of(
+              ctx,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
           ),
           const SizedBox(height: 20),
           TextField(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../app_config.dart';
@@ -94,7 +95,9 @@ class _StudyPageState extends State<StudyPage> {
     );
     if (ok != true) return;
     await state.resetLastSync();
-    _toast('The next upload will start from ${formatDate(state.initialSyncStart)}.');
+    _toast(
+      'The next upload will start from ${formatDate(state.initialSyncStart)}.',
+    );
   }
 
   Future<void> _pickStartDate() async {
@@ -112,7 +115,9 @@ class _StudyPageState extends State<StudyPage> {
 
   void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _masked(String code) {
@@ -134,11 +139,13 @@ class _StudyPageState extends State<StudyPage> {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.verified_user_outlined),
+                    leading: const Icon(Symbols.verified_user_sharp),
                     title: Text(state.isLinked ? 'Linked' : 'Not linked'),
                     subtitle: Text(
                       state.isLinked
-                          ? (_showCode ? state.deviceId : _masked(state.deviceId))
+                          ? (_showCode
+                                ? state.deviceId
+                                : _masked(state.deviceId))
                           : 'Scan the QR code from your study team.',
                       style: _showCode
                           ? const TextStyle(fontFamily: 'Menlo', fontSize: 11)
@@ -149,8 +156,8 @@ class _StudyPageState extends State<StudyPage> {
                             tooltip: _showCode ? 'Hide code' : 'Show code',
                             icon: Icon(
                               _showCode
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
+                                  ? Symbols.visibility_off_sharp
+                                  : Symbols.visibility_sharp,
                             ),
                             onPressed: () =>
                                 setState(() => _showCode = !_showCode),
@@ -159,15 +166,15 @@ class _StudyPageState extends State<StudyPage> {
                   ),
                   const Divider(indent: 20, endIndent: 20),
                   ListTile(
-                    leading: const Icon(Icons.qr_code_scanner_rounded),
+                    leading: const Icon(Symbols.qr_code_scanner_sharp),
                     title: const Text('Scan new QR code'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
+                    trailing: const Icon(Symbols.chevron_right_sharp),
                     onTap: () => _changeCode(scan: true),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.keyboard_alt_outlined),
+                    leading: const Icon(Symbols.keyboard_sharp),
                     title: const Text('Enter code manually'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
+                    trailing: const Icon(Symbols.chevron_right_sharp),
                     onTap: () => _changeCode(scan: false),
                   ),
                 ],
@@ -179,31 +186,31 @@ class _StudyPageState extends State<StudyPage> {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.schedule_rounded),
+                    leading: const Icon(Symbols.schedule_sharp),
                     title: const Text('Last shared'),
                     trailing: Text(
                       state.lastSendTime == null
                           ? 'Not yet'
                           : formatDateTime(state.lastSendTime!),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textMuted,
-                          ),
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ),
                   const Divider(indent: 20, endIndent: 20),
                   Theme(
-                    data: Theme.of(context).copyWith(
-                      dividerColor: Colors.transparent,
-                    ),
+                    data: Theme.of(
+                      context,
+                    ).copyWith(dividerColor: Colors.transparent),
                     child: ExpansionTile(
-                      leading: const Icon(Icons.tune_rounded),
+                      leading: const Icon(Symbols.tune_sharp),
                       title: const Text('More settings'),
                       tilePadding: const EdgeInsets.symmetric(horizontal: 20),
                       childrenPadding: const EdgeInsets.only(bottom: 8),
-                      iconColor: AppColors.navy,
+                      iconColor: AppColors.blue,
                       children: [
                         ListTile(
-                          leading: const Icon(Icons.event_rounded),
+                          leading: const Icon(Symbols.event_sharp),
                           title: const Text('Share data from'),
                           subtitle: const Text(
                             'Start of the first upload and of uploads after a reset.',
@@ -212,7 +219,7 @@ class _StudyPageState extends State<StudyPage> {
                           onTap: _pickStartDate,
                         ),
                         ListTile(
-                          leading: const Icon(Icons.restart_alt_rounded),
+                          leading: const Icon(Symbols.restart_alt_sharp),
                           title: const Text('Share full period again'),
                           subtitle: const Text(
                             'Resets the last upload time. Use for a new participant.',
@@ -232,17 +239,21 @@ class _StudyPageState extends State<StudyPage> {
                 children: [
                   if (AppConfig.studyInfoUrl.isNotEmpty) ...[
                     ListTile(
-                      leading: const Icon(Icons.info_outline_rounded),
+                      leading: const Icon(Symbols.info_sharp),
                       title: const Text('About the wearables study'),
-                      trailing: const Icon(Icons.open_in_new_rounded, size: 20),
+                      trailing: const Icon(Symbols.open_in_new_sharp, size: 20),
                       onTap: openStudyInfo,
                     ),
                     const Divider(indent: 20, endIndent: 20),
                   ],
                   ListTile(
-                    leading: const Icon(Icons.account_balance_outlined),
-                    title: const Text(AppConfig.institution),
-                    subtitle: Text(_version.isEmpty ? '' : 'Version $_version'),
+                    leading: const Icon(Symbols.account_balance_sharp),
+                    title: const Text(AppConfig.institute),
+                    subtitle: Text(
+                      _version.isEmpty
+                          ? AppConfig.institution
+                          : '${AppConfig.institution}\nVersion $_version',
+                    ),
                   ),
                 ],
               ),
@@ -266,10 +277,10 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         text.toUpperCase(),
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: AppColors.textMuted,
-              letterSpacing: 0.8,
-              fontWeight: FontWeight.w700,
-            ),
+          color: AppColors.textMuted,
+          letterSpacing: 0.8,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -285,13 +296,13 @@ class _Pill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.skySoft,
+        color: AppColors.blueSoft,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         text,
         style: const TextStyle(
-          color: AppColors.navy,
+          color: AppColors.blue,
           fontWeight: FontWeight.w600,
         ),
       ),

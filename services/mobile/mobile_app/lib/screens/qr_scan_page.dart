@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 /// Simple QR scanner page that returns the scanned value to the caller.
@@ -82,7 +83,7 @@ class _QrScanPageState extends State<QrScanPage> {
                     backgroundColor: Colors.black54,
                     foregroundColor: Colors.white,
                   ),
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(Symbols.close_sharp),
                   label: const Text('Cancel'),
                 ),
               ],

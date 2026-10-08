@@ -25,6 +25,15 @@ Future<void> _loadFonts() async {
           .load();
     }
   }
+  final symbols = File(
+    '${Platform.environment['HOME']}/.pub-cache/hosted/pub.dev/material_symbols_icons-4.2960.0/lib/fonts/MaterialSymbolsSharp.ttf',
+  );
+  if (symbols.existsSync()) {
+    final bytes = symbols.readAsBytesSync();
+    await (FontLoader('packages/material_symbols_icons/MaterialSymbolsSharp')
+          ..addFont(Future.value(ByteData.view(bytes.buffer))))
+        .load();
+  }
   if (flutterRoot != null) {
     final icons = File(
       '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',

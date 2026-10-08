@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 
@@ -27,13 +28,13 @@ class _DataViewPageState extends State<DataViewPage> {
     try {
       await health.configure();
 
-
       // Use platform-specific health data types
       var types = Platform.isIOS ? iosHealthDataTypes : androidHealthDataTypes;
       var permissions = permissionsFor(types);
 
       // Check if permissions are already granted before requesting
-      bool alreadyGranted = await health.hasPermissions(types, permissions: permissions) ?? false;
+      bool alreadyGranted =
+          await health.hasPermissions(types, permissions: permissions) ?? false;
       if (!alreadyGranted) {
         bool requested = await health.requestAuthorization(
           types,
@@ -222,9 +223,9 @@ class _DataViewPageState extends State<DataViewPage> {
           Text(
             'See exactly which Apple Health data the app reads for a period. '
             'The preview uses the same format as the upload.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textMuted,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
           ),
           const SizedBox(height: 20),
           Card(
@@ -244,12 +245,12 @@ class _DataViewPageState extends State<DataViewPage> {
                             label: Text(label),
                             selected: (selected - duration).inMinutes.abs() < 2,
                             onSelected: (_) => _setQuickPeriod(duration),
-                            selectedColor: AppColors.skySoft,
+                            selectedColor: AppColors.blueSoft,
                             side: const BorderSide(color: AppColors.outline),
                             showCheckmark: false,
                             labelStyle: const TextStyle(
                               fontWeight: FontWeight.w600,
-                              color: AppColors.navy,
+                              color: AppColors.blue,
                             ),
                           ),
                       ],
@@ -257,19 +258,19 @@ class _DataViewPageState extends State<DataViewPage> {
                   ),
                   const Divider(indent: 20, endIndent: 20),
                   ListTile(
-                    leading: const Icon(Icons.first_page_rounded),
+                    leading: const Icon(Symbols.first_page_sharp),
                     title: const Text('From'),
                     trailing: Text(formatDateTime(_startDate)),
                     onTap: _selectStartDate,
                   ),
                   ListTile(
-                    leading: const Icon(Icons.last_page_rounded),
+                    leading: const Icon(Symbols.last_page_sharp),
                     title: const Text('To'),
                     trailing: Text(formatDateTime(_endDate)),
                     onTap: _selectEndDate,
                   ),
                   ListTile(
-                    leading: const Icon(Icons.timelapse_rounded),
+                    leading: const Icon(Symbols.timelapse_sharp),
                     title: const Text('Duration'),
                     trailing: Text(_formatDuration()),
                   ),
@@ -280,7 +281,7 @@ class _DataViewPageState extends State<DataViewPage> {
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: _getHealthData,
-            icon: const Icon(Icons.visibility_outlined),
+            icon: const Icon(Symbols.visibility_sharp),
             label: const Text('Show data'),
           ),
         ],
