@@ -37,18 +37,9 @@ class _DataViewPageState extends State<DataViewPage> {
           types,
           permissions: permissions,
         );
-        // Debug: Check which permissions are not granted
-        List<String> notGranted = [];
-        for (int i = 0; i < types.length; i++) {
-          bool granted = await health.hasPermissions([types[i]], permissions: [permissions[i]]) ?? false;
-          if (!granted) {
-            notGranted.add(types[i].toString());
-          }
-        }
-        if (notGranted.isNotEmpty) {
-          _showMessage('Authorization not granted for:\n${notGranted.join('\n')}');
-          return;
-        }
+        // iOS never reveals whether read access was granted (hasPermissions
+        // returns null/false for READ types), so a per-type check would always
+        // fail there. Rely on requestAuthorization's result, like the sync does.
         if (!requested) {
           _showMessage('Authorization not granted');
           return;
