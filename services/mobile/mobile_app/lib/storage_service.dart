@@ -6,6 +6,10 @@ import 'dart:math';
 class StorageService {
   static const String _deviceIdKey = 'device_id';
   static const String _lastDataSendKey = 'last_data_send_time';
+  static const String _initialSyncStartKey = 'initial_sync_start';
+
+  /// Default look-back for the first upload when no start date was chosen.
+  static const Duration defaultInitialWindow = Duration(days: 30);
 
   // Generate and store a unique device ID
   static Future<String> getOrCreateDeviceId() async {
@@ -53,5 +57,31 @@ class StorageService {
   static Future<void> clearLastDataSendTime() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_lastDataSendKey);
+  }
+
+  /// Case tokens from the study QR code are JWTs; auto-generated IDs are not.
+  static bool isStudyCode(String? value) =>
+      value != null && value.split('.').length == 3;
+
+  static Future<bool> hasStudyCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return isStudyCode(prefs.getString(_deviceIdKey));
+  }
+
+  /// Start of the period shared on the first upload (or after a reset).
+  static Future<DateTime> getInitialSyncStart() async {
+    final prefs = await SharedPreferences.getInstance();
+    final timestamp = prefs.getInt(_initialSyncStartKey);
+    if (timestamp != null) {
+      return DateTime.fromMillisecondsSinceEpoch(timestamp);
+    }
+    final now = DateTime.now();
+    final start = now.subtract(defaultInitialWindow);
+    return DateTime(start.year, start.month, start.day);
+  }
+
+  static Future<void> setInitialSyncStart(DateTime start) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_initialSyncStartKey, start.millisecondsSinceEpoch);
   }
 }

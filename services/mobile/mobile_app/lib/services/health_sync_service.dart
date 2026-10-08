@@ -50,7 +50,6 @@ class HealthSyncService {
   static const _endpoint = 'https://wearables.charite.de/import/ingest';
 
   Future<HealthSyncResult> sendSinceLastSync({
-    Duration fallbackWindow = const Duration(days: 30),
     bool requestPermissions = true,
   }) async {
     final now = DateTime.now();
@@ -131,7 +130,7 @@ class HealthSyncService {
 
       final deviceId = await StorageService.getOrCreateDeviceId();
       final lastSendTime = await StorageService.getLastDataSendTime();
-      final from = lastSendTime ?? now.subtract(fallbackWindow);
+      final from = lastSendTime ?? await StorageService.getInitialSyncStart();
 
       List<HealthDataPoint> healthData;
       try {
