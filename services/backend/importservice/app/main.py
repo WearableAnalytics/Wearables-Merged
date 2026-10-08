@@ -6,6 +6,7 @@ from fastapi import FastAPI, Depends
 from .models import IngestPayload, IngestResponse
 from .kafka_producer import get_producer
 from .security import verify_case_verification_token
+from .metrics import MetricsMiddleware, start_metrics_server
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,13 @@ logger = logging.getLogger(__name__)
 _kafka_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="kafka_send")
 
 app = FastAPI(title="Wearables Import Service", version="0.9.1")
+app.add_middleware(MetricsMiddleware)
+
+
+@app.on_event("startup")
+async def _start_metrics():
+    start_metrics_server()
+
 
 @app.get("/health")
 async def health():

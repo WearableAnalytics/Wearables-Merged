@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": null,
   "links": [],
   "panels": [
     {
@@ -309,7 +309,7 @@
             "uid": "ffct924rz8flsa"
           },
           "editorMode": "builder",
-          "expr": "sum(kafka_controller_kafkacontroller_globalpartitioncount{job=\"kafka-metrics-reporter\"})",
+          "expr": "max(kafka_controller_kafkacontroller_globalpartitioncount{job=\"kafka-metrics-reporter\"})",
           "instant": false,
           "legendFormat": "total partitions",
           "range": true,
@@ -408,7 +408,7 @@
             "uid": "ffct924rz8flsa"
           },
           "editorMode": "builder",
-          "expr": "count by(topic) (kafka_cluster_partition_replicascount{topic=~\"wearables-raw|dlq|wearables-lp\"}) / 3",
+          "expr": "count by(topic) (max by(topic, partition) (kafka_log_log_size{topic=~\"wearables-raw|dlq|wearables-lp\"}))",
           "instant": false,
           "interval": "",
           "legendFormat": "__auto",
@@ -479,7 +479,7 @@
             "uid": "ffct924rz8flsa"
           },
           "editorMode": "builder",
-          "expr": "sum(kafka_controller_kafkacontroller_globaltopiccount{job=\"kafka-metrics-reporter\"}) / 3",
+          "expr": "max(kafka_controller_kafkacontroller_globaltopiccount{job=\"kafka-metrics-reporter\"})",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -548,7 +548,7 @@
             "uid": "ffct924rz8flsa"
           },
           "editorMode": "builder",
-          "expr": "sum(kafka_controller_kafkacontroller_activebrokercount{instance=\"172.25.1.12:9404\"})",
+          "expr": "max(kafka_controller_kafkacontroller_activebrokercount{job=\"kafka-metrics-reporter\"})",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -572,6 +572,5 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Kafka Dashboard",
-  "uid": "adwg4cd",
-  "version": 8
+  "uid": "adwg4cd"
 }

@@ -4,6 +4,9 @@ metadata:
   name: "{{ .Release.Name }}-server"
 spec:
   replicas: 1
+  # The data volume is ReadWriteOnce, so the old pod must stop first.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: "{{ .Release.Name }}-server"
@@ -11,18 +14,42 @@ spec:
     metadata:
       labels:
         app: "{{ .Release.Name }}-server"
+      annotations:
+        # Restart on config changes (Prometheus does not watch its config file).
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        runAsNonRoot: true
+        fsGroup: 65534
       containers:
         - name: {{ .Release.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time={{ .Values.retention }}
           ports:
             - containerPort: {{ .Values.container.port }}
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: {{ .Values.container.port }}
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: config-volume
               mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
       volumes:
         - name: config-volume
           configMap:
             name: {{ .Values.configMap.name }}
             defaultMode: 420
+        - name: data
+          persistentVolumeClaim:
+            claimName: "{{ .Release.Name }}-data"

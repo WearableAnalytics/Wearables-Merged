@@ -1,0 +1,21 @@
+# Install into the db-lord namespace so the exporter can read db-lord's
+# existing database Secret (never stored in git):
+#   helm upgrade --install db-stats-exporter . -n db-lord
+image:
+  repository: burningalchemist/sql_exporter
+  tag: "0.17.1"
+
+port: 9399
+
+# Existing Secret with POSTGRES_SERVER/PORT/DB/USER/PASSWORD (db-lord chart).
+databaseSecret: db-lord-secrets
+
+# Queries run at most this often, however often Prometheus scrapes.
+minInterval: 15m
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi

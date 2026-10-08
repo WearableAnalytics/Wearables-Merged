@@ -1,0 +1,39 @@
+# Dashboards and the Prometheus datasource are provisioned from git, so they
+# survive a lost Grafana volume and every change goes through review.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: platform
+        folder: Platform
+        type: file
+        disableDeletion: true
+        allowUiUpdates: false
+        updateIntervalSeconds: 60
+        options:
+          path: /var/lib/grafana-dashboards
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: prometheus
+        uid: {{ .Values.prometheus.datasourceUid }}
+        type: prometheus
+        access: proxy
+        url: {{ .Values.prometheus.url }}
+        editable: false
+        jsonData:
+          timeInterval: 60s
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+data:
+{{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+  {{ base $path }}: |-
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

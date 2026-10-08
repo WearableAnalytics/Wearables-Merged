@@ -1,9 +1,11 @@
 replicaCount: 1
 
 image:
-  repository: wearables42/wearables-ingestion
-  tag: "2026-03-29"
-  pullPolicy: Always
+  # Built by .github/workflows/publish-images.yml. Pin a commit SHA tag at
+  # deploy time (--set image.tag=<sha>) instead of relying on latest.
+  repository: ghcr.io/wearableanalytics/wearables-importservice
+  tag: latest
+  pullPolicy: IfNotPresent
 
 service:
   type: ClusterIP
@@ -12,8 +14,17 @@ service:
 env:
   KAFKA_BOOTSTRAP_SERVERS: "kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
   KAFKA_TOPIC: "wearables-raw"
-  JWT_SECRET: "dev-secret"
   JWT_ISSUER: "wearables-bff"
+
+# JWT_SECRET comes from an existing Secret (created out of band, never in git).
+jwtSecret:
+  secretName: importservice-secrets
+  key: JWT_SECRET
+
+# Prometheus request metrics, served on a separate port so they are not
+# reachable through the public /import route. Scraped by the prometheus chart.
+metrics:
+  port: 9102
 
 autoscaling:
   enabled: false

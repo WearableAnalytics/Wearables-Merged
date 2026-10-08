@@ -5,27 +5,58 @@ metadata:
 data:
   prometheus.yml: |
     global:
-      scrape_interval: 15s
-      evaluation_interval: 15s
+      scrape_interval: {{ .Values.scrape.defaultInterval }}
+      evaluation_interval: {{ .Values.scrape.defaultInterval }}
     scrape_configs:
       - job_name: 'prometheus'
         static_configs:
           - targets: ['localhost:9090']
-      - job_name: 'kafka'
+
+      # Strimzi metrics reporter on every broker (metricsConfig in
+      # gitops/apps/platform/kafka/templates/kafka.yaml). Only the families the
+      # dashboards use are kept; the reporter exposes ~8k series per broker.
+      - job_name: 'kafka-metrics-reporter'
+        scrape_interval: {{ .Values.scrape.kafka.interval }}
         kubernetes_sd_configs:
           - role: pod
             namespaces:
-              names:
-                - kafka
+              names: [{{ .Values.scrape.kafka.namespace | quote }}]
         relabel_configs:
-          - source_labels: [__meta_kubernetes_pod_label_strimzi_io_kind]
-            regex: Kafka
+          - source_labels: [__meta_kubernetes_pod_label_strimzi_io_name]
+            regex: kafka-kafka
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:9404
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: >-
+              kafka_server_brokertopicmetrics_(messagesin|bytesin|bytesout|failedproducerequests|failedfetchrequests)persec_total|kafka_controller_kafkacontroller_(activebrokercount|activecontrollercount|globalpartitioncount|globaltopiccount|offlinepartitionscount)|kafka_server_replicamanager_(underreplicatedpartitions|underminisrpartitioncount|partitioncount|leadercount)|kafka_server_kafkarequesthandlerpool_requesthandleravgidlepercent_total|kafka_network_socketserver_networkprocessoravgidlepercent|kafka_log_log_size|jvm_memory_used_bytes|jvm_memory_max_bytes|process_cpu_seconds_total
+            action: keep
+
+      # Request metrics of the import service (app/metrics.py), served on the
+      # container port named "metrics".
+      - job_name: 'importservice'
+        scrape_interval: {{ .Values.scrape.importservice.interval }}
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Values.scrape.importservice.namespace | quote }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            regex: metrics
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_phase]
+            regex: Running
             action: keep
           - source_labels: [__meta_kubernetes_pod_name]
-            regex: .*-kafka-[0-9]+
-            action: keep
-          - source_labels: [__address__]
-            target_label: __address__
-            regex: ([^:]+)(?::\d+)?
-            replacement: ${1}:9404
-            action: replace
+            target_label: pod
+
+      # Device counts from db-lord's Postgres (gitops/apps/monitoring/db-stats-exporter).
+      - job_name: 'db-stats'
+        scrape_interval: {{ .Values.scrape.dbStats.interval }}
+        scrape_timeout: 30s
+        static_configs:
+          - targets: [{{ .Values.scrape.dbStats.target | quote }}]

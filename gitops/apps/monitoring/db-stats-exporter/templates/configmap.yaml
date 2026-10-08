@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+data:
+  sql_exporter.yml: |
+    global:
+      scrape_timeout: 25s
+      scrape_timeout_offset: 500ms
+      # Results are cached between runs, so Postgres sees one tiny query
+      # every {{ .Values.minInterval }} at most.
+      min_interval: {{ .Values.minInterval }}
+      max_connections: 1
+      max_idle_connections: 0
+    target:
+      # Overridden by -config.data-source-name; credentials come from the
+      # PG* environment variables.
+      data_source_name: "postgres://localhost/postgres"
+      collectors: [wearables_devices]
+    collectors:
+      - collector_name: wearables_devices
+        metrics:
+          - metric_name: wearables_devices
+            type: gauge
+            help: "Devices registered in db-lord."
+            values: [devices]
+            query: |
+              SELECT count(*) AS devices FROM devices
+          - metric_name: wearables_devices_by_status
+            type: gauge
+            help: "Devices registered in db-lord, by hardware status."
+            key_labels: [status]
+            values: [devices]
+            query: |
+              SELECT status::text AS status, count(*) AS devices
+              FROM devices GROUP BY status
