@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 
 import 'health_data_formatter.dart';
 import 'health_data_types.dart';
 import 'storage_service.dart';
+import 'theme/app_theme.dart';
+import 'utils/formatting.dart';
 
 class DataViewPage extends StatefulWidget {
   const DataViewPage({super.key});
@@ -25,30 +28,21 @@ class _DataViewPageState extends State<DataViewPage> {
     try {
       await health.configure();
 
-
       // Use platform-specific health data types
       var types = Platform.isIOS ? iosHealthDataTypes : androidHealthDataTypes;
       var permissions = permissionsFor(types);
 
       // Check if permissions are already granted before requesting
-      bool alreadyGranted = await health.hasPermissions(types, permissions: permissions) ?? false;
+      bool alreadyGranted =
+          await health.hasPermissions(types, permissions: permissions) ?? false;
       if (!alreadyGranted) {
         bool requested = await health.requestAuthorization(
           types,
           permissions: permissions,
         );
-        // Debug: Check which permissions are not granted
-        List<String> notGranted = [];
-        for (int i = 0; i < types.length; i++) {
-          bool granted = await health.hasPermissions([types[i]], permissions: [permissions[i]]) ?? false;
-          if (!granted) {
-            notGranted.add(types[i].toString());
-          }
-        }
-        if (notGranted.isNotEmpty) {
-          _showMessage('Authorization not granted for:\n${notGranted.join('\n')}');
-          return;
-        }
+        // iOS never reveals whether read access was granted (hasPermissions
+        // returns null/false for READ types), so a per-type check would always
+        // fail there. Rely on requestAuthorization's result, like the sync does.
         if (!requested) {
           _showMessage('Authorization not granted');
           return;
@@ -105,7 +99,7 @@ class _DataViewPageState extends State<DataViewPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Health Data'),
+          title: const Text('Data preview'),
           content: SingleChildScrollView(
             child: SelectableText(
               message,
@@ -206,295 +200,92 @@ class _DataViewPageState extends State<DataViewPage> {
     });
   }
 
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  String _formatDuration() {
+    final d = _endDate.difference(_startDate);
+    if (d.inDays >= 1) return '${d.inDays} d ${d.inHours % 24} h';
+    return '${d.inHours} h ${d.inMinutes % 60} min';
   }
 
   @override
   Widget build(BuildContext context) {
+    const quick = [
+      ('1 hour', Duration(hours: 1)),
+      ('6 hours', Duration(hours: 6)),
+      ('24 hours', Duration(days: 1)),
+      ('7 days', Duration(days: 7)),
+    ];
+    final selected = _endDate.difference(_startDate);
     return Scaffold(
-      appBar: AppBar(title: const Text('Health Data Viewer')),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).colorScheme.primaryContainer.withOpacity(0.1),
-              Theme.of(context).colorScheme.surface,
-            ],
+      appBar: AppBar(title: const Text('My data')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        children: [
+          Text(
+            'See exactly which Apple Health data the app reads for a period. '
+            'The preview uses the same format as the upload.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
           ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const SizedBox(height: 20),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        Column(
-                          children: [
-                            // Quick Selection Card
-                            Card(
-                              elevation: 2,
-                              child: Padding(
-                                padding: const EdgeInsets.all(20.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.schedule,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Quick Time Selection',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Wrap(
-                                      spacing: 12,
-                                      runSpacing: 8,
-                                      children: [
-                                        _QuickButton(
-                                          'Last Hour',
-                                          const Duration(hours: 1),
-                                          _setQuickPeriod,
-                                        ),
-                                        _QuickButton(
-                                          'Last 6h',
-                                          const Duration(hours: 6),
-                                          _setQuickPeriod,
-                                        ),
-                                        _QuickButton(
-                                          'Last 24h',
-                                          const Duration(days: 1),
-                                          _setQuickPeriod,
-                                        ),
-                                        _QuickButton(
-                                          'Last Week',
-                                          const Duration(days: 7),
-                                          _setQuickPeriod,
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
+                        for (final (label, duration) in quick)
+                          ChoiceChip(
+                            label: Text(label),
+                            selected: (selected - duration).inMinutes.abs() < 2,
+                            onSelected: (_) => _setQuickPeriod(duration),
+                            selectedColor: AppColors.blueSoft,
+                            side: const BorderSide(color: AppColors.outline),
+                            showCheckmark: false,
+                            labelStyle: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.blue,
                             ),
-                            const SizedBox(height: 16),
-                            // Custom Period Selection Card
-                            Card(
-                              elevation: 2,
-                              child: Padding(
-                                padding: const EdgeInsets.all(20.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.date_range,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Custom Period',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'From',
-                                                style: Theme.of(
-                                                  context,
-                                                ).textTheme.labelMedium,
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                _formatDateTime(_startDate),
-                                                style: Theme.of(
-                                                  context,
-                                                ).textTheme.bodyMedium,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        ElevatedButton.icon(
-                                          onPressed: _selectStartDate,
-                                          icon: const Icon(
-                                            Icons.edit,
-                                            size: 16,
-                                          ),
-                                          label: const Text('Change'),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'To',
-                                                style: Theme.of(
-                                                  context,
-                                                ).textTheme.labelMedium,
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                _formatDateTime(_endDate),
-                                                style: Theme.of(
-                                                  context,
-                                                ).textTheme.bodyMedium,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        ElevatedButton.icon(
-                                          onPressed: _selectEndDate,
-                                          icon: const Icon(
-                                            Icons.edit,
-                                            size: 16,
-                                          ),
-                                          label: const Text('Change'),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primaryContainer
-                                            .withOpacity(0.3),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.timelapse,
-                                            size: 16,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onPrimaryContainer,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Duration: ${_endDate.difference(_startDate).inHours}h ${_endDate.difference(_startDate).inMinutes % 60}m',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyMedium
-                                                ?.copyWith(
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onPrimaryContainer,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        Column(
-                          children: [
-                            const SizedBox(height: 24),
-                            // Get Data Button
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: _getHealthData,
-                                icon: const Icon(Icons.visibility),
-                                label: const Text('View Health Data'),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                  backgroundColor: Theme.of(
-                                    context,
-                                  ).colorScheme.secondary,
-                                  foregroundColor: Theme.of(
-                                    context,
-                                  ).colorScheme.onSecondary,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
                       ],
                     ),
                   ),
-                );
-              },
+                  const Divider(indent: 20, endIndent: 20),
+                  ListTile(
+                    leading: const Icon(Symbols.first_page_sharp),
+                    title: const Text('From'),
+                    trailing: Text(formatDateTime(_startDate)),
+                    onTap: _selectStartDate,
+                  ),
+                  ListTile(
+                    leading: const Icon(Symbols.last_page_sharp),
+                    title: const Text('To'),
+                    trailing: Text(formatDateTime(_endDate)),
+                    onTap: _selectEndDate,
+                  ),
+                  ListTile(
+                    leading: const Icon(Symbols.timelapse_sharp),
+                    title: const Text('Duration'),
+                    trailing: Text(_formatDuration()),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: _getHealthData,
+            icon: const Icon(Symbols.visibility_sharp),
+            label: const Text('Show data'),
+          ),
+        ],
       ),
-    );
-  }
-}
-
-class _QuickButton extends StatelessWidget {
-  final String label;
-  final Duration duration;
-  final Function(Duration) onPressed;
-
-  const _QuickButton(this.label, this.duration, this.onPressed);
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: () => onPressed(duration),
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      ),
-      child: Text(label),
     );
   }
 }

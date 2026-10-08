@@ -2,7 +2,7 @@ name: wearables_app_tub
 description: "Flutter health monitoring app"
 publish_to: 'none'
 
-version: 2.0.0+2
+version: 2.1.0+7
 
 environment:
   sdk: ^3.8.1
@@ -16,6 +16,10 @@ dependencies:
   shared_preferences: ^2.2.2
   flutter_local_notifications: ^17.1.2
   mobile_scanner: ^5.1.1
+  url_launcher: ^6.3.3
+  package_info_plus: ^10.2.2
+  flutter_svg: ^2.3.0
+  material_symbols_icons: ^4.2960.0
 
 dev_dependencies:
   flutter_test:
@@ -24,3 +28,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/branding/

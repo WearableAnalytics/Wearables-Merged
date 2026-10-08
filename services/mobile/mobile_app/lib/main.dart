@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:background_fetch/background_fetch.dart';
 import 'package:flutter/material.dart';
 
+import 'app_config.dart';
 import 'screens/main_page.dart';
 import 'services/background_sync_manager.dart';
 import 'services/health_sync_service.dart';
 import 'services/notification_service.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,13 +47,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Wearables Health Monitor',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 2),
-      ),
-      // MainPage is defined in lib/screens/main_page.dart
+      title: AppConfig.appName,
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(),
       home: const MainPage(),
     );
   }
