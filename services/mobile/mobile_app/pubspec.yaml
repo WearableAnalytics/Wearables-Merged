@@ -2,7 +2,7 @@ name: wearables_app_tub
 description: "Flutter health monitoring app"
 publish_to: 'none'
 
-version: 2.1.0+7
+version: 2.1.0+8
 
 environment:
   sdk: ^3.8.1

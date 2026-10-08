@@ -148,8 +148,10 @@ void main() {
           'last_data_send_time': DateTime.now().millisecondsSinceEpoch,
         }));
     final scope = SyncActivityNotifier.startSync();
+    SyncActivityNotifier.reportProgress(0.42);
     await _pump(tester, state!, settle: false);
     expect(find.text('Sharing your data…'), findsOneWidget);
+    expect(find.text('42 %'), findsOneWidget);
     await expectLater(
       find.byType(MainPage),
       matchesGoldenFile('screenshots/05_sending.png'),
