@@ -41,13 +41,13 @@ class _StudyPageState extends State<StudyPage> {
         : await enterStudyCodeManually(context);
     if (code == null || !mounted) return;
     if (code == state.deviceId) {
-      _toast('This study code is already linked.');
+      _toast('This personal code is already linked.');
       return;
     }
     final reset = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Link new study code?'),
+        title: const Text('Link new personal code?'),
         content: Text(
           'Future uploads will belong to the new code. Should the period since '
           '${formatDate(state.initialSyncStart)} be shared again for it?',
@@ -67,7 +67,7 @@ class _StudyPageState extends State<StudyPage> {
     );
     if (reset == null) return;
     await state.linkStudyCode(code, resetLastSync: reset);
-    _toast('New study code linked.');
+    _toast('New personal code linked.');
   }
 
   Future<void> _confirmReset() async {
@@ -128,13 +128,13 @@ class _StudyPageState extends State<StudyPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Study')),
+      appBar: AppBar(title: const Text('Account')),
       body: ListenableBuilder(
         listenable: state,
         builder: (context, _) => ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
-            _SectionLabel('Study code'),
+            _SectionLabel('Personal code'),
             Card(
               child: Column(
                 children: [
@@ -146,7 +146,7 @@ class _StudyPageState extends State<StudyPage> {
                           ? (_showCode
                                 ? state.deviceId
                                 : _masked(state.deviceId))
-                          : 'Scan the QR code from your study team.',
+                          : 'Scan the QR code from your information sheet.',
                       style: _showCode
                           ? const TextStyle(fontFamily: 'Menlo', fontSize: 11)
                           : null,
@@ -240,7 +240,7 @@ class _StudyPageState extends State<StudyPage> {
                   if (AppConfig.studyInfoUrl.isNotEmpty) ...[
                     ListTile(
                       leading: const Icon(Symbols.info_sharp),
-                      title: const Text('About the wearables study'),
+                      title: const Text('About the Charité Wearables platform'),
                       trailing: const Icon(Symbols.open_in_new_sharp, size: 20),
                       onTap: openStudyInfo,
                     ),

@@ -20,7 +20,7 @@ class StudyInfoLink extends StatelessWidget {
     return TextButton.icon(
       onPressed: openStudyInfo,
       icon: const Icon(Symbols.info_sharp, size: 20),
-      label: const Text('About the study'),
+      label: const Text('About the platform'),
     );
   }
 }

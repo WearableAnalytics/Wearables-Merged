@@ -16,10 +16,20 @@ class BrandHeader extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
-          child: SvgPicture.asset(
-            'assets/branding/charite_logo.svg',
-            height: 44,
-            semanticsLabel: AppConfig.institution,
+          child: Row(
+            children: [
+              SvgPicture.asset(
+                'assets/branding/charite_logo.svg',
+                height: 44,
+                semanticsLabel: AppConfig.institution,
+              ),
+              const Spacer(),
+              Image.asset(
+                'assets/branding/wearables_mark.png',
+                height: 34,
+                semanticLabel: 'Wearables',
+              ),
+            ],
           ),
         ),
         Container(
@@ -30,7 +40,7 @@ class BrandHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${AppConfig.appName} Study',
+                'Charité ${AppConfig.appName} Platform',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,

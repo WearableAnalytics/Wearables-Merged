@@ -32,10 +32,10 @@ Future<String?> enterStudyCodeManually(BuildContext context) async {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Enter study code', style: Theme.of(ctx).textTheme.titleLarge),
+          Text('Enter personal code', style: Theme.of(ctx).textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(
-            'Paste the code from your study information sheet or the study '
+            'Paste the code from your information sheet or the web '
             'portal. It is a long sequence of letters and numbers.',
             style: Theme.of(
               ctx,
@@ -61,7 +61,7 @@ Future<String?> enterStudyCodeManually(BuildContext context) async {
           const SizedBox(height: 20),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('Link study code'),
+            child: const Text('Link personal code'),
           ),
         ],
       ),
@@ -79,7 +79,7 @@ String? _validated(BuildContext context, String raw) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'That does not look like a study code. Please check it and try again.',
+          'That does not look like a personal code. Please check it and try again.',
         ),
       ),
     );

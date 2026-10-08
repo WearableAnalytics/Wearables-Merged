@@ -71,7 +71,7 @@ class _MainPageState extends State<MainPage> {
                 ),
                 NavigationDestination(
                   icon: Icon(Symbols.badge_sharp),
-                  label: 'Study',
+                  label: 'Account',
                 ),
               ],
             ),

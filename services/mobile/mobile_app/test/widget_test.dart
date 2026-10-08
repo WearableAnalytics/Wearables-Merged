@@ -121,7 +121,7 @@ void main() {
       matchesGoldenFile('screenshots/03_my_data.png'),
     );
 
-    await tester.tap(find.text('Study'));
+    await tester.tap(find.text('Account'));
     await tester.pumpAndSettle();
     expect(find.textContaining('••••••'), findsOneWidget);
     await tester.tap(find.text('More settings'));
@@ -129,7 +129,7 @@ void main() {
     expect(find.text('Share data from'), findsOneWidget);
     await expectLater(
       find.byType(MainPage),
-      matchesGoldenFile('screenshots/04_study.png'),
+      matchesGoldenFile('screenshots/04_account.png'),
     );
   });
 }
