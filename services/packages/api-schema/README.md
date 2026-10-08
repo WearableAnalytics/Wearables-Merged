@@ -25,7 +25,7 @@ It currently includes:
 - `GET /cases/{caseId}`
 - `POST /cases/from-hospital-case`
 - `POST /cases/verify-token`
-- `GET /researcher/api-access-token`
+- `GET /researcher/api-tokens`, `POST /researcher/api-tokens`, `POST /researcher/api-tokens/{tokenId}/revoke`
 
 This package does not currently model all auth/admin routes exposed by the backend
 (for example `/login`, `/register`, `/admin/...`).

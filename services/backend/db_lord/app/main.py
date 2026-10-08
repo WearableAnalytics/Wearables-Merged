@@ -20,7 +20,7 @@ from app.api.errors import (
     postgres_unavailable_handler,
     sqlalchemy_invalid_request_handler,
 )
-from app.api.routers import cases, contexts, devices, fhir_mapping, graphql, patients, telemetry, wearables
+from app.api.routers import api_tokens, cases, contexts, devices, fhir_mapping, graphql, patients, telemetry, wearables
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, ConflictError, DuplicateEntityError, EntityNotFoundError
 from app.core.json_types import JsonObject
@@ -163,6 +163,7 @@ def create_app() -> FastAPI:
     app.include_router(contexts.router, prefix="/contexts", tags=["contexts"])
     app.include_router(telemetry.router, prefix="/telemetry", tags=["telemetry"])
     app.include_router(fhir_mapping.router, prefix="/fhir-mappings", tags=["fhir-mappings"])
+    app.include_router(api_tokens.router, prefix="/api-tokens", tags=["api-tokens"])
     app.include_router(graphql.router, prefix="/graphql", tags=["graphql"])
     add_pagination(app)
     return app

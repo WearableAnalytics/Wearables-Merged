@@ -29,6 +29,18 @@ export const API_BASE_PATH = normalizeApiBasePath(appRuntimeConfig.apiBaseUrl);
 export type NonAdminRole = 'practitioner' | 'researcher';
 export type AccessRequestType = 'admin' | NonAdminRole;
 
+/** Personal export API token. The token itself is only returned once, on creation. */
+export type ApiToken = {
+  id: string;
+  name: string;
+  token_hint: string;
+  owner_email: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  revoked_by: string | null;
+};
+
 export const isDirectAuthResponse = (data: unknown): boolean =>
   Boolean(
     data &&
@@ -202,27 +214,48 @@ export class DefaultApi {
     return data;
   };
 
-  getResearcherApiAccessToken = async () => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/researcher/api-access-token`, {
-      method: 'GET',
+  private apiTokenRequest = async <T,>(path: string, fallbackMessage: string, init: RequestInit = {}): Promise<T> => {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}${path}`, {
       credentials: 'include',
+      ...init,
+      headers: init.body ? { 'Content-Type': 'application/json' } : undefined,
     });
     const data = await response.json().catch(() => ({} as Record<string, unknown>));
 
     if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to load API access token.';
+      const message = (data && (data.message ?? data.error)) ?? fallbackMessage;
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
     }
 
-    const apiAccessToken = (data as { apiAccessToken?: unknown }).apiAccessToken;
-    if (typeof apiAccessToken !== 'string' || !apiAccessToken) {
-      throw new Error('Invalid API access token response.');
-    }
-
-    return { apiAccessToken };
+    return data as T;
   };
+
+  listMyApiTokens = () =>
+    this.apiTokenRequest<ApiToken[]>('/researcher/api-tokens', 'Unable to load your API tokens.');
+
+  createApiToken = (name: string) =>
+    this.apiTokenRequest<ApiToken & { token: string }>('/researcher/api-tokens', 'Unable to create the API token.', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+
+  revokeMyApiToken = (tokenId: string) =>
+    this.apiTokenRequest<ApiToken>(
+      `/researcher/api-tokens/${encodeURIComponent(tokenId)}/revoke`,
+      'Unable to revoke the API token.',
+      { method: 'POST' },
+    );
+
+  listAllApiTokens = () => this.apiTokenRequest<ApiToken[]>('/admin/api-tokens', 'Unable to load API tokens.');
+
+  adminRevokeApiToken = (tokenId: string) =>
+    this.apiTokenRequest<ApiToken>(
+      `/admin/api-tokens/${encodeURIComponent(tokenId)}/revoke`,
+      'Unable to revoke the API token.',
+      { method: 'POST' },
+    );
 
   listPendingUsers = async () => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/pending-users`, {

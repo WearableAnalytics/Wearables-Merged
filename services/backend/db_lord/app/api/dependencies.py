@@ -32,6 +32,7 @@ from app.filters import (
 )
 from app.graphql.context import GraphQLContext
 from app.graphql.dataloaders import Loaders
+from app.services.api_token_service import ApiTokenService
 from app.services.assignment_service import AssignmentService
 from app.services.case_service import CaseService
 from app.services.context_service import ContextService
@@ -132,6 +133,10 @@ def get_assignment_service(
     return AssignmentService(db, device_repo, wearable_repo, case_repo, assignment_repo)
 
 
+def get_api_token_service(db: PgSessionDep) -> ApiTokenService:
+    return ApiTokenService(db)
+
+
 def get_telemetry_service(request: Request) -> TelemetryService:
     return request.app.state.telemetry_service
 
@@ -165,6 +170,7 @@ DeviceServiceDep = Annotated[DeviceService, Depends(get_device_service)]
 WearableServiceDep = Annotated[WearableService, Depends(get_wearable_service)]
 ContextServiceDep = Annotated[ContextService, Depends(get_context_service)]
 AssignmentServiceDep = Annotated[AssignmentService, Depends(get_assignment_service)]
+ApiTokenServiceDep = Annotated[ApiTokenService, Depends(get_api_token_service)]
 TelemetryServiceDep = Annotated[TelemetryService, Depends(get_telemetry_service)]
 FHIRMappingServiceDep = Annotated[FHIRMappingService, Depends(get_fhir_mapping_service)]
 DotDependencyFileServiceDep = Annotated[DotDependencyFileService, Depends(get_dot_dependency_file_service)]

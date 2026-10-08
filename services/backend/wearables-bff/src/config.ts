@@ -71,7 +71,6 @@ const requiredEnvVars = [
   'FRONTEND_ORIGINS',
   'DATABASE_API_URL',
   'DATABASE_API_TIMEOUT',
-  'RESEARCHER_API_ACCESS_TOKEN',
   'AUTH_SESSION_EXPIRY_SECONDS',
   'MAGIC_LINK_EXPIRY_SECONDS',
   'CASE_TOKEN_EXPIRY_SECONDS',
@@ -124,7 +123,6 @@ const backendUrl = requireUrlEnv('BACKEND_URL');
 const frontendRedirectUrl = requireUrlEnv('FRONTEND_REDIRECT_URL');
 const databaseApiUrl = requireUrlEnv('DATABASE_API_URL');
 const databaseApiTimeout = requirePositiveIntEnv('DATABASE_API_TIMEOUT');
-const researcherApiAccessToken = requireEnv('RESEARCHER_API_ACCESS_TOKEN');
 // Optional: base URL of the extraction service. When set, it is served under
 // `${API_PREFIX}/extraction` for researchers and admins (see api/routes/extraction.ts).
 const extractionApiUrlRaw = optionalEnv('EXTRACTION_API_URL');
@@ -225,7 +223,6 @@ export const config = {
   caseTokenExpirySeconds,
   tokenIssuer,
   adminEmails,
-  researcherApiAccessToken,
   extractionApiUrl,
   databaseApi: {
     baseUrl: databaseApiUrl,

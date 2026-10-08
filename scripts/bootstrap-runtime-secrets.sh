@@ -12,7 +12,6 @@ GRAFANA_JWT_PRIVATE_KEY_PATH="${GRAFANA_JWT_PRIVATE_KEY_PATH:-${REPO_ROOT}/secre
 GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING="${GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING:-true}"
 
 BREVO_API_KEY="${BREVO_API_KEY:-}"
-RESEARCHER_API_ACCESS_TOKEN="${RESEARCHER_API_ACCESS_TOKEN:-}"
 SHARED_APP_JWT_SECRET="${SHARED_APP_JWT_SECRET:-}"
 ROTATE_SHARED_APP_JWT_SECRET="${ROTATE_SHARED_APP_JWT_SECRET:-false}"
 
@@ -29,7 +28,6 @@ Environment variables:
   GRAFANA_JWT_PRIVATE_KEY_PATH        (default: ./secrets/grafana-jwt-private.pem)
   GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING (default: false; set true to generate RSA key if missing)
   BREVO_API_KEY                       (optional)
-  RESEARCHER_API_ACCESS_TOKEN         (required)
   SHARED_APP_JWT_SECRET               (optional; overrides auto-discovery/generation)
   ROTATE_SHARED_APP_JWT_SECRET        (default: false; set true to force new random value)
 
@@ -78,12 +76,6 @@ ensure_grafana_private_key_file() {
 }
 
 ensure_grafana_private_key_file
-
-if [[ -z "${RESEARCHER_API_ACCESS_TOKEN}" ]]; then
-  echo "Error: RESEARCHER_API_ACCESS_TOKEN is required." >&2
-  echo "Set it in the environment before running this script." >&2
-  exit 1
-fi
 
 decode_b64() {
   local encoded="$1"
@@ -151,7 +143,6 @@ SHARED_APP_JWT_SECRET="$(select_shared_jwt_secret)"
 kubectl -n "${BFF_NAMESPACE}" create secret generic "${BFF_SECRET_NAME}" \
   --from-literal=JWT_SECRET="${SHARED_APP_JWT_SECRET}" \
   --from-literal=BREVO_API_KEY="${BREVO_API_KEY}" \
-  --from-literal=RESEARCHER_API_ACCESS_TOKEN="${RESEARCHER_API_ACCESS_TOKEN}" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 kubectl -n "${GRAFANA_NAMESPACE}" create secret generic "${GRAFANA_SECRET_NAME}" \
@@ -160,5 +151,5 @@ kubectl -n "${GRAFANA_NAMESPACE}" create secret generic "${GRAFANA_SECRET_NAME}"
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 echo "Applied secrets:"
-echo "  - ${BFF_NAMESPACE}/${BFF_SECRET_NAME} (JWT_SECRET, BREVO_API_KEY, RESEARCHER_API_ACCESS_TOKEN)"
+echo "  - ${BFF_NAMESPACE}/${BFF_SECRET_NAME} (JWT_SECRET, BREVO_API_KEY)"
 echo "  - ${GRAFANA_NAMESPACE}/${GRAFANA_SECRET_NAME} (GRAFANA_JWT_PRIVATE_KEY, APP_JWT_SECRET)"

@@ -22,7 +22,7 @@ All data endpoints take `measurement`, `patient_id`, `start` and `end`, all opti
 ## Access
 The service has no auth of its own and is only reachable in the cluster. The Wearables BFF serves it
 at `/api/extraction` (set `EXTRACTION_API_URL` on the BFF) for logged-in researchers and admins, or
-with the researcher API token from the web app's API Access page as `Authorization: Bearer <token>`.
+with a personal API token created on the web app's API Access page as `Authorization: Bearer <token>`.
 The Swagger UI is then at `/api/extraction/docs`.
 
 ## Configuration

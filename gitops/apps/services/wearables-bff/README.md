@@ -63,7 +63,7 @@ When using Grafana proxy session-derived identity/case-token compatibility:
 
 1. Edit non-sensitive runtime env in `values.yaml` (`env.*`).
 2. Ensure `values.yaml` explicitly sets required runtime envs (`FRONTEND_ORIGINS`, `FRONTEND_REDIRECT_URL`, `BACKEND_URL`, `AUTH_SESSION_EXPIRY_SECONDS`, `MAGIC_LINK_EXPIRY_SECONDS`, `CASE_TOKEN_EXPIRY_SECONDS`, `TOKEN_ISSUER`).
-3. Ensure a Secret exists with required `JWT_SECRET` and `RESEARCHER_API_ACCESS_TOKEN` (plus `BREVO_API_KEY` when `env.NODE_ENV=production`).
+3. Ensure a Secret exists with required `JWT_SECRET` (plus `BREVO_API_KEY` when `env.NODE_ENV=production`).
 4. Deploy the chart (command below).
 
 If you deploy BFF together with Grafana proxy/frontend, use `docs/deploy-runtime-config.md` for the end-to-end sequence.

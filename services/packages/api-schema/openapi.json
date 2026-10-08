@@ -197,17 +197,107 @@
         ],
         "additionalProperties": false
       },
-      "ResearcherApiAccessToken": {
+      "ApiToken": {
         "type": "object",
         "properties": {
-          "apiAccessToken": {
+          "id": {
             "type": "string",
-            "description": "Environment-backed API access token shown to researchers/admins",
-            "example": "dummy-researcher-api-token"
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name given by the owner, e.g. the computer it is used on"
+          },
+          "token_hint": {
+            "type": "string",
+            "description": "Last characters of the token"
+          },
+          "owner_email": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "revoked_by": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
-          "apiAccessToken"
+          "id",
+          "name",
+          "token_hint",
+          "owner_email",
+          "created_at",
+          "last_used_at",
+          "revoked_at",
+          "revoked_by"
+        ],
+        "additionalProperties": false
+      },
+      "CreatedApiToken": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name given by the owner, e.g. the computer it is used on"
+          },
+          "token_hint": {
+            "type": "string",
+            "description": "Last characters of the token"
+          },
+          "owner_email": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "revoked_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "token": {
+            "type": "string",
+            "description": "The token. Returned only once; only its sha256 hash is stored.",
+            "example": "wrt_3q2-example"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "token_hint",
+          "owner_email",
+          "created_at",
+          "last_used_at",
+          "revoked_at",
+          "revoked_by",
+          "token"
         ],
         "additionalProperties": false
       },
@@ -533,20 +623,22 @@
         }
       }
     },
-    "/researcher/api-access-token": {
+    "/researcher/api-tokens": {
       "get": {
         "tags": [
           "Researcher"
         ],
-        "summary": "Get researcher API access token",
-        "description": "Returns the configured API access token for authenticated users with researcher role or admin access.",
+        "summary": "List your active API tokens",
         "responses": {
           "200": {
-            "description": "API access token returned successfully",
+            "description": "Active tokens of the logged-in user",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ResearcherApiAccessToken"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiToken"
+                  }
                 }
               }
             }
@@ -563,6 +655,125 @@
           },
           "403": {
             "description": "Researcher or admin access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Researcher"
+        ],
+        "summary": "Create a personal API token for the export API",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Token created; the token is only returned in this response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedApiToken"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Researcher or admin access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/researcher/api-tokens/{tokenId}/revoke": {
+      "post": {
+        "tags": [
+          "Researcher"
+        ],
+        "summary": "Revoke one of your API tokens",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tokenId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiToken"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Researcher or admin access required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Token not found",
             "content": {
               "application/json": {
                 "schema": {

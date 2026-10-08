@@ -48,13 +48,11 @@ Run once (or re-run whenever needed):
 Required/optional overrides:
 
 ```bash
-RESEARCHER_API_ACCESS_TOKEN='<researcher-token>' \
 BREVO_API_KEY='<brevo-api-key>' \
 GRAFANA_JWT_PRIVATE_KEY_PATH='./secrets/grafana-jwt-private.pem' \
 ./scripts/bootstrap-runtime-secrets.sh
 
 # optional: auto-generate missing RSA private key at GRAFANA_JWT_PRIVATE_KEY_PATH
-RESEARCHER_API_ACCESS_TOKEN='<researcher-token>' \
 GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING=true \
 ./scripts/bootstrap-runtime-secrets.sh
 ```

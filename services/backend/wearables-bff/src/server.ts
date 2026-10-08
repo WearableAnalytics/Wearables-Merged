@@ -3,6 +3,7 @@ import express, { Request, Response } from 'express';
 import config from './config.js';
 import authRouter from './api/routes/auth.js';
 import extractionRouter from './api/routes/extraction.js';
+import apiTokensRouter from './api/routes/apiTokens.js';
 import { auth, requestLogger } from './middleware.js';
 import { logger } from './logger.js';
 import { patientService, caseService, hospitalCaseService } from './services/index.js';
@@ -33,16 +34,13 @@ app.get(route('/health'), (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Has its own auth: researcher/admin session or the researcher API token.
+// Has its own auth: researcher/admin session or a personal API token.
 app.use(route('/extraction'), extractionRouter);
 
 app.use(config.apiPrefix, auth.required);
 
-app.get(route('/researcher/api-access-token'), auth.researcherOrAdmin, (_req, res) => {
-  return res.json({
-    apiAccessToken: config.researcherApiAccessToken,
-  });
-});
+// Personal export API tokens: researchers manage their own, admins can revoke any.
+app.use(config.apiPrefix, apiTokensRouter);
 
 app.use(config.apiPrefix, auth.practitionerOrAdmin);
 

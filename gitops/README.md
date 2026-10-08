@@ -157,7 +157,6 @@ INFLUX_TOKEN: "token"
 For that the following secrets need to be set:
 
 ```
-RESEARCHER_API_ACCESS_TOKEN="<researcher-token>"
 BREVO_API_KEY="<brevo-api-key>"
 GRAFANA_JWT_PRIVATE_KEY_PATH="./secrets/grafana-jwt-private.pem"
 ```
