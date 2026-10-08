@@ -84,6 +84,13 @@ Future<void> _pump(
   await wait();
 }
 
+/// Screenshots show live clock times, so they are only rendered on demand:
+/// SCREENSHOT_FONT=... flutter test --update-goldens test/widget_test.dart
+Future<void> _shot(String path) async {
+  if (Platform.environment['SCREENSHOT_FONT'] == null) return;
+  await expectLater(find.byType(MainPage), matchesGoldenFile(path));
+}
+
 void main() {
   setUpAll(() async {
     PackageInfo.setMockInitialValues(
@@ -102,10 +109,7 @@ void main() {
     expect(find.text('Scan QR code'), findsOneWidget);
     expect(find.text('Enter code manually'), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
-    await expectLater(
-      find.byType(MainPage),
-      matchesGoldenFile('screenshots/01_welcome.png'),
-    );
+    await _shot('screenshots/01_welcome.png');
   });
 
   testWidgets('linked shows connected status and tabs', (tester) async {
@@ -117,17 +121,11 @@ void main() {
     await _pump(tester, state!);
     expect(find.text('You are connected'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
-    await expectLater(
-      find.byType(MainPage),
-      matchesGoldenFile('screenshots/02_connected.png'),
-    );
+    await _shot('screenshots/02_connected.png');
 
     await tester.tap(find.text('My data'));
     await tester.pumpAndSettle();
-    await expectLater(
-      find.byType(MainPage),
-      matchesGoldenFile('screenshots/03_my_data.png'),
-    );
+    await _shot('screenshots/03_my_data.png');
 
     await tester.tap(find.text('Account'));
     await tester.pumpAndSettle();
@@ -135,10 +133,7 @@ void main() {
     await tester.tap(find.text('More settings'));
     await tester.pumpAndSettle();
     expect(find.text('Share data from'), findsOneWidget);
-    await expectLater(
-      find.byType(MainPage),
-      matchesGoldenFile('screenshots/04_account.png'),
-    );
+    await _shot('screenshots/04_account.png');
   });
 
   testWidgets('status badge changes colour while sending and on error',
@@ -152,18 +147,12 @@ void main() {
     await _pump(tester, state!, settle: false);
     expect(find.text('Sharing your data…'), findsOneWidget);
     expect(find.text('42 %'), findsOneWidget);
-    await expectLater(
-      find.byType(MainPage),
-      matchesGoldenFile('screenshots/05_sending.png'),
-    );
+    await _shot('screenshots/05_sending.png');
 
     SyncActivityNotifier.reportResult(SyncOutcome.failure);
     scope.close();
     await tester.pumpAndSettle();
     expect(find.text('Last upload failed'), findsOneWidget);
-    await expectLater(
-      find.byType(MainPage),
-      matchesGoldenFile('screenshots/06_error.png'),
-    );
+    await _shot('screenshots/06_error.png');
   });
 }

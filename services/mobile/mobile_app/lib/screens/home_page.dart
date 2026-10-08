@@ -170,18 +170,28 @@ class _ConnectedView extends StatelessWidget {
     final message = switch (result.status) {
       HealthSyncStatus.success => 'Shared ${result.totalSent} data points.',
       HealthSyncStatus.partialSuccess =>
-        'Shared ${result.totalSent} of ${result.totalAvailable} data points.',
+        'Shared ${result.totalSent} of ${result.totalAvailable} data points.'
+            '${_reason(result)}',
       HealthSyncStatus.nothingToSend =>
         'Up to date. There is no new data to share.',
       HealthSyncStatus.protectedDataUnavailable =>
         'Unlock your iPhone to share health data.',
       HealthSyncStatus.permissionDenied =>
         'Access to Apple Health is needed. Check Settings › Health › Data Access.',
-      HealthSyncStatus.failed => 'Sharing failed. Please try again later.',
+      HealthSyncStatus.failed =>
+        'Sharing failed. Please try again later.${_reason(result)}',
     };
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Short server or network reason, e.g. "Status 422".
+  String _reason(HealthSyncResult result) {
+    final error = result.lastError;
+    if (error == null) return '';
+    final status = RegExp(r'Status (\d{3})').firstMatch(error)?.group(0);
+    return ' (${status ?? error.split('\n').first})';
   }
 
   @override

@@ -54,6 +54,12 @@ Map<String, dynamic> formatHealthDataByType(List<HealthDataPoint> healthData) {
         break;
     }
 
+    // The ingest API only accepts finite numbers. Types such as audiograms
+    // carry structured values; leave those out so one point cannot get a
+    // whole batch rejected (HTTP 422).
+    final value = formattedPoint['value'];
+    if (value is! num || value.isNaN || value.isInfinite) continue;
+
     categorizedData[category]!.add(formattedPoint);
   }
 
