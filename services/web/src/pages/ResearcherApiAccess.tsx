@@ -11,6 +11,8 @@ export function ResearcherApiAccessPage() {
   const [copied, setCopied] = useState(false);
 
   const formattedBasePath = useMemo(() => API_BASE_PATH.replace(/\/$/, ''), []);
+  const extractionBasePath = `${formattedBasePath}/extraction`;
+  const extractionOrigin = formattedBasePath.startsWith('http') ? '' : window.location.origin;
 
   useEffect(() => {
     let cancelled = false;
@@ -66,15 +68,25 @@ export function ResearcherApiAccessPage() {
         <h2 className="text-section-title">How to use the API</h2>
         <ol className="m-0 mt-3 list-decimal space-y-2 pl-5 text-sm text-foreground">
           <li>Copy your token from the section below.</li>
-          <li>Call API endpoints under <span className="font-mono">{formattedBasePath}</span>.</li>
+          <li>Call the export endpoints under <span className="font-mono">{extractionBasePath}</span>.</li>
           <li>Send the token as a bearer token in the <span className="font-mono">Authorization</span> header.</li>
         </ol>
+
+        <p className="m-0 mt-3 text-sm text-foreground">
+          All endpoints are documented in the{' '}
+          <a className="underline" href={`${extractionBasePath}/docs`} target="_blank" rel="noreferrer">
+            interactive API documentation
+          </a>{' '}
+          (OpenAPI spec at <span className="font-mono">{extractionBasePath}/openapi.json</span>), where you can also try
+          them out while logged in.
+        </p>
 
         <div className="surface-subtle mt-4 rounded-xl p-3">
           <p className="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Example</p>
           <pre className="m-0 mt-2 overflow-x-auto text-xs text-foreground">
-{`curl -X GET "${formattedBasePath}/your-research-endpoint" \\
-  -H "Authorization: Bearer <your-token>"`}
+{`curl -G "${extractionOrigin}${extractionBasePath}/v1/measurements/export.csv" \\
+  -d patient_id=<patient-id> -d measurement=heart-rate \\
+  -H "Authorization: Bearer <your-token>" -o heart-rate.csv`}
           </pre>
         </div>
       </section>

@@ -15,7 +15,8 @@ data:
       buffer_strategy = "memory"
       debug = true
       quiet = false
-      omit_hostname = false
+      # The pod name as `host` tag made re-sent readings separate series (stored twice).
+      omit_hostname = true
 
     [[inputs.kafka_consumer]]
       brokers = ["{{ .Values.config.kafkaConsumer.name }}-kafka-bootstrap.{{ .Values.config.kafkaConsumer.namespace }}.svc.cluster.local:9092"]

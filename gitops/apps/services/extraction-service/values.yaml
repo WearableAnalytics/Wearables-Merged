@@ -15,3 +15,9 @@ secretRef: "extraction-service-secrets"
 
 env:
   DB_LORD_BASE_URL: "http://db-lord.db-lord.svc.cluster.local:8080"
+
+# Non-secret settings, passed as plain env vars.
+config:
+  # The BFF serves this API under /api/extraction (EXTRACTION_API_URL in its values);
+  # the Swagger UI at /api/extraction/docs needs to know that prefix.
+  ROOT_PATH: "/api/extraction"
