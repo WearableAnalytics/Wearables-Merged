@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 /// Tracks whether any health-data sync is currently running (manual or automatic).
 /// Uses a simple reference count so overlapping syncs keep the indicator active
 /// until every caller finishes.
-enum SyncOutcome { success, nothingToSend, failure }
+enum SyncOutcome { success, incomplete, nothingToSend, failure }
 
 class SyncActivityNotifier {
   SyncActivityNotifier._();

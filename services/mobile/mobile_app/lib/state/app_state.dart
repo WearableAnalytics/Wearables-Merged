@@ -22,6 +22,11 @@ class AppState extends ChangeNotifier {
   bool get isLinked => StorageService.isStudyCode(deviceId);
   bool get isSyncing => SyncActivityNotifier.isSyncing.value;
   double? get progress => SyncActivityNotifier.progress.value;
+
+  /// Shared data ends more than a day ago, e.g. after an interrupted sync.
+  bool get isBehind =>
+      lastSendTime != null &&
+      DateTime.now().difference(lastSendTime!) > const Duration(days: 1);
   SyncOutcome? get lastOutcome => SyncActivityNotifier.lastResult.value;
 
   Future<void> load() async {

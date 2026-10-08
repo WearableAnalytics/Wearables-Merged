@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -76,11 +77,13 @@ class HealthSyncService {
       }
 
       // Use platform-specific health data types
-      final types = Platform.isIOS ? iosHealthDataTypes : androidHealthDataTypes;
+      final types = Platform.isIOS
+          ? iosHealthDataTypes
+          : androidHealthDataTypes;
       final permissions = permissionsFor(types);
       final alreadyGranted =
           await _health.hasPermissions(types, permissions: permissions) ??
-              false;
+          false;
       if (!alreadyGranted) {
         if (!requestPermissions) {
           return complete(
@@ -178,7 +181,7 @@ class HealthSyncService {
         for (int chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
           final chunk = chunks[chunkIndex];
           try {
-            await _sendChunk(
+            await _sendChunkWithRetry(
               chunk: chunk,
               chunkIndex: chunkIndex,
               totalChunks: chunks.length,
@@ -190,7 +193,7 @@ class HealthSyncService {
             );
             totalSent += chunk.length;
             if (chunkIndex < chunks.length - 1) {
-              await Future.delayed(const Duration(milliseconds: 500));
+              await Future.delayed(const Duration(milliseconds: 150));
             }
           } catch (e) {
             lastError ??= 'Upload failed: $e';
@@ -261,8 +264,9 @@ class HealthSyncService {
   SyncOutcome _mapOutcome(HealthSyncStatus status) {
     switch (status) {
       case HealthSyncStatus.success:
-      case HealthSyncStatus.partialSuccess:
         return SyncOutcome.success;
+      case HealthSyncStatus.partialSuccess:
+        return SyncOutcome.incomplete;
       case HealthSyncStatus.nothingToSend:
         return SyncOutcome.nothingToSend;
       case HealthSyncStatus.permissionDenied:
@@ -279,6 +283,43 @@ class HealthSyncService {
       chunks.add(data.sublist(i, end));
     }
     return chunks;
+  }
+
+  /// Retries transient failures (network drops, timeouts, server errors)
+  /// before giving up; 4xx responses are not retried.
+  Future<void> _sendChunkWithRetry({
+    required List<HealthDataPoint> chunk,
+    required int chunkIndex,
+    required int totalChunks,
+    required DateTime from,
+    required DateTime to,
+    required DateTime? lastSendTime,
+    required String deviceId,
+    required int? stepsToday,
+  }) async {
+    const backoff = [Duration(seconds: 2), Duration(seconds: 6)];
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await _sendChunk(
+          chunk: chunk,
+          chunkIndex: chunkIndex,
+          totalChunks: totalChunks,
+          from: from,
+          to: to,
+          lastSendTime: lastSendTime,
+          deviceId: deviceId,
+          stepsToday: stepsToday,
+        );
+      } catch (e) {
+        final transient =
+            e is SocketException ||
+            e is TimeoutException ||
+            e is HandshakeException ||
+            (e is HttpException && e.message.startsWith('Status 5'));
+        if (!transient || attempt >= backoff.length) rethrow;
+        await Future.delayed(backoff[attempt]);
+      }
+    }
   }
 
   Future<void> _sendChunk({

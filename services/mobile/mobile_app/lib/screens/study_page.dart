@@ -187,7 +187,7 @@ class _StudyPageState extends State<StudyPage> {
                 children: [
                   ListTile(
                     leading: const Icon(Symbols.schedule_sharp),
-                    title: const Text('Last shared'),
+                    title: const Text('Shared up to'),
                     trailing: Text(
                       state.lastSendTime == null
                           ? 'Not yet'
