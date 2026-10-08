@@ -207,6 +207,7 @@ class _ConnectedView extends StatelessWidget {
                     Center(
                       child: _StatusBadge(
                         syncing: state.isSyncing,
+                        progress: state.progress,
                         failed: failed,
                       ),
                     ),
@@ -222,7 +223,10 @@ class _ConnectedView extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      failed
+                      state.isSyncing
+                          ? 'Please keep the app open until sharing has finished. '
+                                'Progress is saved, so it continues where it stopped.'
+                          : failed
                           ? 'Your data will be sent again automatically. You can also '
                                 'try it now.'
                           : 'Your Apple Health data is shared securely with the '
@@ -284,10 +288,15 @@ class _ConnectedView extends StatelessWidget {
 }
 
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.syncing, required this.failed});
+  const _StatusBadge({
+    required this.syncing,
+    required this.failed,
+    this.progress,
+  });
 
   final bool syncing;
   final bool failed;
+  final double? progress;
 
   @override
   Widget build(BuildContext context) {
@@ -310,12 +319,15 @@ class _StatusBadge extends StatelessWidget {
               decoration: BoxDecoration(color: soft, shape: BoxShape.circle),
             ),
             if (syncing)
-              const SizedBox(
+              SizedBox(
                 width: 148,
                 height: 148,
                 child: CircularProgressIndicator(
+                  value: progress,
                   strokeWidth: 6,
-                  color: AppColors.lightBlue,
+                  strokeCap: StrokeCap.round,
+                  color: AppColors.blue,
+                  backgroundColor: AppColors.lightBlue.withValues(alpha: 0.2),
                 ),
               ),
             Container(
@@ -334,15 +346,23 @@ class _StatusBadge extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Icon(
-                syncing
-                    ? Symbols.sync_sharp
-                    : failed
-                    ? Symbols.priority_high_sharp
-                    : Symbols.check_sharp,
-                size: 64,
-                color: Colors.white,
-              ),
+              child: syncing && progress != null
+                  ? Center(
+                      child: Text(
+                        '${(progress! * 100).floor()} %',
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(color: Colors.white),
+                      ),
+                    )
+                  : Icon(
+                      syncing
+                          ? Symbols.sync_sharp
+                          : failed
+                          ? Symbols.priority_high_sharp
+                          : Symbols.check_sharp,
+                      size: 64,
+                      color: Colors.white,
+                    ),
             ),
           ],
         ),

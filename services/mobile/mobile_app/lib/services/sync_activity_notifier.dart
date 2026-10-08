@@ -10,15 +10,23 @@ class SyncActivityNotifier {
 
   static final ValueNotifier<bool> isSyncing = ValueNotifier<bool>(false);
   static final ValueNotifier<SyncOutcome?> lastResult = ValueNotifier(null);
+
+  /// Share of the current sync's time range already uploaded (0–1), or null.
+  static final ValueNotifier<double?> progress = ValueNotifier(null);
   static int _inFlight = 0;
 
   static SyncActivityScope startSync() {
     if (_inFlight == 0) {
       lastResult.value = null;
+      progress.value = null;
     }
     _inFlight += 1;
     isSyncing.value = true;
     return SyncActivityScope._();
+  }
+
+  static void reportProgress(double value) {
+    progress.value = value.clamp(0.0, 1.0);
   }
 
   static void reportResult(SyncOutcome outcome) {
@@ -28,6 +36,7 @@ class SyncActivityNotifier {
   static void _finish() {
     _inFlight = _inFlight > 0 ? _inFlight - 1 : 0;
     if (_inFlight == 0) {
+      progress.value = null;
       isSyncing.value = false;
     }
   }
