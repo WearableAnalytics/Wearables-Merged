@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:wearables_app_tub/screens/main_page.dart';
+import 'package:wearables_app_tub/services/sync_activity_notifier.dart';
 import 'package:wearables_app_tub/state/app_state.dart';
 import 'package:wearables_app_tub/theme/app_theme.dart';
 
@@ -54,7 +55,11 @@ Future<AppState> _state(Map<String, Object> prefs) async {
   return state;
 }
 
-Future<void> _pump(WidgetTester tester, AppState state) async {
+Future<void> _pump(
+  WidgetTester tester,
+  AppState state, {
+  bool settle = true,
+}) async {
   tester.view.physicalSize = const Size(1179, 2556);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -65,7 +70,10 @@ Future<void> _pump(WidgetTester tester, AppState state) async {
       home: MainPage(state: state),
     ),
   );
-  await tester.pumpAndSettle();
+  Future<void> wait() => settle
+      ? tester.pumpAndSettle()
+      : tester.pump(const Duration(milliseconds: 600));
+  await wait();
   // Let asset images decode before taking the screenshot.
   await tester.runAsync(() async {
     for (final element in find.byType(Image).evaluate()) {
@@ -73,7 +81,7 @@ Future<void> _pump(WidgetTester tester, AppState state) async {
       await precacheImage(image.image, element);
     }
   });
-  await tester.pumpAndSettle();
+  await wait();
 }
 
 void main() {
@@ -130,6 +138,30 @@ void main() {
     await expectLater(
       find.byType(MainPage),
       matchesGoldenFile('screenshots/04_account.png'),
+    );
+  });
+
+  testWidgets('status badge changes colour while sending and on error',
+      (tester) async {
+    final state = await tester.runAsync(() => _state({
+          'device_id': _studyCode,
+          'last_data_send_time': DateTime.now().millisecondsSinceEpoch,
+        }));
+    final scope = SyncActivityNotifier.startSync();
+    await _pump(tester, state!, settle: false);
+    expect(find.text('Sharing your data…'), findsOneWidget);
+    await expectLater(
+      find.byType(MainPage),
+      matchesGoldenFile('screenshots/05_sending.png'),
+    );
+
+    SyncActivityNotifier.reportResult(SyncOutcome.failure);
+    scope.close();
+    await tester.pumpAndSettle();
+    expect(find.text('Last upload failed'), findsOneWidget);
+    await expectLater(
+      find.byType(MainPage),
+      matchesGoldenFile('screenshots/06_error.png'),
     );
   });
 }

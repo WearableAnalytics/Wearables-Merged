@@ -292,7 +292,11 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = failed ? AppColors.coral : AppColors.success;
-    final soft = failed ? AppColors.coralSoft : AppColors.successSoft;
+    final soft = syncing
+        ? AppColors.blueSoft
+        : failed
+        ? AppColors.coralSoft
+        : AppColors.successSoft;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       child: SizedBox(
