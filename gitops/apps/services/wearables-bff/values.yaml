@@ -52,4 +52,3 @@ secret:
   data:
     JWT_SECRET: "dev-secret"
     BREVO_API_KEY: "key"
-    RESEARCHER_API_ACCESS_TOKEN: "dev-secret"

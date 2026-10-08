@@ -130,7 +130,6 @@ These are required to proceed past the Telegraf step.
 - EXTRACTION_SERVICE_SECRET_NAME: Secret name for extraction-service. Default is extraction-service-secrets.
 
 ### runtime secret bootstrap (required)
-- RESEARCHER_API_ACCESS_TOKEN: Required API access token for wearables-bff.
 - BREVO_API_KEY: Optional unless NODE_ENV is production.
 - GRAFANA_JWT_PRIVATE_KEY_PATH: Path to the Grafana private key file.
 - SHARED_APP_JWT_SECRET: Optional override for the shared JWT secret.

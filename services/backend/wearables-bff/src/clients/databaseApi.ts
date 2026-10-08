@@ -52,6 +52,25 @@ export interface PatientQueryParams {
   weightRangeEnd?: number;
 }
 
+/** Researcher export API token as stored by db_lord (only its hash is stored). */
+export interface ApiTokenRecord {
+  id: string;
+  token_hint: string;
+  owner_email: string;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  revoked_by: string | null;
+}
+
+export class DatabaseApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'DatabaseApiError';
+  }
+}
+
 const LIST_PAGE_SIZE = 100;
 const MAX_LIST_PAGES = 50;
 
@@ -84,8 +103,9 @@ class DatabaseApiClient {
 
       if (!response.ok) {
         const errorBody = await response.text();
-        throw new Error(
-          `Database API error: ${response.status} ${response.statusText} - ${errorBody}`
+        throw new DatabaseApiError(
+          `Database API error: ${response.status} ${response.statusText} - ${errorBody}`,
+          response.status,
         );
       }
 
@@ -188,6 +208,46 @@ class DatabaseApiClient {
 
   async getCases(): Promise<Case[]> {
     return this.listAll<Case>('/cases/');
+  }
+
+  // Researcher export API tokens
+  async createApiToken(token: {
+    token_hash: string;
+    token_hint: string;
+    owner_email: string;
+    name: string;
+  }): Promise<ApiTokenRecord> {
+    return this.request<ApiTokenRecord>('/api-tokens/', {
+      method: 'POST',
+      body: JSON.stringify(token),
+    });
+  }
+
+  async listApiTokens(params: { ownerEmail?: string; includeRevoked?: boolean } = {}): Promise<ApiTokenRecord[]> {
+    const query = new URLSearchParams();
+    if (params.ownerEmail) query.set('owner_email', params.ownerEmail);
+    if (params.includeRevoked) query.set('include_revoked', 'true');
+    return this.request<ApiTokenRecord[]>(`/api-tokens/?${query}`);
+  }
+
+  /** The active token with this hash, or undefined if it is unknown or revoked. */
+  async verifyApiToken(tokenHash: string): Promise<ApiTokenRecord | undefined> {
+    try {
+      return await this.request<ApiTokenRecord>('/api-tokens/verify', {
+        method: 'POST',
+        body: JSON.stringify({ token_hash: tokenHash }),
+      });
+    } catch (error) {
+      if (error instanceof DatabaseApiError && error.status === 404) return undefined;
+      throw error;
+    }
+  }
+
+  async revokeApiToken(tokenId: string, revokedBy: string): Promise<ApiTokenRecord> {
+    return this.request<ApiTokenRecord>(`/api-tokens/${encodeURIComponent(tokenId)}/revoke`, {
+      method: 'POST',
+      body: JSON.stringify({ revoked_by: revokedBy }),
+    });
   }
 
   /**

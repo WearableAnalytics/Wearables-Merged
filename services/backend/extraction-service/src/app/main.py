@@ -25,8 +25,8 @@ Export wearable measurements stored on the Wearables platform.
 
 **Authentication.** The API is served through the Wearables BFF at `/api/extraction`.
 Either be logged in to the web app as a researcher or admin (the session cookie is sent
-automatically, also from this page), or send the researcher API token from the web app's
-*API Access* page as `Authorization: Bearer <token>`.
+automatically, also from this page), or create a personal API token on the web app's
+*API Access* page and send it as `Authorization: Bearer <token>`.
 
 **Time range.** `start` defaults to 2020-01-01, so omitting it exports all data.
 `end` is exclusive. Times without a timezone are read as UTC.
@@ -64,7 +64,7 @@ def custom_openapi() -> dict:
         "researcherToken": {
             "type": "http",
             "scheme": "bearer",
-            "description": "Researcher API token from the web app's API Access page.",
+            "description": "Personal API token from the web app's API Access page (starts with wrt_).",
         },
         "session": {"type": "apiKey", "in": "cookie", "name": "jwt", "description": "Web app login session."},
     }

@@ -101,16 +101,32 @@ export const CaseVerifiedSchema = registry.register(
     .strict(),
 );
 
-export const ResearcherApiAccessTokenSchema = registry.register(
-  'ResearcherApiAccessToken',
+export const ApiTokenSchema = registry.register(
+  'ApiToken',
   z
     .object({
-      apiAccessToken: z
-        .string()
-        .describe('Environment-backed API access token shown to researchers/admins')
-        .openapi({ example: 'dummy-researcher-api-token' }),
+      id: z.string().uuid(),
+      name: z.string().describe('Name given by the owner, e.g. the computer it is used on'),
+      token_hint: z.string().describe('Last characters of the token'),
+      owner_email: z.string(),
+      created_at: z.string().datetime({ offset: true }),
+      last_used_at: z.string().datetime({ offset: true }).nullable(),
+      revoked_at: z.string().datetime({ offset: true }).nullable(),
+      revoked_by: z.string().nullable(),
     })
-    .describe('Researcher API access token payload')
+    .describe('Personal export API token (without the token itself)')
+    .strict(),
+);
+
+export const CreatedApiTokenSchema = registry.register(
+  'CreatedApiToken',
+  ApiTokenSchema.extend({
+    token: z
+      .string()
+      .describe('The token. Returned only once; only its sha256 hash is stored.')
+      .openapi({ example: 'wrt_3q2-example' }),
+  })
+    .describe('Newly created API token')
     .strict(),
 );
 
@@ -318,15 +334,13 @@ registry.registerPath({
 
 registry.registerPath({
   method: 'get',
-  path: '/researcher/api-access-token',
+  path: '/researcher/api-tokens',
   tags: ['Researcher'],
-  summary: 'Get researcher API access token',
-  description:
-    'Returns the configured API access token for authenticated users with researcher role or admin access.',
+  summary: 'List your active API tokens',
   responses: {
     200: {
-      description: 'API access token returned successfully',
-      content: { 'application/json': { schema: ResearcherApiAccessTokenSchema } },
+      description: 'Active tokens of the logged-in user',
+      content: { 'application/json': { schema: z.array(ApiTokenSchema) } },
     },
     401: {
       description: 'Authentication required',
@@ -334,6 +348,60 @@ registry.registerPath({
     },
     403: {
       description: 'Researcher or admin access required',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: 'post',
+  path: '/researcher/api-tokens',
+  tags: ['Researcher'],
+  summary: 'Create a personal API token for the export API',
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: z.object({ name: z.string().min(1).max(100) }).strict() },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: 'Token created; the token is only returned in this response',
+      content: { 'application/json': { schema: CreatedApiTokenSchema } },
+    },
+    401: {
+      description: 'Authentication required',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    403: {
+      description: 'Researcher or admin access required',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: 'post',
+  path: '/researcher/api-tokens/{tokenId}/revoke',
+  tags: ['Researcher'],
+  summary: 'Revoke one of your API tokens',
+  request: { params: z.object({ tokenId: z.string().uuid() }) },
+  responses: {
+    200: {
+      description: 'Token revoked',
+      content: { 'application/json': { schema: ApiTokenSchema } },
+    },
+    401: {
+      description: 'Authentication required',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    403: {
+      description: 'Researcher or admin access required',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    404: {
+      description: 'Token not found',
       content: { 'application/json': { schema: ErrorSchema } },
     },
   },

@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { Readable } from 'stream';
@@ -6,23 +5,18 @@ import type { ReadableStream as WebReadableStream } from 'stream/web';
 import config from '../../config.js';
 import { logger } from '../../logger.js';
 import { getUserFromRequest } from '../../middleware.js';
+import { checkApiToken } from '../../services/apiTokens.js';
 
 /**
  * Researcher-facing extraction API (services/backend/extraction-service), proxied
  * under `${API_PREFIX}/extraction`. Includes its Swagger UI at `/extraction/docs`.
  *
- * Access: a logged-in, approved researcher or admin (session cookie), or the
- * researcher API token from the web app's API Access page as a Bearer token.
+ * Access: a logged-in, approved researcher or admin (session cookie), or a
+ * personal API token from the web app's API Access page as a Bearer token.
  */
 const router = express.Router();
 
 const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'cache-control'];
-
-const tokensMatch = (given: string, expected: string): boolean => {
-  const a = crypto.createHash('sha256').update(given).digest();
-  const b = crypto.createHash('sha256').update(expected).digest();
-  return crypto.timingSafeEqual(a, b);
-};
 
 const bearerToken = (req: Request): string | undefined => {
   const header = req.headers.authorization;
@@ -30,14 +24,25 @@ const bearerToken = (req: Request): string | undefined => {
   return header.slice('Bearer '.length).trim() || undefined;
 };
 
-export const requireExtractionAccess = (req: Request, res: Response, next: NextFunction): void => {
+export const requireExtractionAccess = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   const token = bearerToken(req);
   if (token !== undefined) {
-    if (tokensMatch(token, config.researcherApiAccessToken)) {
+    try {
+      const check = await checkApiToken(token);
+      if (!check.ok) {
+        res.status(check.status).json({ error: check.error });
+        return;
+      }
+      res.locals.apiTokenOwner = check.record.owner_email;
       next();
-      return;
+    } catch (error) {
+      logger.error('API token check failed', error as Error);
+      res.status(503).json({ error: 'Token check unavailable, try again later' });
     }
-    res.status(401).json({ error: 'Invalid API access token' });
     return;
   }
 

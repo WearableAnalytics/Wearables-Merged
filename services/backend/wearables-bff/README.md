@@ -27,8 +27,11 @@ Main route groups under `{API_PREFIX}`:
 - Patient/case: `/hospital/*`, `/patients*`, `/cases*`
 - Admin: `/admin/*`
 - Extraction: `/extraction/*`, proxied to the extraction service when `EXTRACTION_API_URL` is set
-  (Swagger UI at `/extraction/docs`). Open to researchers/admins and to the researcher API token
+  (Swagger UI at `/extraction/docs`). Open to researchers/admins and to their personal API tokens
   as `Authorization: Bearer <token>`.
+- API tokens: `/researcher/api-tokens` (list, create, `/:id/revoke` own tokens) and
+  `/admin/api-tokens` (list, `/:id/revoke` any token). Only the sha256 hash is stored, in db_lord
+  (`/api-tokens`); the token is returned once when it is created.
 
 For the exact contract, use the generated OpenAPI schema in `services/packages/api-schema`.
 

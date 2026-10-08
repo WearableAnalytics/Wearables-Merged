@@ -422,7 +422,6 @@ bash "$REPO_ROOT/scripts/bootstrap-runtime-secrets.sh"
 
 echo "Successfully executed bootrap script"
 
-require_env RESEARCHER_API_ACCESS_TOKEN
 require_file "$GRAFANA_JWT_PRIVATE_KEY_PATH"
 
 BFF_ADMIN_EMAILS_HELM_ESCAPED="${BFF_ADMIN_EMAILS//,/\\,}"

@@ -8,6 +8,9 @@ from sqlalchemy.dialects.postgresql import JSONB, ExcludeConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.model_constants import (
+    API_TOKEN_HASH_LEN,
+    API_TOKEN_NAME_MAX_LEN,
+    API_TOKEN_OWNER_MAX_LEN,
     CONTEXT_COORDINATOR_MAX_LEN,
     CONTEXT_GROUP_NAME_MAX_LEN,
     FHIR_CATEGORY_MAX_LEN,
@@ -341,3 +344,25 @@ class DotDependencyFile(Base):
         # fetching dependency graphs by mapping version and category at the same time
         Index("ix_dot_dependency_files_version_category", "version", "category"),
     )
+
+
+class ApiToken(Base):
+    """Personal access token for the researcher export API.
+
+    Only the sha256 hash of the token is stored; the token itself is shown once
+    by the BFF when it is created.
+    """
+
+    __tablename__ = "api_tokens"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, server_default=text("uuidv7()"))
+
+    token_hash: Mapped[str] = mapped_column(String(API_TOKEN_HASH_LEN), unique=True, index=True, nullable=False)
+    # Last characters of the token, so owners can tell their tokens apart.
+    token_hint: Mapped[str] = mapped_column(String(8), nullable=False)
+    owner_email: Mapped[str] = mapped_column(String(API_TOKEN_OWNER_MAX_LEN), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(API_TOKEN_NAME_MAX_LEN), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    revoked_by: Mapped[str | None] = mapped_column(String(API_TOKEN_OWNER_MAX_LEN), nullable=True)
