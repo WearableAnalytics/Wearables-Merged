@@ -108,6 +108,8 @@ class _WelcomeView extends StatelessWidget {
                       const SizedBox(height: 8),
                       const Center(child: StudyInfoLink()),
                     ],
+                    const SizedBox(height: 24),
+                    const InstituteFooter(),
                   ],
                 ),
               ),
