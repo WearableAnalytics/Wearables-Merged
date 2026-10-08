@@ -198,6 +198,13 @@ class _ConnectedView extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final failed = !state.isSyncing && state.lastOutcome == SyncOutcome.failure;
+    final incomplete =
+        !state.isSyncing &&
+        !failed &&
+        (state.lastOutcome == SyncOutcome.incomplete || state.isBehind);
+    final sharedUpTo = state.lastSendTime == null
+        ? ''
+        : formatDate(state.lastSendTime!);
 
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
@@ -219,6 +226,7 @@ class _ConnectedView extends StatelessWidget {
                         syncing: state.isSyncing,
                         progress: state.progress,
                         failed: failed,
+                        incomplete: incomplete,
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -227,6 +235,8 @@ class _ConnectedView extends StatelessWidget {
                           ? 'Sharing your data…'
                           : failed
                           ? 'Last upload failed'
+                          : incomplete
+                          ? 'Not fully shared yet'
                           : 'You are connected',
                       style: textTheme.headlineMedium,
                       textAlign: TextAlign.center,
@@ -236,6 +246,9 @@ class _ConnectedView extends StatelessWidget {
                       state.isSyncing
                           ? 'Please keep the app open until sharing has finished. '
                                 'Progress is saved, so it continues where it stopped.'
+                          : incomplete
+                          ? 'Your data is shared up to $sharedUpTo. Tap Share now '
+                                'to continue from there.'
                           : failed
                           ? 'Your data will be sent again automatically. You can also '
                                 'try it now.'
@@ -253,7 +266,7 @@ class _ConnectedView extends StatelessWidget {
                         Expanded(
                           child: _InfoTile(
                             icon: Symbols.schedule_sharp,
-                            label: 'Last shared',
+                            label: 'Shared up to',
                             value: state.lastSendTime == null
                                 ? 'Not yet'
                                 : formatRelative(state.lastSendTime!),
@@ -301,25 +314,33 @@ class _StatusBadge extends StatelessWidget {
   const _StatusBadge({
     required this.syncing,
     required this.failed,
+    this.incomplete = false,
     this.progress,
   });
 
   final bool syncing;
   final bool failed;
+  final bool incomplete;
   final double? progress;
 
   @override
   Widget build(BuildContext context) {
-    final color = failed ? AppColors.coral : AppColors.success;
+    final color = failed
+        ? AppColors.coral
+        : incomplete
+        ? AppColors.lightBlue
+        : AppColors.success;
     final soft = syncing
         ? AppColors.blueSoft
         : failed
         ? AppColors.coralSoft
+        : incomplete
+        ? AppColors.blueSoft
         : AppColors.successSoft;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       child: SizedBox(
-        key: ValueKey('$syncing-$failed'),
+        key: ValueKey('$syncing-$failed-$incomplete'),
         width: 168,
         height: 168,
         child: Stack(
@@ -369,6 +390,8 @@ class _StatusBadge extends StatelessWidget {
                           ? Symbols.sync_sharp
                           : failed
                           ? Symbols.priority_high_sharp
+                          : incomplete
+                          ? Symbols.pause_sharp
                           : Symbols.check_sharp,
                       size: 64,
                       color: Colors.white,

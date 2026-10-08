@@ -155,4 +155,17 @@ void main() {
     expect(find.text('Last upload failed'), findsOneWidget);
     await _shot('screenshots/06_error.png');
   });
+
+  testWidgets('interrupted sync shows "not fully shared yet"', (tester) async {
+    SyncActivityNotifier.lastResult.value = null;
+    final upTo = DateTime(2026, 3, 28);
+    final state = await tester.runAsync(() => _state({
+          'device_id': _studyCode,
+          'last_data_send_time': upTo.millisecondsSinceEpoch,
+        }));
+    await _pump(tester, state!);
+    expect(find.text('Not fully shared yet'), findsOneWidget);
+    expect(find.textContaining('28 Mar 2026'), findsWidgets);
+    await _shot('screenshots/07_incomplete.png');
+  });
 }
