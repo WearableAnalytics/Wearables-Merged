@@ -125,6 +125,17 @@ const frontendRedirectUrl = requireUrlEnv('FRONTEND_REDIRECT_URL');
 const databaseApiUrl = requireUrlEnv('DATABASE_API_URL');
 const databaseApiTimeout = requirePositiveIntEnv('DATABASE_API_TIMEOUT');
 const researcherApiAccessToken = requireEnv('RESEARCHER_API_ACCESS_TOKEN');
+// Optional: base URL of the extraction service. When set, it is served under
+// `${API_PREFIX}/extraction` for researchers and admins (see api/routes/extraction.ts).
+const extractionApiUrlRaw = optionalEnv('EXTRACTION_API_URL');
+if (extractionApiUrlRaw) {
+  try {
+    new URL(extractionApiUrlRaw);
+  } catch {
+    throw new Error('Invalid configuration: EXTRACTION_API_URL must be a valid absolute URL.');
+  }
+}
+const extractionApiUrl = extractionApiUrlRaw?.replace(/\/$/, '');
 
 // Strict env-driven auth/token configuration.
 const authSessionExpirySeconds = requirePositiveIntEnv('AUTH_SESSION_EXPIRY_SECONDS');
@@ -215,6 +226,7 @@ export const config = {
   tokenIssuer,
   adminEmails,
   researcherApiAccessToken,
+  extractionApiUrl,
   databaseApi: {
     baseUrl: databaseApiUrl,
     timeout: databaseApiTimeout,

@@ -24,3 +24,14 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.secretRef }}
+          {{- with .Values.config }}
+          env:
+            {{- range $key, $value := . }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http

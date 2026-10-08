@@ -26,6 +26,9 @@ Main route groups under `{API_PREFIX}`:
 - User: `/me`, `/request-admin`, `/request-role`
 - Patient/case: `/hospital/*`, `/patients*`, `/cases*`
 - Admin: `/admin/*`
+- Extraction: `/extraction/*`, proxied to the extraction service when `EXTRACTION_API_URL` is set
+  (Swagger UI at `/extraction/docs`). Open to researchers/admins and to the researcher API token
+  as `Authorization: Bearer <token>`.
 
 For the exact contract, use the generated OpenAPI schema in `services/packages/api-schema`.
 

@@ -1,20 +1,39 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
-from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Any
+from collections.abc import AsyncIterator
+from contextlib import aclosing, asynccontextmanager
+from datetime import UTC, datetime
+from typing import Annotated
+from uuid import NAMESPACE_URL, uuid5
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import StreamingResponse
 
 from .clients import create_db_lord_client
 from .db_lord_api import DbLordApi
-from .schemas import TelemetryPageResponse, TelemetryPoint
+from .fhir import ObservationBuilder
+from .points import iter_readings, read_page
+from .schemas import MeasurementPage, MeasurementPoint, MeasurementType
+from .settings import settings
 
-from src.fhir_serde.dot_parser import Graph, parse_file
-from src.fhir_serde.fhir_builder import FhirParser
-from src.fhir_serde.model import FhirYamlConfig
+DESCRIPTION = """
+Export wearable measurements stored on the Wearables platform.
+
+**Authentication.** The API is served through the Wearables BFF at `/api/extraction`.
+Either be logged in to the web app as a researcher or admin (the session cookie is sent
+automatically, also from this page), or send the researcher API token from the web app's
+*API Access* page as `Authorization: Bearer <token>`.
+
+**Time range.** `start` defaults to 2020-01-01, so omitting it exports all data.
+`end` is exclusive. Times without a timezone are read as UTC.
+
+**Patients.** `patient_id` is the db-lord patient id (the id the app syncs with).
+Repeated copies of the same reading are removed from every response.
+"""
 
 
 @asynccontextmanager
@@ -27,193 +46,190 @@ async def lifespan(app: FastAPI):
         await client.aclose()
 
 
-app = FastAPI(title="Extraction Service", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Wearables Extraction API",
+    version="0.2.0",
+    description=DESCRIPTION,
+    lifespan=lifespan,
+    root_path=settings.root_path,
+)
+
+
+def custom_openapi() -> dict:
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(title=app.title, version=app.version, description=app.description, routes=app.routes)
+    # Documents the BFF's auth so Swagger UI offers an "Authorize" button for the token.
+    schema.setdefault("components", {})["securitySchemes"] = {
+        "researcherToken": {
+            "type": "http",
+            "scheme": "bearer",
+            "description": "Researcher API token from the web app's API Access page.",
+        },
+        "session": {"type": "apiKey", "in": "cookie", "name": "jwt", "description": "Web app login session."},
+    }
+    schema["security"] = [{"researcherToken": []}, {"session": []}]
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = custom_openapi
 
 
 def get_db_lord_api(request: Request) -> DbLordApi:
     return DbLordApi(request.app.state.db_lord_client)
 
 
-@app.get("/health")
+DbLordDep = Annotated[DbLordApi, Depends(get_db_lord_api)]
+
+
+def as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+class ReadingFilter:
+    def __init__(
+        self,
+        measurement: Annotated[
+            str | None,
+            Query(description="Measurement type, see `/v1/measurements/types`. Omit for all types."),
+        ] = None,
+        patient_id: Annotated[str | None, Query(description="db-lord patient id. Omit for all patients.")] = None,
+        start: Annotated[
+            datetime | None, Query(description="Inclusive start. Defaults to 2020-01-01T00:00:00Z.")
+        ] = None,
+        end: Annotated[datetime | None, Query(description="Exclusive end. Defaults to now.")] = None,
+    ):
+        self.measurement = measurement or None
+        self.patient_id = patient_id or None
+        self.start = as_utc(start) or settings.default_start
+        self.end = as_utc(end)
+        if self.end is not None and self.start >= self.end:
+            raise HTTPException(status_code=422, detail="start must be before end")
+
+    def readings(self, api: DbLordApi):
+        return iter_readings(
+            api, measurement=self.measurement, start=self.start, end=self.end, patient_id=self.patient_id
+        )
+
+
+@app.get("/health", include_in_schema=False)
 async def health():
     return {"status": "ok"}
 
 
-@app.get("/v1/measurements", response_model=TelemetryPageResponse)
+@app.get(
+    "/v1/measurements/types",
+    response_model=list[MeasurementType],
+    tags=["measurements"],
+    summary="List measurement types",
+)
+async def list_measurement_types(api: DbLordDep):
+    measurements = await api.list_measurements()
+    return [
+        MeasurementType(
+            measurement=m["measurement"],
+            field_keys=[f for f in m.get("fieldKeys", []) if f != "t_ingested"],
+        )
+        for m in measurements
+    ]
+
+
+@app.get(
+    "/v1/measurements",
+    response_model=MeasurementPage,
+    tags=["measurements"],
+    summary="Read measurements page by page",
+    description="Newest readings first. Pass `next_end` as `end` to get the next page until `has_more` is false. "
+    "A page can hold slightly more than `limit` readings so that no timestamp is split across pages.",
+)
 async def get_measurements(
-    measurement: str,
-    start: datetime | None = None,
-    end: datetime | None = None,
-    limit: int = Query(100, ge=1, le=5000),
-    patient_id: str | None = None,
-    device_id: str | None = None,
-    case_id: str | None = None,
-    api: DbLordApi = Depends(get_db_lord_api),
+    filters: Annotated[ReadingFilter, Depends()],
+    api: DbLordDep,
+    limit: Annotated[int, Query(ge=1, le=10_000)] = 1000,
 ):
-    return await api.read_telemetry(
-        measurement=measurement,
-        start=start,
-        end=end,
-        limit=limit,
-        patient_id=patient_id,
-        device_id=device_id,
-        case_id=case_id,
-    )
+    async with aclosing(filters.readings(api)) as readings:
+        return await read_page(readings, limit)
 
 
-@app.get("/v1/measurements/export.csv")
+CSV_COLUMNS = ["timestamp", "measurement", "patient_id", "category", "value", "fields"]
+
+
+def csv_line(values: list) -> str:
+    buffer = io.StringIO()
+    csv.writer(buffer, lineterminator="\n").writerow(values)
+    return buffer.getvalue()
+
+
+@app.get(
+    "/v1/measurements/export.csv",
+    tags=["export"],
+    summary="Export measurements as CSV",
+    description="Streams all matching readings, newest first. `fields` holds any extra fields as JSON.",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/csv": {}}, "description": "CSV file"}},
+)
 async def export_measurements_csv(
-    measurement: str,
-    start: datetime | None = None,
-    end: datetime | None = None,
-    limit: int = Query(5000, ge=1, le=5000),
-    patient_id: str | None = None,
-    device_id: str | None = None,
-    case_id: str | None = None,
+    filters: Annotated[ReadingFilter, Depends()],
+    api: DbLordDep,
 ):
-    async def row_iter():
-        page_end = end
-        yield "timestamp,measurement,patient_id,case_id,device_id,fields\n"
-        async with create_db_lord_client() as client:
-            api = DbLordApi(client)
-            while True:
-                page = await api.read_telemetry(
-                    measurement=measurement,
-                    start=start,
-                    end=page_end,
-                    limit=limit,
-                    patient_id=patient_id,
-                    device_id=device_id,
-                    case_id=case_id,
+
+    async def rows() -> AsyncIterator[str]:
+        yield csv_line(CSV_COLUMNS)
+        async with aclosing(filters.readings(api)) as readings:
+            async for point in readings:
+                row = MeasurementPoint.from_telemetry(point)
+                yield csv_line(
+                    [
+                        row.timestamp.isoformat(),
+                        row.measurement,
+                        row.patient_id or "",
+                        row.category or "",
+                        "" if row.value is None else row.value,
+                        json.dumps(row.fields, ensure_ascii=False) if row.fields else "",
+                    ]
                 )
 
-                for item in page.items:
-                    ts = item.timestamp.isoformat()
-                    pid = str(item.patient_id)
-                    cid = str(item.case_id)
-                    did = str(item.device_id)
-                    fields_s = json.dumps(item.fields, ensure_ascii=False).replace('"', '""')
-                    yield f"{ts},{item.measurement},{pid},{cid},{did},\"{fields_s}\"\n"
-
-                if not page.has_more or page.next_end is None or not page.items:
-                    break
-                page_end = page.next_end
-
-    return StreamingResponse(row_iter(), media_type="text/csv")
-
-
-@app.get("/v1/measurements/export.fhir")
-async def export_measurements_fhir(
-    measurement: str,
-    start: datetime | None = None,
-    end: datetime | None = None,
-    limit: int = Query(1000, ge=1, le=5000),
-    patient_id: str | None = None,
-    device_id: str | None = None,
-    case_id: str | None = None,
-):
-    """Export telemetry data as a FHIR Bundle of Observation resources."""
-    async def generate_bundle():
-        mapping_cache: dict[str, FhirYamlConfig] = {}
-        graph_cache: dict[str, dict[str, Graph]] = {}
-
-        entries: list[dict[str, Any]] = []
-        page_end = end
-
-        async with create_db_lord_client() as client:
-            api = DbLordApi(client)
-            while True:
-                page = await api.read_telemetry(
-                    measurement=measurement,
-                    start=start,
-                    end=page_end,
-                    limit=limit,
-                    patient_id=patient_id,
-                    device_id=device_id,
-                    case_id=case_id,
-                )
-
-                for item in page.items:
-                    fhir_resource = await _telemetry_to_fhir(api, item, mapping_cache, graph_cache)
-                    if fhir_resource:
-                        entries.append({
-                            "fullUrl": f"urn:uuid:{item.patient_id or 'unknown'}:{item.timestamp.isoformat()}",
-                            "resource": fhir_resource,
-                        })
-
-                if not page.has_more or page.next_end is None or not page.items:
-                    break
-                page_end = page.next_end
-
-        return {
-            "resourceType": "Bundle",
-            "type": "collection",
-            "total": len(entries),
-            "entry": entries,
-        }
-
-    return await generate_bundle()
-
-
-async def _telemetry_to_fhir(
-    api: DbLordApi,
-    item: TelemetryPoint,
-    mapping_cache: dict[str, FhirYamlConfig],
-    graph_cache: dict[str, dict[str, Graph]],
-) -> dict | None:
-    """Convert a single telemetry point to a FHIR Observation using its linked mapping."""
-    mapping_key = item.mapping_id
-    dot_key = item.dot_dependency_file_id
-    if mapping_key is None or dot_key is None:
-        return None
-
-    if mapping_key not in mapping_cache:
-        try:
-            mapping_resp = await api.get_fhir_mapping(mapping_key)
-            yaml_config = FhirYamlConfig.model_validate(mapping_resp.full_mapping)
-            mapping_cache[mapping_key] = yaml_config
-        except Exception:
-            return None
-
-    if dot_key not in graph_cache:
-        try:
-            dot_resp = await api.get_dot_dependency_file(dot_key)
-            raw_graph = dot_resp.digraph.get("raw", "")
-            if raw_graph:
-                graph_cache[dot_key] = parse_file(raw_graph)
-            else:
-                graph_cache[dot_key] = {}
-        except Exception:
-            graph_cache[dot_key] = {}
-
-    yaml_config = mapping_cache[mapping_key].model_copy(deep=True)
-
-    category_name = _find_category(yaml_config, item.measurement)
-    if not category_name:
-        return None
-
-    graphs = graph_cache.get(dot_key, {})
-    nodes = graphs[category_name].nodes if category_name in graphs else []
-
-    parser = FhirParser(yaml_config, category_name, nodes)
-
-    return parser.build_fhir_from_telemetry(
-        fields=item.fields,
-        tags=item.tags,
-        measurement=item.measurement,
-        timestamp=item.timestamp.isoformat(),
+    return StreamingResponse(
+        rows(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="measurements.csv"'},
     )
 
 
-def _find_category(yaml_config: FhirYamlConfig, measurement: str) -> str | None:
-    """Find the category path name that matches the measurement.
+@app.get(
+    "/v1/measurements/export.fhir",
+    tags=["export"],
+    summary="Export measurements as a FHIR Bundle",
+    description="Streams a FHIR R4 `collection` Bundle with one Observation per reading. Readings whose type has "
+    "no FHIR mapping are left out.",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"application/fhir+json": {}}, "description": "FHIR Bundle"}},
+)
+async def export_measurements_fhir(
+    filters: Annotated[ReadingFilter, Depends()],
+    api: DbLordDep,
+):
+    builder = ObservationBuilder(api)
 
-    Measurement names like 'heart-rate' map to categories like 'measurements.instantaneous'.
-    We check all paths; the YAML config determines which category a measurement belongs to.
-    For now, return the first path that exists (the caller's FhirParser will validate).
-    """
-    paths = yaml_config.measurement.paths
-    for p in paths:
-        return p.path
+    async def bundle() -> AsyncIterator[str]:
+        yield '{"resourceType":"Bundle","type":"collection","entry":['
+        first = True
+        async with aclosing(filters.readings(api)) as readings:
+            async for point in readings:
+                observation = await builder.build(point)
+                if observation is None:
+                    continue
+                reading = f"{point.patient_id}/{point.measurement}/{point.timestamp.isoformat()}"
+                entry = {"fullUrl": f"urn:uuid:{uuid5(NAMESPACE_URL, reading)}", "resource": observation}
+                yield ("" if first else ",") + json.dumps(entry, ensure_ascii=False)
+                first = False
+        yield "]}"
 
-    return None
+    return StreamingResponse(
+        bundle(),
+        media_type="application/fhir+json",
+        headers={"Content-Disposition": 'attachment; filename="measurements.fhir.json"'},
+    )

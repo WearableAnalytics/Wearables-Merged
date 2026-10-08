@@ -37,6 +37,9 @@ env:
   TOKEN_ISSUER: "wearables-bff"
   DATABASE_API_URL: "http://db-lord.db-lord.svc.cluster.local:8080"
   DATABASE_API_TIMEOUT: "30000"
+  # Serves the extraction API (with Swagger UI) at /api/extraction for researchers/admins.
+  # Leave empty to disable the route.
+  EXTRACTION_API_URL: "http://extraction-service.extraction-service.svc.cluster.local:8010"
   LOG_LEVEL: "info"
   MAILER_FROM_NAME: "Wearables Platform"
   MAILER_FROM_EMAIL: "jmm123@posteo.de"

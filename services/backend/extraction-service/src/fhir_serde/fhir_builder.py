@@ -167,12 +167,7 @@ class FhirParser:
                     self.build_path(field_def.target, transformed)
 
         # 3) Set fields derived from other FHIR fields (fhirSource)
-        for field_def in self.all_fields:
-            if field_def.fhirSource is not None:
-                source_val = _read_fhir_path(self.fhir_dict, field_def.fhirSource)
-                if source_val is not None:
-                    transformed = _apply_transforms(source_val, field_def, self.fhir_dict, self._mappings)
-                    self.build_path(field_def.target, transformed)
+        self._resolve_derived_fields()
 
         return self.fhir_dict
 
@@ -210,14 +205,26 @@ class FhirParser:
                 self.build_path(field_def.target, transformed)
 
         # 3) Set fields derived from other FHIR fields (fhirSource)
-        for field_def in self.all_fields:
-            if field_def.fhirSource is not None:
-                source_val = _read_fhir_path(self.fhir_dict, field_def.fhirSource)
-                if source_val is not None:
-                    transformed = _apply_transforms(source_val, field_def, self.fhir_dict, self._mappings)
-                    self.build_path(field_def.target, transformed)
+        self._resolve_derived_fields()
 
         return self.fhir_dict
+
+    def _resolve_derived_fields(self) -> None:
+        """Set fhirSource fields. A field can derive from another derived field that comes later
+        in the mapping (e.g. valueUnit from code.coding[0].code), so repeat until nothing changes."""
+        pending = [f for f in self.all_fields if f.fhirSource is not None]
+        while pending:
+            remaining = []
+            for field_def in pending:
+                source_val = _read_fhir_path(self.fhir_dict, field_def.fhirSource)
+                if source_val is None:
+                    remaining.append(field_def)
+                    continue
+                transformed = _apply_transforms(source_val, field_def, self.fhir_dict, self._mappings)
+                self.build_path(field_def.target, transformed)
+            if len(remaining) == len(pending):
+                return
+            pending = remaining
 
     @staticmethod
     def _resolve_raw_value(field_def: FieldDef, all_raw: dict[str, Any]) -> Any:
