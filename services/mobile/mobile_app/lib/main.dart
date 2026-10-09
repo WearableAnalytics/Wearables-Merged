@@ -6,39 +6,21 @@ import 'package:flutter/material.dart';
 import 'app_config.dart';
 import 'screens/main_page.dart';
 import 'services/background_sync_manager.dart';
-import 'services/health_sync_service.dart';
+import 'services/health_background_delivery.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  NotificationService.registerOnNotificationTap(
-    BackgroundSyncManager.handleNotificationTap,
-  );
-  await NotificationService.initialize(
-    onNotificationTap: BackgroundSyncManager.handleNotificationTap,
-  );
+  await NotificationService.initialize();
+  // A tap that launched the app is picked up by MainPage, which resumes the
+  // transfer and tells the user so.
   await NotificationService.handleLaunchNotificationTap();
   await BackgroundSyncManager.initialize();
-  _kickOffInitialForegroundSync();
+  await HealthBackgroundDelivery.initialize();
+  unawaited(BackgroundSyncManager.runQuietSync());
   BackgroundFetch.registerHeadlessTask(backgroundFetchHeadlessTask);
   runApp(const MyApp());
-}
-
-void _kickOffInitialForegroundSync() {
-  unawaited(() async {
-    try {
-      final result = await HealthSyncService().sendSinceLastSync(
-        requestPermissions: true,
-      );
-      debugPrint(
-        'Initial foreground sync completed: ${result.status} (sent ${result.totalSent}/${result.totalAvailable}).',
-      );
-    } catch (e, st) {
-      debugPrint('Initial foreground sync failed: $e');
-      debugPrint('$st');
-    }
-  }());
 }
 
 class MyApp extends StatelessWidget {
@@ -60,9 +42,4 @@ void backgroundFetchHeadlessTask(HeadlessTask task) async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.initialize(requestPermissions: false);
   await BackgroundSyncManager.handleHeadlessTask(task);
-}
-
-Future<void> _runForegroundSyncFromNotification() async {
-  // Kept for backwards compatibility; delegate to the centralized handler.
-  await BackgroundSyncManager.handleNotificationTap();
 }

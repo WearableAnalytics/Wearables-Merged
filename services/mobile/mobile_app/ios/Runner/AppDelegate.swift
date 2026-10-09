@@ -80,8 +80,17 @@ private final class DeviceLockMonitor {
     // Use the Flutter plugin registrar rather than the rootViewController; the latter is not guaranteed
     // to be available in didFinishLaunchingWithOptions once UISceneDelegate is enabled.
     setupDeviceLockChannel()
+    setupHealthBackgroundDelivery()
 
     return flutterInitialized
+  }
+
+  private func setupHealthBackgroundDelivery() {
+    guard let registrar = self.registrar(forPlugin: "HealthBackgroundDelivery") else { return }
+    HealthBackgroundDelivery.shared.attach(messenger: registrar.messenger())
+    // Observer queries must be registered on every launch, including the
+    // background launches HealthKit triggers for new data.
+    HealthBackgroundDelivery.shared.start()
   }
 
   private func setupDeviceLockChannel() {

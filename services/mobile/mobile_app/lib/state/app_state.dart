@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../services/health_sync_service.dart';
+import '../services/notification_service.dart';
 import '../services/sync_activity_notifier.dart';
 import '../storage_service.dart';
 
@@ -61,6 +62,7 @@ class AppState extends ChangeNotifier {
     if (isSyncing) return null;
     final result = await _syncService.sendSinceLastSync();
     await load();
+    await NotificationService.scheduleInactivityReminder(lastSendTime);
     return result;
   }
 

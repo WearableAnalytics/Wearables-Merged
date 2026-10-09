@@ -287,7 +287,7 @@ class _ConnectedView extends StatelessWidget {
                       onPressed: state.isSyncing
                           ? null
                           : () => _syncNow(context),
-                      icon: const Icon(Symbols.ios_share_sharp),
+                      icon: const Icon(Symbols.sync_sharp),
                       label: Text(state.isSyncing ? 'Sharing…' : 'Share now'),
                     ),
                     const SizedBox(height: 12),

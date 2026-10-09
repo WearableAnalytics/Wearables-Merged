@@ -7,6 +7,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:wearables_app_tub/screens/main_page.dart';
+import 'package:wearables_app_tub/services/health_sync_service.dart';
+import 'package:wearables_app_tub/services/notification_service.dart';
 import 'package:wearables_app_tub/services/sync_activity_notifier.dart';
 import 'package:wearables_app_tub/state/app_state.dart';
 import 'package:wearables_app_tub/theme/app_theme.dart';
@@ -168,4 +170,42 @@ void main() {
     expect(find.textContaining('28 Mar 2026'), findsWidgets);
     await _shot('screenshots/07_incomplete.png');
   });
+
+  testWidgets('opening a notification confirms the resumed transfer',
+      (tester) async {
+    SyncActivityNotifier.lastResult.value = null;
+    final state = _FakeSyncState();
+    await tester.runAsync(() async {
+      SharedPreferences.setMockInitialValues({
+        'device_id': _studyCode,
+        'last_data_send_time': DateTime.now().millisecondsSinceEpoch,
+      });
+      await state.load();
+    });
+    await _pump(tester, state);
+    await tester.tap(find.text('Account'));
+    await tester.pumpAndSettle();
+
+    NotificationService.debugSimulateOpen();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(
+      find.text('Welcome back. Your data transfer has resumed.'),
+      findsOneWidget,
+    );
+    expect(find.text('You are connected'), findsOneWidget);
+    expect(state.syncCalls, 1);
+    await _shot('screenshots/08_resumed.png');
+  });
+}
+
+/// Records sync requests instead of touching HealthKit.
+class _FakeSyncState extends AppState {
+  int syncCalls = 0;
+
+  @override
+  Future<HealthSyncResult?> syncNow() async {
+    syncCalls++;
+    return null;
+  }
 }

@@ -2,6 +2,8 @@ import 'package:background_fetch/background_fetch.dart';
 import 'package:flutter/foundation.dart';
 
 import 'notification_service.dart';
+import 'sync_activity_notifier.dart';
+import '../storage_service.dart';
 import 'health_sync_service.dart';
 import 'device_lock_service.dart';
 
@@ -15,15 +17,12 @@ class BackgroundSyncManager {
   static Future<void> initialize() async {
     if (_configured) return;
 
-    // Ensure notification taps always start a foreground sync, even if the app was only
-    // launched in the background for a fetch.
-    NotificationService.registerOnNotificationTap(handleNotificationTap);
-
     try {
       final status = await BackgroundFetch.configure(
         BackgroundFetchConfig(
-          // Aim for a ~6h cadence; iOS still schedules opportunistically.
-          minimumFetchInterval: 360,
+          // Ask for the shortest interval iOS accepts (15 min); iOS still
+          // decides when to run. HealthKit background delivery covers new data.
+          minimumFetchInterval: 15,
           stopOnTerminate: false,
           enableHeadless: true,
           startOnBoot: true,
@@ -69,93 +68,32 @@ class BackgroundSyncManager {
     await _runHealthSync(task.taskId);
   }
 
+  /// Routine background uploads are silent; the user is only notified when
+  /// they need to act. Every run reschedules the inactivity reminder.
   static Future<void> _runHealthSync(String taskId) async {
     try {
-      // Set tap handler in case this is the first time the app ever runs (BG-only launch).
-      NotificationService.registerOnNotificationTap(handleNotificationTap);
-
-      final unlocked = await DeviceLockService.isDeviceUnlocked();
-      if (!unlocked) {
-        await NotificationService.showSyncResultNotification(
-          _protectedDataLockedResult(),
-        );
-        return;
-      }
-
-      await NotificationService.showSyncStartedNotification(
-        message: 'Starting data gathering for background sync...',
-      );
-
-      final result = await _healthSyncService.sendSinceLastSync(
-        // In headless/background we must still ensure permissions are granted;
-        // `requestPermissions` will no-op if already granted.
-        requestPermissions: true,
-      );
-
-      await NotificationService.showSyncResultNotification(result);
-    } catch (e) {
-      debugPrint('[BackgroundFetch] Health sync failed: $e');
-      await NotificationService.showSyncResultNotification(
-        HealthSyncResult(
-          status: HealthSyncStatus.failed,
-          totalSent: 0,
-          totalAvailable: 0,
-          rangeStart: DateTime.now(),
-          rangeEnd: DateTime.now(),
-          lastError: 'Background sync failed: $e',
-        ),
-      );
+      await runQuietSync();
     } finally {
       BackgroundFetch.finish(taskId);
     }
   }
 
-  /// Runs a foreground sync when the user taps a notification.
-  static Future<void> handleNotificationTap() async {
-    debugPrint('[BackgroundSyncManager] Notification tap: starting sync');
+  static Future<void> runQuietSync() async {
     try {
-      final unlocked = await DeviceLockService.isDeviceUnlocked();
-      if (!unlocked) {
-        await NotificationService.showSyncResultNotification(
-          _protectedDataLockedResult(),
-        );
-        return;
-      }
-
-      await NotificationService.showSyncStartedNotification(
-        message: 'Starting sync from notification...',
-      );
-
+      if (!await StorageService.hasStudyCode()) return;
+      if (SyncActivityNotifier.isSyncing.value) return;
+      if (!await DeviceLockService.isDeviceUnlocked()) return;
       final result = await _healthSyncService.sendSinceLastSync(
-        requestPermissions: true,
+        requestPermissions: false,
       );
-      await NotificationService.showSyncResultNotification(result);
+      await NotificationService.showActionNeeded(result);
     } catch (e) {
-      debugPrint('[BackgroundSyncManager] Notification tap sync failed: $e');
-      await NotificationService.showSyncResultNotification(
-        HealthSyncResult(
-          status: HealthSyncStatus.failed,
-          totalSent: 0,
-          totalAvailable: 0,
-          rangeStart: DateTime.now(),
-          rangeEnd: DateTime.now(),
-          lastError: 'Notification tap sync failed: $e',
-        ),
+      debugPrint('[BackgroundSync] Health sync failed: $e');
+    } finally {
+      await NotificationService.scheduleInactivityReminder(
+        await StorageService.getLastDataSendTime(),
       );
     }
-    debugPrint('[BackgroundSyncManager] Notification tap: sync flow finished');
   }
 
-  static HealthSyncResult _protectedDataLockedResult() {
-    final now = DateTime.now();
-    return HealthSyncResult(
-      status: HealthSyncStatus.protectedDataUnavailable,
-      totalSent: 0,
-      totalAvailable: 0,
-      rangeStart: now,
-      rangeEnd: now,
-      lastError:
-          'Protected data unavailable; unlock the device and open the app to sync.',
-    );
-  }
 }

@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
+
 import 'health_sync_service.dart';
 
 /// Handles notification permissions and reporting sync status to the user.
@@ -110,90 +113,98 @@ class NotificationService {
         ?.requestNotificationsPermission();
   }
 
-  static Future<void> showSyncResultNotification(
-    HealthSyncResult result,
-  ) async {
+  static const _title = 'Charité Wearables';
+  static const _reminderId = 9001;
+  static const reminderAfter = Duration(days: 3);
+
+  /// Set when the user opens the app from one of our notifications. The UI
+  /// consumes it to resume the data transfer and confirm that to the user.
+  static final ValueNotifier<int> openedFromNotification = ValueNotifier(0);
+  static bool _pendingOpen = false;
+
+  @visibleForTesting
+  static void debugSimulateOpen() {
+    _pendingOpen = true;
+    openedFromNotification.value++;
+  }
+
+  /// True once per notification tap, also for taps that cold-started the app.
+  static bool consumePendingOpen() {
+    final pending = _pendingOpen;
+    _pendingOpen = false;
+    return pending;
+  }
+
+  /// Schedules a friendly reminder for [reminderAfter] after the last upload,
+  /// replacing any earlier one. Called after every sync and app start.
+  static Future<void> scheduleInactivityReminder(DateTime? lastUpload) async {
     try {
       await ensureInitializedForBackground();
-      debugPrint(
-        'NotificationService.showSyncResultNotification: ${result.status}',
-      );
-
-      await _plugin.show(
-        DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        'Health Data Sync',
-        _messageForResult(result),
+      await _plugin.cancel(_reminderId);
+      _ensureTimeZones();
+      final now = DateTime.now();
+      var when = (lastUpload ?? now).add(reminderAfter);
+      // Already overdue: remind once later today instead of right away.
+      if (!when.isAfter(now)) when = now.add(const Duration(hours: 4));
+      await _plugin.zonedSchedule(
+        _reminderId,
+        _title,
+        'We have not received new health data for a few days. '
+            'Open the app to continue sharing.',
+        tz.TZDateTime.from(when, tz.UTC),
         _notificationDetails,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
+    } catch (e) {
+      debugPrint('Failed to schedule reminder: $e');
+    }
+  }
+
+  static Future<void> cancelInactivityReminder() async {
+    try {
+      await ensureInitializedForBackground();
+      await _plugin.cancel(_reminderId);
+    } catch (_) {}
+  }
+
+  /// Shown only when sharing needs the user, never for routine uploads.
+  static Future<void> showActionNeeded(HealthSyncResult result) async {
+    final message = switch (result.status) {
+      HealthSyncStatus.permissionDenied =>
+        'Access to Apple Health is needed to continue sharing. '
+            'Open the app to review the permission.',
+      _ => null,
+    };
+    if (message == null) return;
+    try {
+      await ensureInitializedForBackground();
+      await _plugin.show(_actionId, _title, message, _notificationDetails);
     } catch (e) {
       debugPrint('Failed to show notification: $e');
     }
   }
 
-  /// Returns true if the notification was shown (or we assume it was); false on error.
-  static Future<bool> showSyncStartedNotification({
-    String message = 'Starting background fetch...',
-  }) async {
-    try {
-      await ensureInitializedForBackground();
-      debugPrint('NotificationService.showSyncStartedNotification: $message');
-      await _plugin.show(
-        DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        'Health Data Sync',
-        message,
-        _notificationDetails,
-      );
-      return true;
-    } catch (e) {
-      debugPrint('Failed to show start notification: $e');
-      return false;
-    }
-  }
+  static const _actionId = 9002;
+  static bool _tzReady = false;
 
-  static Future<void> showTestNotification({
-    String message = 'Hello from background fetch!',
-  }) async {
-    try {
-      await ensureInitializedForBackground();
-      debugPrint('NotificationService.showTestNotification: $message');
-      await _plugin.show(
-        DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        'Background Fetch Test',
-        message,
-        _notificationDetails,
-      );
-    } catch (e) {
-      debugPrint('Failed to show test notification: $e');
-    }
+  static void _ensureTimeZones() {
+    if (_tzReady) return;
+    tzdata.initializeTimeZones();
+    _tzReady = true;
   }
 
   static const NotificationDetails _notificationDetails = NotificationDetails(
     android: AndroidNotificationDetails(
       'health_sync_channel',
-      'Health Sync',
-      channelDescription: 'Notifications about background health data syncs',
-      importance: Importance.high,
-      priority: Priority.high,
+      'Data sharing',
+      channelDescription: 'Reminders about sharing your health data',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
     ),
-    iOS: DarwinNotificationDetails(),
+    iOS: DarwinNotificationDetails(threadIdentifier: 'data-sharing'),
   );
-
-  static String _messageForResult(HealthSyncResult result) {
-    switch (result.status) {
-      case HealthSyncStatus.success:
-        return 'Uploaded ${result.totalSent} new data points.';
-      case HealthSyncStatus.partialSuccess:
-        return 'Uploaded ${result.totalSent}/${result.totalAvailable} data points. Last error: ${result.lastError ?? "Unknown"}';
-      case HealthSyncStatus.nothingToSend:
-        return 'No new health data found since your last sync.';
-      case HealthSyncStatus.permissionDenied:
-        return 'Cannot sync health data until permissions are granted.';
-      case HealthSyncStatus.protectedDataUnavailable:
-        return 'Phone locked. Please synchronize the data manually.';
-      case HealthSyncStatus.failed:
-        return 'Health data sync failed: ${result.lastError ?? "Unknown error"}.';
-    }
-  }
 
   static void _handleNotificationResponse(NotificationResponse response) {
     debugPrint(
@@ -204,6 +215,8 @@ class NotificationService {
     // Only trigger on user taps (ignore dismisses or other response types).
     if (response.notificationResponseType ==
         NotificationResponseType.selectedNotification) {
+      _pendingOpen = true;
+      openedFromNotification.value++;
       final handler = _onNotificationTap;
       if (handler != null) {
         debugPrint(
