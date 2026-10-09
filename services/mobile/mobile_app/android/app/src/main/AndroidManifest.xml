@@ -83,7 +83,7 @@
     <uses-permission android:name="android.permission.health.WRITE_VO2_MAX" />
     
     <application
-        android:label="wearables_app"
+        android:label="Wearables"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

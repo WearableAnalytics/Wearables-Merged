@@ -6,12 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:wearables_app_tub/screens/main_page.dart';
-import 'package:wearables_app_tub/services/health_sync_service.dart';
-import 'package:wearables_app_tub/services/notification_service.dart';
-import 'package:wearables_app_tub/services/sync_activity_notifier.dart';
-import 'package:wearables_app_tub/state/app_state.dart';
-import 'package:wearables_app_tub/theme/app_theme.dart';
+import 'package:charite_wearables/screens/main_page.dart';
+import 'package:charite_wearables/services/health_sync_service.dart';
+import 'package:charite_wearables/services/notification_service.dart';
+import 'package:charite_wearables/services/sync_activity_notifier.dart';
+import 'package:charite_wearables/state/app_state.dart';
+import 'package:charite_wearables/theme/app_theme.dart';
 
 const _studyCode = 'eyJhbGciOiJIUzI1NiJ9.eyJjYXNlSWQiOiJ4In0.c2lnbmF0dXJlLXNhbXBsZQ';
 

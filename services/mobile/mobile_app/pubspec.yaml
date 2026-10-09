@@ -1,5 +1,5 @@
-name: wearables_app_tub
-description: "Flutter health monitoring app"
+name: charite_wearables
+description: "Charité Wearables platform: shares Apple Health data with the Institut für Medizinische Informatik"
 publish_to: 'none'
 
 version: 2.1.0+11

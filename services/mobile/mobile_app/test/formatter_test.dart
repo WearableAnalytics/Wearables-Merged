@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:health/health.dart';
 
-import 'package:wearables_app_tub/health_data_formatter.dart';
+import 'package:charite_wearables/health_data_formatter.dart';
 
 HealthDataPoint _point(HealthDataType type, HealthValue value) {
   final t = DateTime(2026, 1, 1, 8);
