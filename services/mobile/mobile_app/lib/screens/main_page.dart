@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../data_view_page.dart';
+import '../services/notification_service.dart';
 import '../state/app_state.dart';
 import 'home_page.dart';
 import 'study_page.dart';
@@ -26,12 +27,38 @@ class _MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
     if (!_state.loaded) _state.load();
+    NotificationService.openedFromNotification.addListener(_onOpened);
+    // The tap may have cold-started the app before this page existed.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onOpened());
   }
 
   @override
   void dispose() {
+    NotificationService.openedFromNotification.removeListener(_onOpened);
     if (widget.state == null) _state.dispose();
     super.dispose();
+  }
+
+  /// Opened from a notification: show Home, confirm, and resume sharing.
+  Future<void> _onOpened() async {
+    if (!NotificationService.consumePendingOpen() || !mounted) return;
+    if (!_state.loaded) await _state.load();
+    if (!mounted || !_state.isLinked) return;
+    setState(() => _tab = 0);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Symbols.sync_sharp, color: Colors.white),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text('Welcome back. Your data transfer has resumed.'),
+            ),
+          ],
+        ),
+      ),
+    );
+    await _state.syncNow();
   }
 
   @override
