@@ -174,7 +174,7 @@ def test_openapi_documents_auth(client):
 def test_docs_pages_are_branded(client):
     for path in ("/docs", "/redoc"):
         page = client.get(path).text
-        assert "<title>Extraction API · Charité Wearables platform</title>" in page
+        assert "<title>Extraction API | Charité Wearables platform</title>" in page
         assert "data:image/png;base64," in page
         assert "/openapi.json" in page
 

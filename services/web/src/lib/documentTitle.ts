@@ -19,5 +19,5 @@ export function getDocumentTitle(pathname: string): string {
     return PLATFORM_NAME;
   }
   const page = /^\/cases\/[^/]+$/.test(pathname) ? 'Patient case' : PAGE_TITLES[pathname] ?? 'Page not found';
-  return `${page} · ${PLATFORM_NAME}`;
+  return `${page} | ${PLATFORM_NAME}`;
 }

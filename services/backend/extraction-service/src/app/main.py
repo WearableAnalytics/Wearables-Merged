@@ -24,7 +24,7 @@ from .schemas import MeasurementPage, MeasurementPoint, MeasurementType
 from .settings import settings
 
 PLATFORM_NAME = "Charité Wearables platform"
-DOCS_TITLE = f"Extraction API · {PLATFORM_NAME}"
+DOCS_TITLE = f"Extraction API | {PLATFORM_NAME}"
 # Inlined so the docs pages show the platform's W mark without another authenticated request.
 FAVICON_URL = "data:image/png;base64," + base64.b64encode(
     (Path(__file__).parent / "static" / "favicon-32.png").read_bytes()
