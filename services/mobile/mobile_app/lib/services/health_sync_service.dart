@@ -47,7 +47,10 @@ class HealthSyncService {
   HealthSyncService({Health? health}) : _health = health ?? Health();
 
   final Health _health;
-  static const _chunkSize = 500;
+  static const _chunkSize = 2000;
+  // HealthKit types are read in parallel groups of this size; the plugin
+  // itself queries one type after another.
+  static const _typeGroupSize = 8;
   static const _endpoint = 'https://wearables.charite.de/import/ingest';
 
   Future<HealthSyncResult> sendSinceLastSync({
@@ -59,6 +62,11 @@ class HealthSyncService {
       SyncActivityNotifier.reportResult(_mapOutcome(result.status));
       return result;
     }
+
+    // One client for the whole sync, so chunks reuse the TLS connection.
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 30)
+      ..idleTimeout = const Duration(seconds: 60);
 
     try {
       try {
@@ -155,25 +163,33 @@ class HealthSyncService {
       int totalAvailable = 0;
       SyncActivityNotifier.reportProgress(0);
 
-      for (final (start, end) in _dayWindows(from, now)) {
+      // The next day is read from HealthKit while the current one uploads,
+      // so reading and uploading overlap instead of taking turns.
+      final windows = _dayWindows(from, now);
+      Future<_DayRead>? nextRead = windows.isEmpty
+          ? null
+          : _readDay(windows.first.$1, windows.first.$2, types);
+
+      for (var i = 0; i < windows.length; i++) {
+        final (start, end) = windows[i];
+        final read = await nextRead!;
+        nextRead = i + 1 < windows.length
+            ? _readDay(windows[i + 1].$1, windows[i + 1].$2, types)
+            : null;
+
         if (!await DeviceLockService.isDeviceUnlocked()) {
           return complete(_locked(from, now, totalSent, totalAvailable));
         }
 
-        List<HealthDataPoint> healthData;
-        try {
-          healthData = await _health.getHealthDataFromTypes(
-            startTime: start,
-            endTime: end,
-            types: types,
-          );
-        } catch (e) {
-          if (_isProtectedDataError(e)) {
+        final error = read.error;
+        if (error != null) {
+          if (_isProtectedDataError(error)) {
             return complete(_locked(from, now, totalSent, totalAvailable));
           }
-          lastError = 'Failed to read health data: $e';
+          lastError = 'Failed to read health data: $error';
           break;
         }
+        final healthData = read.data;
 
         totalAvailable += healthData.length;
         final chunks = _chunkHealthData(healthData);
@@ -182,6 +198,7 @@ class HealthSyncService {
           final chunk = chunks[chunkIndex];
           try {
             await _sendChunkWithRetry(
+              client: client,
               chunk: chunk,
               chunkIndex: chunkIndex,
               totalChunks: chunks.length,
@@ -192,9 +209,6 @@ class HealthSyncService {
               stepsToday: steps,
             );
             totalSent += chunk.length;
-            if (chunkIndex < chunks.length - 1) {
-              await Future.delayed(const Duration(milliseconds: 150));
-            }
           } catch (e) {
             lastError ??= 'Upload failed: $e';
             dayComplete = false;
@@ -233,6 +247,7 @@ class HealthSyncService {
         ),
       );
     } finally {
+      client.close(force: true);
       activity.close();
     }
   }
@@ -259,6 +274,36 @@ class HealthSyncService {
       start = end;
     }
     return windows;
+  }
+
+  /// Reads one day for all [types], querying groups of types in parallel.
+  /// Never throws; a failure is returned as [_DayRead.error].
+  Future<_DayRead> _readDay(
+    DateTime start,
+    DateTime end,
+    List<HealthDataType> types,
+  ) async {
+    try {
+      final groups = <List<HealthDataType>>[];
+      for (var i = 0; i < types.length; i += _typeGroupSize) {
+        final stop = i + _typeGroupSize < types.length
+            ? i + _typeGroupSize
+            : types.length;
+        groups.add(types.sublist(i, stop));
+      }
+      final results = await Future.wait(
+        groups.map(
+          (group) => _health.getHealthDataFromTypes(
+            startTime: start,
+            endTime: end,
+            types: group,
+          ),
+        ),
+      );
+      return _DayRead([for (final r in results) ...r], null);
+    } catch (e) {
+      return _DayRead(const [], e);
+    }
   }
 
   SyncOutcome _mapOutcome(HealthSyncStatus status) {
@@ -288,6 +333,7 @@ class HealthSyncService {
   /// Retries transient failures (network drops, timeouts, server errors)
   /// before giving up; 4xx responses are not retried.
   Future<void> _sendChunkWithRetry({
+    required HttpClient client,
     required List<HealthDataPoint> chunk,
     required int chunkIndex,
     required int totalChunks,
@@ -301,6 +347,7 @@ class HealthSyncService {
     for (var attempt = 0; ; attempt++) {
       try {
         return await _sendChunk(
+          client: client,
           chunk: chunk,
           chunkIndex: chunkIndex,
           totalChunks: totalChunks,
@@ -323,6 +370,7 @@ class HealthSyncService {
   }
 
   Future<void> _sendChunk({
+    required HttpClient client,
     required List<HealthDataPoint> chunk,
     required int chunkIndex,
     required int totalChunks,
@@ -356,27 +404,19 @@ class HealthSyncService {
       'timestamp': DateTime.now().toIso8601String(),
     };
 
-    final client = HttpClient();
-    client.connectionTimeout = const Duration(seconds: 30);
-    try {
-      final request = await client.postUrl(Uri.parse(_endpoint));
-      request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
-      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $deviceId');
-      request.add(utf8.encode(jsonEncode(payload)));
-      final response = await request.close().timeout(
-        const Duration(seconds: 30),
-      );
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        final body = await response.transform(utf8.decoder).join();
-        throw HttpException('Status ${response.statusCode}: $body');
-      }
-      final responseBody = await response.transform(utf8.decoder).join();
-      // Optionally log or process the response body for successful requests
-      if (responseBody.isNotEmpty) {
-        print('Successful upload response: $responseBody');
-      }
-    } finally {
-      client.close(force: true);
+    final request = await client.postUrl(Uri.parse(_endpoint));
+    request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+    request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $deviceId');
+    request.add(utf8.encode(jsonEncode(payload)));
+    final response = await request.close().timeout(const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final body = await response.transform(utf8.decoder).join();
+      throw HttpException('Status ${response.statusCode}: $body');
+    }
+    final responseBody = await response.transform(utf8.decoder).join();
+    // Optionally log or process the response body for successful requests
+    if (responseBody.isNotEmpty) {
+      print('Successful upload response: $responseBody');
     }
   }
 
@@ -414,4 +454,11 @@ class HealthSyncService {
             value.contains('locked') ||
             value.contains('data is not available'));
   }
+}
+
+class _DayRead {
+  const _DayRead(this.data, this.error);
+
+  final List<HealthDataPoint> data;
+  final Object? error;
 }
