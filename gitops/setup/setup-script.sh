@@ -26,6 +26,7 @@ DB_LORD_NAMESPACE="${DB_LORD_NAMESPACE:-db-lord}"
 
 EXTRACTION_SERVICE_NAMESPACE="${EXTRACTION_SERVICE_NAMESPACE:-extraction-service}"
 INGRESS_HTTP_ONLY="${INGRESS_HTTP_ONLY:-false}"
+STORAGE_CLASS="${STORAGE_CLASS:-cinder-csi}"
 GRAFANA_ADMIN_USER="${GRAFANA_ADMIN_USER:-admin}"
 GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-admin}"
 GRAFANA_SUBPATH="${GRAFANA_SUBPATH:-/grafana}"
@@ -172,11 +173,20 @@ JSON
 		'
 }
 
-kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
-
-kubectl wait -n local-path-storage deployment/local-path-provisioner --for=condition=Available --timeout=300s
-
-echo "installed local path provisioner"
+# --- storage ---
+# All stateful data lives on Cinder volumes (StorageClass cinder-csi, provided by
+# Kubermatic), never on node disks: nodes get replaced on flavor or OS changes.
+# See docs/storage-concept.md. The charts default to cinder-csi; for a local
+# minikube/k3s test cluster set STORAGE_CLASS=local-path.
+if [[ "$STORAGE_CLASS" == "local-path" ]]; then
+	kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+	kubectl wait -n local-path-storage deployment/local-path-provisioner --for=condition=Available --timeout=300s
+	echo "installed local path provisioner"
+fi
+if ! kubectl get storageclass "$STORAGE_CLASS" >/dev/null 2>&1; then
+	echo "StorageClass $STORAGE_CLASS not found (set STORAGE_CLASS)." >&2
+	exit 1
+fi
 
 # --- kafka (strimzi -> kafka -> topics -> mapper) ---
 if ! helm status strimzi-cluster-operator -n kafka >/dev/null 2>&1; then
@@ -188,7 +198,8 @@ kubectl wait -n kafka deployment/strimzi-cluster-operator --for=condition=Availa
 
 (
 	cd "$APPS_DIR/platform"
-	helm upgrade --install kafka ./kafka --values ./kafka/values.yaml --namespace kafka --create-namespace
+	helm upgrade --install kafka ./kafka --values ./kafka/values.yaml --namespace kafka --create-namespace \
+		--set storageClassName="$STORAGE_CLASS"
 )
 
 sleep 10 #pod takes a little to be created, following command will fail if the pod doesnt exist
@@ -232,7 +243,8 @@ fi
 # --- influxdb + telegraf ---
 (
 	cd "$APPS_DIR/monitoring"
-	helm upgrade --install influxdb ./influxdb --values ./influxdb/values.yaml --namespace influx --create-namespace
+	helm upgrade --install influxdb ./influxdb --values ./influxdb/values.yaml --namespace influx --create-namespace \
+		--set persistence.storageClass="$STORAGE_CLASS"
 )
 
 if lsof -iTCP:8086 -sTCP:LISTEN -Pn >/dev/null 2>&1; then
@@ -365,12 +377,14 @@ done
 (
 	cd "$APPS_DIR/monitoring"
 	helm upgrade --install grafana ./grafana --values ./grafana/values.yaml --namespace grafana --create-namespace \
+		--set persistence.storageClassName="$STORAGE_CLASS" \
 		--set ingress.httpOnly="$INGRESS_HTTP_ONLY"
 )
 
 (
 	cd "$APPS_DIR/monitoring"
-	helm upgrade --install prometheus ./prometheus --values ./prometheus/values.yaml --namespace monitoring --create-namespace
+	helm upgrade --install prometheus ./prometheus --values ./prometheus/values.yaml --namespace monitoring --create-namespace \
+		--set persistence.storageClassName="$STORAGE_CLASS"
 )
 
 configure_grafana_datasources
@@ -384,6 +398,7 @@ require_env PROD_POSTGRES_LAKEFS_PASSWORD
 (
 	cd "$APPS_DIR/platform"
 	helm upgrade --install prod-postgres ./prod-postgres --values ./prod-postgres/values.yaml --namespace "$PROD_POSTGRES_NAMESPACE" --create-namespace \
+		--set storage.storageClassName="$STORAGE_CLASS" \
 		--set-string auth.postgresPassword="$PROD_POSTGRES_PASSWORD"\
 		--set-string databases[0].password="$PROD_POSTGRES_DBLORD_PASSWORD" \
 		--set-string databases[1].password="$PROD_POSTGRES_LAKEFS_PASSWORD"
@@ -454,3 +469,9 @@ helm upgrade --install web "$APPS_DIR/web-frontend" \
 	--set-string runtimeConfig.apiBaseUrl="$PUBLIC_API_BASE_URL/api" \
 	--set ingress.httpOnly="$INGRESS_HTTP_ONLY" \
 	-f "$APPS_DIR/web-frontend/values.yaml"
+# --- protect data volumes ---
+# cinder-csi deletes a volume together with its PVC. Set the data volumes to
+# Retain so a helm uninstall or namespace delete cannot destroy the data.
+if [[ "$STORAGE_CLASS" != "local-path" ]]; then
+	"$SCRIPT_DIR/retain-data-volumes.sh"
+fi

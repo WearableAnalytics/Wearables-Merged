@@ -28,4 +28,4 @@ service:
 
 storage:
   size: 20Gi
-  storageClassName: local-path
+  storageClassName: cinder-csi # Cinder volume; survives node replacement

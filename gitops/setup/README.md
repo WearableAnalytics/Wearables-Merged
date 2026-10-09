@@ -93,6 +93,9 @@ This will transparently forward all calls to 80. To restore run `sudo pfctl -ef 
 
 ## Variables
 
+### Storage
+- STORAGE_CLASS: StorageClass for all stateful charts. Default is `cinder-csi` (de.NBI/Kubermatic). Use `local-path` on minikube or k3s; the script then installs the local-path provisioner. See [docs/storage-concept.md](../../docs/storage-concept.md).
+
 ### Kafka topics (optional)
 - KAFKA_TOPICS: Comma-separated list of Kafka topics to create. Leave empty to skip.
 - KAFKA_PARTITIONS: Partition count for created topics. Default is 1.
