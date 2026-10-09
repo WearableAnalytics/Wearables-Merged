@@ -16,19 +16,35 @@ data:
       # Overridden by -config.data-source-name; credentials come from the
       # PG* environment variables.
       data_source_name: "postgres://localhost/postgres"
-      collectors: [wearables_devices]
+      collectors: [wearables_inventory]
     collectors:
-      - collector_name: wearables_devices
+      - collector_name: wearables_inventory
         metrics:
+          # Every enrolled phone is a patient: the import service tags its
+          # measurements with the patient id from the case token.
+          - metric_name: wearables_patients
+            type: gauge
+            help: "Patients (enrolled phones) registered in db-lord."
+            values: [patients]
+            query: |
+              SELECT count(*) AS patients FROM patients
+          - metric_name: wearables_cases_by_status
+            type: gauge
+            help: "Cases in db-lord, by status."
+            key_labels: [status]
+            values: [cases]
+            query: |
+              SELECT status::text AS status, count(*) AS cases
+              FROM cases GROUP BY status
           - metric_name: wearables_devices
             type: gauge
-            help: "Devices registered in db-lord."
+            help: "Hardware devices in the db-lord inventory."
             values: [devices]
             query: |
               SELECT count(*) AS devices FROM devices
           - metric_name: wearables_devices_by_status
             type: gauge
-            help: "Devices registered in db-lord, by hardware status."
+            help: "Hardware devices in the db-lord inventory, by status."
             key_labels: [status]
             values: [devices]
             query: |
