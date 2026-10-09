@@ -38,13 +38,13 @@ export function LandingPage() {
         <div className="relative px-8 py-12 text-center md:px-12 md:py-16">
           <BrandLogo
             logoType="square"
-            alt="Wearables emblem"
+            alt="Charité Wearables platform"
             className="h-10 w-10"
             containerClassName="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card/90 shadow-sm"
           />
 
           <div className="mb-2 text-page-label tracking-[0.14em]">
-            Wearables Platform
+            Charité Wearables platform
           </div>
 
           <h1 className="text-hero-title">

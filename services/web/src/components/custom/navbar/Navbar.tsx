@@ -37,12 +37,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const hasPractitionerAccess = canAccessPractitionerPages(user);
   const hasResearcherAccess = canAccessResearcherPages(user);
 
-  const activePatientNavLabel =
-    patient && patient.lastName
-      ? `${patient.firstName.charAt(0)} ${patient.lastName.length > 7 ? `${patient.lastName.slice(0, 5)}…` : patient.lastName.slice(0, 7)}`
-      : null;
-
-  const activePatientMobileLabel = activePatientName ?? activePatientNavLabel;
 
   // Add/remove body class when mobile menu changes
   useEffect(() => {
@@ -135,26 +129,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <nav className="w-full fixed top-0 left-0 right-0 z-50">
+    <nav className="w-full fixed top-0 left-0 right-0 z-50 border-b border-border bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div
-          className={`flex items-center justify-between h-16 ${
-            isMobileMenuOpen ? 'bg-background border-b border-border' : ''
-          }`}
-        >
+        <div className="flex items-center justify-between gap-4 h-16">
           <Logo />
 
           {/* Desktop Navigation */}
           {isAuthenticated && (hasPractitionerAccess || hasResearcherAccess) ? (
-            <div className="hidden md:flex items-center space-x-6">
+            <div className="hidden md:flex min-w-0 items-center gap-3 lg:gap-6">
               {hasPractitionerAccess ? (
                 <NavButton path="/overview">Overview</NavButton>
               ) : null}
-              {hasPractitionerAccess && isCasePage && activeCase && activePatientNavLabel ? (
-                <NavButton path={`/cases/${activeCase.caseId}`}>
-                  <span className="max-w-[180px] truncate" title={activePatientName ?? undefined}>
-                    {activePatientNavLabel}
-                  </span>
+              {hasPractitionerAccess && isCasePage && activeCase && activePatientName ? (
+                <NavButton path={`/cases/${activeCase.caseId}`} className="min-w-[7rem]" title={activePatientName}>
+                  <span className="block max-w-[12rem] truncate lg:max-w-[20rem]">{activePatientName}</span>
                 </NavButton>
               ) : null}
               {hasPractitionerAccess ? (
@@ -169,7 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Desktop Auth Buttons */}
-          <div className="hidden md:flex items-center space-x-3">
+          <div className="hidden md:flex shrink-0 items-center space-x-3">
             {isAuthenticated ? (
               <>
                 {isAdmin ? (
@@ -275,7 +263,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </span>
                     </NavButtonMobile>
                   ) : null}
-                  {hasPractitionerAccess && isCasePage && activeCase && activePatientMobileLabel ? (
+                  {hasPractitionerAccess && isCasePage && activeCase && activePatientName ? (
                     <NavButtonMobile
                       path={`/cases/${activeCase.caseId}`}
                       className="w-full justify-start text-left"

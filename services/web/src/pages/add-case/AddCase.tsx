@@ -36,7 +36,7 @@ export function AddCasePage() {
     if (created) {
       toast.success('Case created.', {
         id: 'add-case-created',
-        description: `Case ID: ${created.caseId} · Patient ID: ${created.patientId}`,
+        description: `Case ID: ${created.caseId}, Patient ID: ${created.patientId}`,
       });
     } else {
       toast.dismiss('add-case-created');

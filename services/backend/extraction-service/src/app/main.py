@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import base64
 import csv
 import io
 import json
 from collections.abc import AsyncIterator
 from contextlib import aclosing, asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated
 from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 
 from .clients import create_db_lord_client
 from .db_lord_api import DbLordApi
@@ -20,10 +23,17 @@ from .points import iter_readings, read_page
 from .schemas import MeasurementPage, MeasurementPoint, MeasurementType
 from .settings import settings
 
-DESCRIPTION = """
-Export wearable measurements stored on the Wearables platform.
+PLATFORM_NAME = "Charité Wearables platform"
+DOCS_TITLE = f"Extraction API | {PLATFORM_NAME}"
+# Inlined so the docs pages show the platform's W mark without another authenticated request.
+FAVICON_URL = "data:image/png;base64," + base64.b64encode(
+    (Path(__file__).parent / "static" / "favicon-32.png").read_bytes()
+).decode()
 
-**Authentication.** The API is served through the Wearables BFF at `/api/extraction`.
+DESCRIPTION = """
+Export wearable measurements stored on the Charité Wearables platform.
+
+**Authentication.** The API is served by the platform at `/api/extraction`.
 Either be logged in to the web app as a researcher or admin (the session cookie is sent
 automatically, also from this page), or create a personal API token on the web app's
 *API Access* page and send it as `Authorization: Bearer <token>`.
@@ -47,11 +57,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Wearables Extraction API",
+    title=DOCS_TITLE,
     version="0.2.0",
     description=DESCRIPTION,
     lifespan=lifespan,
     root_path=settings.root_path,
+    docs_url=None,
+    redoc_url=None,
 )
 
 
@@ -74,6 +86,20 @@ def custom_openapi() -> dict:
 
 
 app.openapi = custom_openapi
+
+
+def openapi_url(request: Request) -> str:
+    return request.scope.get("root_path", "").rstrip("/") + app.openapi_url
+
+
+@app.get("/docs", include_in_schema=False)
+async def swagger_ui(request: Request) -> HTMLResponse:
+    return get_swagger_ui_html(openapi_url=openapi_url(request), title=DOCS_TITLE, swagger_favicon_url=FAVICON_URL)
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc(request: Request) -> HTMLResponse:
+    return get_redoc_html(openapi_url=openapi_url(request), title=DOCS_TITLE, redoc_favicon_url=FAVICON_URL)
 
 
 def get_db_lord_api(request: Request) -> DbLordApi:

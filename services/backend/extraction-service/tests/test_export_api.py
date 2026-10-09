@@ -171,6 +171,14 @@ def test_openapi_documents_auth(client):
     assert client.get("/docs").status_code == 200
 
 
+def test_docs_pages_are_branded(client):
+    for path in ("/docs", "/redoc"):
+        page = client.get(path).text
+        assert "<title>Extraction API | Charité Wearables platform</title>" in page
+        assert "data:image/png;base64," in page
+        assert "/openapi.json" in page
+
+
 def test_patient_window_is_retried_when_db_lord_drops_the_connection(client, db_lord):
     real = db_lord.stream_telemetry
     failures = iter([True])
