@@ -29,7 +29,7 @@ env:
   NODE_ENV: "production"
   FRONTEND_ORIGINS: ""
   FRONTEND_REDIRECT_URL: ""
-  ADMIN_EMAILS: "linus.gustafsson@tu-berlin.de,j.moehler@posteo.de,admin@lukaszsztukiewicz.com,gmsdaniilplay@gmail.com"
+  ADMIN_EMAILS: "" # set by setup-script.sh (BFF_ADMIN_EMAILS)
   BACKEND_URL: ""
   AUTH_SESSION_EXPIRY_SECONDS: "604800"
   MAGIC_LINK_EXPIRY_SECONDS: "900"
@@ -42,7 +42,7 @@ env:
   EXTRACTION_API_URL: "http://extraction-service.extraction-service.svc.cluster.local:8010"
   LOG_LEVEL: "info"
   MAILER_FROM_NAME: "Wearables Platform"
-  MAILER_FROM_EMAIL: "jmm123@posteo.de"
+  MAILER_FROM_EMAIL: "noreply@example.org" # set a verified sender address when BREVO is enabled
   COOKIE_SECURE: "false"
 
 secret:

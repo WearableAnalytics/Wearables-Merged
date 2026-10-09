@@ -141,7 +141,7 @@ These are required to proceed past the Telegraf step.
 - BFF_SECRET_NAME: Secret name for wearables-bff. Default is wearables-bff-secrets.
 - BFF_FRONTEND_ORIGINS: Comma-separated CORS origins for wearables-bff. Default is http://wearables.charite.de/.
 - BFF_FRONTEND_REDIRECT_URL: Frontend redirect URL for wearables-bff links. Default is http://wearables.charite.de/.
-- BFF_ADMIN_EMAILS: Comma-separated admin emails passed to wearables-bff `ADMIN_EMAILS`. Default is the maintainers list in `gitops/setup/.env.example`.
+- BFF_ADMIN_EMAILS: Comma-separated admin emails passed to wearables-bff `ADMIN_EMAILS`. No default: set it in your `.env`, and keep real addresses out of the repo.
 - BFF_USE_MOCK_DATA: Set `true` to run wearables-bff with local fake/mock data instead of the database API. Default is `false`.
 - BFF_DATABASE_API_URL: Value passed to wearables-bff `DATABASE_API_URL`. Must be a valid absolute URL even when `BFF_USE_MOCK_DATA=true` due to strict startup validation.
 - BFF_DATABASE_API_TIMEOUT: Value passed to wearables-bff `DATABASE_API_TIMEOUT` (milliseconds). Must be a positive integer.

@@ -71,6 +71,23 @@ applies them. Cluster IDs and SSH public keys are not in the repo; they come fro
 4. **Kafka, prod-postgres, InfluxDB.** These already run on `cinder-csi`. Only the chart defaults
    changed, so a `helm upgrade` changes nothing for them.
 
+## Status of the migrations (2026-10-09)
+
+None of the migrations above have been run on the live cluster yet. They are on the project to-do
+list. Until then the live cluster differs from this repo in two ways: the data volumes still use
+`Delete`, and the SeaweedFS master still keeps its state in `hostPath`.
+
+## Secrets and personal data
+
+- No secrets in the repo. Passwords, keys and tokens come from environment variables or `.env`
+  files outside git (`gitops/setup/.env.example` and `.../infisical/bootstrap/secrets.env.example`
+  only hold `CHANGE_ME` placeholders). Chart values for credentials stay empty and are set by
+  `setup-script.sh` with `--set-string`.
+- No personal data either. SSH public keys, admin e-mail addresses and cluster IDs live next to
+  the other secrets (`cluster.env`, `users.yml`, `.env`), never in tracked files.
+- Until 2026-10-09 the repo contained the live prod-postgres, LakeFS and SeaweedFS credentials,
+  and git history still has them. Treat any credential from before that date as leaked and rotate it.
+
 ## Building from scratch
 
 1. Create the cluster in Kubermatic (OpenStack, de.NBI Berlin, Kubernetes 1.31, Cilium).

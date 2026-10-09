@@ -1,3 +1,5 @@
+> **Archived.** This single-node K3s setup on Hetzner Cloud is no longer used. The platform runs on the de.NBI Kubermatic cluster: see `gitops/cluster/`, `gitops/setup/` and `docs/storage-concept.md`. Paths below still say `infra/`; read them as `archive/hetzner-k3s/`.
+
 # Hetzner Infrastructure – K3s Cluster
 
 ## Quick Start (Single-Node)
