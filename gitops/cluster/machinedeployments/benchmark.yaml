@@ -1,0 +1,73 @@
+apiVersion: cluster.k8s.io/v1alpha1
+kind: MachineDeployment
+metadata:
+  annotations:
+    k8c.io/operating-system-profile: osp-ubuntu
+  name: benchmark
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      machine: md-${KKP_CLUSTER_ID}-jpm9njgdbd
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        machine: md-${KKP_CLUSTER_ID}-jpm9njgdbd
+    spec:
+      metadata:
+        labels:
+          system/cluster: ${KKP_CLUSTER_ID}
+          system/project: ${KKP_PROJECT_ID}
+      providerSpec:
+        value:
+          caPublicKey: ""
+          cloudProvider: openstack
+          cloudProviderSpec:
+            applicationCredentialID: ""
+            applicationCredentialSecret: ""
+            availabilityZone: nova
+            computeAPIVersion: ""
+            configDrive: false
+            domainName: ""
+            flavor: de.NBI small
+            floatingIpPool: public
+            identityEndpoint: https://denbi-cloud.bihealth.org:13000/v3
+            image: Ubuntu-24.04
+            instanceReadyCheckPeriod: 5s
+            instanceReadyCheckTimeout: 120s
+            network: kubernetes-${KKP_CLUSTER_ID}
+            password: ""
+            projectID: ""
+            projectName: ""
+            region: regionOne
+            rootDiskSizeGB: 20
+            rootDiskVolumeType: ""
+            securityGroups:
+            - kubernetes-${KKP_CLUSTER_ID}
+            serverGroup: ""
+            subnet: ${OS_SUBNET_ID}
+            tags:
+              kubernetes-cluster: ${KKP_CLUSTER_ID}
+              system-cluster: ${KKP_CLUSTER_ID}
+              system-project: ${KKP_PROJECT_ID}
+            tenantID: ""
+            tenantName: ""
+            tokenId: ""
+            trustDevicePath: false
+            username: ""
+          network:
+            cidr: ""
+            gateway: ""
+            ipFamily: IPv4
+          operatingSystem: ubuntu
+          operatingSystemSpec:
+            distUpgradeOnBoot: true
+          sshPublicKeys: ${SSH_PUBLIC_KEYS_JSON}
+      versions:
+        kubelet: 1.31.13

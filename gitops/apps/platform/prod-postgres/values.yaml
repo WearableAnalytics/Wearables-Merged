@@ -1,13 +1,13 @@
 auth:
-  postgresPassword: Xk9mPqL2vNwR7sYhT4jB6cAeF8gU3iZo
+  postgresPassword: "" # set by setup-script.sh (PROD_POSTGRES_PASSWORD)
 
 databases:
   - name: dblord
     user: dblord
-    password: k052oFSjXuDZjiYcweA5lAb2
+    password: "" # set by setup-script.sh
   - name: lakefs
     user: lakefs_user
-    password: "ji5VGo7BeAY3DBWa$Yjb"
+    password: "" # set by setup-script.sh
 
 image:
   repository: postgres
@@ -28,4 +28,4 @@ service:
 
 storage:
   size: 20Gi
-  storageClassName: local-path
+  storageClassName: cinder-csi # Cinder volume; survives node replacement

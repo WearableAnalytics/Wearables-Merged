@@ -11,10 +11,19 @@ seaweedfs:
       type: "persistentVolumeClaim" # automatic PVC creation
       storageClass: cinder-csi
       size: 40Gi
+    # Logs go to the container output (kubectl logs), not to the node disk.
+    logs:
+      type: "none"
 
   filer:
     enabled: true
     replicas: 1
+    # Metadata is in prod-postgres (see WEED_POSTGRES_* below), so the filer
+    # needs no local data directory and no hostPath on the node disk.
+    data:
+      type: "none"
+    logs:
+      type: "none"
     s3:
       enabled: true
     extraEnvironmentVars:
@@ -41,10 +50,18 @@ seaweedfs:
     enabled: true
     replicas: 1
     port: 8333
+    logs:
+      type: "none"
     enableAuth: true
     existingConfigSecret: "seaweedfs-s3-secret"
 
   master:
     enabled: true
     replicas: 1
-
+    # Raft state on a small Cinder volume instead of a hostPath on the node disk.
+    data:
+      type: "persistentVolumeClaim"
+      storageClass: cinder-csi
+      size: 1Gi
+    logs:
+      type: "none"

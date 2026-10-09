@@ -11,5 +11,5 @@ image:
   tag: "2.7"
 
 persistence:
-  size: 10Gi
-  storageClass: local-path # may need to be changed accordingly
+  size: 100Gi # matches the live volume; PVCs can grow but not shrink
+  storageClass: cinder-csi # Cinder volume; survives node replacement

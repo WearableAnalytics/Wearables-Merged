@@ -1,0 +1,4 @@
+# Copy to users.yml (git-ignored) and add one entry per team member.
+- name: alice
+  ssh_key: "ssh-ed25519 AAAA... alice@laptop"
+  sudo: true
