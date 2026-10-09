@@ -823,8 +823,8 @@
             "type": "prometheus",
             "uid": "ffct924rz8flsa"
           },
-          "expr": "max by (pod) (jvm_memory_used_bytes{job=\"kafka-metrics-reporter\",area=\"heap\"}) / max by (pod) (jvm_memory_max_bytes{job=\"kafka-metrics-reporter\",area=\"heap\"})",
-          "legendFormat": "{{pod}}",
+          "expr": "label_replace(max by (pod) (jvm_memory_used_bytes{job=\"kafka-metrics-reporter\",area=\"heap\"}) / max by (pod) (jvm_memory_max_bytes{job=\"kafka-metrics-reporter\",area=\"heap\"}), \"broker\", \"broker $1\", \"pod\", \".*-([0-9]+)\")",
+          "legendFormat": "{{broker}}",
           "refId": "A",
           "range": false,
           "instant": true,
@@ -898,8 +898,8 @@
             "type": "prometheus",
             "uid": "ffct924rz8flsa"
           },
-          "expr": "max by (pod) (1 - kafka_network_socketserver_networkprocessoravgidlepercent{job=\"kafka-metrics-reporter\"})",
-          "legendFormat": "{{pod}}",
+          "expr": "label_replace(max by (pod) (1 - kafka_network_socketserver_networkprocessoravgidlepercent{job=\"kafka-metrics-reporter\"}), \"broker\", \"broker $1\", \"pod\", \".*-([0-9]+)\")",
+          "legendFormat": "{{broker}}",
           "refId": "A",
           "range": false,
           "instant": true,
@@ -973,8 +973,8 @@
             "type": "prometheus",
             "uid": "ffct924rz8flsa"
           },
-          "expr": "sum by (pod) (rate(process_cpu_seconds_total{job=\"kafka-metrics-reporter\"}[5m]))",
-          "legendFormat": "{{pod}}",
+          "expr": "label_replace(sum by (pod) (rate(process_cpu_seconds_total{job=\"kafka-metrics-reporter\"}[5m])), \"broker\", \"broker $1\", \"pod\", \".*-([0-9]+)\")",
+          "legendFormat": "{{broker}}",
           "refId": "A",
           "range": true
         }
