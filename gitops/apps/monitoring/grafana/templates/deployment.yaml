@@ -5,6 +5,9 @@ metadata:
     app: {{ .Release.Name }}
   name: {{ .Release.Name }}
 spec:
+  # The data volume is ReadWriteOnce, so the old pod must stop first.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: {{ .Release.Name }}
