@@ -11,6 +11,7 @@ import {
   getLogoutPath,
   isGuestRoute,
 } from './lib/authSession';
+import { getDocumentTitle } from './lib/documentTitle';
 
 function SessionMonitor() {
   const location = useLocation();
@@ -71,6 +72,16 @@ function SessionMonitor() {
   return null;
 }
 
+function DocumentTitle() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    document.title = getDocumentTitle(pathname);
+  }, [pathname]);
+
+  return null;
+}
+
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -80,6 +91,7 @@ function App() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SessionMonitor />
+      <DocumentTitle />
       <Navbar navigate={navigate} location={location} />
       <Toaster position="top-right" richColors closeButton theme={isDark ? 'dark' : 'light'} />
 

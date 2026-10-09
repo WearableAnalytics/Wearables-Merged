@@ -10,6 +10,7 @@ type SharedNavButtonProps = {
   className?: string;
   onClick?: () => void;
   id?: string;
+  title?: string;
   invertedColors?: boolean;
 };
 
@@ -39,9 +40,10 @@ export const NavButton: React.FC<NavButtonProps> = ({
   className = '',
   onClick,
   id,
+  title,
   isDisabled,
   invertedColors,
-  iconOnly = false, 
+  iconOnly = false,
 }) => {
   const { isActive, handleClick } = useNavButtonBehavior(path, onClick);
 
@@ -53,6 +55,7 @@ export const NavButton: React.FC<NavButtonProps> = ({
     <Button
       type="button"
       id={id}
+      title={title}
       onClick={isDisabled ? undefined : handleClick}
       disabled={isDisabled}
       size={iconOnly ? 'icon' : 'default'}
@@ -60,7 +63,7 @@ export const NavButton: React.FC<NavButtonProps> = ({
       className={cn(
         'border border-transparent rounded-full font-medium transition-transform duration-200 ease-out',
         !isDisabled && !iconOnly ? 'hover:scale-[1.03]' : '',
-        !iconOnly ? 'px-5 text-sm' : 'p-0',
+        !iconOnly ? 'px-3 text-sm lg:px-5' : 'p-0',
         isActive ? 'border-primary shadow-md hover:shadow-md' : desktopInactiveClass,
         className,
       )}

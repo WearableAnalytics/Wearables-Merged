@@ -19,10 +19,10 @@ export const Logo: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center cursor-pointer" onClick={handleClick}>
+    <div className="flex shrink-0 items-center cursor-pointer" onClick={handleClick}>
       <BrandLogo
         logoType="horizontal"
-        alt="Wearables Logo"
+        alt="Charité Wearables platform"
         className="h-10 w-auto"
         containerClassName="rounded-full border border-border/70 bg-card/40 px-4 py-0 shadow-[var(--shadow-card)] transition-shadow transition-transform duration-200 backdrop-blur-lg hover:shadow-lg hover:scale-[1.05]"
       />
