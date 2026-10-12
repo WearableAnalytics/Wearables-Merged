@@ -44,6 +44,9 @@ applies them. Cluster IDs and SSH public keys are not in the repo; they come fro
 
 ## Quota (OpenStack project "Wearables", 2026-10-09)
 
+The VM `dwc-stream-anon` belongs to another project but shares this quota. Leave it alone: never
+delete, resize or drain it, and count its cores, RAM and volumes before planning any change.
+
 - Compute: 112/112 cores, 224/224 GB RAM, 6/8 instances. A rolling node replacement (maxSurge 1)
   only works because Kubermatic deletes an old VM before creating the next one; with no headroom
   the next new VM waits for the quota (`InsufficientResources` on the Machine) until then.
