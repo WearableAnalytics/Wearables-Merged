@@ -1,0 +1,109 @@
+# Temporary path from the cluster to an LLM that is only reachable from the
+# Charité network (the HPC vLLM job, or Clé). Elias's Mac opens a reverse SSH
+# tunnel into this pod through `kubectl port-forward`; nothing is opened on the
+# shared jumphost.
+#
+#   llm-gateway --> llm-relay:8443 ==ssh -R==> Mac --> HPC vLLM (or cle.charite.de:443)
+#
+# On the Mac (cluster tunnel + HTTPS_PROXY as usual), for the HPC:
+#   ssh -f -N -J <hpc login> -L 127.0.0.1:18000:127.0.0.1:8000 <user>@<gpu node>
+#   kubectl -n bayes-platform port-forward svc/llm-relay 2222:22 &
+#   ssh -N -i <relay key> -p 2222 -o StrictHostKeyChecking=no \
+#     -o UserKnownHostsFile=/dev/null -R 0.0.0.0:8443:127.0.0.1:18000 tunnel@127.0.0.1
+# (for Clé: -R 0.0.0.0:8443:cle.charite.de:443, see CLE.md)
+#
+# The key ConfigMap holds only the public key of <relay key>:
+#   kubectl -n bayes-platform create configmap llm-relay-key \
+#     --from-file=authorized_keys=<relay key>.pub
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-relay
+  namespace: bayes-platform
+data:
+  start.sh: |
+    set -eu
+    apk add --no-cache openssh-server >/dev/null
+    adduser -D -s /bin/sh tunnel
+    passwd -u tunnel >/dev/null 2>&1 || true
+    mkdir -p /home/tunnel/.ssh
+    cp /config/authorized_keys /home/tunnel/.ssh/authorized_keys
+    chown -R tunnel:tunnel /home/tunnel/.ssh
+    chmod 700 /home/tunnel/.ssh && chmod 600 /home/tunnel/.ssh/authorized_keys
+    ssh-keygen -A >/dev/null
+    cat > /etc/ssh/sshd_config <<'EOF'
+    Port 22
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    PermitRootLogin no
+    AllowUsers tunnel
+    AllowTcpForwarding remote
+    GatewayPorts yes
+    PermitTTY no
+    X11Forwarding no
+    ForceCommand /bin/false
+    PermitListen 0.0.0.0:8443
+    ClientAliveInterval 30
+    EOF
+    exec /usr/sbin/sshd -D -e
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-relay
+  namespace: bayes-platform
+  labels:
+    app: llm-relay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-relay
+  template:
+    metadata:
+      labels:
+        app: llm-relay
+    spec:
+      nodeSelector:
+        workload: bayes
+      containers:
+        - name: sshd
+          image: alpine:3.20
+          command: ["sh", "/config/start.sh"]
+          ports:
+            - name: ssh
+              containerPort: 22
+            - name: llm
+              containerPort: 8443
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      volumes:
+        - name: config
+          projected:
+            sources:
+              - configMap:
+                  name: llm-relay
+                  items: [{ key: start.sh, path: start.sh }]
+              - configMap:
+                  name: llm-relay-key
+                  items: [{ key: authorized_keys, path: authorized_keys }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-relay
+  namespace: bayes-platform
+spec:
+  selector:
+    app: llm-relay
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: ssh
+    - name: llm
+      port: 8443
+      targetPort: llm
