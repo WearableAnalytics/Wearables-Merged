@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -7,6 +8,7 @@ class StorageService {
   static const String _deviceIdKey = 'device_id';
   static const String _lastDataSendKey = 'last_data_send_time';
   static const String _initialSyncStartKey = 'initial_sync_start';
+  static const String _rejectedCodeKey = 'rejected_code';
 
   /// Default look-back for the first upload when no start date was chosen.
   static const Duration defaultInitialWindow = Duration(days: 30);
@@ -51,6 +53,7 @@ class StorageService {
   static Future<void> setCustomDeviceId(String deviceId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_deviceIdKey, deviceId);
+    await prefs.remove(_rejectedCodeKey);
   }
 
   /// Removes the stored "last data send" timestamp so next sync acts fresh.
@@ -66,6 +69,42 @@ class StorageService {
   static Future<bool> hasStudyCode() async {
     final prefs = await SharedPreferences.getInstance();
     return isStudyCode(prefs.getString(_deviceIdKey));
+  }
+
+  /// Expiry (`exp` claim) of a case token, or null if it has none.
+  static DateTime? codeExpiry(String? code) {
+    if (!isStudyCode(code)) return null;
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(code!.split('.')[1])),
+      );
+      final exp = (jsonDecode(payload) as Map<String, dynamic>)['exp'];
+      if (exp is! num) return null;
+      return DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static bool isCodeExpired(String? code, {DateTime? now}) {
+    final expiry = codeExpiry(code);
+    return expiry != null && !expiry.isAfter(now ?? DateTime.now());
+  }
+
+  /// Remembers that the server refused [code], so the app asks for a new
+  /// one instead of retrying. Cleared when another code is linked.
+  static Future<void> markCodeRejected(String code) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_rejectedCodeKey, code);
+  }
+
+  /// The linked code has expired or was refused by the server; uploads
+  /// only resume after the QR code is scanned again.
+  static Future<bool> isLinkedCodeUnusable() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString(_deviceIdKey);
+    if (!isStudyCode(code)) return false;
+    return isCodeExpired(code) || prefs.getString(_rejectedCodeKey) == code;
   }
 
   /// Start of the period shared on the first upload (or after a reset).

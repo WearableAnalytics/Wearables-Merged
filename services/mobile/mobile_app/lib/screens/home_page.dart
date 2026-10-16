@@ -178,12 +178,22 @@ class _ConnectedView extends StatelessWidget {
         'Unlock your iPhone to share health data.',
       HealthSyncStatus.permissionDenied =>
         'Access to Apple Health is needed. Check Settings › Health › Data Access.',
+      HealthSyncStatus.codeExpired =>
+        'Your personal code has expired. Please scan your QR code again.',
       HealthSyncStatus.failed =>
         'Sharing failed. Please try again later.${_reason(result)}',
     };
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Links the newly scanned code and continues where sharing stopped.
+  Future<void> _rescan(BuildContext context) async {
+    final code = await scanStudyCode(context);
+    if (code == null) return;
+    await state.linkStudyCode(code, resetLastSync: false);
+    if (context.mounted) await _syncNow(context);
   }
 
   /// Short server or network reason, e.g. "Status 422".
@@ -197,7 +207,10 @@ class _ConnectedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final failed = !state.isSyncing && state.lastOutcome == SyncOutcome.failure;
+    final expired = !state.isSyncing && state.codeExpired;
+    final failed =
+        expired ||
+        (!state.isSyncing && state.lastOutcome == SyncOutcome.failure);
     final incomplete =
         !state.isSyncing &&
         !failed &&
@@ -227,12 +240,15 @@ class _ConnectedView extends StatelessWidget {
                         progress: state.progress,
                         failed: failed,
                         incomplete: incomplete,
+                        expired: expired,
                       ),
                     ),
                     const SizedBox(height: 28),
                     Text(
                       state.isSyncing
                           ? 'Sharing your data…'
+                          : expired
+                          ? 'Personal code expired'
                           : failed
                           ? 'Last upload failed'
                           : incomplete
@@ -246,6 +262,10 @@ class _ConnectedView extends StatelessWidget {
                       state.isSyncing
                           ? 'Please keep the app open until sharing has finished. '
                                 'Progress is saved, so it continues where it stopped.'
+                          : expired
+                          ? 'New data cannot be shared with your current code. '
+                                'Please scan the QR code on your information sheet '
+                                'again to continue.'
                           : incomplete
                           ? 'Your data is shared up to $sharedUpTo. Tap Share now '
                                 'to continue from there.'
@@ -273,23 +293,30 @@ class _ConnectedView extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(
+                        Expanded(
                           child: _InfoTile(
                             icon: Symbols.autorenew_sharp,
                             label: 'Automatic sharing',
-                            value: 'On',
+                            value: expired ? 'Paused' : 'On',
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 28),
-                    FilledButton.icon(
-                      onPressed: state.isSyncing
-                          ? null
-                          : () => _syncNow(context),
-                      icon: const Icon(Symbols.sync_sharp),
-                      label: Text(state.isSyncing ? 'Sharing…' : 'Share now'),
-                    ),
+                    if (expired)
+                      FilledButton.icon(
+                        onPressed: () => _rescan(context),
+                        icon: const Icon(Symbols.qr_code_scanner_sharp),
+                        label: const Text('Scan QR code'),
+                      )
+                    else
+                      FilledButton.icon(
+                        onPressed: state.isSyncing
+                            ? null
+                            : () => _syncNow(context),
+                        icon: const Icon(Symbols.sync_sharp),
+                        label: Text(state.isSyncing ? 'Sharing…' : 'Share now'),
+                      ),
                     const SizedBox(height: 12),
                     Text(
                       state.lastSendTime == null
@@ -315,12 +342,14 @@ class _StatusBadge extends StatelessWidget {
     required this.syncing,
     required this.failed,
     this.incomplete = false,
+    this.expired = false,
     this.progress,
   });
 
   final bool syncing;
   final bool failed;
   final bool incomplete;
+  final bool expired;
   final double? progress;
 
   @override
@@ -340,7 +369,7 @@ class _StatusBadge extends StatelessWidget {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       child: SizedBox(
-        key: ValueKey('$syncing-$failed-$incomplete'),
+        key: ValueKey('$syncing-$failed-$incomplete-$expired'),
         width: 168,
         height: 168,
         child: Stack(
@@ -388,6 +417,8 @@ class _StatusBadge extends StatelessWidget {
                   : Icon(
                       syncing
                           ? Symbols.sync_sharp
+                          : expired
+                          ? Symbols.qr_code_scanner_sharp
                           : failed
                           ? Symbols.priority_high_sharp
                           : incomplete

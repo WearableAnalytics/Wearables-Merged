@@ -1,11 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../storage_service.dart';
 import 'health_sync_service.dart';
 
 /// Handles notification permissions and reporting sync status to the user.
@@ -141,6 +143,9 @@ class NotificationService {
     try {
       await ensureInitializedForBackground();
       await _plugin.cancel(_reminderId);
+      // Opening the app does not help until a new code is scanned; the
+      // action-needed notification already says so.
+      if (await StorageService.isLinkedCodeUnusable()) return;
       _ensureTimeZones();
       final now = DateTime.now();
       var when = (lastUpload ?? now).add(reminderAfter);
@@ -170,20 +175,84 @@ class NotificationService {
   }
 
   /// Shown only when sharing needs the user, never for routine uploads.
+  /// iOS wakes the app for every new batch of health data, so the same
+  /// problem is reported once when it appears and then at most daily.
   static Future<void> showActionNeeded(HealthSyncResult result) async {
-    final message = switch (result.status) {
-      HealthSyncStatus.permissionDenied =>
-        'Access to Apple Health is needed to continue sharing. '
-            'Open the app to review the permission.',
-      _ => null,
-    };
-    if (message == null) return;
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final reason = actionReason(result.status);
+      if (reason == null) {
+        // Sharing works again: a future problem is announced right away.
+        if (result.status == HealthSyncStatus.success ||
+            result.status == HealthSyncStatus.nothingToSend) {
+          await prefs.remove(_lastActionReasonKey);
+        }
+        return;
+      }
+      // The app is open and shows the problem itself.
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        return;
+      }
+      final lastAt = prefs.getInt(_lastActionAtKey);
+      final now = DateTime.now();
+      if (!shouldNotify(
+        reason: reason,
+        lastReason: prefs.getString(_lastActionReasonKey),
+        lastAt: lastAt == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(lastAt),
+        now: now,
+      )) {
+        return;
+      }
       await ensureInitializedForBackground();
-      await _plugin.show(_actionId, _title, message, _notificationDetails);
+      await _plugin.show(
+        _actionId,
+        _title,
+        _actionMessages[reason],
+        _notificationDetails,
+      );
+      await prefs.setString(_lastActionReasonKey, reason);
+      await prefs.setInt(_lastActionAtKey, now.millisecondsSinceEpoch);
     } catch (e) {
       debugPrint('Failed to show notification: $e');
     }
+  }
+
+  static const minNotificationGap = Duration(hours: 1);
+  static const sameReasonRepeatAfter = Duration(days: 1);
+  static const _lastActionReasonKey = 'last_action_notification_reason';
+  static const _lastActionAtKey = 'last_action_notification_at';
+
+  static const _actionMessages = {
+    'permission':
+        'Access to Apple Health is needed to continue sharing. '
+        'Open the app to review the permission.',
+    'code':
+        'Your personal code has expired. Open the app and scan the QR code '
+        'on your information sheet again to continue sharing.',
+  };
+
+  @visibleForTesting
+  static String? actionReason(HealthSyncStatus status) => switch (status) {
+    HealthSyncStatus.permissionDenied => 'permission',
+    HealthSyncStatus.codeExpired => 'code',
+    _ => null,
+  };
+
+  /// A new problem is announced at once, the same one again only after
+  /// [sameReasonRepeatAfter], and never more than one per [minNotificationGap].
+  @visibleForTesting
+  static bool shouldNotify({
+    required String reason,
+    required String? lastReason,
+    required DateTime? lastAt,
+    required DateTime now,
+  }) {
+    if (lastAt == null) return true;
+    final since = now.difference(lastAt);
+    if (since < minNotificationGap) return false;
+    return reason != lastReason || since >= sameReasonRepeatAfter;
   }
 
   static const _actionId = 9002;
