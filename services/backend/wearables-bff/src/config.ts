@@ -73,7 +73,6 @@ const requiredEnvVars = [
   'DATABASE_API_TIMEOUT',
   'AUTH_SESSION_EXPIRY_SECONDS',
   'MAGIC_LINK_EXPIRY_SECONDS',
-  'CASE_TOKEN_EXPIRY_SECONDS',
   'TOKEN_ISSUER',
   'JWT_SECRET',
 ] as const;
@@ -138,7 +137,12 @@ const extractionApiUrl = extractionApiUrlRaw?.replace(/\/$/, '');
 // Strict env-driven auth/token configuration.
 const authSessionExpirySeconds = requirePositiveIntEnv('AUTH_SESSION_EXPIRY_SECONDS');
 const magicLinkExpirySeconds = requirePositiveIntEnv('MAGIC_LINK_EXPIRY_SECONDS');
-const caseTokenExpirySeconds = requirePositiveIntEnv('CASE_TOKEN_EXPIRY_SECONDS');
+// Case tokens are what phones upload with, so they stay valid for 3 years by default.
+const DEFAULT_CASE_TOKEN_EXPIRY_SECONDS = 3 * 365 * 24 * 60 * 60;
+const caseTokenExpirySeconds =
+  optionalEnv('CASE_TOKEN_EXPIRY_SECONDS') === undefined
+    ? DEFAULT_CASE_TOKEN_EXPIRY_SECONDS
+    : requirePositiveIntEnv('CASE_TOKEN_EXPIRY_SECONDS');
 const tokenIssuer = requireEnv('TOKEN_ISSUER');
 
 const jwtSecret = requireEnv('JWT_SECRET');
