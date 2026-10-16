@@ -85,5 +85,15 @@ String? _validated(BuildContext context, String raw) {
     );
     return null;
   }
+  if (StorageService.isCodeExpired(value)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'This personal code has expired. Please ask for a new QR code.',
+        ),
+      ),
+    );
+    return null;
+  }
   return value;
 }

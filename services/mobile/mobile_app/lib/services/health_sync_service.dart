@@ -17,6 +17,9 @@ enum HealthSyncStatus {
   nothingToSend,
   permissionDenied,
   protectedDataUnavailable,
+
+  /// The personal code expired or was refused; the QR code must be rescanned.
+  codeExpired,
   failed,
 }
 
@@ -88,12 +91,21 @@ class HealthSyncService {
       final types = Platform.isIOS
           ? iosHealthDataTypes
           : androidHealthDataTypes;
+      if (await StorageService.isLinkedCodeUnusable()) {
+        return complete(_codeExpired(now, now, 0, 0));
+      }
+
       final permissions = permissionsFor(types);
-      final alreadyGranted =
-          await _health.hasPermissions(types, permissions: permissions) ??
-          false;
-      if (!alreadyGranted) {
-        if (!requestPermissions) {
+      // iOS never reveals whether read access was granted (always null), so
+      // only an explicit "no" counts as missing; HealthKit simply returns no
+      // data for types the user declined. Treating null as denied made every
+      // background wake-up report missing access.
+      final hasAccess = await _health.hasPermissions(
+        types,
+        permissions: permissions,
+      );
+      if (hasAccess != true) {
+        if (!requestPermissions && hasAccess == false) {
           return complete(
             HealthSyncResult(
               status: HealthSyncStatus.permissionDenied,
@@ -106,10 +118,9 @@ class HealthSyncService {
           );
         }
 
-        final granted = await _health.requestAuthorization(
-          types,
-          permissions: permissions,
-        );
+        final granted =
+            !requestPermissions ||
+            await _health.requestAuthorization(types, permissions: permissions);
         if (!granted) {
           return complete(
             HealthSyncResult(
@@ -210,6 +221,12 @@ class HealthSyncService {
             );
             totalSent += chunk.length;
           } catch (e) {
+            if (e is HttpException && e.message.startsWith('Status 401')) {
+              await StorageService.markCodeRejected(deviceId);
+              return complete(
+                _codeExpired(from, now, totalSent, totalAvailable),
+              );
+            }
             lastError ??= 'Upload failed: $e';
             dayComplete = false;
             break;
@@ -260,6 +277,22 @@ class HealthSyncService {
       rangeStart: from,
       rangeEnd: to,
       lastError: 'Protected health data is locked. Unlock the device to sync.',
+    );
+  }
+
+  HealthSyncResult _codeExpired(
+    DateTime from,
+    DateTime to,
+    int sent,
+    int total,
+  ) {
+    return HealthSyncResult(
+      status: HealthSyncStatus.codeExpired,
+      totalSent: sent,
+      totalAvailable: total,
+      rangeStart: from,
+      rangeEnd: to,
+      lastError: 'Personal code expired or not accepted',
     );
   }
 
@@ -316,6 +349,7 @@ class HealthSyncService {
         return SyncOutcome.nothingToSend;
       case HealthSyncStatus.permissionDenied:
       case HealthSyncStatus.protectedDataUnavailable:
+      case HealthSyncStatus.codeExpired:
       case HealthSyncStatus.failed:
         return SyncOutcome.failure;
     }

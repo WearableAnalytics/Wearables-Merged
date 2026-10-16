@@ -14,6 +14,9 @@ import 'package:charite_wearables/state/app_state.dart';
 import 'package:charite_wearables/theme/app_theme.dart';
 
 const _studyCode = 'eyJhbGciOiJIUzI1NiJ9.eyJjYXNlSWQiOiJ4In0.c2lnbmF0dXJlLXNhbXBsZQ';
+// {"caseId":"x","exp":1700000000}, expired in Nov 2023.
+const _expiredCode =
+    'eyJhbGciOiJIUzI1NiJ9.eyJjYXNlSWQiOiJ4IiwiZXhwIjoxNzAwMDAwMDAwfQ.c2lnbmF0dXJlLXNhbXBsZQ';
 
 /// Loads real fonts so screenshots are readable (tests use a box font).
 /// Set SCREENSHOT_FONT to a .ttf to render text; icons come from the SDK.
@@ -169,6 +172,20 @@ void main() {
     expect(find.text('Not fully shared yet'), findsOneWidget);
     expect(find.textContaining('28 Mar 2026'), findsWidgets);
     await _shot('screenshots/07_incomplete.png');
+  });
+
+  testWidgets('expired code asks to scan the QR code again', (tester) async {
+    SyncActivityNotifier.lastResult.value = null;
+    final state = await tester.runAsync(() => _state({
+          'device_id': _expiredCode,
+          'last_data_send_time': DateTime.now().millisecondsSinceEpoch,
+        }));
+    await _pump(tester, state!);
+    expect(find.text('Personal code expired'), findsOneWidget);
+    expect(find.text('Scan QR code'), findsOneWidget);
+    expect(find.text('Share now'), findsNothing);
+    expect(find.text('Paused'), findsOneWidget);
+    await _shot('screenshots/09_code_expired.png');
   });
 
   testWidgets('opening a notification confirms the resumed transfer',

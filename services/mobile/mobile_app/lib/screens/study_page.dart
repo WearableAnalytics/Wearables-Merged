@@ -40,6 +40,13 @@ class _StudyPageState extends State<StudyPage> {
         ? await scanStudyCode(context)
         : await enterStudyCodeManually(context);
     if (code == null || !mounted) return;
+    if (state.codeExpired) {
+      // Replacing an expired code: continue where sharing stopped.
+      await state.linkStudyCode(code, resetLastSync: false);
+      _toast('Personal code linked. Sharing continues.');
+      await state.syncNow();
+      return;
+    }
     if (code == state.deviceId) {
       _toast('This personal code is already linked.');
       return;
@@ -140,7 +147,13 @@ class _StudyPageState extends State<StudyPage> {
                 children: [
                   ListTile(
                     leading: const Icon(Symbols.verified_user_sharp),
-                    title: Text(state.isLinked ? 'Linked' : 'Not linked'),
+                    title: Text(
+                      !state.isLinked
+                          ? 'Not linked'
+                          : state.codeExpired
+                          ? 'Expired, please scan your QR code again'
+                          : 'Linked',
+                    ),
                     subtitle: Text(
                       state.isLinked
                           ? (_showCode

@@ -20,6 +20,9 @@ class AppState extends ChangeNotifier {
   DateTime? lastSendTime;
   DateTime initialSyncStart = DateTime.now();
 
+  /// The personal code expired or was refused; a new QR scan is needed.
+  bool codeExpired = false;
+
   bool get isLinked => StorageService.isStudyCode(deviceId);
   bool get isSyncing => SyncActivityNotifier.isSyncing.value;
   double? get progress => SyncActivityNotifier.progress.value;
@@ -34,6 +37,7 @@ class AppState extends ChangeNotifier {
     deviceId = await StorageService.getOrCreateDeviceId();
     lastSendTime = await StorageService.getLastDataSendTime();
     initialSyncStart = await StorageService.getInitialSyncStart();
+    codeExpired = await StorageService.isLinkedCodeUnusable();
     loaded = true;
     notifyListeners();
   }
@@ -62,6 +66,7 @@ class AppState extends ChangeNotifier {
     if (isSyncing) return null;
     final result = await _syncService.sendSinceLastSync();
     await load();
+    await NotificationService.showActionNeeded(result);
     await NotificationService.scheduleInactivityReminder(lastSendTime);
     return result;
   }
