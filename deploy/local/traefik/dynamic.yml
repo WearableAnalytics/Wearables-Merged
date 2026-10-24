@@ -1,0 +1,37 @@
+# Same public paths as production (wearables.charite.de), on http://localhost.
+http:
+  routers:
+    bff:
+      rule: PathPrefix(`/api`)
+      service: bff
+    import:
+      rule: PathPrefix(`/import`)
+      service: importservice
+      middlewares: [strip-import]
+    grafana-proxy:
+      rule: PathPrefix(`/proxy`)
+      service: grafana-proxy
+    web:
+      rule: PathPrefix(`/`)
+      service: web
+      priority: 1
+
+  middlewares:
+    # /import/ingest -> /ingest
+    strip-import:
+      stripPrefix:
+        prefixes: [/import]
+
+  services:
+    bff:
+      loadBalancer:
+        servers: [{ url: http://wearables-bff:3001 }]
+    importservice:
+      loadBalancer:
+        servers: [{ url: http://importservice:8000 }]
+    grafana-proxy:
+      loadBalancer:
+        servers: [{ url: http://grafana-proxy:3002 }]
+    web:
+      loadBalancer:
+        servers: [{ url: http://web:80 }]
