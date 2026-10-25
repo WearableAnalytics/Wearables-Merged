@@ -1,0 +1,31 @@
+# Cluster access for the Bayes student: full cluster-admin (Elias's decision,
+# 2026-10-25). The token lives in the Secret below; deleting it, or the
+# ClusterRoleBinding, revokes the kubeconfig. The kubeconfig itself is built out
+# of band, never in the repo.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bayes-student
+  namespace: bayes-platform
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bayes-student-token
+  namespace: bayes-platform
+  annotations:
+    kubernetes.io/service-account.name: bayes-student
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: bayes-student-cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: bayes-student
+    namespace: bayes-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin

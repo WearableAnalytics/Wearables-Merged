@@ -56,6 +56,14 @@ kubectl -n bayes-platform create secret generic bayes-keycloak \
 kubectl apply -f keycloak.yaml
 ```
 
+The second realm user (the student) needs two more keys in the same Secret before `keycloak.yaml` is applied; the realm import fails on unset placeholders:
+
+```sh
+kubectl -n bayes-platform patch secret bayes-keycloak --type merge -p \
+  "{\"stringData\":{\"BAYES_STUDENT_EMAIL\":\"<her email>\",\"BAYES_STUDENT_PASSWORD\":\"$(pw)\"}}"
+kubectl apply -f keycloak.yaml && kubectl -n bayes-platform rollout restart deploy/keycloak
+```
+
 Everything is reached through port-forward for now; the OIDC issuer is fixed to `http://localhost:8180/realms/platform`, and a sidecar in the API pod makes that URL work inside the cluster:
 
 ```sh
@@ -63,3 +71,18 @@ kubectl -n bayes-platform port-forward svc/keycloak 8180:8080             # admi
 kubectl -n bayes-platform port-forward svc/bayes-platform-api 8181:3000   # BayesPlatform: http://localhost:8181
 kubectl -n bayes-platform get secret bayes-keycloak -o jsonpath='{.data.BAYES_USER_PASSWORD}' | base64 -d; echo
 ```
+
+## Student access
+
+`student-access.yaml` gives the student a ServiceAccount `bayes-student` with full `cluster-admin` (ClusterRoleBinding `bayes-student-cluster-admin`). Its long-lived token is in the Secret `bayes-student-token`.
+
+The kubeconfig is built out of band and handed over outside the repo: the same cluster entry (server, CA, `proxy-url: socks5://127.0.0.1:18090`) as your own kubeconfig, a user `bayes-student` with the token from `bayes-student-token`, and a context with default namespace `bayes-platform`. She needs the same SOCKS tunnel to the jumphost.
+
+Revoke it by deleting the token or the binding (a new token is minted when the Secret is re-applied):
+
+```sh
+kubectl -n bayes-platform delete secret bayes-student-token
+kubectl delete clusterrolebinding bayes-student-cluster-admin
+```
+
+For manual InfluxDB queries she gets her own read-only token for the `measurements` bucket (org `wearables-project`), created out of band like the `bayes-influx` token in `../bayes-prototype/README.md` but with `--description bayes-student-read`, and handed over outside the repo. She queries through `kubectl -n influx port-forward svc/influxdb-service 8086:8086`. Revoke it inside the Influx pod with `influx auth list` (find `bayes-student-read`) and `influx auth delete --id <id>`.
