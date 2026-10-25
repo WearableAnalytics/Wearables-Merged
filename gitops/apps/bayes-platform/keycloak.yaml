@@ -4,7 +4,9 @@
 # http://localhost:8180 (`kubectl port-forward svc/keycloak 8180:8080`); the API
 # pod reaches the same URL through a sidecar (see post-render/).
 # Secrets (bayes-keycloak): KC_BOOTSTRAP_ADMIN_PASSWORD, BAYES_USER_EMAIL,
-# BAYES_USER_PASSWORD. Created out of band, never in the repo.
+# BAYES_USER_PASSWORD, BAYES_STUDENT_EMAIL, BAYES_STUDENT_PASSWORD. Created out
+# of band, never in the repo. Users carry a fixed id so their OIDC subject stays
+# the same across re-imports.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -46,6 +48,19 @@ data:
           "lastName": "Admin",
           "credentials": [
             { "type": "password", "value": "${BAYES_USER_PASSWORD}", "temporary": false }
+          ],
+          "realmRoles": ["default-roles-platform"]
+        },
+        {
+          "id": "6f1c2a4e-8b3d-4c7a-9e21-5d0f7b9a3c18",
+          "username": "${BAYES_STUDENT_EMAIL}",
+          "email": "${BAYES_STUDENT_EMAIL}",
+          "emailVerified": true,
+          "enabled": true,
+          "firstName": "Bayes",
+          "lastName": "Student",
+          "credentials": [
+            { "type": "password", "value": "${BAYES_STUDENT_PASSWORD}", "temporary": false }
           ],
           "realmRoles": ["default-roles-platform"]
         }
