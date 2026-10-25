@@ -56,6 +56,9 @@ final class HealthBackgroundDelivery {
       }
     }
     self.channel = channel
+    // A new engine's Dart side has to report ready again.
+    dartReady = false
+    syncInFlight = false
   }
 
   /// Registers observer queries. Must also run during background launches,

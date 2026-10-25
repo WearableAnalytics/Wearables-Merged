@@ -61,6 +61,10 @@ private final class DeviceLockMonitor {
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  /// Runs Dart during background launches (HealthKit, BGTask), where no scene
+  /// connects and therefore no implicit engine is created.
+  private var backgroundEngine: FlutterEngine?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -73,12 +77,32 @@ private final class DeviceLockMonitor {
     // queued until the Dart side reports ready.
     HealthBackgroundDelivery.shared.start()
 
+    // A foreground launch connects its scene right after this returns.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+      self?.startBackgroundEngineIfNeeded()
+    }
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  private func startBackgroundEngineIfNeeded() {
+    guard backgroundEngine == nil, UIApplication.shared.connectedScenes.isEmpty else { return }
+    let engine = FlutterEngine(name: "background", project: nil, allowHeadlessExecution: true)
+    guard engine.run(withEntrypoint: "backgroundMain") else { return }
+    GeneratedPluginRegistrant.register(with: engine)
+    setupDeviceLockChannel(messenger: engine.binaryMessenger)
+    HealthBackgroundDelivery.shared.attach(messenger: engine.binaryMessenger)
+    backgroundEngine = engine
   }
 
   // With the UIScene lifecycle (required since iOS 27) the engine is created
   // by the scene's FlutterViewController, so plugins and channels are wired up here.
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    // Tear down the background engine before the UI engine's plugins attach:
+    // background_fetch removes its shared listener when an engine detaches.
+    backgroundEngine?.destroyContext()
+    backgroundEngine = nil
+
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     let messenger = engineBridge.applicationRegistrar.messenger()
     setupDeviceLockChannel(messenger: messenger)
