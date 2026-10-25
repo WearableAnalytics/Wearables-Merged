@@ -2,7 +2,7 @@ name: charite_wearables
 description: "Charité Wearables platform: shares Apple Health data with the Institut für Medizinische Informatik"
 publish_to: 'none'
 
-version: 2.1.0+13
+version: 2.1.0+14
 
 environment:
   sdk: ^3.8.1
@@ -12,7 +12,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   health: ^13.2.0
-  background_fetch: ^1.5.0
+  background_fetch: ^1.7.0
   shared_preferences: ^2.2.2
   flutter_local_notifications: ^17.1.2
   mobile_scanner: ^5.1.1

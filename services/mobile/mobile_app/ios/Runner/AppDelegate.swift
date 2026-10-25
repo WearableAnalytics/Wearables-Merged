@@ -1,7 +1,5 @@
 import Flutter
 import UIKit
-import BackgroundTasks
-import TSBackgroundFetch
 import Foundation
 import Darwin
 
@@ -62,46 +60,35 @@ private final class DeviceLockMonitor {
 }
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // Ensure Flutter sets up the window/rootViewController before we grab it.
-    let flutterInitialized = super.application(application, didFinishLaunchingWithOptions: launchOptions)
-    GeneratedPluginRegistrant.register(with: self)
+    // TSBackgroundFetch registers its BGTaskScheduler handlers itself in +load;
+    // registering them again here aborts with "already been registered".
 
-    // Register background-fetch task handler for BGTaskScheduler (required to simulate/handle "com.transistorsoft.fetch").
-    if #available(iOS 13.0, *) {
-      // Register the app-refresh task identifier used by flutter_background_fetch
-      TSBackgroundFetch.sharedInstance().registerAppRefreshTask()
-    }
-
-    // Use the Flutter plugin registrar rather than the rootViewController; the latter is not guaranteed
-    // to be available in didFinishLaunchingWithOptions once UISceneDelegate is enabled.
-    setupDeviceLockChannel()
-    setupHealthBackgroundDelivery()
-
-    return flutterInitialized
-  }
-
-  private func setupHealthBackgroundDelivery() {
-    guard let registrar = self.registrar(forPlugin: "HealthBackgroundDelivery") else { return }
-    HealthBackgroundDelivery.shared.attach(messenger: registrar.messenger())
     // Observer queries must be registered on every launch, including the
-    // background launches HealthKit triggers for new data.
+    // background launches HealthKit triggers for new data. Wake-ups are
+    // queued until the Dart side reports ready.
     HealthBackgroundDelivery.shared.start()
+
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  private func setupDeviceLockChannel() {
-    guard let registrar = self.registrar(forPlugin: "DeviceLockChannel") else {
-      assertionFailure("Flutter registrar unavailable; cannot set up method channel")
-      return
-    }
+  // With the UIScene lifecycle (required since iOS 27) the engine is created
+  // by the scene's FlutterViewController, so plugins and channels are wired up here.
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let messenger = engineBridge.applicationRegistrar.messenger()
+    setupDeviceLockChannel(messenger: messenger)
+    HealthBackgroundDelivery.shared.attach(messenger: messenger)
+  }
 
+  private func setupDeviceLockChannel(messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(
       name: "com.cherep.device_state/lock_state",
-      binaryMessenger: registrar.messenger()
+      binaryMessenger: messenger
     )
 
     channel.setMethodCallHandler { call, result in
