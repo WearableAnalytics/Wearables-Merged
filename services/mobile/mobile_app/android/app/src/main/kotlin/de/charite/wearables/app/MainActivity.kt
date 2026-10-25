@@ -1,4 +1,4 @@
-package com.example.wearables_app
+package de.charite.wearables.app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

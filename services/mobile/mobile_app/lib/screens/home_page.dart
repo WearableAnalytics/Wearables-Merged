@@ -82,7 +82,7 @@ class _WelcomeView extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Link this iPhone with your personal code. You find the QR code '
+                      'Link this ${AppConfig.deviceName} with your personal code. You find the QR code '
                       'on the information sheet you received.',
                       style: textTheme.bodyLarge?.copyWith(
                         color: AppColors.textMuted,
@@ -126,9 +126,9 @@ class _Steps extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const steps = [
+    final steps = [
       (Symbols.qr_code_scanner_sharp, 'Scan your personal code'),
-      (Symbols.favorite_sharp, 'Allow access to Apple Health'),
+      (Symbols.favorite_sharp, 'Allow access to ${AppConfig.healthStore}'),
       (Symbols.sync_sharp, 'Data is shared automatically'),
     ];
     return Card(
@@ -175,9 +175,10 @@ class _ConnectedView extends StatelessWidget {
       HealthSyncStatus.nothingToSend =>
         'Up to date. There is no new data to share.',
       HealthSyncStatus.protectedDataUnavailable =>
-        'Unlock your iPhone to share health data.',
+        'Unlock your ${AppConfig.deviceName} to share health data.',
       HealthSyncStatus.permissionDenied =>
-        'Access to Apple Health is needed. Check Settings › Health › Data Access.',
+        'Access to ${AppConfig.healthStore} is needed. '
+            '${AppConfig.healthAccessHint}',
       HealthSyncStatus.codeExpired =>
         'Your personal code has expired. Please scan your QR code again.',
       HealthSyncStatus.failed =>
@@ -272,7 +273,7 @@ class _ConnectedView extends StatelessWidget {
                           : failed
                           ? 'Your data will be sent again automatically. You can also '
                                 'try it now.'
-                          : 'Your Apple Health data is shared securely with the '
+                          : 'Your ${AppConfig.healthStore} data is shared securely with the '
                                 'Charité Wearables platform.',
                       style: textTheme.bodyLarge?.copyWith(
                         color: AppColors.textMuted,

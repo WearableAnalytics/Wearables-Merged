@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 
+import 'app_config.dart';
 import 'health_data_formatter.dart';
 import 'health_data_types.dart';
 import 'storage_service.dart';
@@ -221,7 +222,7 @@ class _DataViewPageState extends State<DataViewPage> {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
           Text(
-            'See exactly which Apple Health data the app reads for a period. '
+            'See exactly which ${AppConfig.healthStore} data the app reads for a period. '
             'The preview uses the same format as the upload.',
             style: Theme.of(
               context,

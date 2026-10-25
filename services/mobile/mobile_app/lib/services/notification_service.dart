@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../app_config.dart';
 import '../storage_service.dart';
 import 'health_sync_service.dart';
 
@@ -224,9 +225,9 @@ class NotificationService {
   static const _lastActionReasonKey = 'last_action_notification_reason';
   static const _lastActionAtKey = 'last_action_notification_at';
 
-  static const _actionMessages = {
+  static final _actionMessages = {
     'permission':
-        'Access to Apple Health is needed to continue sharing. '
+        'Access to ${AppConfig.healthStore} is needed to continue sharing. '
         'Open the app to review the permission.',
     'code':
         'Your personal code has expired. Open the app and scan the QR code '
