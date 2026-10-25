@@ -134,6 +134,9 @@ class HealthSyncService {
           );
         }
       }
+      if (requestPermissions && Platform.isAndroid) {
+        await _requestAndroidExtraAccess();
+      }
 
       final unlocked = await DeviceLockService.isDeviceUnlocked();
       if (!unlocked) {
@@ -266,6 +269,23 @@ class HealthSyncService {
     } finally {
       client.close(force: true);
       activity.close();
+    }
+  }
+
+  /// Health Connect only allows reads from background_fetch and reads older
+  /// than 30 days with these two extra permissions, asked for separately.
+  Future<void> _requestAndroidExtraAccess() async {
+    try {
+      if (await _health.isHealthDataInBackgroundAvailable() &&
+          !await _health.isHealthDataInBackgroundAuthorized()) {
+        await _health.requestHealthDataInBackgroundAuthorization();
+      }
+      if (await _health.isHealthDataHistoryAvailable() &&
+          !await _health.isHealthDataHistoryAuthorized()) {
+        await _health.requestHealthDataHistoryAuthorization();
+      }
+    } catch (e) {
+      print('Health Connect extra access request failed: $e');
     }
   }
 
