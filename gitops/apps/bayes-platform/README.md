@@ -74,12 +74,15 @@ kubectl -n bayes-platform get secret bayes-keycloak -o jsonpath='{.data.BAYES_US
 
 ## Student access
 
-`student-access.yaml` gives the student a ServiceAccount `bayes-student` that can list pods, services and deployments, read pod logs and port-forward in `bayes-platform`, and nothing else (no Secrets, no other namespaces). Its long-lived token is in the Secret `bayes-student-token`.
+`student-access.yaml` gives the student a ServiceAccount `bayes-student` with full `cluster-admin` (ClusterRoleBinding `bayes-student-cluster-admin`). Its long-lived token is in the Secret `bayes-student-token`.
 
 The kubeconfig is built out of band and handed over outside the repo: the same cluster entry (server, CA, `proxy-url: socks5://127.0.0.1:18090`) as your own kubeconfig, a user `bayes-student` with the token from `bayes-student-token`, and a context with default namespace `bayes-platform`. She needs the same SOCKS tunnel to the jumphost.
 
-Revoke it by deleting the token (a new one is minted when the Secret is re-applied):
+Revoke it by deleting the token or the binding (a new token is minted when the Secret is re-applied):
 
 ```sh
 kubectl -n bayes-platform delete secret bayes-student-token
+kubectl delete clusterrolebinding bayes-student-cluster-admin
 ```
+
+For manual InfluxDB queries she gets her own read-only token for the `measurements` bucket (org `wearables-project`), created out of band like the `bayes-influx` token in `../bayes-prototype/README.md` but with `--description bayes-student-read`, and handed over outside the repo. She queries through `kubectl -n influx port-forward svc/influxdb-service 8086:8086`. Revoke it inside the Influx pod with `influx auth list` (find `bayes-student-read`) and `influx auth delete --id <id>`.
