@@ -123,5 +123,5 @@ app.*.map.json
 /android/app/release
 
 # Ansible generated files
-infra/ansible/inventory/hosts.yml
-infra/kubeconfig.yaml
+archive/hetzner-k3s/ansible/inventory/hosts.yml
+archive/hetzner-k3s/kubeconfig.yaml
