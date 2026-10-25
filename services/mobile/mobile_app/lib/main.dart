@@ -37,6 +37,17 @@ class MyApp extends StatelessWidget {
   }
 }
 
+/// iOS entry point for background launches (HealthKit wake-ups, background
+/// fetch), started by AppDelegate when no scene and so no UI engine exists.
+@pragma('vm:entry-point')
+Future<void> backgroundMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.initialize(requestPermissions: false);
+  await BackgroundSyncManager.initialize();
+  await HealthBackgroundDelivery.initialize();
+  unawaited(BackgroundSyncManager.runQuietSync());
+}
+
 @pragma('vm:entry-point')
 void backgroundFetchHeadlessTask(HeadlessTask task) async {
   WidgetsFlutterBinding.ensureInitialized();

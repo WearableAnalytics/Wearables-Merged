@@ -1,7 +1,7 @@
 PODS:
-  - background_fetch (1.5.0):
+  - background_fetch (1.7.0):
     - Flutter
-    - TSBackgroundFetch (~> 4.0)
+    - TSBackgroundFetch (~> 4.1.0)
   - device_info_plus (0.0.1):
     - Flutter
   - Flutter (1.0.0)
@@ -67,7 +67,7 @@ PODS:
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
-  - TSBackgroundFetch (4.0.5)
+  - TSBackgroundFetch (4.1.1)
   - url_launcher_ios (0.0.1):
     - Flutter
 
@@ -119,7 +119,7 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
-  background_fetch: 7457cb2c7be3086b37d87207866f30bed2f9fb58
+  background_fetch: b273c4b6911fc2e309790b46b5658b7edc40b73b
   device_info_plus: 21fcca2080fbcd348be798aa36c3e5ed849eefbe
   Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
   flutter_local_notifications: ad39620c743ea4c15127860f4b5641649a988100
@@ -139,7 +139,7 @@ SPEC CHECKSUMS:
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
-  TSBackgroundFetch: e91020924db32f27d0a43df7dec6f73f10743571
+  TSBackgroundFetch: 18918b6449a1e3f01eb0f5b44d6d79ce6160a5a5
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
 
 PODFILE CHECKSUM: 263a3e327ec8c049d1083c4cdd9efcd73625e571
