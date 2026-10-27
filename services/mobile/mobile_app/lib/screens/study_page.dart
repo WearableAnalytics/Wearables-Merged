@@ -40,8 +40,8 @@ class _StudyPageState extends State<StudyPage> {
         ? await scanStudyCode(context)
         : await enterStudyCodeManually(context);
     if (code == null || !mounted) return;
-    if (state.codeExpired) {
-      // Replacing an expired code: continue where sharing stopped.
+    if (state.isCodeUnusable) {
+      // Replacing an expired or rejected code: continue where sharing stopped.
       await state.linkStudyCode(code, resetLastSync: false);
       _toast('Personal code linked. Sharing continues.');
       await state.syncNow();
@@ -150,6 +150,8 @@ class _StudyPageState extends State<StudyPage> {
                     title: Text(
                       !state.isLinked
                           ? 'Not linked'
+                          : state.codeRejected
+                          ? 'Rejected by server, please scan your QR code again'
                           : state.codeExpired
                           ? 'Expired, please scan your QR code again'
                           : 'Linked',

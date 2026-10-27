@@ -18,8 +18,11 @@ enum HealthSyncStatus {
   permissionDenied,
   protectedDataUnavailable,
 
-  /// The personal code expired or was refused; the QR code must be rescanned.
+  /// The personal code expired; the QR code must be rescanned
   codeExpired,
+
+  /// The personal code was rejected by the server (e.g. 401)
+  codeRejected,
   failed,
 }
 
@@ -91,7 +94,10 @@ class HealthSyncService {
       final types = Platform.isIOS
           ? iosHealthDataTypes
           : androidHealthDataTypes;
-      if (await StorageService.isLinkedCodeUnusable()) {
+      if (await StorageService.isLinkedCodeRejected()) {
+        return complete(_codeRejected(now, now, 0, 0));
+      }
+      if (await StorageService.isLinkedCodeExpired()) {
         return complete(_codeExpired(now, now, 0, 0));
       }
 
@@ -227,7 +233,7 @@ class HealthSyncService {
             if (e is HttpException && e.message.startsWith('Status 401')) {
               await StorageService.markCodeRejected(deviceId);
               return complete(
-                _codeExpired(from, now, totalSent, totalAvailable),
+                _codeRejected(from, now, totalSent, totalAvailable),
               );
             }
             lastError ??= 'Upload failed: $e';
@@ -312,7 +318,23 @@ class HealthSyncService {
       totalAvailable: total,
       rangeStart: from,
       rangeEnd: to,
-      lastError: 'Personal code expired or not accepted',
+      lastError: 'Personal code expired',
+    );
+  }
+
+  HealthSyncResult _codeRejected(
+    DateTime from,
+    DateTime to,
+    int sent,
+    int total,
+  ) {
+    return HealthSyncResult(
+      status: HealthSyncStatus.codeRejected,
+      totalSent: sent,
+      totalAvailable: total,
+      rangeStart: from,
+      rangeEnd: to,
+      lastError: 'Personal code rejected by server (Unauthorized)',
     );
   }
 
@@ -370,6 +392,7 @@ class HealthSyncService {
       case HealthSyncStatus.permissionDenied:
       case HealthSyncStatus.protectedDataUnavailable:
       case HealthSyncStatus.codeExpired:
+      case HealthSyncStatus.codeRejected:
       case HealthSyncStatus.failed:
         return SyncOutcome.failure;
     }

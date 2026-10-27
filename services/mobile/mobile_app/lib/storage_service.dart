@@ -98,6 +98,22 @@ class StorageService {
     await prefs.setString(_rejectedCodeKey, code);
   }
 
+  /// Whether currently linked code was marked rejected by server
+  static Future<bool> isLinkedCodeRejected() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString(_deviceIdKey);
+    if (!isStudyCode(code)) return false;
+    return prefs.getString(_rejectedCodeKey) == code;
+  }
+
+  /// Whether currently linked code has expired by its exp timestamp
+  static Future<bool> isLinkedCodeExpired() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString(_deviceIdKey);
+    if (!isStudyCode(code)) return false;
+    return isCodeExpired(code);
+  }
+
   /// The linked code has expired or was refused by the server; uploads
   /// only resume after the QR code is scanned again.
   static Future<bool> isLinkedCodeUnusable() async {

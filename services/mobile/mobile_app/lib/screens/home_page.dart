@@ -179,6 +179,8 @@ class _ConnectedView extends StatelessWidget {
       HealthSyncStatus.permissionDenied =>
         'Access to ${AppConfig.healthStore} is needed. '
             '${AppConfig.healthAccessHint}',
+      HealthSyncStatus.codeRejected =>
+        'Your personal code was rejected by the server (Unauthorized). Please scan a new QR code.',
       HealthSyncStatus.codeExpired =>
         'Your personal code has expired. Please scan your QR code again.',
       HealthSyncStatus.failed =>
@@ -209,8 +211,10 @@ class _ConnectedView extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final expired = !state.isSyncing && state.codeExpired;
+    final rejected = !state.isSyncing && state.codeRejected;
     final failed =
         expired ||
+        rejected ||
         (!state.isSyncing && state.lastOutcome == SyncOutcome.failure);
     final incomplete =
         !state.isSyncing &&
@@ -241,13 +245,15 @@ class _ConnectedView extends StatelessWidget {
                         progress: state.progress,
                         failed: failed,
                         incomplete: incomplete,
-                        expired: expired,
+                        expired: expired || rejected,
                       ),
                     ),
                     const SizedBox(height: 28),
                     Text(
                       state.isSyncing
                           ? 'Sharing your data…'
+                          : rejected
+                          ? 'Personal code rejected'
                           : expired
                           ? 'Personal code expired'
                           : failed
@@ -263,6 +269,9 @@ class _ConnectedView extends StatelessWidget {
                       state.isSyncing
                           ? 'Please keep the app open until sharing has finished. '
                                 'Progress is saved, so it continues where it stopped.'
+                          : rejected
+                          ? 'The server refused your code (Unauthorized). '
+                                'Please scan a valid personal QR code again to continue.'
                           : expired
                           ? 'New data cannot be shared with your current code. '
                                 'Please scan the QR code on your information sheet '
@@ -298,13 +307,13 @@ class _ConnectedView extends StatelessWidget {
                           child: _InfoTile(
                             icon: Symbols.autorenew_sharp,
                             label: 'Automatic sharing',
-                            value: expired ? 'Paused' : 'On',
+                            value: (expired || rejected) ? 'Paused' : 'On',
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 28),
-                    if (expired)
+                    if (expired || rejected)
                       FilledButton.icon(
                         onPressed: () => _rescan(context),
                         icon: const Icon(Symbols.qr_code_scanner_sharp),

@@ -238,6 +238,7 @@ class NotificationService {
   static String? actionReason(HealthSyncStatus status) => switch (status) {
     HealthSyncStatus.permissionDenied => 'permission',
     HealthSyncStatus.codeExpired => 'code',
+    HealthSyncStatus.codeRejected => 'code',
     _ => null,
   };
 
