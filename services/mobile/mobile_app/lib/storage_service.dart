@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -81,6 +82,25 @@ class StorageService {
       final exp = (jsonDecode(payload) as Map<String, dynamic>)['exp'];
       if (exp is! num) return null;
       return DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Ingest endpoint specified in the QR code JWT (for local testing)
+  /// Only in [kDebugMode]; release builds always ignore this
+  static String? codeEndpoint(String? code) {
+    if (!kDebugMode || !isStudyCode(code)) return null;
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(code!.split('.')[1])),
+      );
+      final endpoint =
+          (jsonDecode(payload) as Map<String, dynamic>)['endpoint'];
+      if (endpoint is String && endpoint.trim().isNotEmpty) {
+        return endpoint.trim();
+      }
+      return null;
     } catch (_) {
       return null;
     }

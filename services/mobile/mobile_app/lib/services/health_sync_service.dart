@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 
@@ -58,6 +59,16 @@ class HealthSyncService {
   // itself queries one type after another.
   static const _typeGroupSize = 8;
   static const _endpoint = 'https://wearables.charite.de/import/ingest';
+
+  /// Resolves the target ingest endpoint
+  /// In [kDebugMode], a study code may specify a custom URL for local testing; Release builds always use production [_endpoint]
+  static String endpointFor(String deviceId) {
+    if (kDebugMode) {
+      final custom = StorageService.codeEndpoint(deviceId);
+      if (custom != null) return custom;
+    }
+    return _endpoint;
+  }
 
   Future<HealthSyncResult> sendSinceLastSync({
     bool requestPermissions = true,
@@ -481,7 +492,11 @@ class HealthSyncService {
       'timestamp': DateTime.now().toIso8601String(),
     };
 
-    final request = await client.postUrl(Uri.parse(_endpoint));
+    final targetUrl = endpointFor(deviceId);
+    if (kDebugMode && targetUrl != _endpoint) {
+      debugPrint('Syncing to custom dev endpoint: $targetUrl');
+    }
+    final request = await client.postUrl(Uri.parse(targetUrl));
     request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
     request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $deviceId');
     request.add(utf8.encode(jsonEncode(payload)));

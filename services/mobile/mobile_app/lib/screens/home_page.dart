@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../app_config.dart';
+import '../storage_service.dart';
 import '../services/health_sync_service.dart';
 import '../services/sync_activity_notifier.dart';
 import '../state/app_state.dart';
@@ -290,6 +292,19 @@ class _ConnectedView extends StatelessWidget {
                       ),
                       textAlign: TextAlign.center,
                     ),
+                    if (kDebugMode &&
+                        StorageService.codeEndpoint(state.deviceId) != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Dev Endpoint: ${StorageService.codeEndpoint(state.deviceId)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'Menlo',
+                          color: AppColors.blue,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                     const SizedBox(height: 36),
                     Row(
                       children: [
