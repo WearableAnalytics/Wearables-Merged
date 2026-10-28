@@ -293,16 +293,81 @@ class _ConnectedView extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     if (kDebugMode &&
-                        StorageService.codeEndpoint(state.deviceId) != null) ...[
+                        StorageService.codeEndpoint(state.deviceId) !=
+                            null) ...[
                       const SizedBox(height: 12),
-                      Text(
-                        'Dev Endpoint: ${StorageService.codeEndpoint(state.deviceId)}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'Menlo',
-                          color: AppColors.blue,
-                        ),
-                        textAlign: TextAlign.center,
+                      Builder(
+                        builder: (context) {
+                          final endpoint = StorageService.codeEndpoint(
+                            state.deviceId,
+                          )!;
+                          final isHttp = endpoint.toLowerCase().startsWith(
+                            'http://',
+                          );
+
+                          if (isHttp) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF3CD),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: const Color(0xFFFFEEBA),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Symbols.warning_amber_rounded,
+                                    size: 16,
+                                    color: Color(0xFF856404),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Local Dev Endpoint (HTTP unencrypted):',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF856404),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          endpoint,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontFamily: 'Menlo',
+                                            color: Color(0xFF856404),
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          return Text(
+                            'Dev Endpoint: $endpoint',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Menlo',
+                              color: AppColors.blue,
+                            ),
+                            textAlign: TextAlign.center,
+                          );
+                        },
                       ),
                     ],
                     const SizedBox(height: 36),

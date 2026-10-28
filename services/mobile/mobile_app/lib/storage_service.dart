@@ -98,12 +98,33 @@ class StorageService {
       final endpoint =
           (jsonDecode(payload) as Map<String, dynamic>)['endpoint'];
       if (endpoint is String && endpoint.trim().isNotEmpty) {
-        return endpoint.trim();
+        final trimmed = endpoint.trim();
+        if (isAllowedDebugEndpoint(trimmed)) {
+          return trimmed;
+        }
       }
       return null;
     } catch (_) {
       return null;
     }
+  }
+
+  /// Validates custom debug endpoints:
+  /// - [https] is always permitted
+  /// - [http] is strictly limited to localhost and private LANs (10.x, 192.168.x, 172.16-31.x)
+  static bool isAllowedDebugEndpoint(String url) {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null) return false;
+    if (uri.scheme == 'https') return true;
+    if (uri.scheme == 'http') {
+      final host = uri.host.toLowerCase();
+      if (host == 'localhost' || host == '127.0.0.1') return true;
+      if (host.startsWith('10.') || host.startsWith('192.168.')) return true;
+      final rfc1918_172 = RegExp(r'^172\.(1[6-9]|2[0-9]|3[0-1])\.');
+      if (rfc1918_172.hasMatch(host)) return true;
+      return false;
+    }
+    return false;
   }
 
   static bool isCodeExpired(String? code, {DateTime? now}) {
