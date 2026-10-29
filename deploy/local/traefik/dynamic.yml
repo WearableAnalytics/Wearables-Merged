@@ -8,6 +8,10 @@ http:
       rule: PathPrefix(`/import`)
       service: importservice
       middlewares: [strip-import]
+    cloud:
+      rule: PathPrefix(`/cloud`)
+      service: cloud-connector
+      middlewares: [strip-cloud]
     grafana-proxy:
       rule: PathPrefix(`/proxy`)
       service: grafana-proxy
@@ -21,6 +25,9 @@ http:
     strip-import:
       stripPrefix:
         prefixes: [/import]
+    strip-cloud:
+      stripPrefix:
+        prefixes: [/cloud]
 
   services:
     bff:
@@ -29,6 +36,9 @@ http:
     importservice:
       loadBalancer:
         servers: [{ url: http://importservice:8000 }]
+    cloud-connector:
+      loadBalancer:
+        servers: [{ url: http://cloud-connector:8000 }]
     grafana-proxy:
       loadBalancer:
         servers: [{ url: http://grafana-proxy:3002 }]

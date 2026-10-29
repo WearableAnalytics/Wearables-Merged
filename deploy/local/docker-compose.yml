@@ -127,6 +127,15 @@ services:
       kafka-init:
         condition: service_completed_successfully
 
+  cloud-connector:
+    build: ../../services/backend/cloud-connector
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: wearables-raw
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+
   fhir-mapper-validator:
     build: ../../services/backend/fhir-mapper-validator
     environment:
