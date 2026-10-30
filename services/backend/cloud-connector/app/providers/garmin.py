@@ -172,7 +172,10 @@ class GarminProvider(BaseCloudProvider):
         summary_keys = [
             "pulseOx",
             "respiration",
+            "allDayRespiration",
             "hrv",
+            "hrvSummary",
+            "hrvSummaries",
             "dailies",
             "epochs",
             "sleeps",
@@ -431,7 +434,7 @@ class GarminProvider(BaseCloudProvider):
         items = data if isinstance(data, list) else [data]
         for item in items:
             start_ts = item.get("startTimeInSeconds", 0)
-            time_offsets = item.get("timeOffsetEpochToBreaths") or {}
+            time_offsets = item.get("timeOffsetEpochToBreaths") or item.get("timeOffsetRespirationSamples") or {}
             for offset_str, val in time_offsets.items():
                 if val is not None and val > 0:
                     ts = datetime.fromtimestamp(start_ts + int(offset_str), tz=timezone.utc)
@@ -941,8 +944,14 @@ class GarminProvider(BaseCloudProvider):
             inst.extend(self._parse_pulse_ox(bundle["pulseOx"]))
         if "respiration" in bundle:
             inst.extend(self._parse_respiration(bundle["respiration"]))
+        if "allDayRespiration" in bundle:
+            inst.extend(self._parse_respiration(bundle["allDayRespiration"]))
         if "hrv" in bundle:
             inst.extend(self._parse_hrv(bundle["hrv"]))
+        if "hrvSummary" in bundle:
+            inst.extend(self._parse_hrv(bundle["hrvSummary"]))
+        if "hrvSummaries" in bundle:
+            inst.extend(self._parse_hrv(bundle["hrvSummaries"]))
         if "dailies" in bundle:
             i, c, d, s = self._parse_dailies(bundle["dailies"])
             inst.extend(i)
