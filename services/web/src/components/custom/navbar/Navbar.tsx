@@ -8,6 +8,7 @@ import {
   ADMIN_APPROVALS_UPDATED_EVENT,
   type AdminApprovalsUpdatedDetail,
 } from '@/lib/adminApprovalsEvents';
+import { useMessageToast } from '@/lib/toast';
 import { useAuth } from '@/context/AuthContext';
 import { LOGOUT_REASON_SUCCESS, getLogoutPath } from '@/lib/authSession';
 import { canAccessPractitionerPages, canAccessResearcherPages, isAdminUser } from '@/lib/userAccess';
@@ -30,6 +31,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [openApprovalsCount, setOpenApprovalsCount] = useState(0);
   const { activeCase, patient } = useActiveCase();
   const { user, logout } = useAuth();
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  useMessageToast('error', 'logout-error', logoutError);
   const isCasePage = location.pathname.startsWith('/cases/');
   const activePatientName = patient ? `${patient.firstName} ${patient.lastName}` : null;
   const isAuthenticated = !!user;
@@ -119,12 +122,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleLogout = async () => {
     try {
       setIsLoggingOut(true);
+      setLogoutError(null);
       await logout();
-    } catch (err) {
-      console.error('Logout failed:', err);
+      void navigate(getLogoutPath(LOGOUT_REASON_SUCCESS), { replace: true });
+    } catch {
+      setLogoutError('Logout could not be confirmed. Please try again.');
     } finally {
       setIsLoggingOut(false);
-      void navigate(getLogoutPath(LOGOUT_REASON_SUCCESS), { replace: true });
     }
   };
 

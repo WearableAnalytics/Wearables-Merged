@@ -7,6 +7,7 @@ import { CasePage } from './pages/case/CasePage';
 import { PrivateRoute } from './components/PrivateRoute';
 import { LandingPage } from './pages/Landing';
 import { ErrorMagicLinkPage } from './pages/ErrorMagicLink';
+import { AdminCaseAccessPage } from './pages/AdminCaseAccess';
 import { AdminApprovalsPage } from './pages/AdminApprovals';
 import { AccountPage } from './pages/Account';
 import { AuthRequestSentPage } from './pages/AuthRequestSent';
@@ -63,6 +64,7 @@ export function Routing() {
           </PrivateRoute>
         }
       />
+      <Route path="/admin/case-access" element={<PrivateRoute requireAdmin><AdminCaseAccessPage /></PrivateRoute>} />
       <Route
         path="/researcher/api-access"
         element={

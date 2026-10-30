@@ -1,3 +1,5 @@
+> This branch changes account and case access. Read [setup and compatibility limits](../../docs/accounts-and-permissions.md) first.
+
 # Wearables Web Frontend
 
 React + Vite frontend for the Wearables platform.

@@ -18,8 +18,7 @@ export const GUEST_ROUTE_PATHS = [
   '/error-magic_link',
 ];
 
-export const isGuestRoute = (pathname: string): boolean =>
-  GUEST_ROUTE_PATHS.includes(pathname);
+export const isGuestRoute = (pathname: string): boolean => GUEST_ROUTE_PATHS.includes(pathname);
 
 export const dispatchSessionExpiredEvent = (): void => {
   if (typeof window === 'undefined') {
@@ -27,4 +26,9 @@ export const dispatchSessionExpiredEvent = (): void => {
   }
 
   window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
+};
+
+export const AUTH_USER_CHANGED_EVENT = 'auth-user-changed';
+export const dispatchUserChangedEvent = (): void => {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_USER_CHANGED_EVENT));
 };

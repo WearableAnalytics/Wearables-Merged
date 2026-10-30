@@ -231,6 +231,7 @@ export function AdminApprovalsPage() {
 
   return (
     <>
+      <a href="/admin/case-access" className="mb-4 inline-block text-primary underline">Manage case permissions</a>
       <PageHeader
         label="Admin"
         title="User access"

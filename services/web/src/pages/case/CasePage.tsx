@@ -9,8 +9,6 @@ import { useTheme } from '@/context/ThemeContext';
 import { formatDateDayMonthYear } from '@/lib/date';
 import { useMessageToast } from '@/lib/toast';
 import { appRuntimeConfig } from '@/config/runtimeConfig';
-import { CaseQrCard } from './components/CaseQrCard';
-import { CaseQrModal } from './components/CaseQrModal';
 import { CaseDataPanel, type CaseDisplayItem } from './components/CaseDataPanel';
 import {
   CaseMonitoringPanel,
@@ -127,7 +125,7 @@ function toDisplayItems(sectionData: RawSectionData | null): CaseDisplayItem[] {
   if (!sectionData) return [];
 
   return Object.entries(sectionData)
-    .filter(([, value]) => value !== undefined)
+    .filter(([key, value]) => value !== undefined && key !== 'caseToken')
     .map(([key, value]) => ({
       key,
       label: formatFieldLabel(key),
@@ -144,7 +142,6 @@ export function CasePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { setActiveCase, clearActiveCase, activeCase } = useActiveCase();
-  const [isQrOpen, setIsQrOpen] = useState(false);
   const [isDataPanelCollapsedMobile, setIsDataPanelCollapsedMobile] = useState(false);
   const [isPatientSectionCollapsed, setIsPatientSectionCollapsed] = useState(false);
   const [isCaseSectionCollapsed, setIsCaseSectionCollapsed] = useState(false);
@@ -186,7 +183,7 @@ export function CasePage() {
         const patientResponseJson = (await patientResponseRaw.raw.clone().json()) as RawSectionData;
         const patientResponse = await patientResponseRaw.value();
         const currentActiveCase = activeCaseRef.current;
-        const caseToken = caseResponse.caseToken ?? currentActiveCase?.caseToken ?? null;
+        const caseToken = null; // Mobile enrollment is not part of staff permissions.
         const mergedCase = { ...caseResponse, caseToken };
 
         if (cancelled) return;
@@ -331,9 +328,16 @@ export function CasePage() {
           />
         </div>
         <div className="w-full md:w-auto md:max-w-[380px] md:self-center">
-          <CaseQrCard caseToken={caseData?.caseToken} onOpen={() => setIsQrOpen(true)} />
+          <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+            Phone enrollment is not available in this access-control branch.
+          </p>
         </div>
       </div>
+
+      <p role="status" className="my-4 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+        Case metadata uses your current staff assignment. Charts, exports and phone QR enrollment
+        are paused here until each workflow has case-scoped access. Dashboard definitions are preserved.
+      </p>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-4 md:items-start">
         <CaseDataPanel
@@ -351,7 +355,7 @@ export function CasePage() {
 
         <CaseMonitoringPanel
           loading={loading}
-          error={error}
+          error={error ?? (caseData ? 'Charts are paused until case-scoped dashboard access is available.' : null)}
           monitoringViews={MONITORING_VIEWS}
           separatedMonitoringViewIds={['aiInsights']}
           activeMonitoringView={activeMonitoringView}
@@ -369,7 +373,6 @@ export function CasePage() {
         />
       </section>
 
-      <CaseQrModal isOpen={isQrOpen} caseToken={caseData?.caseToken} onClose={() => setIsQrOpen(false)} />
     </>
   );
 }
