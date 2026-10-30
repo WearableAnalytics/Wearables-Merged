@@ -1321,7 +1321,7 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "km",
+            "axisLabel": "m",
             "axisPlacement": "auto",
             "barAlignment": 0,
             "barWidthFactor": 0.6,
@@ -1361,7 +1361,7 @@
               }
             ]
           },
-          "unit": "lengthkm"
+          "unit": "lengthm"
         },
         "overrides": []
       },
