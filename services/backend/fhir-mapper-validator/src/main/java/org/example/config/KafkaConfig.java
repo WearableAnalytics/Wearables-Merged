@@ -47,7 +47,23 @@ public class KafkaConfig {
 
         configurations.put(StreamsConfig.REQUEST_TIMEOUT_MS_CONFIG, "20000");
         configurations.put(StreamsConfig.RETRY_BACKOFF_MS_CONFIG, "500");
+        applyTransportSecurity(configurations, System.getenv("KAFKA_SECURITY_PROPERTIES_JSON"));
         return configurations;
+    }
+
+    public static void applyTransportSecurity(Properties target, String json) {
+        if (json == null || json.isBlank()) return;
+        var allowed = java.util.Set.of("security.protocol", "sasl.mechanism", "sasl.jaas.config",
+                "ssl.truststore.location", "ssl.truststore.password", "ssl.truststore.type",
+                "ssl.keystore.location", "ssl.keystore.password", "ssl.keystore.type", "ssl.key.password");
+        var object = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+        for (var entry : object.entrySet()) {
+            if (!allowed.contains(entry.getKey()) || !entry.getValue().isJsonPrimitive()
+                    || !entry.getValue().getAsJsonPrimitive().isString()) {
+                throw new IllegalArgumentException("Unsupported Kafka transport setting");
+            }
+            target.put(entry.getKey(), entry.getValue().getAsString());
+        }
     }
 
 }

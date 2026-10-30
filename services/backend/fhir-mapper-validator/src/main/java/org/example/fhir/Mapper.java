@@ -33,6 +33,10 @@ public class Mapper {
     }
 
     public String mapAndValidate(String value, Map<String, Set<Node>> categoryGraphs) {
+        return mapAndValidate(value, categoryGraphs, false);
+    }
+
+    public String mapAndValidate(String value, Map<String, Set<Node>> categoryGraphs, boolean strictValidation) {
         try {
             if (value == null || value.isBlank()) {
                 log.warn("Pushing empty payload to DLQ");
@@ -45,10 +49,10 @@ public class Mapper {
             try {
                 categoryFhirTuple = mapFhir(value);
             } catch (IllegalArgumentException e) {
-                log.error(e.toString());
+                log.error("FHIR mapping failed");
                 return dlq(e.toString(), value);
             } catch (RuntimeException e) {
-                log.warn(e.toString());
+                log.warn("FHIR mapping failed");
                 return dlq(e.toString(), value);
             }
 
@@ -69,9 +73,10 @@ public class Mapper {
             }
 
             try{
-                validationCounter = Validator.validateFhir(fhir, validationCounter);
+                if (strictValidation) Validator.validateAlways(fhir);
+                else validationCounter = Validator.validateFhir(fhir, validationCounter);
             }catch(IllegalArgumentException iae){
-                log.warn("fhir validation failed with exception: {}", iae.getMessage());
+                log.warn("FHIR validation failed");
                 return dlq("Mapped fhir is not valid", fhir.toString());
             }
 
@@ -110,6 +115,11 @@ public class Mapper {
             throw new RuntimeException("Incoming payload must be a JSON object");
         }
         JsonObject incoming = parsed.getAsJsonObject();
+        // Historical Kafka records used deviceId for the participant. New uploads
+        // bind participantId explicitly and retain the sender/device information.
+        if (!incoming.has("participantId") && incoming.has("deviceInfo")) {
+            incoming.add("participantId", incoming.getAsJsonObject("deviceInfo").get("deviceId"));
+        }
         JsonObject metadataTemplate = buildMetadataBlock(incoming);
         MeasurementConfig measurementCfg = this.yaml.getMeasurement();
         if (measurementCfg == null || measurementCfg.getPaths() == null || measurementCfg.getPaths().isEmpty()) {
@@ -134,7 +144,7 @@ public class Mapper {
                 if (!outgoingMeasurementTemplate.isEmpty() && res1 && res2) {
                     return new Pair<>(pathConfig.getPath(), outgoingMeasurementTemplate);
                 } else {
-                    throw new RuntimeException(String.format("Invalid fhir created through mapping: %s", outgoingMeasurementTemplate));
+                    throw new RuntimeException(String.format("Invalid FHIR created through mapping%s", ""));
                 }
             } else {
                 throw new RuntimeException("Mapping of only a subset of measurements is not yet supported");
@@ -142,7 +152,7 @@ public class Mapper {
             }
         }
 
-        throw new RuntimeException(String.format("No measurements were contained in one of the broken down Jsons: %s", str));
+        throw new RuntimeException(String.format("No measurement was contained in the flattened payload%s", ""));
     }
 
     public List<String> flatMapJson(String value) {

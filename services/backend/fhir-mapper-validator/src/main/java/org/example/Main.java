@@ -41,7 +41,7 @@ public class Main {
 
         log.debug("Using slf4j for logging");
 
-        Validator.initiliazeFhirValidator(100);
+        Validator.initiliazeFhirValidator(Environment.VALIDATION_FREQUENCY);
         Mapper mapper = new Mapper(Environment.TEMPLATE, Environment.VALIDATION_FREQUENCY);
 
         DependencyGraph dependencyGraph = new DependencyGraph(Environment.TEMPLATE);
@@ -65,7 +65,24 @@ public class Main {
         //Define an input topic: Raw JSON from providers
         KStream<String, String> rawJson = builder.stream(Environment.INPUT_TOPIC);
 
-        KStream<String, String> flattened = rawJson.flatMapValues(mapper::flatMapJson);
+        String signingKey = System.getenv("INGEST_SIGNING_KEY");
+        if (signingKey == null || signingKey.isBlank()) {
+            throw new IllegalStateException("INGEST_SIGNING_KEY is required for the receipt-backed topology");
+        }
+        final ReliableProcessor reliable;
+        try {
+            reliable = new ReliableProcessor(mapper, categoryGraphs, Base64.getDecoder().decode(signingKey),
+                    ReliableProcessor.artifactVersion(java.nio.file.Path.of(Environment.MAPPING_YAML_PATH)));
+        } catch (Exception ex) {
+            throw new IllegalStateException("Invalid reliable-ingestion configuration");
+        }
+        rawJson.filter((key, value) -> ReliableProcessor.isEnvelope(value))
+                .mapValues(reliable::process).filter((key, value) -> value != null)
+                .to(Environment.RESULTS_TOPIC);
+
+        KStream<String, String> flattened = rawJson
+                .filter((key, value) -> !ReliableProcessor.isEnvelope(value))
+                .flatMapValues(mapper::flatMapJson);
 
         KStream<String, String> rekeyed = flattened.selectKey((oldKey, value) -> parallelKey(value));
 
@@ -79,7 +96,7 @@ public class Main {
         KStream<String, String> output = repartitioned.mapValues(value -> mapper.mapAndValidate(value, categoryGraphs));
 
         Map<String, KStream<String, String>> branches = output.split(Named.as("res-"))
-                .branch((k, v) -> v != null && !v.substring(0, 5).contains("{"), Branched.as("valid"))
+                .branch((k, v) -> v != null && !v.isBlank() && !v.startsWith("{"), Branched.as("valid"))
                 .defaultBranch(Branched.as("dlq"));
 
         KStream<String, String> fhirDLQ = branches.get("res-dlq");
