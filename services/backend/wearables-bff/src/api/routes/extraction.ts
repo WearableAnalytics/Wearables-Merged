@@ -16,7 +16,11 @@ import { checkApiToken } from '../../services/apiTokens.js';
  */
 const router = express.Router();
 
-const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'cache-control'];
+const FORWARDED_RESPONSE_HEADERS = [
+  'content-type', 'content-disposition', 'cache-control',
+  'x-export-considered', 'x-export-exported', 'x-export-omitted',
+  'x-export-omitted-unsupported', 'x-export-omitted-invalid-value',
+];
 
 const bearerToken = (req: Request): string | undefined => {
   const header = req.headers.authorization;

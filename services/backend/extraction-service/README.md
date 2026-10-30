@@ -19,6 +19,42 @@ All data endpoints take `measurement`, `patient_id`, `start` and `end`, all opti
   `src/app/default_fhir_mapping.yaml` (a copy of the mapper-validator mapping in
   `gitops/apps/services/mapper-validator/templates/mappings-config-map.yaml`; keep them in sync).
 
+## Optional pseudonymized downloads
+
+Add `pseudonymize=true` to either file export endpoint:
+
+- `/v1/measurements/export.csv?pseudonymize=true`
+- `/v1/measurements/export.fhir?pseudonymize=true`
+
+The default is `false`. Each download uses fresh random patient UUIDs, consistent
+within that download. Different downloads (including CSV versus FHIR) cannot be
+joined using these UUIDs. The mapping exists only in request memory and is not saved.
+Filtering still uses the original patient ID. Missing patient IDs remain missing.
+
+This restricted mode includes only finite numeric `value` measurements known to the
+bundled FHIR mapping. Unknown measurement types and nonnumeric values are omitted.
+Extra fields, raw tags, device information and individual FHIR mappings are excluded;
+FHIR uses the bundled mapping and fresh Observation IDs. CSV's `fields` column is empty.
+The filenames contain `pseudonymized`, and downloads use `Cache-Control: no-store`.
+
+Privacy downloads report exact counts in `X-Export-Considered`, `X-Export-Exported`,
+`X-Export-Omitted`, `X-Export-Omitted-Unsupported` and `X-Export-Omitted-Invalid-Value`
+response headers. Counts refer to filtered readings **after deduplication**. A reading
+with an unknown type is counted as unsupported even if its value is also invalid.
+When readings are omitted, the filename includes the count, for example
+`measurements-pseudonymized-2-omitted.csv`. CSV/FHIR bodies keep their existing format.
+
+To report counts for the actual download, privacy mode prepares the complete export
+before sending response headers. Up to 8 MiB is buffered in memory; larger bodies use
+an automatically closed temporary file. Downloads therefore start after preparation
+and require sufficient temporary disk space. Ordinary exports still stream directly.
+The BFF forwards these counters. The local `demo_export.py` page displays the totals
+and reasons; the production web UI has not yet been extended to display them.
+
+This is pseudonymization, **not anonymization**: exact timestamps and measurement
+values remain, and may still allow identification through other data. The paged JSON
+API is unchanged. This option does not modify stored measurements or access controls.
+
 ## Access
 The service has no auth of its own and is only reachable in the cluster. The Wearables BFF serves it
 at `/api/extraction` (set `EXTRACTION_API_URL` on the BFF) for logged-in researchers and admins, or
