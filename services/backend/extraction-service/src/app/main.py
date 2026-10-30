@@ -9,7 +9,7 @@ from contextlib import aclosing, asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
-from uuid import NAMESPACE_URL, uuid5
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
@@ -18,8 +18,10 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 
 from .clients import create_db_lord_client
 from .db_lord_api import DbLordApi
+from .export_response import EXPORT_HEADERS, prepare_export
 from .fhir import ObservationBuilder
 from .points import iter_readings, read_page, reading_key
+from .privacy import ExportPrivacy
 from .reconciliation import Mode, bounded_readings, reconcile
 from .schemas import MeasurementPage, MeasurementPoint, MeasurementType
 from .settings import settings
@@ -27,9 +29,10 @@ from .settings import settings
 PLATFORM_NAME = "Charité Wearables platform"
 DOCS_TITLE = f"Extraction API | {PLATFORM_NAME}"
 # Inlined so the docs pages show the platform's W mark without another authenticated request.
-FAVICON_URL = "data:image/png;base64," + base64.b64encode(
-    (Path(__file__).parent / "static" / "favicon-32.png").read_bytes()
-).decode()
+FAVICON_URL = (
+    "data:image/png;base64,"
+    + base64.b64encode((Path(__file__).parent / "static" / "favicon-32.png").read_bytes()).decode()
+)
 
 DESCRIPTION = """
 Export wearable measurements stored on the Charité Wearables platform.
@@ -205,6 +208,14 @@ async def get_measurements(
 
 CSV_COLUMNS = ["timestamp", "measurement", "patient_id", "category", "value", "fields"]
 
+Pseudonymize = Annotated[
+    bool,
+    Query(
+        description="Use fresh patient pseudonyms per export. Only known numeric measurements are included; "
+        "extra fields and custom FHIR mappings are excluded. Timestamps are preserved. Not anonymization."
+    ),
+]
+
 
 def csv_line(values: list) -> str:
     buffer = io.StringIO()
@@ -218,17 +229,23 @@ def csv_line(values: list) -> str:
     summary="Export measurements as CSV",
     description="Streams all matching readings, newest first. `fields` holds any extra fields as JSON.",
     response_class=StreamingResponse,
-    responses={200: {"content": {"text/csv": {}}, "description": "CSV file"}},
+    responses={200: {"content": {"text/csv": {}}, "description": "CSV file", "headers": EXPORT_HEADERS}},
 )
 async def export_measurements_csv(
     filters: Annotated[ReadingFilter, Depends()],
     api: DbLordDep,
+    pseudonymize: Pseudonymize = False,
 ):
+    privacy = ExportPrivacy() if pseudonymize else None
 
     async def rows() -> AsyncIterator[str]:
         yield csv_line(CSV_COLUMNS)
         async with aclosing(filters.readings(api)) as readings:
             async for point in readings:
+                if privacy is not None:
+                    point = privacy.project(point)
+                    if point is None:
+                        continue
                 row = MeasurementPoint.from_telemetry(point)
                 yield csv_line(
                     [
@@ -237,14 +254,24 @@ async def export_measurements_csv(
                         row.patient_id or "",
                         row.category or "",
                         "" if row.value is None else row.value,
-                        json.dumps(row.fields, ensure_ascii=False) if row.fields else "",
+                        ""
+                        if privacy is not None
+                        else (json.dumps(row.fields, ensure_ascii=False) if row.fields else ""),
                     ]
                 )
+
+    if privacy is not None:
+        return await prepare_export(rows(), privacy, media_type="text/csv", suffix="csv")
 
     return StreamingResponse(
         rows(),
         media_type="text/csv",
-        headers={"Content-Disposition": 'attachment; filename="measurements.csv"'},
+        headers={
+            "Content-Disposition": 'attachment; filename="measurements-pseudonymized.csv"'
+            if pseudonymize
+            else 'attachment; filename="measurements.csv"',
+            "Cache-Control": "no-store",
+        },
     )
 
 
@@ -255,32 +282,59 @@ async def export_measurements_csv(
     description="Streams a FHIR R4 `collection` Bundle with one Observation per reading. Readings whose type has "
     "no FHIR mapping are left out.",
     response_class=StreamingResponse,
-    responses={200: {"content": {"application/fhir+json": {}}, "description": "FHIR Bundle"}},
+    responses={
+        200: {
+            "content": {"application/fhir+json": {}},
+            "description": "FHIR Bundle",
+            "headers": EXPORT_HEADERS,
+        }
+    },
 )
 async def export_measurements_fhir(
     filters: Annotated[ReadingFilter, Depends()],
     api: DbLordDep,
+    pseudonymize: Pseudonymize = False,
 ):
     builder = ObservationBuilder(api)
+    privacy = ExportPrivacy() if pseudonymize else None
 
     async def bundle() -> AsyncIterator[str]:
         yield '{"resourceType":"Bundle","type":"collection","entry":['
         first = True
         async with aclosing(filters.readings(api)) as readings:
             async for point in readings:
-                observation = await builder.build(point)
+                if privacy is not None:
+                    point = privacy.project(point)
+                    if point is None:
+                        continue
+                observation = privacy.observation(point) if privacy is not None else await builder.build(point)
                 if observation is None:
                     continue
-                reading = json.dumps([point.timestamp.isoformat(), reading_key(point)], sort_keys=True, default=str)
-                resource_id = str(uuid5(NAMESPACE_URL, reading))
+                if pseudonymize:
+                    # Fresh ids: stable ones would let downloads be joined.
+                    resource_id = str(uuid4())
+                    observation.pop("device", None)
+                else:
+                    reading = json.dumps(
+                        [point.timestamp.isoformat(), reading_key(point)], sort_keys=True, default=str
+                    )
+                    resource_id = str(uuid5(NAMESPACE_URL, reading))
                 observation["id"] = resource_id
                 entry = {"fullUrl": f"urn:uuid:{resource_id}", "resource": observation}
                 yield ("" if first else ",") + json.dumps(entry, ensure_ascii=False)
                 first = False
         yield "]}"
 
+    if privacy is not None:
+        return await prepare_export(bundle(), privacy, media_type="application/fhir+json", suffix="fhir.json")
+
     return StreamingResponse(
         bundle(),
         media_type="application/fhir+json",
-        headers={"Content-Disposition": 'attachment; filename="measurements.fhir.json"'},
+        headers={
+            "Content-Disposition": 'attachment; filename="measurements-pseudonymized.fhir.json"'
+            if pseudonymize
+            else 'attachment; filename="measurements.fhir.json"',
+            "Cache-Control": "no-store",
+        },
     )
