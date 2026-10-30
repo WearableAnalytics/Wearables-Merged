@@ -5,11 +5,13 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi_pagination import add_pagination
 from influxdb_client.rest import ApiException as InfluxApiException
 from sqlalchemy.exc import IntegrityError, InvalidRequestError, OperationalError, SQLAlchemyError
 
+from app.api.control_auth import ControlBoundary
 from app.api.errors import (
     bad_request_handler,
     conflict_error_handler,
@@ -20,7 +22,20 @@ from app.api.errors import (
     postgres_unavailable_handler,
     sqlalchemy_invalid_request_handler,
 )
-from app.api.routers import api_tokens, cases, contexts, devices, fhir_mapping, graphql, patients, telemetry, wearables
+from app.api.legacy_boundary import LegacyBoundary
+from app.api.routers import (
+    api_tokens,
+    case_access,
+    cases,
+    contexts,
+    control,
+    devices,
+    fhir_mapping,
+    graphql,
+    patients,
+    telemetry,
+    wearables,
+)
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, ConflictError, DuplicateEntityError, EntityNotFoundError
 from app.core.json_types import JsonObject
@@ -156,6 +171,11 @@ def create_app() -> FastAPI:
     for exc_type, handler in exception_handlers:
         app.add_exception_handler(exc_type, handler)  # type: ignore[arg-type]
 
+    app.add_middleware(LegacyBoundary)
+    app.add_middleware(ControlBoundary)
+    app.include_router(control.router, prefix="/control", tags=["accounts"])
+    app.include_router(case_access.router, prefix="/control", tags=["case-access"])
+
     app.include_router(patients.router, prefix="/patients", tags=["patients"])
     app.include_router(cases.router, prefix="/cases", tags=["cases"])
     app.include_router(devices.router, prefix="/devices", tags=["devices"])
@@ -165,6 +185,17 @@ def create_app() -> FastAPI:
     app.include_router(fhir_mapping.router, prefix="/fhir-mappings", tags=["fhir-mappings"])
     app.include_router(api_tokens.router, prefix="/api-tokens", tags=["api-tokens"])
     app.include_router(graphql.router, prefix="/graphql", tags=["graphql"])
+    # Account validation errors must not echo submitted identity or token hashes.
+    from fastapi.exception_handlers import request_validation_exception_handler
+
+    async def validation_error(request: Request, exc: RequestValidationError):
+        if request.url.path.startswith("/control/"):
+            return JSONResponse(
+                {"detail": "CONTROL_INVALID_REQUEST"}, status_code=422, headers={"Cache-Control": "no-store"}
+            )
+        return await request_validation_exception_handler(request, exc)
+
+    app.add_exception_handler(RequestValidationError, validation_error)
     add_pagination(app)
     return app
 

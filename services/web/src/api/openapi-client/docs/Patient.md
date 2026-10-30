@@ -21,7 +21,7 @@ const example = {
   "patientId": P-98765,
   "firstName": Max,
   "lastName": Mustermann,
-  "birthDate": Tue Jan 01 01:00:00 CET 1980,
+  "birthDate": Tue Jan 01 00:00:00 UTC 1980,
 } satisfies Patient
 
 console.log(example)

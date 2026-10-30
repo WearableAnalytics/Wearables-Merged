@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { PageHeader } from '@/components/custom/PageHeader';
-import { API_BASE_PATH, defaultApi } from '@/api/defaultApi';
+import { defaultApi } from '@/api/defaultApi';
 import type { Case, Patient } from '@/api/openapi-client';
 import { useMessageToast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 
-const formatBirthDate = (birthDate: Date | undefined) => {
+const formatBirthDate = (birthDate: Date | null | undefined) => {
   if (!(birthDate instanceof Date) || Number.isNaN(birthDate.getTime())) {
     return 'Unknown';
   }
@@ -95,7 +95,6 @@ export function OverviewPage() {
     };
   }, []);
 
-  const formattedBasePath = useMemo(() => API_BASE_PATH.replace(/\/$/, ''), []);
   const statusOptions = useMemo(
     () => Array.from(new Set(cases.map((item) => item.status))).sort(),
     [cases],
@@ -198,13 +197,8 @@ export function OverviewPage() {
     <>
       <PageHeader
         label="Overview"
-        title="All Patients"
-        description={
-          <>
-            Displaying every patient case returned by{' '}
-            <span className="font-mono tracking-[0.01em]">{formattedBasePath}</span>
-          </>
-        }
+        title="Assigned cases"
+        description="Only clinical cases covered by your current staff assignments are shown."
       />
 
       <section className="surface-card p-4 md:p-5">

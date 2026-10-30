@@ -1,184 +1,175 @@
 import cors from 'cors';
-import express, { Request, Response } from 'express';
+import express from 'express';
 import config from './config.js';
 import authRouter from './api/routes/auth.js';
 import extractionRouter from './api/routes/extraction.js';
 import apiTokensRouter from './api/routes/apiTokens.js';
-import { auth, requestLogger } from './middleware.js';
+import {
+  auth,
+  requestLogger,
+  requireCommandOrigin,
+  admitHttpRequest,
+  errorHandler,
+} from './middleware.js';
+import { asyncRoute, controlRequest, ControlApiError } from './clients/controlApi.js';
+import { clinicalCase, clinicalCases, type ClinicalMetadata } from './clients/clinicalMetadata.js';
+import { actor, actorQuery, isUuid } from './clients/caseAccess.js';
+import { getUserByEmail, initializeUsers } from './services/userStore.js';
 import { logger } from './logger.js';
-import { patientService, caseService, hospitalCaseService } from './services/index.js';
-import type {
-  CasesFromHospitalCasePostRequest,
-  CasesVerifyTokenPostRequest,
-} from './api/openapi-client/models/index.js';
 
-const app = express();
-
-app.use(cors({ origin: config.frontendOrigins, credentials: true }));
-app.use(express.json());
-app.use(requestLogger);
-app.use(config.apiPrefix, authRouter);
-
+export const app = express();
 const route = (path: string) => `${config.apiPrefix}${path}`;
-
-function sendError(res: Response, status: number, message: string, code?: string) {
-  return res.status(status).json({ message, code });
-}
-
-type CasesFromHospitalCaseBody =
-  CasesFromHospitalCasePostRequest;
-type CasesVerifyTokenBody =
-  CasesVerifyTokenPostRequest;
-
-app.get(route('/health'), (_req, res) => {
-  res.json({ status: 'ok' });
+app.disable('x-powered-by');
+app.use(cors({ origin: config.frontendOrigins, credentials: true }));
+app.use(admitHttpRequest);
+app.use(express.json({ limit: '32kb' }));
+app.use(requestLogger);
+app.use(config.apiPrefix, (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
 });
-
-// Has its own auth: researcher/admin session or a personal API token.
+app.use(config.apiPrefix, requireCommandOrigin);
+app.use(config.apiPrefix, authRouter);
+app.get(route('/health'), (_req, res) => res.json({ status: 'ok' }));
+// No broad export passthrough can bypass a case assignment.
 app.use(route('/extraction'), extractionRouter);
-
 app.use(config.apiPrefix, auth.required);
-
-// Personal export API tokens: researchers manage their own, admins can revoke any.
 app.use(config.apiPrefix, apiTokensRouter);
 
-app.use(config.apiPrefix, auth.practitionerOrAdmin);
-
-app.get(route('/hospital/cases/:hospitalCaseId'), async (req, res) => {
-  try {
-    const hospitalCase = await hospitalCaseService.findHospitalCase(req.params.hospitalCaseId);
-    if (!hospitalCase) {
-      return sendError(res, 404, 'Hospital case not found', 'NOT_FOUND');
-    }
-
-    return res.json(hospitalCase);
-  } catch (error) {
-    logger.error('Error fetching Hospital case', error as Error);
-    return sendError(res, 500, 'Internal server error');
-  }
-});
-
-app.get(route('/patients'), async (_req, res) => {
-  try {
-    const patients = await patientService.listPatients();
-    return res.json(patients);
-  } catch (error) {
-    logger.error('Error listing patients', error as Error);
-    return sendError(res, 500, 'Internal server error');
-  }
-});
-
-app.get(route('/patients/:patientId'), async (req, res) => {
-  try {
-    const patient = await patientService.getPatient(req.params.patientId);
-    if (!patient) {
-      return sendError(res, 404, 'Patient not found', 'NOT_FOUND');
-    }
-
-    return res.json(patient);
-  } catch (error) {
-    logger.error('Error fetching patient', error as Error);
-    return sendError(res, 500, 'Internal server error');
-  }
-});
-
-app.get(route('/patients/:patientId/cases'), async (req, res) => {
-  try {
-    const patient = await patientService.getPatient(req.params.patientId);
-    if (!patient) {
-      return sendError(res, 404, 'Patient not found', 'NOT_FOUND');
-    }
-
-    const cases = await patientService.getPatientCases(req.params.patientId);
-    return res.json(cases);
-  } catch (error) {
-    logger.error('Error fetching patient cases', error as Error);
-    return sendError(res, 500, 'Internal server error');
-  }
-});
-
-app.get(route('/cases'), async (_req, res) => {
-  try {
-    const cases = await caseService.listCases();
-    return res.json(cases);
-  } catch (error) {
-    logger.error('Error listing cases', error as Error);
-    return sendError(res, 500, 'Internal server error');
-  }
-});
-
-app.get(route('/cases/:caseId'), async (req, res) => {
-  try {
-    const caseRecord = await caseService.getCase(req.params.caseId);
-    if (!caseRecord) {
-      return sendError(res, 404, 'Case not found', 'NOT_FOUND');
-    }
-
-    return res.json(caseRecord);
-  } catch (error) {
-    logger.error('Error fetching case', error as Error);
-    return sendError(res, 500, 'Internal server error');
-  }
-});
-
-app.post(route('/cases/from-hospital-case'), async (req: Request, res: Response) => {
-  const { hospitalCaseId } = (req.body ?? {}) as CasesFromHospitalCaseBody;
-  if (typeof hospitalCaseId !== 'string' || !hospitalCaseId) {
-    return sendError(res, 400, 'hospitalCaseId is required');
-  }
-
-  try {
-    const creationResult = await caseService.createCaseFromHospital(hospitalCaseId);
-    if (!creationResult) {
-      return sendError(res, 404, 'Hospital case not found', 'NOT_FOUND');
-    }
-
-    const { created, caseRecord } = creationResult;
-    const payload = {
-      patientId: caseRecord.patientId,
-      caseId: caseRecord.caseId,
-      caseToken: caseRecord.caseToken ?? 'case-token-not-set',
-    };
-
-    return res.status(created ? 201 : 200).json(payload);
-  } catch (error) {
-    logger.error('Error creating case from Hospital', error as Error);
-    return sendError(res, 500, 'Internal server error');
-  }
-});
-
-app.post(route('/cases/verify-token'), async (req: Request, res: Response) => {
-  const { caseToken } = (req.body ?? {}) as CasesVerifyTokenBody;
-  if (typeof caseToken !== 'string' || !caseToken) {
-    return sendError(res, 400, 'caseToken is required');
-  }
-
-  try {
-    const verification = await caseService.verifyCaseToken(caseToken);
-    if (!verification) {
-      return sendError(res, 401, 'Invalid or expired token', 'INVALID_TOKEN');
-    }
-
-    const { caseRecord, patientVerifier } = verification;
-    return res.json({
-      caseId: caseRecord.caseId,
-      patientVerifier,
-      status: caseRecord.status,
+app.get(
+  route('/admin/staff-lookup'),
+  ...auth.adminOnly,
+  asyncRoute(async (req, res) => {
+    if (typeof req.query.email !== 'string' || req.query.email.length > 320)
+      throw new ControlApiError(422);
+    const user = await getUserByEmail(req.query.email);
+    res.json({
+      user:
+        user?.status === 'approved'
+          ? {
+              id: user.id,
+              email: user.email,
+              isAdmin: user.isAdmin,
+              roles: user.roles,
+            }
+          : null,
     });
-  } catch (error) {
-    logger.error('Error verifying case token', error as Error);
-    return sendError(res, 500, 'Internal server error');
-  }
-});
+  }),
+);
+app.get(
+  route('/admin/case-access/:caseId/:userId'),
+  ...auth.adminOnly,
+  asyncRoute(async (req, res) => {
+    if (!isUuid(req.params.caseId) || !isUuid(req.params.userId)) throw new ControlApiError(422);
+    res.json(
+      await controlRequest(
+        `/case-access/${req.params.caseId}/${req.params.userId}?${actorQuery(req.user!)}`,
+      ),
+    );
+  }),
+);
+app.put(
+  route('/admin/case-access/:caseId/:userId'),
+  ...auth.adminOnly,
+  asyncRoute(async (req, res) => {
+    if (!isUuid(req.params.caseId) || !isUuid(req.params.userId)) throw new ControlApiError(422);
+    // Never accept actor identity from the browser. The DB also checks this session version.
+    const { expected_revision, active, purpose, scopes, reason, ...unknown } = req.body ?? {};
+    if (Object.keys(unknown).length) throw new ControlApiError(422);
+    res.json(
+      await controlRequest(`/case-access/${req.params.caseId}/${req.params.userId}`, 'PUT', {
+        ...actor(req.user!),
+        expected_revision,
+        active,
+        purpose,
+        scopes,
+        reason,
+      }),
+    );
+  }),
+);
 
-app.use((_req, res) => {
-  return sendError(res, 404, 'Route not found', 'NOT_FOUND');
+app.use(config.apiPrefix, auth.practitionerOrAdmin);
+const asCase = (row: ClinicalMetadata) => ({
+  caseId: row.id,
+  patientId: row.patient_id,
+  status: ['PLANNED', 'ONGOING'].includes(row.status) ? 'active' : 'inactive',
+  caseToken: null,
 });
+const asPatient = (row: ClinicalMetadata) => ({
+  patientId: row.patient.id,
+  firstName: row.patient.name.split(' ')[0] || '',
+  lastName: row.patient.name.split(' ').slice(1).join(' ') || '',
+  birthDate: row.patient.dob,
+});
+app.get(
+  route('/patients'),
+  asyncRoute(async (req, res) => {
+    const rows = await clinicalCases(req.user!);
+    res.json([...new Map(rows.map((row) => [row.patient_id, asPatient(row)])).values()]);
+  }),
+);
+app.get(
+  route('/patients/:patientId'),
+  asyncRoute(async (req, res) => {
+    const rows = await clinicalCases(req.user!, req.params.patientId, true);
+    if (!rows.length) throw new ControlApiError(403, 'CASE_ACCESS_REQUIRED');
+    res.json(asPatient(rows[0]));
+  }),
+);
+app.get(
+  route('/patients/:patientId/cases'),
+  asyncRoute(async (req, res) => {
+    res.json((await clinicalCases(req.user!, req.params.patientId)).map(asCase));
+  }),
+);
+app.get(
+  route('/cases'),
+  asyncRoute(async (req, res) => {
+    res.json((await clinicalCases(req.user!)).map(asCase));
+  }),
+);
+app.get(
+  route('/cases/:caseId'),
+  asyncRoute(async (req, res) => {
+    res.json(asCase(await clinicalCase(req.user!, req.params.caseId)));
+  }),
+);
+// These old endpoints used a sample hospital lookup and long-lived mobile tokens.
+// Keep those workflows separate from staff permission management.
+app.get(route('/hospital/cases/:hospitalCaseId'), (_req, res) => {
+  res
+    .status(503)
+    .json({
+      code: 'HOSPITAL_IDENTITY_REQUIRED',
+      message: 'Verified hospital case lookup is not configured.',
+    });
+});
+app.post(route('/cases/from-hospital-case'), (_req, res) => {
+  res
+    .status(503)
+    .json({
+      code: 'HOSPITAL_IDENTITY_REQUIRED',
+      message: 'Use the operator case import and an explicit staff assignment.',
+    });
+});
+app.post(route('/cases/verify-token'), (_req, res) => {
+  res
+    .status(410)
+    .json({
+      code: 'MOBILE_ENROLLMENT_REQUIRED',
+      message: 'Mobile enrollment is a separate feature.',
+    });
+});
+app.use((_req, res) => res.status(404).json({ message: 'Route not found' }));
+app.use(errorHandler);
 
-app.listen(config.port, () => {
-  logger.info(`Wearables BFF listening on http://localhost:${config.port}${config.apiPrefix}`);
-  logger.info(`Using ${config.useMockData ? 'MOCK' : 'REAL'} data`);
-  if (!config.useMockData) {
-    logger.debug(`Database API URL: ${config.databaseApi.baseUrl}`);
-  }
-});
+// Startup fails if durable account authority cannot be reached. Never use memory as fallback.
+if (process.env.BFF_TEST_MODE !== 'true') {
+  await initializeUsers();
+  app.listen(config.port, config.devAuthBypass ? '127.0.0.1' : '0.0.0.0', () =>
+    logger.info('bff.started', { port: config.port }),
+  );
+}

@@ -2,7 +2,20 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import TIMESTAMP, CheckConstraint, Date, ForeignKey, Index, MetaData, Numeric, String, Uuid, text
+from sqlalchemy import (
+    TIMESTAMP,
+    BigInteger,
+    CheckConstraint,
+    Date,
+    ForeignKey,
+    Index,
+    MetaData,
+    Numeric,
+    String,
+    Uuid,
+    event,
+    text,
+)
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB, ExcludeConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -366,3 +379,79 @@ class ApiToken(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
     revoked_by: Mapped[str | None] = mapped_column(String(API_TOKEN_OWNER_MAX_LEN), nullable=True)
+
+
+class ControlAuthorityLock(Base):
+    __tablename__ = "control_authority_lock"
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+
+class ControlUser(Base):
+    __tablename__ = "control_users"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+    name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
+    roles: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False, index=True)
+    auth_version: Mapped[int] = mapped_column(default=1, nullable=False)
+    revision: Mapped[int] = mapped_column(default=1, nullable=False)
+    request_state: Mapped[dict[str, object]] = mapped_column(JSONB, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    denied_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    __table_args__ = (
+        CheckConstraint("status IN ('pending','approved','denied')", name="control_user_status"),
+        CheckConstraint("auth_version > 0 AND revision > 0", name="control_user_versions"),
+    )
+
+
+class ControlAudit(Base):
+    __tablename__ = "control_audit"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    actor_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    operation: Mapped[str] = mapped_column(String(48), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    version: Mapped[int | None] = mapped_column(nullable=True)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    __table_args__ = (
+        CheckConstraint("reason IS NULL OR length(reason) BETWEEN 1 AND 256", name="control_audit_reason_length"),
+    )
+
+
+# create_all is used in isolated unit fixtures; Alembic seeds the same lock in production.
+@event.listens_for(ControlAuthorityLock.__table__, "after_create")
+def _seed_control_authority_lock(table, connection, **_kwargs):
+    connection.execute(table.insert().values(id=1))
+
+
+class CaseAccess(Base):
+    __tablename__ = "case_access"
+    case_id: Mapped[UUID] = mapped_column(ForeignKey("cases.id", ondelete="RESTRICT"), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("control_users.id", ondelete="RESTRICT"), primary_key=True)
+    patient_id: Mapped[UUID] = mapped_column(ForeignKey("patients.id", ondelete="RESTRICT"), nullable=False)
+    active: Mapped[bool] = mapped_column(nullable=False)
+    purpose: Mapped[str] = mapped_column(String(32), nullable=False)
+    scopes: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False)
+    __table_args__ = (
+        CheckConstraint("revision > 0", name="case_access_revision"),
+        Index("ix_case_access_user_page", "user_id", "case_id"),
+        CheckConstraint("purpose IN ('clinical-reference','synthetic-research')", name="case_access_purpose"),
+    )
+
+
+class LoginChallenge(Base):
+    """One-use email login proof. Only a digest is persisted."""
+
+    __tablename__ = "login_challenges"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("control_users.id", ondelete="CASCADE"), nullable=False)
+    auth_version: Mapped[int] = mapped_column(nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(nullable=False, index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(nullable=True)

@@ -1,3 +1,5 @@
+> This branch changes account and case access. Read [setup and compatibility limits](../../../docs/accounts-and-permissions.md) first.
+
 # Wearables BFF
 
 Backend-for-frontend service for the Wearables web app.

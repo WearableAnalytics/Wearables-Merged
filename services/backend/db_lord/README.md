@@ -1,3 +1,5 @@
+> This branch changes account and case access. Read [setup and compatibility limits](../../../docs/accounts-and-permissions.md) first.
+
 # db-lord
 
 Backend service for managing wearable domain entities and telemetry.

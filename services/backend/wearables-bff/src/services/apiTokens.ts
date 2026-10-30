@@ -106,12 +106,7 @@ export type ApiTokenCheck =
   | { ok: true; record: ApiTokenRecord }
   | { ok: false; status: 401 | 403; error: string };
 
-/**
- * Checks a bearer token: it must be known and not revoked, and its owner must
- * still be an approved researcher or admin. Accounts live in memory in this
- * BFF, so after a restart the owner may be unknown until they log in again;
- * the token stays valid then (an admin can revoke it at any time).
- */
+/** Recheck the persistent owner. Unknown or denied owners never gain access. */
 export const checkApiToken = async (token: string): Promise<ApiTokenCheck> => {
   if (!token.startsWith(TOKEN_PREFIX)) {
     return { ok: false, status: 401, error: 'Invalid API access token' };
@@ -120,13 +115,9 @@ export const checkApiToken = async (token: string): Promise<ApiTokenCheck> => {
   if (!record) {
     return { ok: false, status: 401, error: 'Invalid or revoked API access token' };
   }
-  const owner = getUserByEmail(record.owner_email);
-  if (owner) {
-    const allowed =
-      owner.status === 'approved' && (owner.isAdmin || owner.roles.includes('researcher'));
-    if (!allowed) {
-      return { ok: false, status: 403, error: 'Token owner no longer has researcher access' };
-    }
+  const owner = await getUserByEmail(record.owner_email);
+  if (!owner || owner.status !== 'approved' || !(owner.isAdmin || owner.roles.includes('researcher'))) {
+    return { ok: false, status: 403, error: 'Token owner has no current researcher access' };
   }
   return { ok: true, record };
 };

@@ -1,5 +1,5 @@
-import crypto from 'crypto';
 import config from '../config.js';
+import { controlRequest, ControlApiError } from '../clients/controlApi.js';
 
 export type NonAdminRole = 'practitioner' | 'researcher';
 export type UserStatus = 'pending' | 'approved' | 'denied';
@@ -8,6 +8,8 @@ export type AccessRequestType = 'admin' | NonAdminRole;
 
 export interface UserRecord {
   id: string;
+  revision: number;
+  authVersion: number;
   email: string;
   name?: string;
   isAdmin: boolean;
@@ -33,84 +35,189 @@ export interface AccessRequestRecord {
   reviewedAt?: Date;
 }
 
-const usersByEmail = new Map<string, UserRecord>();
-const usersById = new Map<string, UserRecord>();
-
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
+const normalizeRoles = (roles: readonly NonAdminRole[]): NonAdminRole[] =>
+  [...new Set(roles.filter((role) => role === 'practitioner' || role === 'researcher'))].sort();
+export const normalizeUserEmail = normalizeEmail;
+export const isAdminEmail = (email: string) =>
+  config.adminEmails.map(normalizeEmail).includes(normalizeEmail(email));
 
-const adminEmailSet = new Set(
-  (config.adminEmails ?? []).map((email) => email.trim().toLowerCase()).filter(Boolean),
-);
-
-const nonAdminRoleSet = new Set<NonAdminRole>(['practitioner', 'researcher']);
-
-const normalizeRoles = (roles: readonly NonAdminRole[]): NonAdminRole[] => {
-  const deduped = Array.from(new Set(roles.filter((role) => nonAdminRoleSet.has(role))));
-  return deduped.sort();
-};
-
-const userDateValue = (value?: Date) => (value ? value.getTime() : 0);
-
-export const isAdminEmail = (email: string): boolean => adminEmailSet.has(normalizeEmail(email));
-
-export const getUserByEmail = (email: string): UserRecord | undefined =>
-  usersByEmail.get(normalizeEmail(email));
-
-export const getUserById = (userId: string): UserRecord | undefined => usersById.get(userId);
-
-export const listUsersByStatus = (status: UserStatus): UserRecord[] =>
-  Array.from(usersByEmail.values())
-    .filter((user) => user.status === status)
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-
-export const countActiveAdmins = (): number =>
-  Array.from(usersByEmail.values()).filter(
-    (user) => user.isAdmin && user.status === 'approved',
-  ).length;
-
-export const createUser = (
-  email: string,
-  options: Partial<Pick<UserRecord, 'isAdmin' | 'roles' | 'status' | 'name'>> = {},
-): UserRecord => {
-  const normalizedEmail = normalizeEmail(email);
-  const existing = usersByEmail.get(normalizedEmail);
-  if (existing) {
-    return existing;
-  }
-
-  const isAdmin = options.isAdmin ?? isAdminEmail(normalizedEmail);
-  const selectedRoles = normalizeRoles(options.roles ?? ['practitioner']);
-  const roles = isAdmin ? [] : selectedRoles;
-  const status: UserStatus = options.status ?? (isAdmin ? 'approved' : 'pending');
-  const now = new Date();
-  const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
-
-  const user: UserRecord = {
-    id,
-    email: normalizedEmail,
-    name: options.name,
-    isAdmin,
-    roles,
-    status,
-    adminRequestStatus: isAdmin ? 'approved' : 'none',
-    adminRequestedAt: isAdmin ? now : undefined,
-    adminReviewedAt: isAdmin ? now : undefined,
-    roleRequestStatuses: {
-      practitioner: roles.includes('practitioner') ? 'approved' : 'none',
-      researcher: roles.includes('researcher') ? 'approved' : 'none',
-    },
-    roleRequestedAt: {},
-    roleReviewedAt: {},
-    createdAt: now,
-    updatedAt: now,
-    approvedAt: status === 'approved' ? now : undefined,
-    deniedAt: status === 'denied' ? now : undefined,
+export interface UserDto {
+  id: string;
+  email: string;
+  name?: string | null;
+  is_admin: boolean;
+  roles: NonAdminRole[];
+  status: UserStatus;
+  auth_version: number;
+  revision: number;
+  request_state: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  approved_at?: string;
+  denied_at?: string;
+}
+const date = (value?: string | null) => (value ? new Date(value) : undefined);
+const dateMap = (value: Record<string, string> = {}) =>
+  Object.fromEntries(Object.entries(value).map(([k, v]) => [k, date(v)]));
+export const fromDto = (dto: UserDto): UserRecord => {
+  if (
+    !dto ||
+    typeof dto.id !== 'string' ||
+    !dto.id ||
+    typeof dto.email !== 'string' ||
+    typeof dto.is_admin !== 'boolean' ||
+    !Array.isArray(dto.roles) ||
+    dto.roles.some((role) => role !== 'practitioner' && role !== 'researcher') ||
+    !['pending', 'approved', 'denied'].includes(dto.status) ||
+    !Number.isInteger(dto.auth_version) ||
+    dto.auth_version < 1 ||
+    !Number.isInteger(dto.revision) ||
+    dto.revision < 1
+  )
+    throw new ControlApiError(503);
+  const state = dto.request_state ?? {};
+  return {
+    id: dto.id,
+    email: normalizeEmail(dto.email),
+    name: dto.name ?? undefined,
+    isAdmin: dto.is_admin,
+    roles: dto.roles,
+    status: dto.status,
+    revision: dto.revision,
+    authVersion: dto.auth_version,
+    adminRequestStatus: state.adminRequestStatus ?? 'none',
+    adminRequestedAt: date(state.adminRequestedAt),
+    adminReviewedAt: date(state.adminReviewedAt),
+    roleRequestStatuses: state.roleRequestStatuses ?? { practitioner: 'none', researcher: 'none' },
+    roleRequestedAt: dateMap(state.roleRequestedAt),
+    roleReviewedAt: dateMap(state.roleReviewedAt),
+    createdAt: new Date(dto.created_at),
+    updatedAt: new Date(dto.updated_at),
+    approvedAt: date(dto.approved_at),
+    deniedAt: date(dto.denied_at),
   };
-
-  usersByEmail.set(normalizedEmail, user);
-  usersById.set(id, user);
+};
+const requestState = (user: UserRecord) => ({
+  adminRequestStatus: user.adminRequestStatus,
+  adminRequestedAt: user.adminRequestedAt,
+  adminReviewedAt: user.adminReviewedAt,
+  roleRequestStatuses: user.roleRequestStatuses,
+  roleRequestedAt: user.roleRequestedAt,
+  roleReviewedAt: user.roleReviewedAt,
+});
+interface UserPage {
+  items: UserDto[];
+  next_cursor: string | null;
+}
+const readPage = async (params: URLSearchParams, limit: number, signal?: AbortSignal): Promise<UserPage> => {
+  params.set('limit', String(limit));
+  const page = await controlRequest<UserPage>(`/users?${params}`, 'GET', undefined, signal);
+  if (
+    !page ||
+    !Array.isArray(page.items) ||
+    page.items.length > limit ||
+    !(
+      page.next_cursor === null ||
+      (typeof page.next_cursor === 'string' &&
+        page.next_cursor.length > 0 &&
+        page.next_cursor.length <= 64)
+    )
+  )
+    throw new ControlApiError(503);
+  return page;
+};
+export const getUserByEmail = async (email: string, signal?: AbortSignal): Promise<UserRecord | undefined> => {
+  const page = await readPage(new URLSearchParams({ email: normalizeEmail(email) }), 1, signal);
+  // The authoritative normalized-email index is unique. Never select an arbitrary match.
+  if (page.next_cursor !== null) throw new ControlApiError(503);
+  if (!page.items.length) return undefined;
+  const user = fromDto(page.items[0]);
+  if (user.email !== normalizeEmail(email)) throw new ControlApiError(503);
   return user;
 };
+export const getUserById = async (id: string, signal?: AbortSignal): Promise<UserRecord | undefined> => {
+  try {
+    const user = fromDto(await controlRequest<UserDto>(`/users/${encodeURIComponent(id)}`, 'GET', undefined, signal));
+    if (user.id !== id) throw new ControlApiError(503);
+    return user;
+  } catch (error) {
+    if (error instanceof ControlApiError && error.status === 404) return undefined;
+    throw error;
+  }
+};
+// At most 100 pages / 10,000 records per administrative list operation.
+const allUsers = async (status?: UserStatus): Promise<UserRecord[]> => {
+  const users: UserRecord[] = [];
+  const seen = new Set<string>();
+  let after: string | undefined;
+  for (let n = 0; n < 100; n++) {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (after) params.set('after', after);
+    const page = await readPage(params, 100);
+    users.push(...page.items.map(fromDto));
+    if (page.next_cursor === null) return users;
+    if (seen.has(page.next_cursor)) throw new ControlApiError(503, 'CONTROL_LIST_LIMIT');
+    seen.add(page.next_cursor);
+    after = page.next_cursor;
+  }
+  throw new ControlApiError(503, 'CONTROL_LIST_LIMIT');
+};
+export const listUsersByStatus = (status: UserStatus) => allUsers(status);
+export const countActiveAdmins = async () =>
+  (await listUsersByStatus('approved')).filter((user) => user.isAdmin).length;
+export const createUser = async (
+  email: string,
+  options: Partial<Pick<UserRecord, 'isAdmin' | 'roles' | 'status' | 'name'>> = {},
+) =>
+  fromDto(
+    await controlRequest<UserDto>('/users', 'POST', {
+      email: normalizeEmail(email),
+      name: options.name,
+      roles: normalizeRoles(options.roles ?? ['practitioner']),
+    }),
+  );
+// Insert-only bootstrap. The database must return an existing record unchanged.
+export const ensureAdminUser = async (email: string) =>
+  fromDto(
+    await controlRequest<UserDto>('/users/bootstrap', 'POST', { email: normalizeEmail(email) }),
+  );
+export const initializeUsers = async () => {
+  for (const email of config.adminEmails) await ensureAdminUser(email);
+};
+
+export interface ActorIdentity { userId: string; sessionVersion: number }
+
+const mutate = async (
+  id: string,
+  actor: ActorIdentity,
+  change: (user: UserRecord) => void,
+): Promise<UserRecord | undefined> => {
+  const user = await getUserById(id);
+  if (!user) return undefined;
+  change(user);
+  return fromDto(
+    await controlRequest<UserDto>(`/users/${encodeURIComponent(id)}`, 'PATCH', {
+      expected_revision: user.revision,
+      actor_id: actor.userId,
+      actor_auth_version: actor.sessionVersion,
+      is_admin: user.isAdmin,
+      roles: user.roles,
+      status: user.status,
+      name: user.name,
+      request_state: requestState(user),
+    }),
+  );
+};
+export const revokeUserSessions = async (userId: string, expectedAuthVersion: number) =>
+  fromDto(
+    await controlRequest<UserDto>(`/users/${encodeURIComponent(userId)}/revoke-sessions`, 'POST', {
+      actor_id: userId,
+      actor_auth_version: expectedAuthVersion,
+      expected_auth_version: expectedAuthVersion,
+    }),
+  );
 
 const markRoleApproved = (user: UserRecord, role: NonAdminRole, reviewedAt: Date) => {
   if (!user.roles.includes(role)) {
@@ -165,215 +272,85 @@ const setAdminAccess = (user: UserRecord, isAdmin: boolean, changedAt: Date) => 
   });
 };
 
-export const ensureAdminUser = (email: string): UserRecord => {
-  const user = createUser(email, { isAdmin: true, status: 'approved' });
-  const normalizedEmail = normalizeEmail(email);
-  if (user.email !== normalizedEmail || !user.isAdmin || user.status !== 'approved') {
-    const now = new Date();
-    user.email = normalizedEmail;
-    setAdminAccess(user, true, now);
-    user.status = 'approved';
-    user.updatedAt = now;
-    user.approvedAt = now;
-    user.deniedAt = undefined;
-    usersByEmail.set(normalizedEmail, user);
-  }
-  return user;
-};
-
-export const setUserStatus = (userId: string, status: UserStatus): UserRecord | undefined => {
-  const user = usersById.get(userId);
-  if (!user) return undefined;
-
-  const now = new Date();
-  user.status = status;
-  user.updatedAt = now;
-  if (status === 'approved') {
-    user.approvedAt = now;
-    user.deniedAt = undefined;
-  } else if (status === 'denied') {
-    user.deniedAt = now;
-  } else {
-    user.approvedAt = undefined;
-    user.deniedAt = undefined;
-  }
-  return user;
-};
-
+export const setUserStatus = (id: string, status: UserStatus, actor: ActorIdentity) =>
+  mutate(id, actor, (user) => {
+    user.status = status;
+  });
 export const updateUserAccess = (
-  userId: string,
-  updates: {
-    isAdmin?: boolean;
-    roles?: NonAdminRole[];
-    status?: UserStatus;
-  },
-): UserRecord | undefined => {
-  const user = usersById.get(userId);
-  if (!user) return undefined;
-
-  let updated = false;
-  const now = new Date();
-
-  let nextIsAdmin = updates.isAdmin ?? user.isAdmin;
-  let nextRoles = updates.roles ? normalizeRoles(updates.roles) : [...user.roles];
-
-  if (nextIsAdmin) {
-    nextRoles = [];
-  } else if (nextRoles.length === 0) {
-    nextRoles = ['practitioner'];
-  }
-
-  if (nextIsAdmin !== user.isAdmin) {
-    setAdminAccess(user, nextIsAdmin, now);
-    updated = true;
-  }
-
-  if (!nextIsAdmin) {
-    const previousRoles = normalizeRoles(user.roles);
-    const rolesChanged =
-      previousRoles.length !== nextRoles.length ||
-      previousRoles.some((role, index) => role !== nextRoles[index]);
-
-    if (rolesChanged) {
-      user.roles = nextRoles;
-      (['practitioner', 'researcher'] as const).forEach((role) => {
-        if (nextRoles.includes(role)) {
-          markRoleApproved(user, role, now);
-        } else if (user.roleRequestStatuses[role] === 'approved') {
+  id: string,
+  updates: { isAdmin?: boolean; roles?: NonAdminRole[]; status?: UserStatus },
+  actor: ActorIdentity,
+) =>
+  mutate(id, actor, (user) => {
+    const now = new Date();
+    if (updates.isAdmin !== undefined && updates.isAdmin !== user.isAdmin)
+      setAdminAccess(user, updates.isAdmin, now);
+    if (!user.isAdmin && updates.roles) {
+      user.roles = normalizeRoles(updates.roles);
+      for (const role of ['practitioner', 'researcher'] as const) {
+        if (user.roles.includes(role)) markRoleApproved(user, role, now);
+        else if (user.roleRequestStatuses[role] === 'approved')
           clearRoleAssignment(user, role, now);
-        }
-      });
-      updated = true;
+      }
     }
-  }
-
-  if (updates.status && user.status !== updates.status) {
-    user.status = updates.status;
-    updated = true;
-
-    if (updates.status === 'approved') {
-      user.approvedAt = now;
-      user.deniedAt = undefined;
-    } else if (updates.status === 'denied') {
-      user.deniedAt = now;
+    if (updates.status) user.status = updates.status;
+  });
+export const requestAdminAccess = (id: string, sessionVersion: number) =>
+  mutate(id, { userId: id, sessionVersion }, (user) => {
+    if (user.isAdmin || user.adminRequestStatus === 'pending') return;
+    user.adminRequestStatus = 'pending';
+    user.adminRequestedAt = new Date();
+    user.adminReviewedAt = undefined;
+  });
+export const requestRoleAccess = (id: string, role: NonAdminRole, sessionVersion: number) =>
+  mutate(id, { userId: id, sessionVersion }, (user) => {
+    if (user.isAdmin || user.roles.includes(role) || user.roleRequestStatuses[role] === 'pending')
+      return;
+    user.roleRequestStatuses[role] = 'pending';
+    user.roleRequestedAt[role] = new Date();
+    user.roleReviewedAt[role] = undefined;
+  });
+export const reviewAccessRequest = (
+  id: string,
+  type: AccessRequestType,
+  decision: 'approved' | 'denied',
+  actor: ActorIdentity,
+) =>
+  mutate(id, actor, (user) => {
+    const now = new Date();
+    if (type === 'admin') {
+      user.adminRequestStatus = decision;
+      user.adminReviewedAt = now;
+      if (decision === 'approved') setAdminAccess(user, true, now);
     } else {
-      user.approvedAt = undefined;
-      user.deniedAt = undefined;
+      user.roleRequestStatuses[type] = decision;
+      user.roleReviewedAt[type] = now;
+      if (decision === 'approved' && !user.isAdmin) markRoleApproved(user, type, now);
     }
-  }
-
-  if (updated) {
-    user.updatedAt = now;
-  }
-
-  return user;
-};
-
-export const listAccessRequests = (status: AccessRequestStatus): AccessRequestRecord[] =>
-  Array.from(usersByEmail.values())
+  });
+export const listAccessRequests = async (
+  status: AccessRequestStatus,
+): Promise<AccessRequestRecord[]> =>
+  (await allUsers())
     .flatMap((user) => {
-      const requests: AccessRequestRecord[] = [];
-
-      if (user.adminRequestStatus === status) {
-        requests.push({
+      const records: AccessRequestRecord[] = [];
+      if (user.adminRequestStatus === status)
+        records.push({
           user,
           requestType: 'admin',
           status,
           requestedAt: user.adminRequestedAt,
           reviewedAt: user.adminReviewedAt,
         });
-      }
-
-      (['practitioner', 'researcher'] as const).forEach((role) => {
-        if (user.roleRequestStatuses[role] === status) {
-          requests.push({
+      for (const role of ['practitioner', 'researcher'] as const)
+        if (user.roleRequestStatuses[role] === status)
+          records.push({
             user,
             requestType: role,
             status,
             requestedAt: user.roleRequestedAt[role],
             reviewedAt: user.roleReviewedAt[role],
           });
-        }
-      });
-
-      return requests;
+      return records;
     })
-    .sort((a, b) => userDateValue(a.requestedAt) - userDateValue(b.requestedAt));
-
-export const requestAdminAccess = (userId: string): UserRecord | undefined => {
-  const user = usersById.get(userId);
-  if (!user) return undefined;
-  if (user.isAdmin) {
-    user.adminRequestStatus = 'approved';
-    user.adminReviewedAt = new Date();
-    return user;
-  }
-
-  if (user.adminRequestStatus === 'pending') {
-    return user;
-  }
-
-  user.adminRequestStatus = 'pending';
-  user.adminRequestedAt = new Date();
-  user.adminReviewedAt = undefined;
-  user.updatedAt = new Date();
-  return user;
-};
-
-export const requestRoleAccess = (
-  userId: string,
-  role: NonAdminRole,
-): UserRecord | undefined => {
-  const user = usersById.get(userId);
-  if (!user) return undefined;
-
-  if (user.isAdmin || user.roles.includes(role)) {
-    user.roleRequestStatuses[role] = 'approved';
-    user.roleReviewedAt[role] = new Date();
-    return user;
-  }
-
-  if (user.roleRequestStatuses[role] === 'pending') {
-    return user;
-  }
-
-  user.roleRequestStatuses[role] = 'pending';
-  user.roleRequestedAt[role] = new Date();
-  user.roleReviewedAt[role] = undefined;
-  user.updatedAt = new Date();
-  return user;
-};
-
-export const reviewAccessRequest = (
-  userId: string,
-  requestType: AccessRequestType,
-  decision: 'approved' | 'denied',
-): UserRecord | undefined => {
-  const user = usersById.get(userId);
-  if (!user) return undefined;
-
-  const now = new Date();
-  user.updatedAt = now;
-
-  if (requestType === 'admin') {
-    user.adminRequestStatus = decision;
-    user.adminReviewedAt = now;
-
-    if (decision === 'approved') {
-      setAdminAccess(user, true, now);
-    }
-
-    return user;
-  }
-
-  user.roleRequestStatuses[requestType] = decision;
-  user.roleReviewedAt[requestType] = now;
-
-  if (decision === 'approved' && !user.isAdmin) {
-    markRoleApproved(user, requestType, now);
-  }
-
-  return user;
-};
-
-export const normalizeUserEmail = normalizeEmail;
+    .sort((a, b) => (a.requestedAt?.getTime() ?? 0) - (b.requestedAt?.getTime() ?? 0));

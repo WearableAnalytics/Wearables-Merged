@@ -137,6 +137,7 @@ const extractionApiUrl = extractionApiUrlRaw?.replace(/\/$/, '');
 // Strict env-driven auth/token configuration.
 const authSessionExpirySeconds = requirePositiveIntEnv('AUTH_SESSION_EXPIRY_SECONDS');
 const magicLinkExpirySeconds = requirePositiveIntEnv('MAGIC_LINK_EXPIRY_SECONDS');
+if (magicLinkExpirySeconds > 3600) throw new Error('MAGIC_LINK_EXPIRY_SECONDS must not exceed 3600.');
 // Case tokens are what phones upload with, so they stay valid for 3 years by default.
 const DEFAULT_CASE_TOKEN_EXPIRY_SECONDS = 3 * 365 * 24 * 60 * 60;
 const caseTokenExpirySeconds =
@@ -146,9 +147,14 @@ const caseTokenExpirySeconds =
 const tokenIssuer = requireEnv('TOKEN_ISSUER');
 
 const jwtSecret = requireEnv('JWT_SECRET');
-// if (isProduction && jwtSecret === 'dev-secret') {
-//   throw new Error('Invalid configuration: JWT_SECRET cannot be "dev-secret" in production.');
-// }
+if (jwtSecret.length < 32) throw new Error('JWT_SECRET must contain at least 32 characters.');
+const controlWriteToken = requireEnv('CONTROL_WRITE_TOKEN');
+const apiTokenServiceToken = requireEnv('API_TOKEN_SERVICE_TOKEN');
+if (controlWriteToken === apiTokenServiceToken) throw new Error('Workload credentials must be distinct.');
+const devAuthBypass = optionalEnv('ALLOW_DEV_AUTH_BYPASS') === 'true';
+if (isProduction && (devAuthBypass || cookieSecureIsFalse()))
+  throw new Error('Production requires verified login and secure cookies.');
+function cookieSecureIsFalse() { return optionalEnv('COOKIE_SECURE') === 'false'; }
 
 const parseCsv = (value: string): string[] =>
   value
@@ -199,16 +205,19 @@ if (isProduction && mailerFromEmail && !mailerFromEmail.includes('@')) {
   );
 }
 
-// BREVO_API_KEY is optional: without it (or with the value `disabled`) no
-// emails are sent and magic links are written to the log instead (see
-// services/mailer.ts), e.g. for deployments only reachable via port-forward.
-if (isProduction && !brevoApiKey) {
-  console.warn(
-    'BREVO_API_KEY is not set: emails are disabled and magic links are logged instead.',
-  );
-}
+// Never expose login links in operational logs. Production must have email delivery.
+if (isProduction && !brevoApiKey) throw new Error('Production email login requires BREVO_API_KEY.');
+
+if (isProduction && [backendUrl, frontendRedirectUrl, ...frontendOrigins].some(value => new URL(value).protocol !== 'https:'))
+  throw new Error('Production browser and email-link URLs must use HTTPS.');
 
 export const config = {
+  controlWriteToken,
+  apiTokenServiceToken,
+  devAuthBypass,
+  controlMaxInflightRequests: 16,
+  controlTimeoutSeconds: 5,
+  httpMaxInflightRequests: 64,
   port,
   nodeEnv,
   isProduction,

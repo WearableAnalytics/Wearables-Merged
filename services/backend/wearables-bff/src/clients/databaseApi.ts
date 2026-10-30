@@ -97,14 +97,15 @@ class DatabaseApiClient {
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
+          ...(endpoint.startsWith('/api-tokens') ? { 'X-Api-Token-Service-Token': config.apiTokenServiceToken } : {}),
           ...options.headers,
         },
       });
 
       if (!response.ok) {
-        const errorBody = await response.text();
+        await response.body?.cancel();
         throw new DatabaseApiError(
-          `Database API error: ${response.status} ${response.statusText} - ${errorBody}`,
+          `Database API request rejected (${response.status})`,
           response.status,
         );
       }

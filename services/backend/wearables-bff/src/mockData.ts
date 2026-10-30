@@ -131,7 +131,7 @@ function ensurePatientForHospitalCase(hospitalCase: HospitalCaseWithUUID): Patie
     (patient) =>
       patient.firstName === hospitalCase.firstName &&
       patient.lastName === hospitalCase.lastName &&
-      patient.birthDate.toISOString().slice(0, 10) === targetBirthDate,
+      patient.birthDate?.toISOString().slice(0, 10) === targetBirthDate,
   );
 
   if (existing) {
@@ -150,6 +150,7 @@ function ensurePatientForHospitalCase(hospitalCase: HospitalCaseWithUUID): Patie
 }
 
 export function buildPatientVerifier(patient: Patient) {
+  if (!patient.birthDate) throw new Error('Date of birth is required for this legacy verifier');
   const birthDateString = patient.birthDate.toISOString().split('T')[0];
   const [year, month, day] = birthDateString.split('-');
   const initials = `${patient.firstName.charAt(0)}${patient.lastName.charAt(0)}`.toUpperCase();

@@ -108,6 +108,13 @@ const resolveDeviceId = (rawDeviceId: string): string | null => {
   return opaqueDeviceId;
 };
 
+// Broad Grafana queries are not a case-scoped authority boundary. Keep dashboard
+// assets and proxy code, but block this public surface until it is scoped.
+app.use(config.proxyPrefix || '/grafana-proxy', (_req, res) => {
+  res.status(410).setHeader('Cache-Control', 'no-store');
+  res.json({ code: 'CASE_SCOPED_DASHBOARD_REQUIRED', error: 'Case-scoped dashboard access is not available yet.' });
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
@@ -237,7 +244,10 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && config.appJwtSecret)
   );
 }
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   // eslint-disable-next-line no-console
   console.log(`Grafana proxy listening on http://localhost:${port}`);
 });
+
+// No unscoped WebSocket continuation can bypass the HTTP boundary.
+server.on('upgrade', (_request, socket) => socket.destroy());

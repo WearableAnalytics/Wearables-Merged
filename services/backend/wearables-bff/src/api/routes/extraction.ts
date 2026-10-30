@@ -1,8 +1,5 @@
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import { Readable } from 'stream';
-import type { ReadableStream as WebReadableStream } from 'stream/web';
-import config from '../../config.js';
 import { logger } from '../../logger.js';
 import { getUserFromRequest } from '../../middleware.js';
 import { checkApiToken } from '../../services/apiTokens.js';
@@ -16,7 +13,6 @@ import { checkApiToken } from '../../services/apiTokens.js';
  */
 const router = express.Router();
 
-const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'cache-control'];
 
 const bearerToken = (req: Request): string | undefined => {
   const header = req.headers.authorization;
@@ -46,7 +42,7 @@ export const requireExtractionAccess = async (
     return;
   }
 
-  const user = getUserFromRequest(req);
+  const user = await getUserFromRequest(req);
   if (!user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
@@ -63,42 +59,12 @@ export const requireExtractionAccess = async (
   next();
 };
 
-router.get('/*', requireExtractionAccess, async (req: Request, res: Response) => {
-  if (!config.extractionApiUrl) {
-    res.status(503).json({ error: 'Extraction API is not configured' });
-    return;
-  }
-
-  // req.url is relative to the mount point, e.g. /v1/measurements?patient_id=...
-  const target = `${config.extractionApiUrl}${req.url}`;
-  const abort = new AbortController();
-  res.on('close', () => abort.abort());
-
-  try {
-    const upstream = await fetch(target, {
-      headers: { accept: req.headers.accept ?? '*/*' },
-      signal: abort.signal,
-    });
-
-    res.status(upstream.status);
-    for (const name of FORWARDED_RESPONSE_HEADERS) {
-      const value = upstream.headers.get(name);
-      if (value) res.setHeader(name, value);
-    }
-    if (!upstream.body) {
-      res.end();
-      return;
-    }
-    Readable.fromWeb(upstream.body as WebReadableStream).pipe(res);
-  } catch (error) {
-    if (abort.signal.aborted) return;
-    logger.error('Extraction API request failed', error as Error);
-    if (!res.headersSent) {
-      res.status(502).json({ error: 'Extraction API unavailable' });
-    } else {
-      res.end();
-    }
-  }
+// The legacy proxy accepts arbitrary patient/query parameters. A login role is
+// not enough to enforce a case assignment. Preserve the implementation in Git,
+// but do not send data until a case-scoped export API is reviewed separately.
+router.all('/*', (_req, res) => {
+  res.status(410).setHeader('Cache-Control', 'no-store');
+  res.json({ code: 'CASE_SCOPED_EXPORT_REQUIRED', error: 'Legacy exports are paused until case-scoped access is available.' });
 });
 
 export default router;
