@@ -10,8 +10,6 @@ import {
   getUserById,
   listAccessRequests,
   listUsersByStatus,
-  requestAdminAccess,
-  requestRoleAccess,
   reviewAccessRequest,
   updateUserAccess,
   setUserStatus,
@@ -299,75 +297,10 @@ router.get(
     });
   }),
 );
-router.post(
-  '/request-admin',
-  auth.required,
-  asyncRoute(async (req: Request, res: Response) => {
-    if (!req.user) {
-      res.status(401).json({ error: 'Not authenticated' });
-      return;
-    }
-    const updated = await requestAdminAccess(req.user.userId, req.user.sessionVersion);
-    if (!updated) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-    if (updated.isAdmin) {
-      res.json({
-        success: true,
-        message: 'You are already an admin.',
-        user: serializeUser(updated),
-      });
-      return;
-    }
-    res.json({
-      success: true,
-      message:
-        updated.adminRequestStatus === 'pending'
-          ? 'Your admin request is pending.'
-          : 'Your admin request has been submitted.',
-      user: serializeUser(updated),
-    });
-  }),
-);
-router.post(
-  '/request-role',
-  auth.required,
-  asyncRoute(async (req: Request, res: Response) => {
-    if (!req.user) {
-      res.status(401).json({ error: 'Not authenticated' });
-      return;
-    }
-    const { role } = req.body as {
-      role?: string;
-    };
-    if (!role || !isNonAdminRole(role)) {
-      res.status(400).json({ error: 'A valid role is required' });
-      return;
-    }
-    const updated = await requestRoleAccess(req.user.userId, role, req.user.sessionVersion);
-    if (!updated) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-    if (updated.isAdmin || updated.roles.includes(role)) {
-      res.json({
-        success: true,
-        message: `You already have ${role} access.`,
-        user: serializeUser(updated),
-      });
-      return;
-    }
-    res.json({
-      success: true,
-      message:
-        updated.roleRequestStatuses[role] === 'pending'
-          ? `Your ${role} request is pending.`
-          : `Your ${role} request has been submitted.`,
-      user: serializeUser(updated),
-    });
-  }),
-);
+// Account roles are assigned directly by an administrator, not self-requested.
+router.post(['/request-admin', '/request-role'], auth.required, (_req, res) => {
+  res.status(410).json({ error: 'ADMIN_MANAGED_ACCESS' });
+});
 router.get(
   '/admin/pending-users',
   ...auth.adminOnly,

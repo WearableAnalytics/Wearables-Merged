@@ -1,4 +1,9 @@
-import { Configuration, CasesApi, HospitalCasesApi, PatientsApi } from './openapi-client';
+import {
+  Configuration,
+  CasesApi,
+  HospitalCasesApi,
+  PatientsApi,
+} from './openapi-client';
 import type { Middleware } from './openapi-client';
 import { dispatchSessionExpiredEvent } from '@/lib/authSession';
 import { appRuntimeConfig } from '@/config/runtimeConfig';
@@ -12,7 +17,8 @@ const normalizeApiBasePath = (rawBasePath: string) => {
 
   try {
     const url = new URL(trimmed);
-    const isLocalHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    const isLocalHost =
+      url.hostname === 'localhost' || url.hostname === '127.0.0.1';
     if (isLocalHost) {
       return url.pathname.replace(/\/$/, '') || '/';
     }
@@ -27,7 +33,6 @@ const normalizeApiBasePath = (rawBasePath: string) => {
 export const API_BASE_PATH = normalizeApiBasePath(appRuntimeConfig.apiBaseUrl);
 
 export type NonAdminRole = 'practitioner' | 'researcher';
-export type AccessRequestType = 'admin' | NonAdminRole;
 
 /** Personal export API token. The token itself is only returned once, on creation. */
 export type ApiToken = {
@@ -86,39 +91,66 @@ export class DefaultApi {
 
   private passwordRequest = async (path: string, body: unknown) => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}${path}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(body),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(data.error ?? 'The account operation was rejected.') as Error & { status?: number };
-      error.status = response.status; throw error;
+      const error = new Error(
+        data.error ?? 'The account operation was rejected.',
+      ) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
     return data;
   };
 
-  changePassword = (currentPassword: string, newPassword: string, initial = false) =>
-    this.passwordRequest(initial ? '/password/setup' : '/account/password', { currentPassword, newPassword });
+  changePassword = (
+    currentPassword: string,
+    newPassword: string,
+    initial = false,
+  ) =>
+    this.passwordRequest(initial ? '/password/setup' : '/account/password', {
+      currentPassword,
+      newPassword,
+    });
 
-  createStaff = (details: { email: string; name?: string; isAdmin: boolean; roles: NonAdminRole[]; temporaryPassword: string }) =>
-    this.passwordRequest('/admin/users', details);
+  createStaff = (details: {
+    email: string;
+    name?: string;
+    isAdmin: boolean;
+    roles: NonAdminRole[];
+    temporaryPassword: string;
+  }) => this.passwordRequest('/admin/users', details);
 
-  resetStaffPassword = (id: string, expectedRevision: number, temporaryPassword: string) =>
-    this.passwordRequest(`/admin/users/${encodeURIComponent(id)}/password-reset`, { expectedRevision, temporaryPassword });
+  resetStaffPassword = (
+    id: string,
+    expectedRevision: number,
+    temporaryPassword: string,
+  ) =>
+    this.passwordRequest(
+      `/admin/users/${encodeURIComponent(id)}/password-reset`,
+      { expectedRevision, temporaryPassword },
+    );
 
   me = async () => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}/me`, {
       method: 'GET',
       credentials: 'include',
     });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
 
     if (response.status === 401) {
       return null;
     }
 
     if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to load session.';
+      const message =
+        (data && (data.message ?? data.error)) ?? 'Unable to load session.';
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
@@ -134,59 +166,32 @@ export class DefaultApi {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({} as Record<string, unknown>));
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to log out.';
+      const data = await response
+        .json()
+        .catch(() => ({}) as Record<string, unknown>);
+      const message =
+        (data && (data.message ?? data.error)) ?? 'Unable to log out.';
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
     }
 
-    return response.json().catch(() => ({} as Record<string, unknown>));
+    return response.json().catch(() => ({}) as Record<string, unknown>);
   };
 
-  requestAdminAccess = async () => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/request-admin`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
-
-    if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to request admin access.';
-      const error = new Error(message) as Error & { status?: number };
-      error.status = response.status;
-      throw error;
-    }
-
-    return data;
-  };
-
-  requestRoleAccess = async (role: NonAdminRole) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/request-role`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ role }),
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
-
-    if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to request role access.';
-      const error = new Error(message) as Error & { status?: number };
-      error.status = response.status;
-      throw error;
-    }
-
-    return data;
-  };
-
-  private apiTokenRequest = async <T,>(path: string, fallbackMessage: string, init: RequestInit = {}): Promise<T> => {
+  private apiTokenRequest = async <T>(
+    path: string,
+    fallbackMessage: string,
+    init: RequestInit = {},
+  ): Promise<T> => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}${path}`, {
       credentials: 'include',
       ...init,
       headers: init.body ? { 'Content-Type': 'application/json' } : undefined,
     });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
 
     if (!response.ok) {
       const message = (data && (data.message ?? data.error)) ?? fallbackMessage;
@@ -199,13 +204,20 @@ export class DefaultApi {
   };
 
   listMyApiTokens = () =>
-    this.apiTokenRequest<ApiToken[]>('/researcher/api-tokens', 'Unable to load your API tokens.');
+    this.apiTokenRequest<ApiToken[]>(
+      '/researcher/api-tokens',
+      'Unable to load your API tokens.',
+    );
 
   createApiToken = (name: string) =>
-    this.apiTokenRequest<ApiToken & { token: string }>('/researcher/api-tokens', 'Unable to create the API token.', {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    });
+    this.apiTokenRequest<ApiToken & { token: string }>(
+      '/researcher/api-tokens',
+      'Unable to create the API token.',
+      {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      },
+    );
 
   revokeMyApiToken = (tokenId: string) =>
     this.apiTokenRequest<ApiToken>(
@@ -214,7 +226,11 @@ export class DefaultApi {
       { method: 'POST' },
     );
 
-  listAllApiTokens = () => this.apiTokenRequest<ApiToken[]>('/admin/api-tokens', 'Unable to load API tokens.');
+  listAllApiTokens = () =>
+    this.apiTokenRequest<ApiToken[]>(
+      '/admin/api-tokens',
+      'Unable to load API tokens.',
+    );
 
   adminRevokeApiToken = (tokenId: string) =>
     this.apiTokenRequest<ApiToken>(
@@ -224,14 +240,21 @@ export class DefaultApi {
     );
 
   listPendingUsers = async () => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/pending-users`, {
-      method: 'GET',
-      credentials: 'include',
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/admin/pending-users`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
 
     if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to load pending users.';
+      const message =
+        (data && (data.message ?? data.error)) ??
+        'Unable to load pending users.';
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
@@ -241,14 +264,20 @@ export class DefaultApi {
   };
 
   listApprovedUsers = async () => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/approved-users`, {
-      method: 'GET',
-      credentials: 'include',
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/admin/approved-users`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
 
     if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to load users.';
+      const message =
+        (data && (data.message ?? data.error)) ?? 'Unable to load users.';
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
@@ -258,65 +287,21 @@ export class DefaultApi {
   };
 
   listDeniedUsers = async () => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/denied-users`, {
-      method: 'GET',
-      credentials: 'include',
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/admin/denied-users`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
 
     if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to load denied users.';
-      const error = new Error(message) as Error & { status?: number };
-      error.status = response.status;
-      throw error;
-    }
-
-    return data;
-  };
-
-  listPendingAccessRequests = async () => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/pending-access-requests`, {
-      method: 'GET',
-      credentials: 'include',
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
-
-    if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to load access requests.';
-      const error = new Error(message) as Error & { status?: number };
-      error.status = response.status;
-      throw error;
-    }
-
-    return data;
-  };
-
-  approveUser = async (userId: string) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/approve`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
-
-    if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to approve user.';
-      const error = new Error(message) as Error & { status?: number };
-      error.status = response.status;
-      throw error;
-    }
-
-    return data;
-  };
-
-  denyUser = async (userId: string) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/deny`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
-
-    if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to deny user.';
+      const message =
+        (data && (data.message ?? data.error)) ??
+        'Unable to load denied users.';
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
@@ -326,37 +311,20 @@ export class DefaultApi {
   };
 
   unblockUser = async (userId: string) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/unblock`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/admin/users/${userId}/unblock`,
+      {
+        method: 'POST',
+        credentials: 'include',
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
 
     if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to unblock user.';
-      const error = new Error(message) as Error & { status?: number };
-      error.status = response.status;
-      throw error;
-    }
-
-    return data;
-  };
-
-  reviewAccessRequest = async (
-    userId: string,
-    requestType: AccessRequestType,
-    decision: 'approved' | 'denied',
-  ) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}/review-request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ requestType, decision }),
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
-
-    if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to review request.';
+      const message =
+        (data && (data.message ?? data.error)) ?? 'Unable to unblock user.';
       const error = new Error(message) as Error & { status?: number };
       error.status = response.status;
       throw error;
@@ -373,19 +341,30 @@ export class DefaultApi {
       status?: 'approved' | 'pending' | 'denied';
     },
   ) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/admin/users/${userId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(updates),
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/admin/users/${userId}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(updates),
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
 
     if (!response.ok) {
-      const message = (data && (data.message ?? data.error)) ?? 'Unable to update user.';
-      const error = new Error(message) as Error & { status?: number; code?: string };
+      const message =
+        (data && (data.message ?? data.error)) ?? 'Unable to update user.';
+      const error = new Error(message) as Error & {
+        status?: number;
+        code?: string;
+      };
       error.status = response.status;
-      error.code = (data && (data.code ?? data.errorCode)) as string | undefined;
+      error.code = (data && (data.code ?? data.errorCode)) as
+        | string
+        | undefined;
       throw error;
     }
 
@@ -395,18 +374,29 @@ export class DefaultApi {
   // Cases
   casesCaseIdGetRaw = this.casesApi.casesCaseIdGetRaw.bind(this.casesApi);
   casesCaseIdGet = this.casesApi.casesCaseIdGet.bind(this.casesApi);
-  casesFromHospitalCasePost = this.casesApi.casesFromHospitalCasePost.bind(this.casesApi);
+  casesFromHospitalCasePost = this.casesApi.casesFromHospitalCasePost.bind(
+    this.casesApi,
+  );
   casesGet = this.casesApi.casesGet.bind(this.casesApi);
   casesVerifyTokenPost = this.casesApi.casesVerifyTokenPost.bind(this.casesApi);
 
   // Hospital cases
-  hospitalCasesHospitalCaseIdGet = this.hospitalCasesApi.hospitalCasesHospitalCaseIdGet.bind(this.hospitalCasesApi);
+  hospitalCasesHospitalCaseIdGet =
+    this.hospitalCasesApi.hospitalCasesHospitalCaseIdGet.bind(
+      this.hospitalCasesApi,
+    );
 
   // Patients
   patientsGet = this.patientsApi.patientsGet.bind(this.patientsApi);
-  patientsPatientIdCasesGet = this.patientsApi.patientsPatientIdCasesGet.bind(this.patientsApi);
-  patientsPatientIdGetRaw = this.patientsApi.patientsPatientIdGetRaw.bind(this.patientsApi);
-  patientsPatientIdGet = this.patientsApi.patientsPatientIdGet.bind(this.patientsApi);
+  patientsPatientIdCasesGet = this.patientsApi.patientsPatientIdCasesGet.bind(
+    this.patientsApi,
+  );
+  patientsPatientIdGetRaw = this.patientsApi.patientsPatientIdGetRaw.bind(
+    this.patientsApi,
+  );
+  patientsPatientIdGet = this.patientsApi.patientsPatientIdGet.bind(
+    this.patientsApi,
+  );
 }
 
 // Singleton instance that mirrors the prior "defaultApi" pattern.

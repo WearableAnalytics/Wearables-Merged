@@ -2,6 +2,13 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { API_BASE_PATH } from '@/api/defaultApi';
 import { dispatchSessionExpiredEvent } from '@/lib/authSession';
 
@@ -14,7 +21,11 @@ type Assignment = {
   scopes: string[];
   revision: number;
 };
-type Selection = { caseId: string; staff: Staff; assignment: Assignment | null };
+type Selection = {
+  caseId: string;
+  staff: Staff;
+  assignment: Assignment | null;
+};
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 async function request(path: string, init?: RequestInit) {
@@ -33,7 +44,8 @@ export function AdminCaseAccessPage() {
   const [email, setEmail] = useState('');
   const [selection, setSelection] = useState<Selection | null>(null);
   const [active, setActive] = useState(true);
-  const [purpose, setPurpose] = useState<Assignment['purpose']>('clinical-reference');
+  const [purpose, setPurpose] =
+    useState<Assignment['purpose']>('clinical-reference');
   const [read, setRead] = useState(true);
   const [exportAllowed, setExportAllowed] = useState(false);
   const [reason, setReason] = useState('');
@@ -65,15 +77,20 @@ export function AdminCaseAccessPage() {
     setSelection(null);
     setMessage('');
     try {
-      const lookup = await request(`/admin/staff-lookup?email=${encodeURIComponent(email.trim())}`);
+      const lookup = await request(
+        `/admin/staff-lookup?email=${encodeURIComponent(email.trim())}`,
+      );
       if (!lookup.response.ok)
-        throw new Error('Staff lookup failed. Your current admin access is required.');
+        throw new Error(
+          'Staff lookup failed. Your current admin access is required.',
+        );
       const staff = (lookup.data as { user?: Staff } | null)?.user;
       if (!staff) throw new Error('No approved staff account was found.');
       const result = await request(`/admin/case-access/${id}/${staff.id}`);
       if (!result.response.ok && result.response.status !== 404)
         throw new Error('Case permission lookup failed.');
-      const assignment = result.response.status === 404 ? null : (result.data as Assignment);
+      const assignment =
+        result.response.status === 404 ? null : (result.data as Assignment);
       if (
         assignment &&
         (assignment.case_id !== id ||
@@ -100,7 +117,9 @@ export function AdminCaseAccessPage() {
       );
     } catch (error) {
       if (ticket === epoch.current)
-        setMessage(error instanceof Error ? error.message : 'Permission lookup failed.');
+        setMessage(
+          error instanceof Error ? error.message : 'Permission lookup failed.',
+        );
     } finally {
       if (ticket === epoch.current) setBusy(false);
     }
@@ -112,18 +131,26 @@ export function AdminCaseAccessPage() {
     setBusy(true);
     setMessage('');
     try {
-      const result = await request(`/admin/case-access/${selection.caseId}/${selection.staff.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          expected_revision: selection.assignment?.revision ?? 0,
-          active,
-          purpose,
-          scopes: [...(read ? ['read'] : []), ...(exportAllowed ? ['export'] : [])],
-          reason: reason.trim(),
-        }),
-      });
+      const result = await request(
+        `/admin/case-access/${selection.caseId}/${selection.staff.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            expected_revision: selection.assignment?.revision ?? 0,
+            active,
+            purpose,
+            scopes: [
+              ...(read ? ['read'] : []),
+              ...(exportAllowed ? ['export'] : []),
+            ],
+            reason: reason.trim(),
+          }),
+        },
+      );
       if (result.response.status === 409)
-        throw new Error('This assignment changed. Load it again before you save.');
+        throw new Error(
+          'This assignment changed. Load it again before you save.',
+        );
       if (!result.response.ok)
         throw new Error(
           'Permission change was rejected. Check the case, role and current admin access.',
@@ -134,19 +161,26 @@ export function AdminCaseAccessPage() {
         saved.user_id !== selection.staff.id ||
         !Number.isSafeInteger(saved.revision)
       )
-        throw new Error('The saved assignment could not be confirmed. Load it again.');
+        throw new Error(
+          'The saved assignment could not be confirmed. Load it again.',
+        );
       if (ticket !== epoch.current) return;
       setSelection({ ...selection, assignment: saved });
       setReason('');
-      setMessage(`Saved revision ${saved.revision}. New requests use these permissions.`);
+      setMessage(
+        `Saved revision ${saved.revision}. New requests use these permissions.`,
+      );
     } catch (error) {
       if (ticket === epoch.current)
-        setMessage(error instanceof Error ? error.message : 'Permission change failed.');
+        setMessage(
+          error instanceof Error ? error.message : 'Permission change failed.',
+        );
     } finally {
       if (ticket === epoch.current) setBusy(false);
     }
   };
-  const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2';
+  const inputClass =
+    'w-full rounded-md border border-border bg-background px-3 py-2';
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <PageHeader
@@ -155,7 +189,7 @@ export function AdminCaseAccessPage() {
         description="Approval and a role do not grant case access. Each case needs an explicit assignment, including for admins."
       />
       <Link to="/admin/approvals" className="text-primary underline">
-        Back to account approvals
+        Back to staff accounts
       </Link>
       <form
         onSubmit={(event) => {
@@ -218,19 +252,28 @@ export function AdminCaseAccessPage() {
               />
               Assignment active
             </label>
-            <label className="block">
-              Purpose
-              <select
+            <div className="space-y-1">
+              <label htmlFor="case-purpose">Purpose</label>
+              <Select
                 value={purpose}
-                onChange={(e) => setPurpose(e.target.value as Assignment['purpose'])}
-                className={inputClass}
+                onValueChange={(value) =>
+                  setPurpose(value as Assignment['purpose'])
+                }
+                disabled={busy}
               >
-                <option value="clinical-reference">
-                  Clinical reference (practitioner or admin)
-                </option>
-                <option value="synthetic-research">Synthetic research (researcher or admin)</option>
-              </select>
-            </label>
+                <SelectTrigger id="case-purpose">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="clinical-reference">
+                    Clinical reference (practitioner or admin)
+                  </SelectItem>
+                  <SelectItem value="synthetic-research">
+                    Synthetic research (researcher or admin)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <label className="flex gap-2">
               <input
                 type="checkbox"
@@ -252,8 +295,8 @@ export function AdminCaseAccessPage() {
               Allow export
             </label>
             <p className="text-sm text-muted-foreground">
-              Export permission is recorded here. The old broad export route remains blocked until a
-              case-scoped export feature is available.
+              Export permission is recorded here. The old broad export route
+              remains blocked until a case-scoped export feature is available.
             </p>
             <label className="block">
               Reason for this change
@@ -266,7 +309,10 @@ export function AdminCaseAccessPage() {
                 className={inputClass}
               />
             </label>
-            <Button type="submit" disabled={busy || !reason.trim() || (active && !read)}>
+            <Button
+              type="submit"
+              disabled={busy || !reason.trim() || (active && !read)}
+            >
               Save permissions
             </Button>
           </fieldset>

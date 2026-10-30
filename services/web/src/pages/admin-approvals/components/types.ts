@@ -18,8 +18,12 @@ export type AdminUser = {
   requestedAt?: string;
 };
 
-export type ViewMode = 'users' | 'requests' | 'denied';
-export type AccessProfile = 'admin' | 'practitioner' | 'researcher' | 'practitioner_researcher';
+export type ViewMode = 'users' | 'denied';
+export type AccessProfile =
+  | 'admin'
+  | 'practitioner'
+  | 'researcher'
+  | 'practitioner_researcher';
 export type UserStatus = 'approved' | 'pending' | 'denied';
 
 export type UserDraft = {

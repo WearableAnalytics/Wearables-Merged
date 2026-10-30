@@ -19,6 +19,7 @@ It does not depend on the other foundation feature branches.
 Public registration is closed. `/api/register` returns `410 SELF_REGISTRATION_DISABLED`.
 The old `/register` page redirects to sign-in. Email-link login endpoints return `410 EMAIL_LOGIN_DISABLED`.
 `ALLOW_DEV_AUTH_BYPASS=true` is rejected, including in development. No email-only fallback remains.
+Role/admin self-request commands return `410 ADMIN_MANAGED_ACCESS`. Admins assign access directly.
 MFA and SSO are not implemented in this step.
 
 ## Who has which authority?
@@ -27,7 +28,7 @@ MFA and SSO are not implemented in this step.
 | --- | --- | --- |
 | Admin | Create named accounts, assign roles, disable access, reset other accounts and manage case assignments | Requires an explicit eligible case assignment; no automatic global patient access |
 | Practitioner | Own profile, theme and password | Clinical-reference case metadata only for assigned cases |
-| Researcher | Own profile and password; existing personal API-token management | Research-purpose assignments can be recorded; clinical identity views are denied and the broad export route is blocked |
+| Researcher | Own profile and password; existing personal API-token management | Research-purpose assignments can be recorded; patient names, hospital IDs and dates of birth are not exposed to researcher-only accounts. Research data views are separate work and the broad export route is blocked |
 | Practitioner + Researcher | The combined staff roles; no global account creation | Each request still needs an eligible purpose and case permission |
 
 Several people can have named administrator accounts. One person need not handle every administrative task.
@@ -87,7 +88,8 @@ A database outage does not enable memory authority or email-only access.
 
 - `/login`: email and individual password; no registration action.
 - `/set-password`: restricted first-login/reset setup. The current temporary password and a different personal password are required.
-- `/admin/approvals`: existing account-management layout plus Create staff account and Reset password controls.
+- `/admin/approvals`: Create staff account, Reset password, Staff accounts and Disabled accounts. The old request queue and notification badge are removed.
+- Dropdowns use the shared shadcn Select component. The question-mark help beside Access profile explains all four profiles on hover, focus or click, using the theme card colors.
 - `/admin/case-access`: select an existing case and approved staff member, then set purpose, scopes and a recorded reason.
 - `/overview`: Assigned cases; only the current permitted clinical cases appear.
 - `/account`: access summary, theme and own password change. Role/access changes go through an administrator.
@@ -152,7 +154,7 @@ Its connected BFF/account test disables the database app lifespan to isolate Pos
 a separate synthetic demo checks the normal database readiness path.
 From the BFF: `npm run typecheck` and `npm test`. From web: `npm run lint` and `npm run build`.
 
-Current local verification: **145 backend unit/startup tests + 3 PostgreSQL integration tests + 9 Node tests = 157 passing tests**.
+Current local verification: **145 backend unit/startup tests + 3 PostgreSQL integration tests + 10 Node tests = 158 passing tests**.
 Nine browser checks cover actual account creation, case assignment, restricted first login, personal password setup,
 practitioner denial, admin reset, old-password rejection and repeated setup after reset.
 Changed Python modules pass Ruff/Pyright. BFF TypeScript, web lint/build and the local Linux backend image build pass.
@@ -169,3 +171,12 @@ MFA/SSO, institutional identity policy, abuse controls, secret management, backu
 3. Closed public signup and email authentication; added admin-created named accounts, password setup/change/reset and server recovery.
 4. Added credential migration, password hashing/throttling, temporary-session restrictions and regression/real-browser checks.
 5. Kept the work local. Main and the preserved foundation branch are unchanged; no push or deployment was performed.
+
+## UI review follow-up — 30 October 2026
+
+- Replaced all four visible native dropdowns with the shared shadcn Select.
+- Added accessible profile help with neutral theme colors and compact spacing.
+- Removed the obsolete Requests tab, navigation badge, polling and unused request UI/client code. Older inactive account records remain visible as staff accounts; no pending registration grants access.
+- Closed self-service role/admin request commands and added a regression check that they cannot write authority state.
+- Reset only the isolated local demo account data at the user’s request: one existing named admin remains, along with the sample patient/case records and admin assignment. No demo credentials or database connection values are stored here.
+- Rechecked web lint/build, BFF types/tests and PostgreSQL integration. Recorded the visual check and cleanup counts outside the repository. No push.

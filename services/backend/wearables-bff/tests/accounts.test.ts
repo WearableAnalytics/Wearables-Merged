@@ -101,6 +101,42 @@ test('session authority comes from the stored account, not JWT role claims', asy
     globalThis.fetch = originalFetch;
   }
 });
+
+test('staff cannot submit legacy role or admin requests', async () => {
+  const { default: express } = await import('express');
+  const { default: router } = await import('../src/api/routes/auth.js');
+  const app = express();
+  app.use(express.json(), requireCommandOrigin, router);
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  let writes = 0;
+  globalThis.fetch = async (_input, init) => {
+    if (init?.method && init.method !== 'GET') writes++;
+    return Response.json(user);
+  };
+  try {
+    for (const path of ['/request-role', '/request-admin']) {
+      const response = await originalFetch(`http://127.0.0.1:${address.port}${path}`, {
+        method: 'POST',
+        headers: {
+          Origin: process.env.FRONTEND_REDIRECT_URL!,
+          Cookie: `jwt=${cookie()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role: 'researcher' }),
+      });
+      assert.equal(response.status, 410);
+      assert.deepEqual(await response.json(), { error: 'ADMIN_MANAGED_ACCESS' });
+    }
+    assert.equal(writes, 0, 'A retired request must not write authority state');
+  } finally {
+    globalThis.fetch = originalFetch;
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
 test('revoked version, wrong account and wrong audience cannot reuse a session', async () => {
   globalThis.fetch = async () => Response.json(user);
   try {

@@ -1,7 +1,20 @@
 import { Inbox } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { AdminApprovalsEmptyState } from './AdminApprovalsEmptyState';
-import type { AccessProfile, AdminUser, UserDraft, UserDraftEdits, UserStatus } from './types';
+import type {
+  AccessProfile,
+  AdminUser,
+  UserDraft,
+  UserDraftEdits,
+  UserStatus,
+} from './types';
 
 const ACCESS_PROFILE_OPTIONS: Array<{ value: AccessProfile; label: string }> = [
   { value: 'admin', label: 'Admin' },
@@ -65,38 +78,65 @@ export function AdminApprovalsUsersTable({
               const isSelf = currentUserId === entry.id;
               const currentAccessProfile = toAccessProfile(entry);
               const currentStatus = (entry.status ?? 'approved') as UserStatus;
-              const draft = draftEdits[entry.id] ?? { accessProfile: currentAccessProfile, status: currentStatus };
-              const isDirty = draft.accessProfile !== currentAccessProfile || draft.status !== currentStatus;
+              const draft = draftEdits[entry.id] ?? {
+                accessProfile: currentAccessProfile,
+                status: currentStatus,
+              };
+              const isDirty =
+                draft.accessProfile !== currentAccessProfile ||
+                draft.status !== currentStatus;
               const isBusy = actionUserId === entry.id;
 
               return (
                 <tr key={entry.id} className="table-row last:border-b-0">
-                  <td className="px-3 py-3 font-medium text-foreground">{entry.email}</td>
-                  <td className="px-3 py-3">
-                    <select
-                      value={draft.accessProfile}
-                      onChange={(event) => onDraftUpdate(entry, { accessProfile: event.target.value as AccessProfile })}
-                      disabled={isSelf || isBusy}
-                      className="field-input w-full min-w-[200px] rounded-md bg-card px-2 py-1"
-                    >
-                      {ACCESS_PROFILE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                  <td className="px-3 py-3 font-medium text-foreground">
+                    {entry.email}
                   </td>
                   <td className="px-3 py-3">
-                    <select
-                      value={draft.status}
-                      onChange={(event) => onDraftUpdate(entry, { status: event.target.value as UserStatus })}
+                    <Select
+                      value={draft.accessProfile}
+                      onValueChange={(value) =>
+                        onDraftUpdate(entry, {
+                          accessProfile: value as AccessProfile,
+                        })
+                      }
                       disabled={isSelf || isBusy}
-                      className="field-input w-full min-w-[140px] rounded-md bg-card px-2 py-1"
                     >
-                      <option value="approved">Approved</option>
-                      <option value="pending">Pending</option>
-                      <option value="denied">Denied</option>
-                    </select>
+                      <SelectTrigger
+                        aria-label={`Access profile for ${entry.email}`}
+                        className="min-w-[200px]"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACCESS_PROFILE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="px-3 py-3">
+                    <Select
+                      value={draft.status}
+                      onValueChange={(value) =>
+                        onDraftUpdate(entry, { status: value as UserStatus })
+                      }
+                      disabled={isSelf || isBusy}
+                    >
+                      <SelectTrigger
+                        aria-label={`Account access for ${entry.email}`}
+                        className="min-w-[140px]"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="approved">Enabled</SelectItem>
+                        <SelectItem value="pending">Inactive</SelectItem>
+                        <SelectItem value="denied">Disabled</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </td>
                   <td className="space-x-2 px-3 py-3 text-right">
                     {isSelf ? (
@@ -113,7 +153,16 @@ export function AdminApprovalsUsersTable({
                         Update
                       </Button>
                     )}
-                    {!isSelf && <Button size="sm" variant="outline" disabled={isBusy || resetDisabled} onClick={() => onResetPassword(entry)}>Reset password</Button>}
+                    {!isSelf && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isBusy || resetDisabled}
+                        onClick={() => onResetPassword(entry)}
+                      >
+                        Reset password
+                      </Button>
+                    )}
                   </td>
                 </tr>
               );

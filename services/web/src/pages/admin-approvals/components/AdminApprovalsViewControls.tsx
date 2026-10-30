@@ -3,7 +3,7 @@ import type { ViewMode } from './types';
 
 type AdminApprovalsViewControlsProps = {
   loading: boolean;
-  approvedUsersCount: number;
+  staffUsersCount: number;
   view: ViewMode;
   onViewChange: (view: ViewMode) => void;
   search: string;
@@ -12,7 +12,7 @@ type AdminApprovalsViewControlsProps = {
 
 export function AdminApprovalsViewControls({
   loading,
-  approvedUsersCount,
+  staffUsersCount,
   view,
   onViewChange,
   search,
@@ -23,25 +23,26 @@ export function AdminApprovalsViewControls({
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-section-title">Admin console</h2>
-          <p className="m-0 text-muted-foreground">{loading ? 'Loading data…' : `${approvedUsersCount} users`}</p>
+          <p className="m-0 text-muted-foreground">
+            {loading
+              ? 'Loading data…'
+              : `${staffUsersCount} ${staffUsersCount === 1 ? 'account' : 'accounts'}`}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
-            variant={view === 'requests' ? 'default' : 'outline'}
-            onClick={() => onViewChange('requests')}
+            variant={view === 'users' ? 'default' : 'outline'}
+            onClick={() => onViewChange('users')}
           >
-            Requests
-          </Button>
-          <Button size="sm" variant={view === 'users' ? 'default' : 'outline'} onClick={() => onViewChange('users')}>
-            Current users
+            Staff accounts
           </Button>
           <Button
             size="sm"
             variant={view === 'denied' ? 'default' : 'outline'}
             onClick={() => onViewChange('denied')}
           >
-            Denied users
+            Disabled accounts
           </Button>
         </div>
       </div>

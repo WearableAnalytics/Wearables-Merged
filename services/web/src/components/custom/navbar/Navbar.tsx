@@ -3,15 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Menu, Shield, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useActiveCase } from '@/lib/activeCase';
-import { defaultApi } from '@/api/defaultApi';
-import {
-  ADMIN_APPROVALS_UPDATED_EVENT,
-  type AdminApprovalsUpdatedDetail,
-} from '@/lib/adminApprovalsEvents';
 import { useMessageToast } from '@/lib/toast';
 import { useAuth } from '@/context/AuthContext';
 import { LOGOUT_REASON_SUCCESS, getLogoutPath } from '@/lib/authSession';
-import { canAccessPractitionerPages, canAccessResearcherPages, isAdminUser } from '@/lib/userAccess';
+import {
+  canAccessPractitionerPages,
+  canAccessResearcherPages,
+  isAdminUser,
+} from '@/lib/userAccess';
 
 import { NavButton, NavButtonMobile } from './navButtons';
 
@@ -22,24 +21,21 @@ interface NavbarProps {
   location: ReturnType<typeof useLocation>;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
-  navigate,
-  location,
-}) => {
+export const Navbar: React.FC<NavbarProps> = ({ navigate, location }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [openApprovalsCount, setOpenApprovalsCount] = useState(0);
   const { activeCase, patient } = useActiveCase();
   const { user, logout } = useAuth();
   const [logoutError, setLogoutError] = useState<string | null>(null);
   useMessageToast('error', 'logout-error', logoutError);
   const isCasePage = location.pathname.startsWith('/cases/');
-  const activePatientName = patient ? `${patient.firstName} ${patient.lastName}` : null;
+  const activePatientName = patient
+    ? `${patient.firstName} ${patient.lastName}`
+    : null;
   const isAuthenticated = !!user;
   const isAdmin = isAdminUser(user);
   const hasPractitionerAccess = canAccessPractitionerPages(user);
   const hasResearcherAccess = canAccessResearcherPages(user);
-
 
   // Add/remove body class when mobile menu changes
   useEffect(() => {
@@ -49,71 +45,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       document.body.classList.remove('mobile-menu-open');
     }
   }, [isMobileMenuOpen]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !isAdmin) {
-      setOpenApprovalsCount(0);
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadOpenApprovalsCount = async () => {
-      try {
-        const [pendingUsersData, pendingAccessRequestsData] = await Promise.all([
-          defaultApi.listPendingUsers(),
-          defaultApi.listPendingAccessRequests(),
-        ]);
-        if (cancelled) {
-          return;
-        }
-
-        const pendingUsers = (pendingUsersData as { users?: unknown[] }).users ?? [];
-        const pendingAccessRequests = (pendingAccessRequestsData as { users?: unknown[] }).users ?? [];
-        setOpenApprovalsCount(pendingUsers.length + pendingAccessRequests.length);
-      } catch (error) {
-        if (!cancelled) {
-          console.error('Failed to load open approvals count:', error);
-          setOpenApprovalsCount(0);
-        }
-      }
-    };
-
-    void loadOpenApprovalsCount();
-    const refreshId = window.setInterval(() => {
-      void loadOpenApprovalsCount();
-    }, 30_000);
-
-    const handleApprovalsUpdated = (event: Event) => {
-      const customEvent = event as CustomEvent<AdminApprovalsUpdatedDetail>;
-      const nextCount = customEvent.detail?.openRequestsCount;
-      if (typeof nextCount === 'number') {
-        setOpenApprovalsCount(nextCount);
-        return;
-      }
-      void loadOpenApprovalsCount();
-    };
-    const handleWindowFocus = () => {
-      void loadOpenApprovalsCount();
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        void loadOpenApprovalsCount();
-      }
-    };
-
-    window.addEventListener(ADMIN_APPROVALS_UPDATED_EVENT, handleApprovalsUpdated);
-    window.addEventListener('focus', handleWindowFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(refreshId);
-      window.removeEventListener(ADMIN_APPROVALS_UPDATED_EVENT, handleApprovalsUpdated);
-      window.removeEventListener('focus', handleWindowFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isAdmin, isAuthenticated, location.pathname]);
 
   const handleMobileLinkClick = () => {
     setIsMobileMenuOpen(false);
@@ -144,9 +75,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               {hasPractitionerAccess ? (
                 <NavButton path="/overview">Overview</NavButton>
               ) : null}
-              {hasPractitionerAccess && isCasePage && activeCase && activePatientName ? (
-                <NavButton path={`/cases/${activeCase.caseId}`} className="min-w-[7rem]" title={activePatientName}>
-                  <span className="block max-w-[12rem] truncate lg:max-w-[20rem]">{activePatientName}</span>
+              {hasPractitionerAccess &&
+              isCasePage &&
+              activeCase &&
+              activePatientName ? (
+                <NavButton
+                  path={`/cases/${activeCase.caseId}`}
+                  className="min-w-[7rem]"
+                  title={activePatientName}
+                >
+                  <span className="block max-w-[12rem] truncate lg:max-w-[20rem]">
+                    {activePatientName}
+                  </span>
                 </NavButton>
               ) : null}
               {hasPractitionerAccess ? (
@@ -172,14 +112,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="ui-control-square relative p-0 flex items-center justify-center"
                   >
                     <Shield className="h-5 w-5" aria-hidden />
-                    {openApprovalsCount > 0 ? (
-                      <span className="pointer-events-none absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-background bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
-                        {openApprovalsCount > 99 ? '99+' : openApprovalsCount}
-                      </span>
-                    ) : null}
-                    <span className="sr-only">
-                      Admin approvals{openApprovalsCount > 0 ? `, ${openApprovalsCount} open requests` : ''}
-                    </span>
+                    <span className="sr-only">Staff accounts</span>
                   </NavButton>
                 ) : null}
                 <NavButton
@@ -191,7 +124,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <User className="h-5 w-5" aria-hidden />
                   <span className="sr-only">Account</span>
                 </NavButton>
-                <NavButton invertedColors={true} onClick={handleLogout} isDisabled={isLoggingOut}>
+                <NavButton
+                  invertedColors={true}
+                  onClick={handleLogout}
+                  isDisabled={isLoggingOut}
+                >
                   Logout
                 </NavButton>
               </>
@@ -256,27 +193,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                     >
                       <span className="inline-flex items-center gap-2">
                         <span>Admin</span>
-                        {openApprovalsCount > 0 ? (
-                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-background bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground tabular-nums">
-                            {openApprovalsCount > 99 ? '99+' : openApprovalsCount}
-                          </span>
-                        ) : null}
                       </span>
                     </NavButtonMobile>
                   ) : null}
-                  {hasPractitionerAccess && isCasePage && activeCase && activePatientName ? (
+                  {hasPractitionerAccess &&
+                  isCasePage &&
+                  activeCase &&
+                  activePatientName ? (
                     <NavButtonMobile
                       path={`/cases/${activeCase.caseId}`}
                       className="w-full justify-start text-left"
                       onClick={handleMobileLinkClick}
                     >
-                      <span className="block max-w-full truncate" title={activePatientName ?? undefined}>
+                      <span
+                        className="block max-w-full truncate"
+                        title={activePatientName ?? undefined}
+                      >
                         {activePatientName}
                       </span>
                     </NavButtonMobile>
                   ) : null}
                   {hasPractitionerAccess ? (
-                    <NavButtonMobile path="/add-case" className="w-full justify-start text-left" onClick={handleMobileLinkClick}>
+                    <NavButtonMobile
+                      path="/add-case"
+                      className="w-full justify-start text-left"
+                      onClick={handleMobileLinkClick}
+                    >
                       Add Case
                     </NavButtonMobile>
                   ) : null}
