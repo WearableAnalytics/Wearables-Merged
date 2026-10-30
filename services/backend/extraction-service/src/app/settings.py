@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +10,7 @@ class Settings(BaseSettings):
 
     db_lord_base_url: str = "http://db-lord:8000"
     db_lord_timeout_seconds: float = 120.0
+    db_lord_operator_token: SecretStr = SecretStr("")
 
     # Used when a request has no `start`. db_lord itself falls back to the last 24h, which
     # silently truncated exports, so the extraction API defaults to all data. The app uploads

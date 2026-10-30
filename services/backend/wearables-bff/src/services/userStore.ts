@@ -1,3 +1,4 @@
+import config from '../config.js';
 import { controlRequest, ControlApiError } from '../clients/controlApi.js';
 
 export type NonAdminRole = 'practitioner' | 'researcher';
@@ -36,8 +37,15 @@ export interface AccessRequestRecord {
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const normalizeRoles = (roles: readonly NonAdminRole[]): NonAdminRole[] =>
-  [...new Set(roles.filter((role) => role === 'practitioner' || role === 'researcher'))].sort();
+  [
+    ...new Set(
+      roles.filter((role) => role === 'practitioner' || role === 'researcher'),
+    ),
+  ].sort();
 export const normalizeUserEmail = normalizeEmail;
+export const isAdminEmail = (email: string) =>
+  config.adminEmails.map(normalizeEmail).includes(normalizeEmail(email));
+
 export interface UserDto {
   id: string;
   email: string;
@@ -64,7 +72,9 @@ export const fromDto = (dto: UserDto): UserRecord => {
     typeof dto.email !== 'string' ||
     typeof dto.is_admin !== 'boolean' ||
     !Array.isArray(dto.roles) ||
-    dto.roles.some((role) => role !== 'practitioner' && role !== 'researcher') ||
+    dto.roles.some(
+      (role) => role !== 'practitioner' && role !== 'researcher',
+    ) ||
     !['pending', 'approved', 'denied'].includes(dto.status) ||
     !Number.isInteger(dto.auth_version) ||
     dto.auth_version < 1 ||
@@ -85,7 +95,10 @@ export const fromDto = (dto: UserDto): UserRecord => {
     adminRequestStatus: state.adminRequestStatus ?? 'none',
     adminRequestedAt: date(state.adminRequestedAt),
     adminReviewedAt: date(state.adminReviewedAt),
-    roleRequestStatuses: state.roleRequestStatuses ?? { practitioner: 'none', researcher: 'none' },
+    roleRequestStatuses: state.roleRequestStatuses ?? {
+      practitioner: 'none',
+      researcher: 'none',
+    },
     roleRequestedAt: dateMap(state.roleRequestedAt),
     roleReviewedAt: dateMap(state.roleReviewedAt),
     createdAt: new Date(dto.created_at),
@@ -106,9 +119,18 @@ interface UserPage {
   items: UserDto[];
   next_cursor: string | null;
 }
-const readPage = async (params: URLSearchParams, limit: number, signal?: AbortSignal): Promise<UserPage> => {
+const readPage = async (
+  params: URLSearchParams,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<UserPage> => {
   params.set('limit', String(limit));
-  const page = await controlRequest<UserPage>(`/users?${params}`, 'GET', undefined, signal);
+  const page = await controlRequest<UserPage>(
+    `/users?${params}`,
+    'GET',
+    undefined,
+    signal,
+  );
   if (
     !page ||
     !Array.isArray(page.items) ||
@@ -123,8 +145,15 @@ const readPage = async (params: URLSearchParams, limit: number, signal?: AbortSi
     throw new ControlApiError(503);
   return page;
 };
-export const getUserByEmail = async (email: string, signal?: AbortSignal): Promise<UserRecord | undefined> => {
-  const page = await readPage(new URLSearchParams({ email: normalizeEmail(email) }), 1, signal);
+export const getUserByEmail = async (
+  email: string,
+  signal?: AbortSignal,
+): Promise<UserRecord | undefined> => {
+  const page = await readPage(
+    new URLSearchParams({ email: normalizeEmail(email) }),
+    1,
+    signal,
+  );
   // The authoritative normalized-email index is unique. Never select an arbitrary match.
   if (page.next_cursor !== null) throw new ControlApiError(503);
   if (!page.items.length) return undefined;
@@ -132,13 +161,24 @@ export const getUserByEmail = async (email: string, signal?: AbortSignal): Promi
   if (user.email !== normalizeEmail(email)) throw new ControlApiError(503);
   return user;
 };
-export const getUserById = async (id: string, signal?: AbortSignal): Promise<UserRecord | undefined> => {
+export const getUserById = async (
+  id: string,
+  signal?: AbortSignal,
+): Promise<UserRecord | undefined> => {
   try {
-    const user = fromDto(await controlRequest<UserDto>(`/users/${encodeURIComponent(id)}`, 'GET', undefined, signal));
+    const user = fromDto(
+      await controlRequest<UserDto>(
+        `/users/${encodeURIComponent(id)}`,
+        'GET',
+        undefined,
+        signal,
+      ),
+    );
     if (user.id !== id) throw new ControlApiError(503);
     return user;
   } catch (error) {
-    if (error instanceof ControlApiError && error.status === 404) return undefined;
+    if (error instanceof ControlApiError && error.status === 404)
+      return undefined;
     throw error;
   }
 };
@@ -154,7 +194,8 @@ const allUsers = async (status?: UserStatus): Promise<UserRecord[]> => {
     const page = await readPage(params, 100);
     users.push(...page.items.map(fromDto));
     if (page.next_cursor === null) return users;
-    if (seen.has(page.next_cursor)) throw new ControlApiError(503, 'CONTROL_LIST_LIMIT');
+    if (seen.has(page.next_cursor))
+      throw new ControlApiError(503, 'CONTROL_LIST_LIMIT');
     seen.add(page.next_cursor);
     after = page.next_cursor;
   }
@@ -163,10 +204,35 @@ const allUsers = async (status?: UserStatus): Promise<UserRecord[]> => {
 export const listUsersByStatus = (status: UserStatus) => allUsers(status);
 export const countActiveAdmins = async () =>
   (await listUsersByStatus('approved')).filter((user) => user.isAdmin).length;
-// Startup checks durable authority availability; bootstrap is a protected server command.
-export const initializeUsers = async () => { await readPage(new URLSearchParams(), 1); };
+export const createUser = async (
+  email: string,
+  options: Partial<
+    Pick<UserRecord, 'isAdmin' | 'roles' | 'status' | 'name'>
+  > = {},
+) =>
+  fromDto(
+    await controlRequest<UserDto>('/users', 'POST', {
+      email: normalizeEmail(email),
+      name: options.name,
+      roles: normalizeRoles(options.roles ?? ['practitioner']),
+    }),
+  );
+// Insert-only bootstrap. The database must return an existing record unchanged.
+export const ensureAdminUser = async (email: string) =>
+  fromDto(
+    await controlRequest<UserDto>('/users/bootstrap', 'POST', {
+      email: normalizeEmail(email),
+    }),
+  );
+export const initializeUsers = async () => {
+  for (const email of config.adminEmails) await ensureAdminUser(email);
+};
 
-export interface ActorIdentity { userId: string; sessionVersion: number }
+export interface ActorIdentity {
+  userId: string;
+  sessionVersion: number;
+  expectedRevision?: number;
+}
 
 const mutate = async (
   id: string,
@@ -175,6 +241,13 @@ const mutate = async (
 ): Promise<UserRecord | undefined> => {
   const user = await getUserById(id);
   if (!user) return undefined;
+  if (id !== actor.userId && !Number.isInteger(actor.expectedRevision))
+    throw new ControlApiError(428, 'EXPECTED_REVISION_REQUIRED');
+  if (
+    actor.expectedRevision !== undefined &&
+    actor.expectedRevision !== user.revision
+  )
+    throw new ControlApiError(409, 'STALE_REVISION');
   change(user);
   return fromDto(
     await controlRequest<UserDto>(`/users/${encodeURIComponent(id)}`, 'PATCH', {
@@ -189,16 +262,27 @@ const mutate = async (
     }),
   );
 };
-export const revokeUserSessions = async (userId: string, expectedAuthVersion: number) =>
+export const revokeUserSessions = async (
+  userId: string,
+  expectedAuthVersion: number,
+) =>
   fromDto(
-    await controlRequest<UserDto>(`/users/${encodeURIComponent(userId)}/revoke-sessions`, 'POST', {
-      actor_id: userId,
-      actor_auth_version: expectedAuthVersion,
-      expected_auth_version: expectedAuthVersion,
-    }),
+    await controlRequest<UserDto>(
+      `/users/${encodeURIComponent(userId)}/revoke-sessions`,
+      'POST',
+      {
+        actor_id: userId,
+        actor_auth_version: expectedAuthVersion,
+        expected_auth_version: expectedAuthVersion,
+      },
+    ),
   );
 
-const markRoleApproved = (user: UserRecord, role: NonAdminRole, reviewedAt: Date) => {
+const markRoleApproved = (
+  user: UserRecord,
+  role: NonAdminRole,
+  reviewedAt: Date,
+) => {
   if (!user.roles.includes(role)) {
     user.roles = normalizeRoles([...user.roles, role]);
   }
@@ -207,14 +291,22 @@ const markRoleApproved = (user: UserRecord, role: NonAdminRole, reviewedAt: Date
   user.roleRequestedAt[role] = user.roleRequestedAt[role] ?? reviewedAt;
 };
 
-const clearRoleAssignment = (user: UserRecord, role: NonAdminRole, reviewedAt: Date) => {
+const clearRoleAssignment = (
+  user: UserRecord,
+  role: NonAdminRole,
+  reviewedAt: Date,
+) => {
   user.roles = user.roles.filter((entry) => entry !== role);
   user.roleRequestStatuses[role] = 'none';
   user.roleRequestedAt[role] = undefined;
   user.roleReviewedAt[role] = reviewedAt;
 };
 
-const setAdminAccess = (user: UserRecord, isAdmin: boolean, changedAt: Date) => {
+const setAdminAccess = (
+  user: UserRecord,
+  isAdmin: boolean,
+  changedAt: Date,
+) => {
   user.isAdmin = isAdmin;
 
   if (isAdmin) {
@@ -251,8 +343,22 @@ const setAdminAccess = (user: UserRecord, isAdmin: boolean, changedAt: Date) => 
   });
 };
 
-export const setUserStatus = (id: string, status: UserStatus, actor: ActorIdentity) =>
+export const setUserStatus = (
+  id: string,
+  status: UserStatus,
+  actor: ActorIdentity,
+) =>
   mutate(id, actor, (user) => {
+    if (
+      status === 'approved' &&
+      user.status !== 'approved' &&
+      user.roles.length === 0 &&
+      !user.isAdmin
+    ) {
+      for (const role of ['practitioner', 'researcher'] as const)
+        if (user.roleRequestStatuses[role] === 'pending')
+          markRoleApproved(user, role, new Date());
+    }
     user.status = status;
   });
 export const updateUserAccess = (
@@ -281,9 +387,17 @@ export const requestAdminAccess = (id: string, sessionVersion: number) =>
     user.adminRequestedAt = new Date();
     user.adminReviewedAt = undefined;
   });
-export const requestRoleAccess = (id: string, role: NonAdminRole, sessionVersion: number) =>
+export const requestRoleAccess = (
+  id: string,
+  role: NonAdminRole,
+  sessionVersion: number,
+) =>
   mutate(id, { userId: id, sessionVersion }, (user) => {
-    if (user.isAdmin || user.roles.includes(role) || user.roleRequestStatuses[role] === 'pending')
+    if (
+      user.isAdmin ||
+      user.roles.includes(role) ||
+      user.roleRequestStatuses[role] === 'pending'
+    )
       return;
     user.roleRequestStatuses[role] = 'pending';
     user.roleRequestedAt[role] = new Date();
@@ -304,13 +418,15 @@ export const reviewAccessRequest = (
     } else {
       user.roleRequestStatuses[type] = decision;
       user.roleReviewedAt[type] = now;
-      if (decision === 'approved' && !user.isAdmin) markRoleApproved(user, type, now);
+      if (decision === 'approved' && !user.isAdmin)
+        markRoleApproved(user, type, now);
     }
   });
 export const listAccessRequests = async (
   status: AccessRequestStatus,
 ): Promise<AccessRequestRecord[]> =>
   (await allUsers())
+    .filter((user) => user.status === 'approved')
     .flatMap((user) => {
       const records: AccessRequestRecord[] = [];
       if (user.adminRequestStatus === status)
@@ -332,4 +448,7 @@ export const listAccessRequests = async (
           });
       return records;
     })
-    .sort((a, b) => (a.requestedAt?.getTime() ?? 0) - (b.requestedAt?.getTime() ?? 0));
+    .sort(
+      (a, b) =>
+        (a.requestedAt?.getTime() ?? 0) - (b.requestedAt?.getTime() ?? 0),
+    );

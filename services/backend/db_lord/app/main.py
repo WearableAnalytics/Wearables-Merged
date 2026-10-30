@@ -25,7 +25,6 @@ from app.api.errors import (
 from app.api.legacy_boundary import LegacyBoundary
 from app.api.routers import (
     api_tokens,
-    case_access,
     cases,
     contexts,
     control,
@@ -174,7 +173,6 @@ def create_app() -> FastAPI:
     app.add_middleware(LegacyBoundary)
     app.add_middleware(ControlBoundary)
     app.include_router(control.router, prefix="/control", tags=["accounts"])
-    app.include_router(case_access.router, prefix="/control", tags=["case-access"])
 
     app.include_router(patients.router, prefix="/patients", tags=["patients"])
     app.include_router(cases.router, prefix="/cases", tags=["cases"])

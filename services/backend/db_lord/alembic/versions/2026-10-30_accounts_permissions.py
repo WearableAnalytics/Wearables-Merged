@@ -1,4 +1,4 @@
-"""Staff accounts, case assignments and one-use email login proof.
+"""Persistent staff authority and one-use email login proof.
 
 No access is inferred. Existing cases and measurements are unchanged.
 """
@@ -56,23 +56,6 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "case_access",
-        sa.Column("case_id", sa.Uuid(), sa.ForeignKey("cases.id", ondelete="RESTRICT"), primary_key=True),
-        sa.Column("user_id", sa.Uuid(), sa.ForeignKey("control_users.id", ondelete="RESTRICT"), primary_key=True),
-        sa.Column("patient_id", sa.Uuid(), sa.ForeignKey("patients.id", ondelete="RESTRICT"), nullable=False),
-        sa.Column("active", sa.Boolean(), nullable=False),
-        sa.Column("purpose", sa.String(32), nullable=False),
-        sa.Column("scopes", JSONB(), nullable=False),
-        sa.Column("revision", sa.BigInteger(), nullable=False),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False),
-        sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=False),
-        sa.CheckConstraint("revision > 0", name=op.f("ck_case_access_case_access_revision")),
-        sa.CheckConstraint(
-            "purpose IN ('clinical-reference','synthetic-research')", name=op.f("ck_case_access_case_access_purpose")
-        ),
-    )
-    op.create_index("ix_case_access_user_page", "case_access", ["user_id", "case_id"])
-    op.create_table(
         "login_challenges",
         sa.Column("token_hash", sa.String(64), primary_key=True),
         sa.Column("user_id", sa.Uuid(), sa.ForeignKey("control_users.id", ondelete="CASCADE"), nullable=False),
@@ -82,7 +65,18 @@ def upgrade() -> None:
     )
     op.create_index("ix_login_challenges_expires_at", "login_challenges", ["expires_at"])
 
+    op.create_table(
+        "auth_attempts",
+        sa.Column("kind", sa.String(16), primary_key=True),
+        sa.Column("key_hash", sa.String(64), primary_key=True),
+        sa.Column("window_start", sa.BigInteger(), primary_key=True),
+        sa.Column("attempts", sa.Integer(), nullable=False),
+        sa.CheckConstraint("attempts > 0", name=op.f("ck_auth_attempts_auth_attempts_positive")),
+        sa.CheckConstraint("kind IN ('client','login','register','verify')", name=op.f("ck_auth_attempts_auth_attempts_kind")),
+    )
+    op.create_index("ix_auth_attempts_window_start", "auth_attempts", ["window_start"])
+
 
 def downgrade() -> None:
-    for table in ("login_challenges", "case_access", "control_audit", "control_users", "control_authority_lock"):
+    for table in ("auth_attempts", "login_challenges", "control_audit", "control_users", "control_authority_lock"):
         op.drop_table(table)

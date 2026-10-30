@@ -1,7 +1,10 @@
 import config from '../config.js';
 import { databaseApiClient } from '../clients/databaseApi.js';
 import * as mockData from '../mockData.js';
-import type { CaseStatusEnum, Patient } from '../api/openapi-client/models/index.js';
+import type {
+  CaseStatusEnum,
+  Patient,
+} from '../api/openapi-client/models/index.js';
 import { tokenService } from './tokenService.js';
 import { logger } from '../logger.js';
 
@@ -76,11 +79,11 @@ class PatientService {
 
     try {
       const patients = await databaseApiClient.getPatients();
-      return patients.map(p => ({
+      return patients.map((p) => ({
         patientId: p.id,
         firstName: p.name.split(' ')[0] || '',
         lastName: p.name.split(' ').slice(1).join(' ') || '',
-        birthDate: p.dob ? new Date(p.dob) : new Date(),
+        birthDate: p.dob ? new Date(p.dob) : null,
       }));
     } catch (error) {
       logger.error('Error fetching patients from API', error as Error);
@@ -99,7 +102,7 @@ class PatientService {
         patientId: patient.id,
         firstName: patient.name.split(' ')[0] || '',
         lastName: patient.name.split(' ').slice(1).join(' ') || '',
-        birthDate: patient.dob ? new Date(patient.dob) : new Date(),
+        birthDate: patient.dob ? new Date(patient.dob) : null,
       };
     } catch (error) {
       logger.error(`Error fetching patient ${patientId}`, error as Error);
@@ -114,14 +117,17 @@ class PatientService {
 
     try {
       const cases = await databaseApiClient.getPatientCases(patientId);
-      return cases.map(c => ({
+      return cases.map((c) => ({
         caseId: c.id,
         patientId: c.patient_id,
         status: normalizeCaseStatus(c.status),
         caseToken: null,
       }));
     } catch (error) {
-      logger.error(`Error fetching cases for patient ${patientId}`, error as Error);
+      logger.error(
+        `Error fetching cases for patient ${patientId}`,
+        error as Error,
+      );
       throw new Error('Failed to fetch patient cases');
     }
   }
@@ -135,7 +141,7 @@ class CaseService {
 
     try {
       const cases = await databaseApiClient.getCases();
-      return cases.map(c => ({
+      return cases.map((c) => ({
         caseId: c.id,
         patientId: c.patient_id,
         status: normalizeCaseStatus(c.status),
@@ -170,7 +176,9 @@ class CaseService {
     }
   }
 
-  async createCaseFromHospital(hospitalCaseId: string): Promise<CaseCreationResult | undefined> {
+  async createCaseFromHospital(
+    hospitalCaseId: string,
+  ): Promise<CaseCreationResult | undefined> {
     if (config.useMockData) {
       return mockData.createCaseFromHospital(hospitalCaseId);
     }
@@ -183,22 +191,22 @@ class CaseService {
 
       const searchResult = await databaseApiClient.getPatients({
         firstname: hospitalCase.firstName,
-        lastname: hospitalCase.lastName
+        lastname: hospitalCase.lastName,
       });
 
       let patient: Patient;
-      
+
       if (searchResult.length > 0) {
         const dbPatient = searchResult[0];
         patient = {
           patientId: dbPatient.id,
           firstName: dbPatient.name.split(' ')[0] || '',
           lastName: dbPatient.name.split(' ').slice(1).join(' ') || '',
-          birthDate: dbPatient.dob ? new Date(dbPatient.dob) : new Date(),
+          birthDate: dbPatient.dob ? new Date(dbPatient.dob) : null,
         };
       } else {
         const newPatient = await databaseApiClient.createPatient({
-            charite_id: hospitalCase.uuid,
+          charite_id: hospitalCase.uuid,
           name: `${hospitalCase.firstName} ${hospitalCase.lastName}`,
           sex: 'other',
           dob: hospitalCase.birthDate.toISOString().split('T')[0],
@@ -207,19 +215,23 @@ class CaseService {
           patientId: newPatient.id,
           firstName: newPatient.name.split(' ')[0] || '',
           lastName: newPatient.name.split(' ').slice(1).join(' ') || '',
-          birthDate: newPatient.dob ? new Date(newPatient.dob) : new Date(),
+          birthDate: newPatient.dob ? new Date(newPatient.dob) : null,
         };
       }
 
-      const patientCases = await databaseApiClient.getPatientCases(patient.patientId);
-      const existingCase = patientCases.find((c) => isActiveCaseStatus(c.status));
+      const patientCases = await databaseApiClient.getPatientCases(
+        patient.patientId,
+      );
+      const existingCase = patientCases.find((c) =>
+        isActiveCaseStatus(c.status),
+      );
 
       if (existingCase) {
         const caseToken = tokenService.generateCaseToken(
           existingCase.id,
-          existingCase.patient_id
+          existingCase.patient_id,
         );
-        
+
         return {
           created: false,
           caseRecord: {
@@ -241,7 +253,7 @@ class CaseService {
 
       const caseToken = tokenService.generateCaseToken(
         newCase.id,
-        newCase.patient_id
+        newCase.patient_id,
       );
 
       return {
@@ -272,13 +284,15 @@ class CaseService {
       if (!tokenPayload) {
         return undefined;
       }
-      
+
       const caseRecord = await databaseApiClient.getCase(tokenPayload.caseId);
       if (!caseRecord) {
         return undefined;
       }
 
-      const dbPatient = await databaseApiClient.getPatient(caseRecord.patient_id);
+      const dbPatient = await databaseApiClient.getPatient(
+        caseRecord.patient_id,
+      );
       if (!dbPatient) {
         return undefined;
       }
@@ -287,7 +301,7 @@ class CaseService {
         patientId: dbPatient.id,
         firstName: dbPatient.name.split(' ')[0] || '',
         lastName: dbPatient.name.split(' ').slice(1).join(' ') || '',
-        birthDate: dbPatient.dob ? new Date(dbPatient.dob) : new Date(),
+        birthDate: dbPatient.dob ? new Date(dbPatient.dob) : null,
       });
 
       return {

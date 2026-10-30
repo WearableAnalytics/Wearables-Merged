@@ -65,7 +65,10 @@ export interface ApiTokenRecord {
 }
 
 export class DatabaseApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
     super(message);
     this.name = 'DatabaseApiError';
   }
@@ -85,7 +88,7 @@ class DatabaseApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const controller = new AbortController();
@@ -97,15 +100,17 @@ class DatabaseApiClient {
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
-          ...(endpoint.startsWith('/api-tokens') ? { 'X-Api-Token-Service-Token': config.apiTokenServiceToken } : {}),
+          ...(endpoint.startsWith('/api-tokens')
+            ? { 'X-Api-Token-Service-Token': config.apiTokenServiceToken }
+            : { 'X-Legacy-Operator-Token': config.databaseOperatorToken }),
           ...options.headers,
         },
       });
 
       if (!response.ok) {
-        await response.body?.cancel();
+        const errorBody = await response.text();
         throw new DatabaseApiError(
-          `Database API request rejected (${response.status})`,
+          `Database API error: ${response.status} ${response.statusText} - ${errorBody}`,
           response.status,
         );
       }
@@ -116,7 +121,9 @@ class DatabaseApiClient {
     } catch (error) {
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new Error(`Database API request timeout after ${this.timeout}ms`);
+          throw new Error(
+            `Database API request timeout after ${this.timeout}ms`,
+          );
         }
         throw error;
       }
@@ -138,19 +145,24 @@ class DatabaseApiClient {
     // db_lord filters: name__ilike, sex, dob__ge / dob__le. Weight is not a
     // server-side filter, so it is applied here.
     const queryParams = new URLSearchParams();
-    const name = [params?.firstname, params?.lastname].filter(Boolean).join(' ');
+    const name = [params?.firstname, params?.lastname]
+      .filter(Boolean)
+      .join(' ');
     if (name) queryParams.set('name__ilike', `%${name}%`);
     if (params?.sex) queryParams.set('sex', params.sex);
-    if (params?.birthRangeStart) queryParams.set('dob__ge', params.birthRangeStart);
+    if (params?.birthRangeStart)
+      queryParams.set('dob__ge', params.birthRangeStart);
     if (params?.birthRangeEnd) queryParams.set('dob__le', params.birthRangeEnd);
 
     const patients = await this.listAll<Patient>('/patients/', queryParams);
     return patients.filter(
       (patient) =>
         (params?.weightRangeStart === undefined ||
-          (patient.weight !== undefined && patient.weight >= params.weightRangeStart)) &&
+          (patient.weight !== undefined &&
+            patient.weight >= params.weightRangeStart)) &&
         (params?.weightRangeEnd === undefined ||
-          (patient.weight !== undefined && patient.weight <= params.weightRangeEnd))
+          (patient.weight !== undefined &&
+            patient.weight <= params.weightRangeEnd)),
     );
   }
 
@@ -161,7 +173,7 @@ class DatabaseApiClient {
   // charite_id is immutable in db_lord; send only the fields that change.
   async updatePatient(
     patientId: string,
-    patient: Partial<Omit<PatientBase, 'charite_id'>>
+    patient: Partial<Omit<PatientBase, 'charite_id'>>,
   ): Promise<void> {
     await this.request<void>(`/patients/${patientId}`, {
       method: 'PATCH',
@@ -183,7 +195,10 @@ class DatabaseApiClient {
   // Case Operations
   // db_lord rejects unknown fields; devices, wearables and contexts are linked
   // through the /cases/{id}/devices|wearables|contexts/{itemId} endpoints.
-  async createCase(caseData: { status: string; patient_id: string }): Promise<Case> {
+  async createCase(caseData: {
+    status: string;
+    patient_id: string;
+  }): Promise<Case> {
     return this.request<Case>('/cases/', {
       method: 'POST',
       body: JSON.stringify(caseData),
@@ -194,7 +209,10 @@ class DatabaseApiClient {
     return this.request<Case>(`/cases/${caseId}`);
   }
 
-  async updateCase(caseId: string, caseData: { status?: string; patient_id?: string }): Promise<void> {
+  async updateCase(
+    caseId: string,
+    caseData: { status?: string; patient_id?: string },
+  ): Promise<void> {
     await this.request<void>(`/cases/${caseId}`, {
       method: 'PATCH',
       body: JSON.stringify(caseData),
@@ -224,7 +242,9 @@ class DatabaseApiClient {
     });
   }
 
-  async listApiTokens(params: { ownerEmail?: string; includeRevoked?: boolean } = {}): Promise<ApiTokenRecord[]> {
+  async listApiTokens(
+    params: { ownerEmail?: string; includeRevoked?: boolean } = {},
+  ): Promise<ApiTokenRecord[]> {
     const query = new URLSearchParams();
     if (params.ownerEmail) query.set('owner_email', params.ownerEmail);
     if (params.includeRevoked) query.set('include_revoked', 'true');
@@ -239,23 +259,33 @@ class DatabaseApiClient {
         body: JSON.stringify({ token_hash: tokenHash }),
       });
     } catch (error) {
-      if (error instanceof DatabaseApiError && error.status === 404) return undefined;
+      if (error instanceof DatabaseApiError && error.status === 404)
+        return undefined;
       throw error;
     }
   }
 
-  async revokeApiToken(tokenId: string, revokedBy: string): Promise<ApiTokenRecord> {
-    return this.request<ApiTokenRecord>(`/api-tokens/${encodeURIComponent(tokenId)}/revoke`, {
-      method: 'POST',
-      body: JSON.stringify({ revoked_by: revokedBy }),
-    });
+  async revokeApiToken(
+    tokenId: string,
+    revokedBy: string,
+  ): Promise<ApiTokenRecord> {
+    return this.request<ApiTokenRecord>(
+      `/api-tokens/${encodeURIComponent(tokenId)}/revoke`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ revoked_by: revokedBy }),
+      },
+    );
   }
 
   /**
    * Reads every page of a db_lord list endpoint ({ items, next_page }).
    * Older db_lord images answered with a plain array; that still works.
    */
-  private async listAll<T>(endpoint: string, params = new URLSearchParams()): Promise<T[]> {
+  private async listAll<T>(
+    endpoint: string,
+    params = new URLSearchParams(),
+  ): Promise<T[]> {
     const items: T[] = [];
     let cursor: string | null = null;
     for (let page = 0; page < MAX_LIST_PAGES; page++) {
@@ -263,9 +293,9 @@ class DatabaseApiClient {
       query.set('size', String(LIST_PAGE_SIZE));
       if (cursor) query.set('cursor', cursor);
 
-      const body = await this.request<T[] | { items: T[]; next_page: string | null }>(
-        `${endpoint}?${query}`
-      );
+      const body = await this.request<
+        T[] | { items: T[]; next_page: string | null }
+      >(`${endpoint}?${query}`);
       if (Array.isArray(body)) return body;
 
       items.push(...body.items);

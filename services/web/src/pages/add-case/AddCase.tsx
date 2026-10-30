@@ -136,12 +136,11 @@ export function AddCasePage() {
       <PageHeader
         label="Add Case"
         title="Add a Case"
-        description="Hospital case creation needs a verified identity connector. It is paused in this access-control branch."
+        description="Search for an existing Hospital case by ID."
       />
 
       <div className="flex min-h-[70vh] items-start justify-center pt-8 md:pt-12">
         <div className="w-full max-w-3xl px-4">
-          <fieldset disabled aria-describedby="case-import-notice">
           <SearchForm
             value={caseId}
             loading={loading}
@@ -154,12 +153,6 @@ export function AddCasePage() {
             inputMode="numeric"
             placeholder="Enter Hospital case ID"
           />
-
-          </fieldset>
-          <p id="case-import-notice" className="mt-4 text-sm text-muted-foreground">
-            Use the trusted operator import for existing cases, then assign staff through Admin → Case permissions.
-            No patient identity is inferred from the sample hospital lookup.
-          </p>
 
           <div className="mt-6 space-y-3 min-h-[240px]">
             {!loading && !error && result ? (

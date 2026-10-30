@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { NonAdminRole } from '@/api/defaultApi';
-import {
-  CreateStaffAccountForm,
-  ResetStaffPasswordForm,
-} from '@/components/account/StaffAccountForms';
+import type { AccessRequestType, NonAdminRole } from '@/api/defaultApi';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { StatusCallout } from '@/components/custom/StatusCallout';
 import { defaultApi } from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
+import { dispatchAdminApprovalsUpdatedEvent } from '@/lib/adminApprovalsEvents';
 import { isAdminUser } from '@/lib/userAccess';
 import { AdminApprovalsDeniedTable } from './admin-approvals/components/AdminApprovalsDeniedTable';
+import { AdminApprovalsRequestsView } from './admin-approvals/components/AdminApprovalsRequestsView';
 import { AdminApprovalsUsersTable } from './admin-approvals/components/AdminApprovalsUsersTable';
 import { AdminApprovalsViewControls } from './admin-approvals/components/AdminApprovalsViewControls';
 import type {
@@ -50,14 +48,16 @@ const toProfilePayload = (
 
 export function AdminApprovalsPage() {
   const { user } = useAuth();
-  const [credentialNotice, setCredentialNotice] = useState('');
-  const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
-  const [staffUsers, setStaffUsers] = useState<AdminUser[]>([]);
+  const [approvedUsers, setApprovedUsers] = useState<AdminUser[]>([]);
+  const [pendingUsers, setPendingUsers] = useState<AdminUser[]>([]);
   const [deniedUsers, setDeniedUsers] = useState<AdminUser[]>([]);
+  const [pendingAccessRequests, setPendingAccessRequests] = useState<
+    AdminUser[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
-  const [view, setView] = useState<ViewMode>('users');
+  const [view, setView] = useState<ViewMode>('requests');
   const [search, setSearch] = useState('');
   const [draftEdits, setDraftEdits] = useState<UserDraftEdits>({});
   const permissionMessage =
@@ -69,17 +69,23 @@ export function AdminApprovalsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [approved, pending, denied] = await Promise.all([
+      const [approved, pending, denied, accessRequests] = await Promise.all([
         defaultApi.listApprovedUsers(),
         defaultApi.listPendingUsers(),
         defaultApi.listDeniedUsers(),
+        defaultApi.listPendingAccessRequests(),
       ]);
-      // Keep older inactive records visible; account creation itself is admin-only.
-      setStaffUsers([
-        ...((approved as { users?: AdminUser[] }).users ?? []),
-        ...((pending as { users?: AdminUser[] }).users ?? []),
-      ]);
+      setApprovedUsers((approved as { users?: AdminUser[] }).users ?? []);
+      const nextPendingUsers = (pending as { users?: AdminUser[] }).users ?? [];
+      setPendingUsers(nextPendingUsers);
       setDeniedUsers((denied as { users?: AdminUser[] }).users ?? []);
+      const nextPendingAccessRequests =
+        (accessRequests as { users?: AdminUser[] }).users ?? [];
+      setPendingAccessRequests(nextPendingAccessRequests);
+      dispatchAdminApprovalsUpdatedEvent({
+        openRequestsCount:
+          nextPendingUsers.length + nextPendingAccessRequests.length,
+      });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Unable to load admin data.',
@@ -108,13 +114,21 @@ export function AdminApprovalsPage() {
     [search],
   );
 
-  const filteredStaffUsers = useMemo(
-    () => filterUsers(staffUsers),
-    [staffUsers, filterUsers],
+  const filteredApprovedUsers = useMemo(
+    () => filterUsers(approvedUsers),
+    [approvedUsers, filterUsers],
+  );
+  const filteredPendingUsers = useMemo(
+    () => filterUsers(pendingUsers),
+    [pendingUsers, filterUsers],
   );
   const filteredDeniedUsers = useMemo(
     () => filterUsers(deniedUsers),
     [deniedUsers, filterUsers],
+  );
+  const filteredAccessRequests = useMemo(
+    () => filterUsers(pendingAccessRequests),
+    [pendingAccessRequests, filterUsers],
   );
 
   const updateDraft = (entry: AdminUser, updates: Partial<UserDraft>) => {
@@ -139,14 +153,72 @@ export function AdminApprovalsPage() {
     });
   };
 
+  const revisionOf = (id: string) => {
+    const entry = [
+      ...approvedUsers,
+      ...pendingUsers,
+      ...deniedUsers,
+      ...pendingAccessRequests,
+    ].find((user) => user.id === id);
+    if (!entry || !Number.isSafeInteger(entry.revision))
+      throw new Error('Reload the account before changing it.');
+    return entry.revision;
+  };
+
+  const handleDecision = async (
+    userId: string,
+    decision: 'approve' | 'deny',
+  ) => {
+    setActionUserId(userId);
+    setError(null);
+    try {
+      if (decision === 'approve') {
+        await defaultApi.approveUser(userId, revisionOf(userId));
+      } else {
+        await defaultApi.denyUser(userId, revisionOf(userId));
+      }
+      await loadData();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Unable to update user status.',
+      );
+    } finally {
+      setActionUserId(null);
+    }
+  };
+
   const handleUnblock = async (userId: string) => {
     setActionUserId(userId);
     setError(null);
     try {
-      await defaultApi.unblockUser(userId);
+      await defaultApi.unblockUser(userId, revisionOf(userId));
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to unblock user.');
+    } finally {
+      setActionUserId(null);
+    }
+  };
+
+  const handleAccessRequest = async (
+    userId: string,
+    requestType: AccessRequestType,
+    decision: 'approve' | 'deny',
+  ) => {
+    setActionUserId(userId);
+    setError(null);
+    try {
+      await defaultApi.reviewAccessRequest(
+        userId,
+        requestType,
+        decision === 'approve' ? 'approved' : 'denied',
+        revisionOf(userId),
+      );
+      await loadData();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Unable to update access request.',
+      );
     } finally {
       setActionUserId(null);
     }
@@ -176,6 +248,7 @@ export function AdminApprovalsPage() {
     setError(null);
     try {
       await defaultApi.updateUser(entry.id, {
+        expectedRevision: entry.revision,
         isAdmin: profilePayload.isAdmin,
         roles: profilePayload.roles,
         status: statusDirty ? draft.status : undefined,
@@ -195,7 +268,7 @@ export function AdminApprovalsPage() {
         <PageHeader
           label="Admin"
           title="User access"
-          description="Admin access is required to manage staff accounts."
+          description="Admin access is required to manage access requests."
         />
         {permissionMessage ? (
           <StatusCallout
@@ -212,40 +285,11 @@ export function AdminApprovalsPage() {
 
   return (
     <>
-      <a
-        href="/admin/case-access"
-        className="mb-4 inline-block text-primary underline"
-      >
-        Manage case permissions
-      </a>
       <PageHeader
         label="Admin"
         title="User access"
-        description="Create named staff accounts, assign roles, and manage access. Public registration is disabled."
+        description="Manage users, access requests, and denied accounts."
       />
-
-      {credentialNotice && (
-        <StatusCallout
-          tone="success"
-          message={credentialNotice}
-          className="mt-4"
-        />
-      )}
-      <CreateStaffAccountForm onSaved={loadData} />
-      {resetTarget && (
-        <ResetStaffPasswordForm
-          key={resetTarget.id}
-          target={resetTarget}
-          onCancel={() => setResetTarget(null)}
-          onDone={() => {
-            setResetTarget(null);
-            setCredentialNotice(
-              'Password reset. Earlier sessions are invalid. The user must choose a new personal password.',
-            );
-            void loadData();
-          }}
-        />
-      )}
 
       <section className="surface-card mt-6 p-4 md:p-5">
         {error ? (
@@ -254,7 +298,7 @@ export function AdminApprovalsPage() {
 
         <AdminApprovalsViewControls
           loading={loading}
-          staffUsersCount={staffUsers.length}
+          approvedUsersCount={approvedUsers.length}
           view={view}
           onViewChange={setView}
           search={search}
@@ -269,18 +313,25 @@ export function AdminApprovalsPage() {
           </div>
         ) : view === 'users' ? (
           <AdminApprovalsUsersTable
-            users={filteredStaffUsers}
+            users={filteredApprovedUsers}
             currentUserId={user?.id}
-            resetDisabled={resetTarget !== null}
-            onResetPassword={(entry) => {
-              setCredentialNotice('');
-              setResetTarget(entry);
-            }}
             actionUserId={actionUserId}
             draftEdits={draftEdits}
             onDraftUpdate={updateDraft}
             onUpdate={(entry) => {
               void handleUpdateUser(entry);
+            }}
+          />
+        ) : view === 'requests' ? (
+          <AdminApprovalsRequestsView
+            pendingUsers={filteredPendingUsers}
+            pendingAccessRequests={filteredAccessRequests}
+            actionUserId={actionUserId}
+            onDecision={(userId, decision) => {
+              void handleDecision(userId, decision);
+            }}
+            onAccessRequest={(userId, requestType, decision) => {
+              void handleAccessRequest(userId, requestType, decision);
             }}
           />
         ) : (

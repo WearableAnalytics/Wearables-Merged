@@ -38,36 +38,35 @@ export function AccessProfileHelp() {
               <div>
                 <dt className="font-semibold">Practitioner</dt>
                 <dd>
-                  See patient details and case information for the clinical
-                  cases assigned to this account.
+                  Use the patient overview, case pages and Add Case. This keeps
+                  the existing practitioner access from main.
                 </dd>
               </div>
               <div>
                 <dt className="font-semibold">Researcher</dt>
                 <dd>
-                  Cannot see patient names, hospital IDs or dates of birth.
-                  Research data views are not available in this branch yet.
+                  Use research/export APIs and manage personal API tokens.
+                  Cannot open practitioner patient pages.
                 </dd>
               </div>
               <div>
                 <dt className="font-semibold">Practitioner + Researcher</dt>
                 <dd>
-                  Has both staff roles. Patient access still needs an assigned
-                  clinical case. Cannot manage other staff accounts.
+                  Has both staff roles. Does not approve accounts or manage
+                  other users.
                 </dd>
               </div>
               <div>
                 <dt className="font-semibold">Admin</dt>
                 <dd>
-                  Create staff accounts, change roles, reset passwords and
-                  assign case permissions. Admin status alone gives no access to
-                  patient details.
+                  Approve account and role requests, manage users, and use the
+                  clinical and research areas.
                 </dd>
               </div>
             </dl>
             <p className="border-t border-border pt-2 text-muted-foreground">
-              Every case needs an explicit assignment. Charts and data exports
-              are not available in this branch.
+              New registrations require admin approval. Only approved accounts
+              can use protected features.
             </p>
           </div>
         </TooltipContent>

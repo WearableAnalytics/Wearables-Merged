@@ -33,6 +33,7 @@ const normalizeApiBasePath = (rawBasePath: string) => {
 export const API_BASE_PATH = normalizeApiBasePath(appRuntimeConfig.apiBaseUrl);
 
 export type NonAdminRole = 'practitioner' | 'researcher';
+export type AccessRequestType = 'admin' | NonAdminRole;
 
 /** Personal export API token. The token itself is only returned once, on creation. */
 export type ApiToken = {
@@ -85,55 +86,75 @@ export class DefaultApi {
   private patientsApi = new PatientsApi(sharedConfig);
 
   // Auth (custom)
-  login = async (email: string, password: string) => {
-    return this.passwordRequest('/login', { email, password });
-  };
-
-  private passwordRequest = async (path: string, body: unknown) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}${path}`, {
+  login = async (email: string) => {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ email }),
     });
-    const data = await response.json().catch(() => ({}));
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
+
     if (!response.ok) {
-      const error = new Error(
-        data.error ?? 'The account operation was rejected.',
-      ) as Error & { status?: number };
+      const errorCode = (data && (data.code ?? data.errorCode)) as
+        | string
+        | undefined;
+      const message =
+        errorCode === 'ACCOUNT_DENIED'
+          ? 'Unable to log in. Please contact support.'
+          : ((data && (data.message ?? data.error)) ??
+            (response.status === 404
+              ? 'This email is not registered. Please sign up first.'
+              : 'Unable to log in.'));
+      const error = new Error(message) as Error & {
+        status?: number;
+        redirectToSignup?: boolean;
+        code?: string;
+      };
       error.status = response.status;
+      error.code = (data && (data.code ?? data.errorCode)) as
+        | string
+        | undefined;
+      if ((data as { redirectToSignup?: boolean }).redirectToSignup) {
+        error.redirectToSignup = true;
+      }
       throw error;
     }
+
     return data;
   };
 
-  changePassword = (
-    currentPassword: string,
-    newPassword: string,
-    initial = false,
-  ) =>
-    this.passwordRequest(initial ? '/password/setup' : '/account/password', {
-      currentPassword,
-      newPassword,
+  register = async (email: string, role: NonAdminRole) => {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, role }),
     });
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
 
-  createStaff = (details: {
-    email: string;
-    name?: string;
-    isAdmin: boolean;
-    roles: NonAdminRole[];
-    temporaryPassword: string;
-  }) => this.passwordRequest('/admin/users', details);
+    if (!response.ok) {
+      const errorCode = (data && (data.code ?? data.errorCode)) as
+        | string
+        | undefined;
+      const message =
+        errorCode === 'ACCOUNT_DENIED'
+          ? 'Unable to submit request. Please contact support.'
+          : ((data && (data.message ?? data.error)) ??
+            (response.status === 409
+              ? 'This email is already registered. Please log in instead.'
+              : 'Unable to register.'));
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
 
-  resetStaffPassword = (
-    id: string,
-    expectedRevision: number,
-    temporaryPassword: string,
-  ) =>
-    this.passwordRequest(
-      `/admin/users/${encodeURIComponent(id)}/password-reset`,
-      { expectedRevision, temporaryPassword },
-    );
+    return data;
+  };
 
   me = async () => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}/me`, {
@@ -177,6 +198,56 @@ export class DefaultApi {
     }
 
     return response.json().catch(() => ({}) as Record<string, unknown>);
+  };
+
+  requestAdminAccess = async () => {
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/request-admin`,
+      {
+        method: 'POST',
+        credentials: 'include',
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
+
+    if (!response.ok) {
+      const message =
+        (data && (data.message ?? data.error)) ??
+        'Unable to request admin access.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  requestRoleAccess = async (role: NonAdminRole) => {
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/request-role`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ role }),
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
+
+    if (!response.ok) {
+      const message =
+        (data && (data.message ?? data.error)) ??
+        'Unable to request role access.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
   };
 
   private apiTokenRequest = async <T>(
@@ -310,12 +381,88 @@ export class DefaultApi {
     return data;
   };
 
-  unblockUser = async (userId: string) => {
+  listPendingAccessRequests = async () => {
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/admin/pending-access-requests`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
+
+    if (!response.ok) {
+      const message =
+        (data && (data.message ?? data.error)) ??
+        'Unable to load access requests.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  approveUser = async (userId: string, expectedRevision: number) => {
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/admin/users/${userId}/approve`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedRevision }),
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
+
+    if (!response.ok) {
+      const message =
+        (data && (data.message ?? data.error)) ?? 'Unable to approve user.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  denyUser = async (userId: string, expectedRevision: number) => {
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/admin/users/${userId}/deny`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedRevision }),
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
+
+    if (!response.ok) {
+      const message =
+        (data && (data.message ?? data.error)) ?? 'Unable to deny user.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
+  unblockUser = async (userId: string, expectedRevision: number) => {
     const response = await fetchWithAuthHandling(
       `${API_BASE_PATH}/admin/users/${userId}/unblock`,
       {
         method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedRevision }),
       },
     );
     const data = await response
@@ -333,10 +480,41 @@ export class DefaultApi {
     return data;
   };
 
+  reviewAccessRequest = async (
+    userId: string,
+    requestType: AccessRequestType,
+    decision: 'approved' | 'denied',
+    expectedRevision: number,
+  ) => {
+    const response = await fetchWithAuthHandling(
+      `${API_BASE_PATH}/admin/users/${userId}/review-request`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ requestType, decision, expectedRevision }),
+      },
+    );
+    const data = await response
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
+
+    if (!response.ok) {
+      const message =
+        (data && (data.message ?? data.error)) ?? 'Unable to review request.';
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  };
+
   updateUser = async (
     userId: string,
     updates: {
       isAdmin?: boolean;
+      expectedRevision: number;
       roles?: NonAdminRole[];
       status?: 'approved' | 'pending' | 'denied';
     },

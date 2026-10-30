@@ -1,6 +1,6 @@
-> This branch changes account and case access. Read [setup and compatibility limits](../../docs/accounts-and-permissions.md) first.
-
 # Wearables Web Frontend
+
+This feature branch keeps the existing registration, approval and email-link login flow and adds persistent staff authority. See [accounts and permissions](../../docs/accounts-and-permissions.md) for setup, scope and checks.
 
 React + Vite frontend for the Wearables platform.
 
@@ -11,9 +11,9 @@ Kubernetes deployment behavior is documented in `gitops/apps/web-frontend/README
 
 ## What This App Does
 
-- Renders individual password login, restricted password setup, admin staff management, case assignments and protected metadata.
+- Renders auth, case management, and monitoring UI.
 - Calls BFF APIs through the generated OpenAPI client and custom auth endpoints.
-- Public registration is disabled. Broad Grafana/export and sample hospital/phone-enrollment paths are visibly paused; see the scope document.
+- Embeds Grafana dashboards on the case page through `${GRAFANA_PROXY_URL}/embed`.
 
 ## Runtime Config In The Code
 

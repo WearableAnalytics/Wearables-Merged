@@ -4,7 +4,7 @@ export type RequestStatus = 'none' | 'pending' | 'approved' | 'denied';
 
 export type AdminUser = {
   id: string;
-  revision?: number;
+  revision: number;
   email: string;
   name?: string;
   isAdmin?: boolean;
@@ -18,7 +18,7 @@ export type AdminUser = {
   requestedAt?: string;
 };
 
-export type ViewMode = 'users' | 'denied';
+export type ViewMode = 'users' | 'requests' | 'denied';
 export type AccessProfile =
   | 'admin'
   | 'practitioner'

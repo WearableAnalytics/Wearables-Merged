@@ -4,7 +4,11 @@ import config from './config.js';
 import { sendControlError } from './clients/controlApi.js';
 import { logger } from './logger.js';
 import { getUserById } from './services/userStore.js';
-import type { AccessRequestStatus, NonAdminRole, UserStatus } from './services/userStore.js';
+import type {
+  AccessRequestStatus,
+  NonAdminRole,
+  UserStatus,
+} from './services/userStore.js';
 
 export interface JwtPayload {
   userId: string;
@@ -29,17 +33,24 @@ declare global {
 type CookieRequest = Request & { cookies?: Record<string, string> };
 
 let activeHttpRequests = 0;
-export const admitHttpRequest = (req: Request, res: Response, next: NextFunction): void => {
+export const admitHttpRequest = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
   if (
     req.method === 'OPTIONS' ||
-    (['GET', 'HEAD'].includes(req.method) && req.path === `${config.apiPrefix}/health`)
+    (['GET', 'HEAD'].includes(req.method) &&
+      req.path === `${config.apiPrefix}/health`)
   ) {
     next();
     return;
   }
   if (activeHttpRequests >= config.httpMaxInflightRequests) {
     res.setHeader('Retry-After', '1');
-    res.status(503).json({ error: 'Request capacity exceeded', code: 'HTTP_CAPACITY' });
+    res
+      .status(503)
+      .json({ error: 'Request capacity exceeded', code: 'HTTP_CAPACITY' });
     return;
   }
   activeHttpRequests++;
@@ -79,7 +90,11 @@ const commandOrigins = new Set(
 );
 
 /** CORS does not stop browsers from sending cookie-authenticated commands. */
-export const requireCommandOrigin = (req: Request, res: Response, next: NextFunction): void => {
+export const requireCommandOrigin = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     next();
     return;
@@ -89,7 +104,10 @@ export const requireCommandOrigin = (req: Request, res: Response, next: NextFunc
   if (!origin || !commandOrigins.has(origin)) {
     res
       .status(403)
-      .json({ error: 'An approved request Origin is required', code: 'ORIGIN_REQUIRED' });
+      .json({
+        error: 'An approved request Origin is required',
+        code: 'ORIGIN_REQUIRED',
+      });
     return;
   }
   next();
@@ -98,22 +116,28 @@ export const requireCommandOrigin = (req: Request, res: Response, next: NextFunc
 export const parseCookies = (cookieHeader?: string): Record<string, string> => {
   if (!cookieHeader) return {};
 
-  return cookieHeader.split(';').reduce<Record<string, string>>((acc, cookiePart) => {
-    const [rawName, ...rest] = cookiePart.split('=');
-    if (!rawName || rest.length === 0) return acc;
+  return cookieHeader
+    .split(';')
+    .reduce<Record<string, string>>((acc, cookiePart) => {
+      const [rawName, ...rest] = cookiePart.split('=');
+      if (!rawName || rest.length === 0) return acc;
 
-    const name = rawName.trim();
-    if (!name) return acc;
+      const name = rawName.trim();
+      if (!name) return acc;
 
-    acc[name] = decodeURIComponent(rest.join('='));
-    return acc;
-  }, {});
+      acc[name] = decodeURIComponent(rest.join('='));
+      return acc;
+    }, {});
 };
 
-export const getUserFromRequest = async (req: Request, signal?: AbortSignal): Promise<JwtPayload | undefined> => {
+export const getUserFromRequest = async (
+  req: Request,
+  signal?: AbortSignal,
+): Promise<JwtPayload | undefined> => {
   let decoded: jwt.JwtPayload;
   try {
-    const cookies = (req as CookieRequest).cookies ?? parseCookies(req.headers.cookie);
+    const cookies =
+      (req as CookieRequest).cookies ?? parseCookies(req.headers.cookie);
     if (!cookies.jwt) return undefined;
     const verified = jwt.verify(cookies.jwt, config.jwtSecret, {
       algorithms: ['HS256'],
@@ -124,7 +148,10 @@ export const getUserFromRequest = async (req: Request, signal?: AbortSignal): Pr
     decoded = verified;
     if (
       decoded.type !== 'web-session' ||
-      decoded.auth_method !== 'password-v1' ||
+      ![
+        'email-link-v1',
+        ...(config.devAuthBypass ? ['dev-email-v1'] : []),
+      ].includes(decoded.auth_method) ||
       typeof decoded.userId !== 'string' ||
       !decoded.userId ||
       typeof decoded.email !== 'string' ||
@@ -140,7 +167,11 @@ export const getUserFromRequest = async (req: Request, signal?: AbortSignal): Pr
   }
   // Do not treat a control outage as a missing user or accept cached authority.
   const user = await getUserById(decoded.userId, signal);
-  if (!user || user.email !== decoded.email || user.authVersion !== decoded.sessionVersion)
+  if (
+    !user ||
+    user.email !== decoded.email ||
+    user.authVersion !== decoded.sessionVersion
+  )
     return undefined;
   return {
     userId: user.id,
@@ -156,7 +187,11 @@ export const getUserFromRequest = async (req: Request, signal?: AbortSignal): Pr
 };
 
 // Basic Authentication
-const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+const authenticate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const user = await getUserFromRequest(req);
 
@@ -177,7 +212,8 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
     if (user.status === 'denied') {
       res.status(403).json({
         error: 'Account denied',
-        message: 'Your access request was denied. Please contact an administrator.',
+        message:
+          'Your access request was denied. Please contact an administrator.',
         code: 'ACCOUNT_DENIED',
       });
       return;
@@ -191,7 +227,11 @@ const authenticate = async (req: Request, res: Response, next: NextFunction): Pr
   }
 };
 
-const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
+const requireAdmin = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
@@ -209,7 +249,11 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction): void => 
   next();
 };
 
-const requirePractitionerOrAdmin = (req: Request, res: Response, next: NextFunction): void => {
+const requirePractitionerOrAdmin = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
@@ -227,7 +271,11 @@ const requirePractitionerOrAdmin = (req: Request, res: Response, next: NextFunct
   });
 };
 
-const requireResearcherOrAdmin = (req: Request, res: Response, next: NextFunction): void => {
+const requireResearcherOrAdmin = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
@@ -278,7 +326,12 @@ export function notFound(req: Request, res: Response, next: NextFunction) {
   next(error);
 }
 
-export function errorHandler(err: Error, _: Request, res: Response, __: NextFunction) {
+export function errorHandler(
+  err: Error,
+  _: Request,
+  res: Response,
+  __: NextFunction,
+) {
   if (res.destroyed) return;
   if (res.headersSent) {
     res.end();
@@ -288,5 +341,7 @@ export function errorHandler(err: Error, _: Request, res: Response, __: NextFunc
   const status = proposed && proposed >= 400 && proposed < 500 ? proposed : 500;
   // Parser errors can retain raw JSON and cookies. Do not log or return them.
   if (status >= 500) logger.error('http.request.failed', { status });
-  res.status(status).json({ error: status >= 500 ? 'Request failed' : 'Invalid request' });
+  res
+    .status(status)
+    .json({ error: status >= 500 ? 'Request failed' : 'Invalid request' });
 }

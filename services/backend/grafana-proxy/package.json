@@ -6,7 +6,8 @@
   "description": "Grafana reverse proxy with JWT validation and header injection.",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts"
+    "start": "tsx src/server.ts",
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

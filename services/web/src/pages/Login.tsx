@@ -1,95 +1,114 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { defaultApi } from '@/api/defaultApi';
-import { PageHeader } from '@/components/custom/PageHeader';
-import { Button } from '@/components/ui/button';
+import type { FormEvent } from 'react';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { defaultApi, isDirectAuthResponse } from '@/api/defaultApi';
+import { StatusCallout } from '@/components/custom/StatusCallout';
 import { useAuth } from '@/context/AuthContext';
+import { AuthEmailFormPage } from '@/components/custom/AuthEmailFormPage';
+import { getTrimmedOrNull } from '@/lib/input';
 import { getDefaultAuthenticatedPath } from '@/lib/userAccess';
+import { useLoadingToast, useMessageToast } from '@/lib/toast';
 
 export function LoginPage() {
-  const { user, loading, refreshUser } = useAuth();
   const navigate = useNavigate();
+  const { user, loading: authLoading, refreshUser } = useAuth();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [signupInfoMessage, setSignupInfoMessage] = useState<string | null>(
+    null,
+  );
+  useMessageToast('error', 'login-error', error);
+  useLoadingToast('login-loading', isSubmitting, 'Signing you in…');
+
+  const resetFeedback = () => {
+    setError(null);
+    setSignupInfoMessage(null);
+  };
+
   useEffect(() => {
-    if (!loading && user) navigate(getDefaultAuthenticatedPath(user), { replace: true });
-  }, [loading, user, navigate]);
-  const submit = async (event: FormEvent) => {
+    if (!authLoading && user) {
+      navigate(getDefaultAuthenticatedPath(user), { replace: true });
+    }
+  }, [user, authLoading, navigate]);
+
+  const handleLogin = async (event: FormEvent) => {
     event.preventDefault();
-    setBusy(true);
-    setError('');
+    const trimmedEmail = getTrimmedOrNull(email);
+
+    if (!trimmedEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    setSignupInfoMessage(null);
+
     try {
-      const result = await defaultApi.login(email.trim(), password);
-      setPassword('');
-      if (result.passwordChangeRequired === true) {
-        navigate('/set-password', { replace: true });
+      const data = await defaultApi.login(trimmedEmail);
+      if (isDirectAuthResponse(data)) {
+        await refreshUser();
         return;
       }
-      if (result.authenticated !== true) throw new Error('Sign-in could not be confirmed.');
-      const signedIn = await refreshUser();
-      if (!signedIn) throw new Error('Sign-in could not be confirmed.');
-      navigate(getDefaultAuthenticatedPath(signedIn), { replace: true });
-    } catch (failure) {
-      setPassword('');
-      setError(failure instanceof Error ? failure.message : 'Sign-in failed.');
+      const successMessage =
+        (data as { message?: string }).message ??
+        'Check your email for the login link.';
+      navigate('/request-sent', {
+        replace: true,
+        state: {
+          title: 'Check your email',
+          description:
+            'If your account is approved, we will send a secure login link.',
+          message: successMessage,
+          tone: 'success',
+        },
+      });
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        (err as Error & { redirectToSignup?: boolean }).redirectToSignup
+      ) {
+        setSignupInfoMessage(
+          err.message || 'This email is not registered. Please sign up first.',
+        );
+      } else {
+        setError(err instanceof Error ? err.message : 'Unable to log in.');
+      }
     } finally {
-      setBusy(false);
+      setIsSubmitting(false);
     }
   };
+
   return (
-    <>
-      <PageHeader
-        label="Login"
-        title="Staff sign-in"
-        description="Use your individual staff account. An administrator creates accounts and assigns access."
-      />
-      <form
-        onSubmit={(event) => {
-          void submit(event);
-        }}
-        className="surface-card mx-auto mt-8 w-full max-w-xl space-y-4 p-6"
-      >
-        <fieldset disabled={busy} className="space-y-4">
-          <label className="block">
-            Email address
-            <input
-              id="login-email"
-              type="email"
-              required
-              maxLength={320}
-              autoComplete="username"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="field-input mt-1 w-full rounded-md px-3 py-2"
-            />
-          </label>
-          <label className="block">
-            Password
-            <input
-              id="login-password"
-              type="password"
-              required
-              maxLength={256}
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="field-input mt-1 w-full rounded-md px-3 py-2"
-            />
-          </label>
-          {error && (
-            <p role="alert" className="text-destructive">
-              {error}
-            </p>
-          )}
-          <Button type="submit">{busy ? 'Signing in…' : 'Sign in'}</Button>
-        </fieldset>
-        <p className="text-sm text-muted-foreground">
-          Need an account or a password reset? Contact a project administrator. There is no public
-          registration.
-        </p>
-      </form>
-    </>
+    <AuthEmailFormPage
+      headerLabel="Login"
+      headerTitle="Sign in with your email"
+      headerDescription="Enter the email you used to register. Approved accounts will receive a login link."
+      email={email}
+      loading={isSubmitting}
+      onEmailChange={setEmail}
+      onFocusReset={resetFeedback}
+      onSubmit={handleLogin}
+      inputId="login-email"
+      submitLabel="Send login link"
+      footer={
+        <div className="w-full space-y-3">
+          <p className="m-0 w-full text-center text-sm text-muted-foreground">
+            Need access?{' '}
+            <Link
+              to="/register"
+              className="font-semibold text-foreground underline-offset-2 hover:underline"
+            >
+              Register here
+            </Link>
+            .
+          </p>
+          {signupInfoMessage ? (
+            <StatusCallout tone="error" message={signupInfoMessage} />
+          ) : null}
+        </div>
+      }
+    />
   );
 }

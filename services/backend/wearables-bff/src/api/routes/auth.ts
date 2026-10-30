@@ -1,37 +1,91 @@
 import express from 'express';
 import type { CookieOptions, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import config from '../../config.js';
-import { controlRequest, asyncRoute, ControlApiError } from '../../clients/controlApi.js';
-import { auth, getUserFromRequest, parseCookies, type JwtPayload } from '../../middleware.js';
+import {
+  controlRequest,
+  asyncRoute,
+  sendControlError,
+  ControlApiError,
+} from '../../clients/controlApi.js';
+import { auth, getUserFromRequest } from '../../middleware.js';
+import {
+  sendApprovalEmail,
+  sendMagicLinkEmail,
+} from '../../services/mailer.js';
+import { logger } from '../../logger.js';
 import {
   countActiveAdmins,
   revokeUserSessions,
+  createUser,
+  getUserByEmail,
   getUserById,
   listAccessRequests,
   listUsersByStatus,
+  normalizeUserEmail,
+  requestAdminAccess,
+  requestRoleAccess,
   reviewAccessRequest,
   updateUserAccess,
   setUserStatus,
+  type AccessRequestType,
+  type NonAdminRole,
   fromDto,
   type UserDto,
   type UserRecord,
   type UserStatus,
-  type AccessRequestType,
-  type NonAdminRole,
 } from '../../services/userStore.js';
-
 const router = express.Router();
+const isLocalHost = (hostname: string) =>
+  hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+const parseHostname = (value: string): string | undefined => {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return undefined;
+  }
+};
+const isLocalCookieContext = () => {
+  const contextUrls = [
+    ...config.frontendOrigins,
+    config.frontendRedirectUrl,
+    config.backendUrl,
+  ].filter(Boolean);
+  const hostnames = contextUrls
+    .map((url) => parseHostname(url))
+    .filter((value): value is string => Boolean(value));
+  return hostnames.some((hostname) => isLocalHost(hostname));
+};
+const resolveSecureCookies = () => {
+  if (config.cookieSecure !== undefined) return config.cookieSecure;
+  if (config.isProduction) return true;
+  if (config.nodeEnv === 'development') return false;
+  if (isLocalCookieContext()) return false;
+  return true;
+};
+const useSecureCookies = resolveSecureCookies();
+const sameSite: CookieOptions['sameSite'] = useSecureCookies ? 'strict' : 'lax';
 const baseCookieOptions: CookieOptions = {
   httpOnly: true,
-  secure: config.isProduction || config.cookieSecure === true,
-  sameSite: config.isProduction || config.cookieSecure === true ? 'strict' : 'lax',
+  secure: useSecureCookies,
+  sameSite,
   path: '/',
 };
-const clearAllCookies = (_req: Request, res: Response) => {
-  res.clearCookie('jwt', baseCookieOptions);
-  res.clearCookie('password_setup', baseCookieOptions);
-};
+const nonAdminRoles: readonly NonAdminRole[] = ['practitioner', 'researcher'];
+const nonAdminRoleSet = new Set<NonAdminRole>(nonAdminRoles);
+const accessRequestTypeSet = new Set<AccessRequestType>([
+  'admin',
+  ...nonAdminRoles,
+]);
+const isNonAdminRole = (value: string): value is NonAdminRole =>
+  nonAdminRoleSet.has(value as NonAdminRole);
+const isAccessRequestType = (value: string): value is AccessRequestType =>
+  accessRequestTypeSet.has(value as AccessRequestType);
+const defaultRoleRequestStatuses = () => ({
+  practitioner: 'none' as const,
+  researcher: 'none' as const,
+});
 const serializeUser = (user: UserRecord) => ({
   id: user.id,
   revision: user.revision,
@@ -43,21 +97,16 @@ const serializeUser = (user: UserRecord) => ({
   adminRequestStatus: user.adminRequestStatus,
   roleRequestStatuses: user.roleRequestStatuses,
 });
-const nonAdminRoles: readonly NonAdminRole[] = ['practitioner', 'researcher'];
-const isNonAdminRole = (value: string): value is NonAdminRole =>
-  nonAdminRoles.includes(value as NonAdminRole);
-const isAccessRequestType = (value: string): value is AccessRequestType =>
-  value === 'admin' || isNonAdminRole(value);
-const defaultRoleRequestStatuses = () => ({
-  practitioner: 'none' as const,
-  researcher: 'none' as const,
-});
-const issueSession = (res: Response, user: UserRecord, initial = false) => {
-  const expiry = initial ? 600 : config.authSessionExpirySeconds;
-  const token = jwt.sign(
+// Helper function to clear all cookies
+const clearAllCookies = (_req: Request, res: Response) => {
+  res.clearCookie('jwt', baseCookieOptions);
+};
+// Helper function to create JWT token
+const createJwtToken = (user: UserRecord, method = 'email-link-v1') =>
+  jwt.sign(
     {
-      auth_method: 'password-v1',
-      type: initial ? 'password-setup' : 'web-session',
+      type: 'web-session',
+      auth_method: method,
       userId: user.id,
       email: user.email,
       sessionVersion: user.authVersion,
@@ -65,210 +114,165 @@ const issueSession = (res: Response, user: UserRecord, initial = false) => {
     config.jwtSecret,
     {
       algorithm: 'HS256',
+      expiresIn: config.authSessionExpirySeconds,
       issuer: config.tokenIssuer,
-      audience: initial ? 'wearables-password-setup' : 'wearables-web',
+      audience: 'wearables-web',
       subject: user.id,
-      expiresIn: expiry,
     },
   );
-  res.cookie(initial ? 'password_setup' : 'jwt', token, {
+// Helper function to set auth cookie
+const setAuthCookie = (res: Response, token: string) => {
+  res.cookie('jwt', token, {
     ...baseCookieOptions,
-    maxAge: expiry * 1000,
+    maxAge: config.authSessionExpirySeconds * 1000,
   });
 };
-async function setupUser(req: Request): Promise<JwtPayload | undefined> {
-  let claim: jwt.JwtPayload;
-  try {
-    const token = parseCookies(req.headers.cookie).password_setup;
-    if (!token) return undefined;
-    const value = jwt.verify(token, config.jwtSecret, {
-      algorithms: ['HS256'],
-      issuer: config.tokenIssuer,
-      audience: 'wearables-password-setup',
-    });
+// Login proofs are one-use database records, shared across BFF instances.
+const tokenHash = (token: string) =>
+  crypto.createHash('sha256').update(token).digest('hex');
+export const createMagicLinkToken = async (email: string) => {
+  const user = await getUserByEmail(email);
+  if (!user || user.status !== 'approved') throw new Error('Login not allowed');
+  const token = crypto.randomBytes(32).toString('hex');
+  const result = await controlRequest<{ issued: boolean }>(
+    '/login-challenges',
+    'POST',
+    {
+      token_hash: tokenHash(token),
+      user_id: user.id,
+      auth_version: user.authVersion,
+      ttl_seconds: config.magicLinkExpirySeconds,
+    },
+  );
+  if (result?.issued !== true) throw new Error('Login proof unavailable');
+  return token;
+};
+const authMessage =
+  'If this account is approved, a sign-in link will be sent. Otherwise, register or contact an administrator.';
+const registrationMessage =
+  'Your registration has been received. Eligible new accounts require administrator approval; existing accounts can use sign-in.';
+const validEmail = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length <= 320 &&
+  /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim());
+const keyHash = (value: string) =>
+  crypto
+    .createHmac('sha256', config.jwtSecret)
+    .update('auth-limit:' + value)
+    .digest('hex');
+const admit = async (
+  req: Request,
+  res: Response,
+  kind: 'login' | 'register' | 'verify',
+  email?: string,
+) => {
+  const keys = [
+    {
+      kind: kind === 'verify' ? 'verify' : 'client',
+      key_hash: keyHash('client:' + req.ip),
+    },
+    ...(email
+      ? [{ kind, key_hash: keyHash('email:' + normalizeUserEmail(email)) }]
+      : []),
+  ];
+  for (const key of keys) {
+    const result = await controlRequest<{
+      allowed: boolean;
+      retry_after: number;
+    }>('/auth-attempts', 'POST', key);
     if (
-      typeof value === 'string' ||
-      value.type !== 'password-setup' ||
-      value.auth_method !== 'password-v1' ||
-      value.userId !== value.sub ||
-      typeof value.userId !== 'string' ||
-      !Number.isSafeInteger(value.sessionVersion) ||
-      value.sessionVersion < 1 ||
-      typeof value.email !== 'string' ||
-      typeof value.exp !== 'number'
+      typeof result.allowed !== 'boolean' ||
+      !Number.isInteger(result.retry_after)
     )
-      return undefined;
-    claim = value;
-  } catch {
-    return undefined;
+      throw new ControlApiError(503);
+    if (!result.allowed) {
+      res.setHeader('Retry-After', String(result.retry_after));
+      res.status(429).json({ error: 'Too many attempts. Try again later.' });
+      return false;
+    }
   }
-  const user = await getUserById(claim.userId);
-  if (
-    !user ||
-    user.status !== 'approved' ||
-    user.email !== claim.email ||
-    user.authVersion !== claim.sessionVersion
-  )
-    return undefined;
-  return { userId: user.id, sessionVersion: user.authVersion, email: user.email };
-}
-type PasswordDecision = {
-  allowed: boolean;
-  user: UserDto | null;
-  password_change_required: boolean;
+  return true;
 };
-const checkedDecision = (value: PasswordDecision) => {
-  if (
-    !value ||
-    typeof value.allowed !== 'boolean' ||
-    typeof value.password_change_required !== 'boolean'
-  )
-    throw new ControlApiError(503);
-  if (!value.allowed) return undefined;
-  const user = fromDto(value.user!);
-  if (user.status !== 'approved') throw new ControlApiError(503);
-  return user;
-};
-const secretString = (value: unknown): value is string =>
-  typeof value === 'string' && value.length >= 1 && value.length <= 256;
 
-router.post('/register', (_req, res) =>
-  res
-    .status(410)
-    .json({
-      code: 'SELF_REGISTRATION_DISABLED',
-      error: 'Contact an administrator for an account.',
-    }),
-);
-router.get('/verify-magiclink', (_req, res) =>
-  res
-    .status(410)
-    .json({ code: 'EMAIL_LOGIN_DISABLED', error: 'Use your individual password to sign in.' }),
-);
 router.post(
   '/login',
-  asyncRoute(async (req, res) => {
-    const { email, password, ...unknown } = req.body ?? {};
-    if (
-      typeof email !== 'string' ||
-      email.length > 320 ||
-      !secretString(password) ||
-      Object.keys(unknown).length
-    ) {
-      res.status(400).json({ error: 'Email and password are required.' });
+  asyncRoute(async (req: Request, res: Response) => {
+    const { email } = req.body ?? {};
+    if (!validEmail(email)) {
+      res.status(400).json({ error: 'Enter a valid email.' });
       return;
     }
+    if (!(await admit(req, res, 'login', email))) return;
     clearAllCookies(req, res);
-    const decision = await controlRequest<PasswordDecision>('/password/login', 'POST', {
-      email,
-      password,
-    });
-    const user = checkedDecision(decision);
-    if (!user) {
-      res.status(401).json({ error: 'Invalid email or password.' });
-      return;
+    const user = await getUserByEmail(email);
+    if (user?.status === 'approved') {
+      if (config.devAuthBypass) {
+        setAuthCookie(res, createJwtToken(user, 'dev-email-v1'));
+        res.json({ authenticated: true, userId: user.id });
+        return;
+      }
+      const token = await createMagicLinkToken(user.email);
+      try {
+        await sendMagicLinkEmail(user.email, token);
+      } catch {
+        logger.error('mail.magic_link.delivery_failed');
+      }
     }
-    issueSession(res, user, decision.password_change_required);
-    res.json(
-      decision.password_change_required
-        ? { passwordChangeRequired: true }
-        : { authenticated: true },
-    );
+    res.json({ message: authMessage });
   }),
 );
 
-for (const initial of [true, false]) {
-  router.post(
-    initial ? '/password/setup' : '/account/password',
-    ...(initial ? [] : [auth.required]),
-    asyncRoute(async (req, res) => {
-      const user = initial ? await setupUser(req) : req.user;
-      if (!user) {
-        res.status(401).json({ error: 'Sign in again before changing your password.' });
-        return;
-      }
-      const { currentPassword, newPassword, ...unknown } = req.body ?? {};
-      if (
-        !secretString(currentPassword) ||
-        !secretString(newPassword) ||
-        Object.keys(unknown).length
-      ) {
-        res.status(422).json({ error: 'Current and new passwords are required.' });
-        return;
-      }
-      const decision = await controlRequest<PasswordDecision>(
-        initial ? '/password/setup' : '/password/change',
-        'POST',
-        {
-          actor_id: user.userId,
-          actor_auth_version: user.sessionVersion,
-          current_password: currentPassword,
-          new_password: newPassword,
-        },
+router.post(
+  '/register',
+  asyncRoute(async (req: Request, res: Response) => {
+    const { email, role } = req.body ?? {};
+    if (!validEmail(email) || !isNonAdminRole(role)) {
+      res
+        .status(400)
+        .json({ error: 'A valid email and staff role are required.' });
+      return;
+    }
+    if (!(await admit(req, res, 'register', email))) return;
+    clearAllCookies(req, res);
+    // Insert-only: public registration cannot choose approval or admin authority.
+    await createUser(email, { roles: [role] });
+    res.status(202).json({ message: registrationMessage, status: 'pending' });
+  }),
+);
+
+router.get(
+  '/verify-magiclink',
+  asyncRoute(async (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (!(await admit(req, res, 'verify'))) return;
+    const token = req.query.token;
+    if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)) {
+      res.redirect(config.frontendRedirectUrl + '/error-magic_link');
+      return;
+    }
+    try {
+      const user = fromDto(
+        await controlRequest<UserDto>('/login-challenges/consume', 'POST', {
+          token_hash: tokenHash(token),
+        }),
       );
-      const changed = checkedDecision(decision);
-      if (!changed) {
-        res.status(400).json({ error: 'The current password was not accepted.' });
+      if (user.status !== 'approved') throw new Error('Invalid login proof');
+      clearAllCookies(req, res);
+      setAuthCookie(res, createJwtToken(user));
+      res.redirect(
+        config.frontendRedirectUrl +
+          (user.isAdmin || user.roles.includes('practitioner')
+            ? '/overview'
+            : '/account'),
+      );
+    } catch (error) {
+      if (error instanceof ControlApiError && error.status >= 500) {
+        sendControlError(res, error);
         return;
       }
-      if (
-        changed.id !== user.userId ||
-        changed.authVersion !== user.sessionVersion + 1 ||
-        decision.password_change_required
-      )
-        throw new ControlApiError(503);
-      clearAllCookies(req, res);
-      issueSession(res, changed);
-      res.json({ authenticated: true });
-    }),
-  );
-}
-
-router.post(
-  '/admin/users',
-  ...auth.adminOnly,
-  asyncRoute(async (req, res) => {
-    const { email, name, isAdmin, roles, temporaryPassword, ...unknown } = req.body ?? {};
-    if (!secretString(temporaryPassword) || Object.keys(unknown).length) {
-      res.status(422).json({ error: 'Invalid staff account details.' });
-      return;
+      res.redirect(config.frontendRedirectUrl + '/error-magic_link');
     }
-    const user = fromDto(
-      await controlRequest<UserDto>('/users', 'POST', {
-        email,
-        name,
-        is_admin: isAdmin,
-        roles,
-        temporary_password: temporaryPassword,
-        actor_id: req.user!.userId,
-        actor_auth_version: req.user!.sessionVersion,
-      }),
-    );
-    res.status(201).json({ user: serializeUser(user), passwordChangeRequired: true });
-  }),
-);
-router.post(
-  '/admin/users/:userId/password-reset',
-  ...auth.adminOnly,
-  asyncRoute(async (req, res) => {
-    const { temporaryPassword, expectedRevision, ...unknown } = req.body ?? {};
-    if (!secretString(temporaryPassword) || Object.keys(unknown).length) {
-      res.status(422).json({ error: 'A new temporary password is required.' });
-      return;
-    }
-    const user = fromDto(
-      await controlRequest<UserDto>(
-        `/users/${encodeURIComponent(req.params.userId)}/password-reset`,
-        'POST',
-        {
-          temporary_password: temporaryPassword,
-          expected_revision: expectedRevision,
-          actor_id: req.user!.userId,
-          actor_auth_version: req.user!.sessionVersion,
-        },
-      ),
-    );
-    res.json({ user: serializeUser(user), passwordChangeRequired: true });
   }),
 );
 
@@ -292,15 +296,88 @@ router.get(
         roles,
         status: req.user.status,
         adminRequestStatus: req.user.adminRequestStatus,
-        roleRequestStatuses: req.user.roleRequestStatuses ?? defaultRoleRequestStatuses(),
+        roleRequestStatuses:
+          req.user.roleRequestStatuses ?? defaultRoleRequestStatuses(),
       },
     });
   }),
 );
-// Account roles are assigned directly by an administrator, not self-requested.
-router.post(['/request-admin', '/request-role'], auth.required, (_req, res) => {
-  res.status(410).json({ error: 'ADMIN_MANAGED_ACCESS' });
-});
+router.post(
+  '/request-admin',
+  auth.required,
+  asyncRoute(async (req: Request, res: Response) => {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+    const updated = await requestAdminAccess(
+      req.user.userId,
+      req.user.sessionVersion,
+    );
+    if (!updated) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (updated.isAdmin) {
+      res.json({
+        success: true,
+        message: 'You are already an admin.',
+        user: serializeUser(updated),
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      message:
+        updated.adminRequestStatus === 'pending'
+          ? 'Your admin request is pending.'
+          : 'Your admin request has been submitted.',
+      user: serializeUser(updated),
+    });
+  }),
+);
+router.post(
+  '/request-role',
+  auth.required,
+  asyncRoute(async (req: Request, res: Response) => {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+    const { role } = req.body as {
+      role?: string;
+    };
+    if (!role || !isNonAdminRole(role)) {
+      res.status(400).json({ error: 'A valid role is required' });
+      return;
+    }
+    const updated = await requestRoleAccess(
+      req.user.userId,
+      role,
+      req.user.sessionVersion,
+    );
+    if (!updated) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (updated.isAdmin || updated.roles.includes(role)) {
+      res.json({
+        success: true,
+        message: `You already have ${role} access.`,
+        user: serializeUser(updated),
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      message:
+        updated.roleRequestStatuses[role] === 'pending'
+          ? `Your ${role} request is pending.`
+          : `Your ${role} request has been submitted.`,
+      user: serializeUser(updated),
+    });
+  }),
+);
 router.get(
   '/admin/pending-users',
   ...auth.adminOnly,
@@ -336,11 +413,15 @@ router.get(
   }),
 );
 const sendPendingAccessRequests = async (_req: Request, res: Response) => {
-  const pendingRequests = (await listAccessRequests('pending')).map((request) => ({
-    ...serializeUser(request.user),
-    requestType: request.requestType,
-    requestedAt: request.requestedAt ? request.requestedAt.toISOString() : undefined,
-  }));
+  const pendingRequests = (await listAccessRequests('pending')).map(
+    (request) => ({
+      ...serializeUser(request.user),
+      requestType: request.requestType,
+      requestedAt: request.requestedAt
+        ? request.requestedAt.toISOString()
+        : undefined,
+    }),
+  );
   res.json({ users: pendingRequests });
 };
 router.get(
@@ -348,7 +429,11 @@ router.get(
   ...auth.adminOnly,
   asyncRoute(sendPendingAccessRequests),
 );
-const updateUserStatus = async (req: Request, res: Response, status: UserStatus) => {
+const updateUserStatus = async (
+  req: Request,
+  res: Response,
+  status: UserStatus,
+) => {
   const { userId } = req.params;
   if (!userId) {
     res.status(400).json({ error: 'User ID required' });
@@ -368,7 +453,11 @@ const updateUserStatus = async (req: Request, res: Response, status: UserStatus)
     return;
   }
   const isActiveAdmin = userRecord.isAdmin && userRecord.status === 'approved';
-  if (status !== 'approved' && isActiveAdmin && (await countActiveAdmins()) <= 1) {
+  if (
+    status !== 'approved' &&
+    isActiveAdmin &&
+    (await countActiveAdmins()) <= 1
+  ) {
     res.status(409).json({
       error: 'At least one admin required',
       message: 'You must keep at least one active admin account.',
@@ -376,10 +465,20 @@ const updateUserStatus = async (req: Request, res: Response, status: UserStatus)
     });
     return;
   }
-  const updated = await setUserStatus(userId, status, req.user!);
+  const updated = await setUserStatus(userId, status, {
+    ...req.user!,
+    expectedRevision: req.body?.expectedRevision,
+  });
   if (!updated) {
     res.status(404).json({ error: 'User not found' });
     return;
+  }
+  if (status === 'approved') {
+    try {
+      await sendApprovalEmail(updated.email);
+    } catch (error) {
+      logger.error('mail.approval.failed');
+    }
   }
   res.json({
     success: true,
@@ -412,7 +511,10 @@ router.post(
   ...auth.adminOnly,
   asyncRoute(async (req: Request, res: Response) => {
     const { userId } = req.params;
-    const updated = await reviewAccessRequest(userId, 'admin', 'approved', req.user!);
+    const updated = await reviewAccessRequest(userId, 'admin', 'approved', {
+      ...req.user!,
+      expectedRevision: req.body?.expectedRevision,
+    });
     if (!updated) {
       res.status(404).json({ error: 'User not found' });
       return;
@@ -428,7 +530,10 @@ router.post(
   ...auth.adminOnly,
   asyncRoute(async (req: Request, res: Response) => {
     const { userId } = req.params;
-    const updated = await reviewAccessRequest(userId, 'admin', 'denied', req.user!);
+    const updated = await reviewAccessRequest(userId, 'admin', 'denied', {
+      ...req.user!,
+      expectedRevision: req.body?.expectedRevision,
+    });
     if (!updated) {
       res.status(404).json({ error: 'User not found' });
       return;
@@ -439,7 +544,11 @@ router.post(
     });
   }),
 );
-const reviewRoleRequest = async (req: Request, res: Response, decision: 'approved' | 'denied') => {
+const reviewRoleRequest = async (
+  req: Request,
+  res: Response,
+  decision: 'approved' | 'denied',
+) => {
   const { userId } = req.params;
   if (!userId) {
     res.status(400).json({ error: 'User ID required' });
@@ -452,7 +561,10 @@ const reviewRoleRequest = async (req: Request, res: Response, decision: 'approve
     res.status(400).json({ error: 'A valid role is required' });
     return;
   }
-  const updated = await reviewAccessRequest(userId, role, decision, req.user!);
+  const updated = await reviewAccessRequest(userId, role, decision, {
+    ...req.user!,
+    expectedRevision: req.body?.expectedRevision,
+  });
   if (!updated) {
     res.status(404).json({ error: 'User not found' });
     return;
@@ -497,7 +609,10 @@ router.post(
       res.status(400).json({ error: 'A valid decision is required' });
       return;
     }
-    const updated = await reviewAccessRequest(userId, requestType, decision, req.user!);
+    const updated = await reviewAccessRequest(userId, requestType, decision, {
+      ...req.user!,
+      expectedRevision: req.body?.expectedRevision,
+    });
     if (!updated) {
       res.status(404).json({ error: 'User not found' });
       return;
@@ -537,19 +652,27 @@ router.patch(
     }
     const requestedIsAdmin = typeof isAdmin === 'boolean' ? isAdmin : undefined;
     const roleListFromBody = Array.isArray(roles) ? roles : undefined;
-    const normalizedRoleList = roleListFromBody ? Array.from(new Set(roleListFromBody)) : undefined;
-    const hasInvalidRole = normalizedRoleList?.some((entry) => !isNonAdminRole(entry)) ?? false;
+    const normalizedRoleList = roleListFromBody
+      ? Array.from(new Set(roleListFromBody))
+      : undefined;
+    const hasInvalidRole =
+      normalizedRoleList?.some((entry) => !isNonAdminRole(entry)) ?? false;
     if (hasInvalidRole) {
       res.status(400).json({ error: 'Invalid roles' });
       return;
     }
     const typedRoles = normalizedRoleList as NonAdminRole[] | undefined;
     if (requestedIsAdmin && typedRoles && typedRoles.length > 0) {
-      res.status(400).json({ error: 'Admin users cannot have non-admin roles.' });
+      res
+        .status(400)
+        .json({ error: 'Admin users cannot have non-admin roles.' });
       return;
     }
     const isValidStatus =
-      !status || status === 'approved' || status === 'pending' || status === 'denied';
+      !status ||
+      status === 'approved' ||
+      status === 'pending' ||
+      status === 'denied';
     if (!isValidStatus) {
       res.status(400).json({ error: 'Invalid status' });
       return;
@@ -561,11 +684,15 @@ router.patch(
     const nextIsAdmin = requestedIsAdmin ?? userRecord.isAdmin;
     const nextRoles = nextIsAdmin ? [] : (typedRoles ?? userRecord.roles);
     if (!nextIsAdmin && nextRoles.length === 0) {
-      res.status(400).json({ error: 'Non-admin users must have at least one role.' });
+      res
+        .status(400)
+        .json({ error: 'Non-admin users must have at least one role.' });
       return;
     }
-    const nextStatus = (status as UserRecord['status'] | undefined) ?? userRecord.status;
-    const isActiveAdmin = userRecord.isAdmin && userRecord.status === 'approved';
+    const nextStatus =
+      (status as UserRecord['status'] | undefined) ?? userRecord.status;
+    const isActiveAdmin =
+      userRecord.isAdmin && userRecord.status === 'approved';
     const willBeActiveAdmin = nextIsAdmin && nextStatus === 'approved';
     const activeAdmins = await countActiveAdmins();
     if (isActiveAdmin && !willBeActiveAdmin && activeAdmins <= 1) {
@@ -576,6 +703,7 @@ router.patch(
       });
       return;
     }
+    const previousStatus = userRecord.status;
     const updated = await updateUserAccess(
       userId,
       {
@@ -583,11 +711,18 @@ router.patch(
         roles: typedRoles,
         status: status as UserRecord['status'] | undefined,
       },
-      req.user!,
+      { ...req.user!, expectedRevision: req.body?.expectedRevision },
     );
     if (!updated) {
       res.status(404).json({ error: 'User not found' });
       return;
+    }
+    if (status === 'approved' && previousStatus !== 'approved') {
+      try {
+        await sendApprovalEmail(updated.email);
+      } catch (error) {
+        logger.error('mail.approval.failed');
+      }
     }
     res.json({
       success: true,
@@ -598,7 +733,7 @@ router.patch(
 router.post(
   '/logout',
   asyncRoute(async (req: Request, res: Response) => {
-    const user = (await getUserFromRequest(req)) ?? (await setupUser(req));
+    const user = await getUserFromRequest(req);
     if (user) await revokeUserSessions(user.userId, user.sessionVersion);
     clearAllCookies(req, res);
     res.clearCookie('jwt', baseCookieOptions);

@@ -1,18 +1,22 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { createJwtProxy, getSessionUserFromCookie } from './jwtProxy.js';
+import { Socket } from 'node:net';
+import { createJwtProxy, authorizeSession } from './jwtProxy.js';
 import { config } from './config.js';
 
 const app = express();
+let upgradeProxy: ReturnType<typeof createJwtProxy> | undefined;
 const port = config.port;
 const DEFAULT_FROM = 'now-24h';
 const DEFAULT_TO = 'now';
 const MAX_DEVICE_ID_LENGTH = 1024;
 
-const toPath = (prefix: string, suffix: string): string => `${prefix}${suffix}` || '/';
+const toPath = (prefix: string, suffix: string): string =>
+  `${prefix}${suffix}` || '/';
 const acceptsHtml = (value: string | string[] | undefined): boolean => {
   if (typeof value === 'string') return value.includes('text/html');
-  if (Array.isArray(value)) return value.some((part) => part.includes('text/html'));
+  if (Array.isArray(value))
+    return value.some((part) => part.includes('text/html'));
   return false;
 };
 
@@ -87,13 +91,7 @@ const resolveDeviceId = (rawDeviceId: string): string | null => {
     if (!resolved) {
       return null;
     }
-    console.log(
-      '[Grafana proxy] resolved deviceId from case token',
-      JSON.stringify({
-        tokenSubject: decoded.caseId,
-        patientId: resolved,
-      }),
-    );
+
     return resolved;
   } catch {
     // Fallback for deployments where case/device identifiers are opaque strings.
@@ -101,34 +99,31 @@ const resolveDeviceId = (rawDeviceId: string): string | null => {
 
   const opaqueDeviceId = normalizeOpaqueDeviceId(rawDeviceId);
   if (!opaqueDeviceId) return null;
-  console.log(
-    '[Grafana proxy] using raw deviceId from embed parameter',
-    JSON.stringify({ length: opaqueDeviceId.length }),
-  );
+
   return opaqueDeviceId;
 };
-
-// Broad Grafana queries are not a case-scoped authority boundary. Keep dashboard
-// assets and proxy code, but block this public surface until it is scoped.
-app.use(config.proxyPrefix || '/grafana-proxy', (_req, res) => {
-  res.status(410).setHeader('Cache-Control', 'no-store');
-  res.json({ code: 'CASE_SCOPED_DASHBOARD_REQUIRED', error: 'Case-scoped dashboard access is not available yet.' });
-});
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && config.appJwtSecret) {
+if (
+  config.grafanaBaseUrl &&
+  config.grafanaJwtPrivateKey &&
+  config.appJwtSecret
+) {
   const jwtProxy = createJwtProxy(config);
+  upgradeProxy = jwtProxy;
   const mountPath = config.proxyPrefix || '/grafana-proxy';
   const embedPath = toPath(mountPath, '/embed');
   const allowedDashboardIds = new Set(
-    config.grafanaAllowedDashboardIds.filter((dashboardId) => /^[A-Za-z0-9_-]+$/.test(dashboardId)),
+    config.grafanaAllowedDashboardIds.filter((dashboardId) =>
+      /^[A-Za-z0-9_-]+$/.test(dashboardId),
+    ),
   );
 
-  app.get(embedPath, (req, res) => {
-    const sessionUser = getSessionUserFromCookie(req.headers.cookie, config);
+  app.get(embedPath, async (req, res) => {
+    const sessionUser = await authorizeSession(req, config);
     if (!sessionUser) {
       res.status(401).json({ error: 'Missing or invalid session' });
       return;
@@ -136,19 +131,26 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && config.appJwtSecret)
 
     const rawDeviceId = queryValue(req.query.deviceId);
     if (!rawDeviceId) {
-      res.status(400).json({ error: 'Missing required query parameter: deviceId' });
+      res
+        .status(400)
+        .json({ error: 'Missing required query parameter: deviceId' });
       return;
     }
     if (allowedDashboardIds.size === 0 || !config.grafanaDashboardDatasource) {
       res.status(500).json({
-        error: 'Proxy is missing GRAFANA_ALLOWED_DASHBOARD_IDS and/or GRAFANA_DASHBOARD_DATASOURCE configuration',
+        error:
+          'Proxy is missing GRAFANA_ALLOWED_DASHBOARD_IDS and/or GRAFANA_DASHBOARD_DATASOURCE configuration',
       });
       return;
     }
 
     const resolvedDeviceId = resolveDeviceId(rawDeviceId);
     if (!resolvedDeviceId) {
-      res.status(400).json({ error: 'deviceId must be a non-empty identifier without whitespace' });
+      res
+        .status(400)
+        .json({
+          error: 'deviceId must be a non-empty identifier without whitespace',
+        });
       return;
     }
 
@@ -157,12 +159,15 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && config.appJwtSecret)
     const theme = toGrafanaThemeValue(req.query.theme);
     const dashboardId = toGrafanaDashboardIdValue(req.query.dashboardUid);
     if (!dashboardId) {
-      res.status(400).json({ error: 'Missing required query parameter: dashboardUid' });
+      res
+        .status(400)
+        .json({ error: 'Missing required query parameter: dashboardUid' });
       return;
     }
     if (!allowedDashboardIds.has(dashboardId)) {
       res.status(400).json({
-        error: 'Unsupported dashboardUid. Configure GRAFANA_ALLOWED_DASHBOARD_IDS to allow this dashboard.',
+        error:
+          'Unsupported dashboardUid. Configure GRAFANA_ALLOWED_DASHBOARD_IDS to allow this dashboard.',
       });
       return;
     }
@@ -193,8 +198,8 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && config.appJwtSecret)
     res.redirect(302, redirectUrl);
   });
 
-  app.use(mountPath, (req, res, next) => {
-    const sessionUser = getSessionUserFromCookie(req.headers.cookie, config);
+  app.use(mountPath, async (req, res, next) => {
+    const sessionUser = await authorizeSession(req, config);
     if (!sessionUser) {
       res.status(401).json({ error: 'Missing or invalid session' });
       return;
@@ -203,7 +208,7 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && config.appJwtSecret)
   });
   app.use(mountPath, (req, _res, next) => {
     // eslint-disable-next-line no-console
-    console.log(`[Grafana proxy] incoming ${req.method} ${req.originalUrl}`);
+
     next();
   });
   app.use(mountPath, (req, res, next) => {
@@ -212,10 +217,14 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && config.appJwtSecret)
       return;
     }
 
-    const isAllowedDashboardPath = Array.from(allowedDashboardIds).some((dashboardId) => {
-      const dashboardPath = `/d/${encodeURIComponent(dashboardId)}`;
-      return req.path === dashboardPath || req.path.startsWith(`${dashboardPath}/`);
-    });
+    const isAllowedDashboardPath = Array.from(allowedDashboardIds).some(
+      (dashboardId) => {
+        const dashboardPath = `/d/${encodeURIComponent(dashboardId)}`;
+        return (
+          req.path === dashboardPath || req.path.startsWith(`${dashboardPath}/`)
+        );
+      },
+    );
     if (isAllowedDashboardPath) {
       next();
       return;
@@ -226,17 +235,14 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && config.appJwtSecret)
   });
   app.use(mountPath, jwtProxy);
   // eslint-disable-next-line no-console
-  console.log(`JWT proxy will be available at: ${mountPath}`);
+
   // eslint-disable-next-line no-console
-  console.log(
-    `Grafana target: ${config.grafanaBaseUrl}${config.grafanaPathPrefix || ''}`,
-  );
+
   // eslint-disable-next-line no-console
-  console.log(`Grafana TLS verify: ${config.grafanaTlsSkipVerify ? 'disabled' : 'enabled'}`);
+
   // eslint-disable-next-line no-console
-  console.log(`Grafana JWT header: ${config.grafanaJwtHeader}`);
+
   // eslint-disable-next-line no-console
-  console.log(`Grafana embed endpoint: ${embedPath}`);
 } else {
   // eslint-disable-next-line no-console
   console.warn(
@@ -244,10 +250,37 @@ if (config.grafanaBaseUrl && config.grafanaJwtPrivateKey && config.appJwtSecret)
   );
 }
 
-const server = app.listen(port, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Grafana proxy listening on http://localhost:${port}`);
-});
+const server = app.listen(
+  port,
+  process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1',
+  () => {
+    // eslint-disable-next-line no-console
+    console.log(`Grafana proxy listening on http://localhost:${port}`);
+  },
+);
 
-// No unscoped WebSocket continuation can bypass the HTTP boundary.
-server.on('upgrade', (_request, socket) => socket.destroy());
+server.on('upgrade', async (req, socket, head) => {
+  if (!(socket instanceof Socket)) {
+    socket.destroy();
+    return;
+  }
+  if (
+    !upgradeProxy ||
+    !req.url?.startsWith((config.proxyPrefix || '/grafana-proxy') + '/') ||
+    !(await authorizeSession(req, config))
+  ) {
+    socket.destroy();
+    return;
+  }
+  const timer = setInterval(async () => {
+    if (!(await authorizeSession(req, config))) socket.destroy();
+  }, 5000);
+  timer.unref();
+  socket.once('close', () => clearInterval(timer));
+  socket.once('error', () => clearInterval(timer));
+  try {
+    upgradeProxy.upgrade?.(req, socket, head);
+  } catch {
+    socket.destroy();
+  }
+});

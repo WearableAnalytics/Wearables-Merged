@@ -3,7 +3,7 @@ import type { ViewMode } from './types';
 
 type AdminApprovalsViewControlsProps = {
   loading: boolean;
-  staffUsersCount: number;
+  approvedUsersCount: number;
   view: ViewMode;
   onViewChange: (view: ViewMode) => void;
   search: string;
@@ -12,7 +12,7 @@ type AdminApprovalsViewControlsProps = {
 
 export function AdminApprovalsViewControls({
   loading,
-  staffUsersCount,
+  approvedUsersCount,
   view,
   onViewChange,
   search,
@@ -26,23 +26,30 @@ export function AdminApprovalsViewControls({
           <p className="m-0 text-muted-foreground">
             {loading
               ? 'Loading data…'
-              : `${staffUsersCount} ${staffUsersCount === 1 ? 'account' : 'accounts'}`}
+              : `${approvedUsersCount} ${approvedUsersCount === 1 ? 'user' : 'users'}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
+            variant={view === 'requests' ? 'default' : 'outline'}
+            onClick={() => onViewChange('requests')}
+          >
+            Requests
+          </Button>
+          <Button
+            size="sm"
             variant={view === 'users' ? 'default' : 'outline'}
             onClick={() => onViewChange('users')}
           >
-            Staff accounts
+            Current users
           </Button>
           <Button
             size="sm"
             variant={view === 'denied' ? 'default' : 'outline'}
             onClick={() => onViewChange('denied')}
           >
-            Disabled accounts
+            Denied users
           </Button>
         </div>
       </div>

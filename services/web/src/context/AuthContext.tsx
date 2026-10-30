@@ -1,30 +1,19 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, {
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+} from 'react';
 import type { ReactNode } from 'react';
 import { defaultApi } from '@/api/defaultApi';
-import { AUTH_SESSION_EXPIRED_EVENT, dispatchUserChangedEvent } from '@/lib/authSession';
+import {
+  AUTH_SESSION_EXPIRED_EVENT,
+  dispatchUserChangedEvent,
+} from '@/lib/authSession';
 
-export interface User {
-  id: string;
-  email: string;
-  name?: string;
-  isAdmin?: boolean;
-  roles?: Array<'practitioner' | 'researcher'>;
-  status?: 'pending' | 'approved' | 'denied';
-  adminRequestStatus?: 'none' | 'pending' | 'approved' | 'denied';
-  roleRequestStatuses?: Partial<
-    Record<'practitioner' | 'researcher', 'none' | 'pending' | 'approved' | 'denied'>
-  >;
-}
-
-interface AuthContextType {
-  user: User | null;
-  loading: boolean;
-  logout: () => Promise<void>;
-  refreshUser: () => Promise<User | null>;
-  checkSessionLazily: () => Promise<User | null>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext, type User, type AuthContextType } from './authState';
+export type { User } from './authState';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -40,35 +29,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     userRef.current = user;
   }, [user]);
 
-  const fetchUser = useCallback(async (options?: { silent?: boolean }): Promise<User | null> => {
-    const epoch = ++requestEpoch.current;
-    if (!options?.silent) {
-      setLoading(true);
-    }
+  const fetchUser = useCallback(
+    async (options?: { silent?: boolean }): Promise<User | null> => {
+      const epoch = ++requestEpoch.current;
+      if (!options?.silent) {
+        setLoading(true);
+      }
 
-    try {
-      const currentUser = await defaultApi.me();
-      const normalizedUser = currentUser as User | null;
-      if (epoch !== requestEpoch.current) return userRef.current;
-      if (userRef.current?.id !== normalizedUser?.id) dispatchUserChangedEvent();
-      userRef.current = normalizedUser;
-      setUser(normalizedUser);
-      return normalizedUser;
-    } catch (error) {
-      if (epoch !== requestEpoch.current) return userRef.current;
-      const status = (error as { status?: number }).status;
-      if (status === 401 || status === 403) {
-        userRef.current = null;
-        setUser(null);
-        return null;
+      try {
+        const currentUser = await defaultApi.me();
+        const normalizedUser = currentUser as User | null;
+        if (epoch !== requestEpoch.current) return userRef.current;
+        if (userRef.current?.id !== normalizedUser?.id)
+          dispatchUserChangedEvent();
+        userRef.current = normalizedUser;
+        setUser(normalizedUser);
+        return normalizedUser;
+      } catch (error) {
+        if (epoch !== requestEpoch.current) return userRef.current;
+        const status = (error as { status?: number }).status;
+        if (status === 401 || status === 403) {
+          userRef.current = null;
+          setUser(null);
+          return null;
+        }
+        return userRef.current;
+      } finally {
+        if (epoch === requestEpoch.current && !options?.silent) {
+          setLoading(false);
+        }
       }
-      return userRef.current;
-    } finally {
-      if (epoch === requestEpoch.current && !options?.silent) {
-        setLoading(false);
-      }
-    }
-  }, []);
+    },
+    [],
+  );
 
   const logout = useCallback(async (): Promise<void> => {
     ++requestEpoch.current;
@@ -82,8 +75,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
-  const refreshUser = useCallback(async (): Promise<User | null> => {
-    return fetchUser();
+  const refreshUser = useCallback(async (): Promise<void> => {
+    await fetchUser();
   }, [fetchUser]);
 
   const checkSessionLazily = useCallback(async (): Promise<User | null> => {
@@ -107,7 +100,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
-    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () =>
+      window.removeEventListener(
+        AUTH_SESSION_EXPIRED_EVENT,
+        handleSessionExpired,
+      );
   }, []);
 
   const value: AuthContextType = {

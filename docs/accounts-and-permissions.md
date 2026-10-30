@@ -1,126 +1,110 @@
-# Accounts and permissions
+# Persistent staff accounts and existing access flow
 
-This branch starts directly from main at `8210a007c57beab5f0717bb9379ff3094b2c3868`.
-Its scope is named staff accounts, password authentication and current case permissions.
-It does not depend on the other foundation feature branches.
+This branch starts from main at `8210a007c57beab5f0717bb9379ff3094b2c3868`.
+It keeps the existing staff registration, approval, email-link login and role-based workflows.
+It does not require the other foundation branches.
 
-## Current user flow
+## User flow
 
-1. A trusted operator initializes the first named administrator through the server command.
-   The web app cannot bootstrap an administrator or create a default password.
-2. An administrator creates a staff account with an email, access profile and temporary password.
-   New accounts are approved by this explicit admin action. They receive no case assignment automatically.
-3. The administrator gives the temporary password to that person through an approved channel.
-   The app sends no invitation or login email. Temporary passwords expire after 24 hours.
-4. The person signs in with the temporary password and chooses their own password.
-   The temporary login permits only setup, not case data or admin actions. This is enforced in the BFF and database authority.
-5. The person can then use the application according to their current role and explicit case assignments.
+1. A person registers an email and requests practitioner or researcher access.
+2. PostgreSQL stores a pending account and its requested role. Registration grants no protected access.
+3. An administrator approves or denies the registration. Approval applies the requested staff role.
+4. An approved person requests an email sign-in link. Only a digest of the random proof is stored.
+5. Verification consumes that proof once and creates an expiring, HTTP-only web session.
+6. Each protected BFF request checks the current stored account, approval, roles and session version.
 
-Public registration is closed. `/api/register` returns `410 SELF_REGISTRATION_DISABLED`.
-The old `/register` page redirects to sign-in. Email-link login endpoints return `410 EMAIL_LOGIN_DISABLED`.
-`ALLOW_DEV_AUTH_BYPASS=true` is rejected, including in development. No email-only fallback remains.
-Role/admin self-request commands return `410 ADMIN_MANAGED_ACCESS`. Admins assign access directly.
-MFA and SSO are not implemented in this step.
+Existing users can request another staff role or admin access. The Requests queue remains part of this flow.
+Initial registration and additional access requests are separate queue entries; a new registration appears once.
+Public responses do not disclose whether an account is registered, pending or denied.
+The production email provider is still Brevo. Delivery is not validated against a real mailbox in local tests.
 
-## Who has which authority?
+## What changes from main
 
-| Access profile | Account management | Case data |
+| Area | Main | This branch |
 | --- | --- | --- |
-| Admin | Create named accounts, assign roles, disable access, reset other accounts and manage case assignments | Requires an explicit eligible case assignment; no automatic global patient access |
-| Practitioner | Own profile, theme and password | Clinical-reference case metadata only for assigned cases |
-| Researcher | Own profile and password; existing personal API-token management | Research-purpose assignments can be recorded; patient names, hospital IDs and dates of birth are not exposed to researcher-only accounts. Research data views are separate work and the broad export route is blocked |
-| Practitioner + Researcher | The combined staff roles; no global account creation | Each request still needs an eligible purpose and case permission |
+| Staff accounts, roles and approvals | Per-process BFF maps | Shared PostgreSQL records |
+| Registration and role requests | Existing UI and flow | Same flow, persisted requested/granted authority |
+| Admin actions | Existing controls | Stored revisions, actor/version checks, transactions and audit records |
+| Email login proofs | Per-process map | Digest only, expiring, single-use database proof |
+| Web sessions | Signed cookie plus current in-memory account | Typed/issuer/audience-bound cookie plus current database authority and revocation version |
+| Logout and authority changes | Local cookie/current process state | Earlier account web sessions become invalid across BFF instances |
+| Request limits | No shared account admission state | Database-backed client/email limits and bounded HTTP/private-API requests |
+| Grafana authorization | Session JWT claims | Current approved practitioner/admin authority through the BFF |
 
-Several people can have named administrator accounts. One person need not handle every administrative task.
-A practitioner does not need an administrator to approve each page view: the server checks their stored assignment.
-We have not added a study coordinator or delegated account-manager role. Add a limited, explicitly scoped capability
-when the team agrees its study/organization boundary; do not grant all staff global user-management authority.
+Main already had login, registration, roles, approval and server-side role checks. These concepts are not new.
+This branch makes that existing system persistent, shared and revocable.
 
-Approval, role, completed password setup and case assignment are separate checks. Export scope requires read scope.
-Deactivation denies later requests. Relinking a case to another patient does not transfer the old patient's assignment.
-A case belongs to one patient; a patient can have several cases. Existing `Context` grouping is not a study-level access policy.
-This branch adds no clinical notes, study-management UI or clinical case-creation workflow.
+## Existing roles and workflows
 
-## What changed from main
+- Practitioners and admins retain the patient overview, case views and Add Case behavior.
+- Researchers and admins retain the research/export API and personal token controls.
+- Admins retain account/role approval, role changes, denial and unblock controls.
+- Practitioner + Researcher retains both staff roles.
+- Main's case creation, dashboard embedding, QR UI and extraction proxy paths are retained.
 
-| Area | Before | This branch |
-| --- | --- | --- |
-| Staff accounts and roles | BFF process memory and public registration | PostgreSQL authority; admin-only account creation |
-| Authentication | Email links and development email-only login | Individual passwords; no invitation email or dev bypass |
-| Password setup | Not present | Expiring setup password and restricted setup session; personal password required before normal access |
-| Sessions | JWT plus in-memory account lookup | Typed password-session JWT, issuer/audience, stored account version and current policy checks |
-| Password change/reset | Not present | Own change, admin reset and protected operator recovery; earlier web/setup sessions become invalid |
-| Patient/case lists | Broad practitioner/admin visibility | Explicit current clinical case assignment, including for admins |
-| Case assignment controls | No shared case policy | Admin UI with purpose, read/export scopes, change reason and revision checks |
-| Unknown patient DOB | Could be replaced by an invented date | Null remains null through the shared Patient schema and both generated clients |
+Mandatory staff-to-case assignments, the case-permission screen, public-signup removal,
+individual password login, temporary passwords and password resets are not in this branch's final scope.
+The earlier local implementation remains in Git history at `5901e0d` for a separate future review.
+No new patient/study access policy, mobile capture, consent system or export format is introduced here.
 
-## Authentication and storage
+## Stored state and controls
 
-`control_users`, `case_access`, `control_audit` and `control_passwords` are in PostgreSQL.
-The new credential migration removes the earlier login-challenge table and invalidates previous account-session versions.
-It changes no patient, case or measurement rows and infers no password for an existing account.
-Existing accounts without a credential require protected administrator initialization or an admin password reset.
-A downgrade does not restore old email links or session authority.
+The account migration adds `control_users`, `control_authority_lock`, `control_audit`,
+`login_challenges` and `auth_attempts`. It changes no patient, case or measurement rows.
+There is no second account database requirement: the tables live in the existing db_lord PostgreSQL service.
+No staff authority is kept in a BFF map. `USE_MOCK_DATA` affects clinical demo data, not staff authority.
 
-Passwords use Argon2id through `argon2-cffi`, with a random salt, 64 MiB memory, three iterations and one lane.
-No plaintext password or hash is returned in account responses. Passwords are not put in JWTs, URLs, audit rows or request logs.
-New passwords have 15–256 characters, at most 1,024 UTF-8 bytes, with NFC normalization and significant whitespace.
-The bundled common-password blocklist is a small local baseline, not a complete compromised-password corpus.
-Institution-approved password screening remains part of production identity-policy review.
+Account UUIDs, canonical email, approval, granted roles, requested roles, revisions and session versions are persisted.
+The email comparison policy remains the existing trimmed/lowercase policy; changing it later needs an identity migration.
+Bootstrap is insert-only and restricted by the database's configured admin email allowlist.
+A later login/startup cannot restore a denied account or removed admin authority.
 
-Each API worker admits at most two password-hashing operations at once, off its event loop. Further work receives `503`.
-Failed attempts are stored per account: five failed password attempts lock password verification for 15 minutes.
-Resetting a password clears that counter. Unknown, wrong, expired and inactive credentials do not authenticate.
-Deployment still needs appropriate network-level abuse controls and a memory budget for every worker.
+Email proofs use 32 random bytes and a SHA-256 digest. They expire within one hour (the demo uses ten minutes).
+Reissue invalidates the previous proof. Consumption checks current approval and account version under row locks.
+Consumed, expired and stale proofs cannot create another session. Proofs and full login URLs are not logged.
+Development does not send email. Production refuses to start without the configured sender, provider key and HTTPS URLs.
+Provider delivery failure is logged with a fixed message; this is not a durable email-delivery queue.
 
-Temporary setup sessions last at most ten minutes and use a distinct JWT audience/type. They cannot authenticate ordinary APIs.
-Credential changes increment the stored account version. Case/admin commands check current authority again inside transactions.
-A privileged-write lock protects the last usable administrator; an admin awaiting password setup does not replace that safeguard.
-Staff forms use expected revisions to prevent stale updates. Audit entries commit with the authority change.
-The audit table is not a complete institutional audit-retention or consent-evidence system.
+Database-backed limits use HMAC subject keys, not raw email/IP strings: 100 client attempts,
+10 login attempts per email, five registrations per email, and 30 verification attempts per client per 15-minute window.
+Counters are shared across instances, bounded and expired entries are removed in small batches.
+`TRUSTED_PROXY_CIDRS` is optional; set only the actual trusted ingress IPs/CIDRs. Untrusted forwarded IP headers are ignored.
+Generic response bodies reduce account enumeration; external email-delivery timing is not made constant-time.
 
-Normal web sessions use HTTP-only cookies, exact command-Origin checks and bounded JSON inputs.
-Production requires secure cookies, HTTPS browser URLs and HTTPS to the password-authority API.
-Password validation errors are fixed messages, including when the API is behind a path prefix.
-A database outage does not enable memory authority or email-only access.
+Admin UI actions send the displayed target revision. Stale edits are rejected rather than overwriting another change.
+The shared authority lock protects concurrent privileged changes and the last active administrator.
+Audit rows record account registration, bootstrap, authority changes, login and session revocation.
+This is not a complete institutional read-access audit or retention platform.
 
-## UI
+The session version revokes web sessions. Personal API tokens have separate revocation controls;
+their owner must still be currently approved and have researcher/admin authority.
+Existing phone/case tokens have a separate lifecycle. Previously delivered or downloaded data cannot be recalled.
 
-- `/login`: email and individual password; no registration action.
-- `/set-password`: restricted first-login/reset setup. The current temporary password and a different personal password are required.
-- `/admin/approvals`: Create staff account, Reset password, Staff accounts and Disabled accounts. The old request queue and notification badge are removed.
-- Dropdowns use the shared shadcn Select component. The question-mark help beside Access profile explains all four profiles on hover, focus or click, using the theme card colors.
-- `/admin/case-access`: select an existing case and approved staff member, then set purpose, scopes and a recorded reason.
-- `/overview`: Assigned cases; only the current permitted clinical cases appear.
-- `/account`: access summary, theme and own password change. Role/access changes go through an administrator.
+## Service boundaries
 
-An admin cannot reset their own password through the staff reset action. They use their current password in Account.
-If the password is lost, another named admin can reset it, or a trusted server operator can use the recovery command below.
-Recovery changes credentials only; it does not reactivate a denied account or restore removed admin authority.
-Already delivered/downloaded data cannot be recalled by a later permission change.
-Personal API tokens have their own revocation controls; the broad extraction route does not accept them for data export in this branch.
+The database control API requires its private workload credential and checks actor authority on mutations.
+Legacy database REST/GraphQL requires `X-Legacy-Operator-Token`. Personal-token storage uses a distinct
+`X-Api-Token-Service-Token`. The BFF and extraction client send the appropriate private capability.
+Legacy database GraphQL sockets remain closed; they have no continuing staff-session protocol.
+Do not expose the database, extraction service or Grafana directly as an alternative public data path.
 
-## Deliberate compatibility limits
+The Grafana relay checks the current BFF account for HTTP requests and WebSocket upgrades.
+Established WebSockets are rechecked every five seconds and closed on lost authority or an outage.
+This is the existing broad practitioner/admin policy, not study/case-specific data authorization.
+The relay does not dump patient identifiers, cookies or request headers into its debug output.
+Configure `AUTH_API_URL` to the trusted BFF `/api/me` endpoint (HTTPS outside loopback development).
 
-These paths cannot safely apply case assignments through their former broad interfaces:
+Unknown patient DOB remains null through the existing API clients instead of becoming today's date.
+This small compatibility correction has no effect on which role can access a patient.
 
-- `/api/extraction/*` returns `410 CASE_SCOPED_EXPORT_REQUIRED`.
-- The Grafana proxy returns `410 CASE_SCOPED_DASHBOARD_REQUIRED` and closes WebSocket upgrades.
-  Dashboard JSON definitions and proxy files remain; no replacement chart or data pipeline is added.
-- Sample hospital lookup and automatic patient matching return `503 HOSPITAL_IDENTITY_REQUIRED`.
-  The Add Case form states why it is disabled. Use trusted operator import and explicit staff assignment for existing cases.
-- Old phone QR verification returns `410 MOBILE_ENROLLMENT_REQUIRED`. Mobile enrollment and collection consent are separate features.
-- Legacy db_lord REST/GraphQL tools require `X-Legacy-Operator-Token`. The BFF does not receive this privileged operator capability.
-  Legacy GraphQL sockets are closed. The existing API-token workload has a distinct credential.
+## Setup and rollout
 
-Keep direct database, Grafana and extraction services private. No cloud, ingress, cluster or main-branch change is included.
+Use the component `.env.example` files. Set fresh, distinct workload/operator secrets.
+The BFF's `DATABASE_OPERATOR_TOKEN` must match db_lord's `LEGACY_OPERATOR_TOKEN`;
+extraction uses the same capability as `DB_LORD_OPERATOR_TOKEN`.
+Set `ADMIN_EMAILS` in the BFF and the permitted initial emails in db_lord's `CONTROL_BOOTSTRAP_ADMIN_EMAILS`.
 
-## Local setup and administrator recovery
-
-Use an isolated development database, not a live project database.
-The existing db_lord normal lifecycle still checks PostgreSQL 18 and Influx; this feature does not change that lifecycle.
-Set distinct workload/operator credentials as described in the component `.env.example` files.
-Configure `CONTROL_BOOTSTRAP_ADMIN_EMAILS` on the database service for the named initial/recovery administrator.
+Run the database API with `--no-access-log` so query parameters do not enter the server access log.
 
 From `services/backend/db_lord`:
 
@@ -130,53 +114,39 @@ uv run alembic upgrade head
 uv run python -m app.bootstrap_admin --email admin@example.test
 ```
 
-The server command prompts for a password twice; never supply one as a shell argument.
-It initializes only a permitted, active admin identity without an existing credential. It does not overwrite authority or a password.
-For protected operator recovery of an existing active administrator:
+BFF startup can initialize configured admins through the same insert-only allowlisted service operation.
+Normal public registration can never select admin/approved authority.
+Production uses verified email login and secure cookies; it requires HTTPS for the browser and database authority.
+`ALLOW_DEV_AUTH_BYPASS=true` is accepted only with development and loopback-only URLs.
+Never enable it for a deployed service. The local demo uses it explicitly so no mail is sent.
 
-```sh
-uv run python -m app.bootstrap_admin --email admin@example.test --reset-password
-```
+Export/review existing in-memory staff approvals before stopping a live main instance; they cannot be recovered from a database
+that never stored them. Import/reapprove them through a trusted operator/admin process. Never infer approval from re-registration.
+Back up the database and retire older login issuers before rollout. Downgrade removes account tables, not clinical rows.
+The earlier password/case-assignment schema was only used locally and was rolled back before this unpublished migration was narrowed.
 
-Recovery prompts for a reason and a new temporary password, invalidates older web sessions, and requires personal password setup.
-Treat server/DB access to this command as privileged. There is no corresponding HTTP bootstrap/recovery endpoint.
+## Verification and limits
 
-Start db_lord with `--no-access-log`, then the BFF and web using their existing development commands and correct proxy URLs.
-The BFF always uses database authority. `USE_MOCK_DATA` does not provide in-memory accounts or permissions.
-Configure and migrate the database before starting the updated application; retire old login issuers during deployment.
-No default password or private local-demo credential is committed.
+Backend: `uv run pytest tests/unit tests/smoke tests/integration/test_account_flow_postgres.py`.
+BFF: `npm run typecheck` and `npm test`. Grafana proxy: `npx tsc --noEmit` and `npm test`.
+Web: `npm run lint` and `npm run build`. Extraction: `uv run pytest tests`.
 
-## Verification and review boundary
+The integration suite uses disposable PostgreSQL 18 and two real BFF processes. It checks migration preservation/reversal,
+concurrent admin safety, one-use proofs, shared limits, registration/approval, stale writes, role-based case creation,
+shared sessions, role requests, denial, logout and account persistence after restart.
+Its database API lifespan is disabled to isolate account/clinical PostgreSQL behavior from Influx; the separate synthetic local demo
+uses the normal readiness path with PostgreSQL and empty Influx. No real email or health data is collected.
 
-From db_lord: `uv run pytest tests/unit tests/smoke` and `uv run pytest tests/integration/test_accounts_permissions.py`.
-The integration test uses disposable PostgreSQL containers, not existing Compose volumes. It also needs Node and BFF `npm ci`.
-Its connected BFF/account test disables the database app lifespan to isolate PostgreSQL authority from Influx;
-a separate synthetic demo checks the normal database readiness path.
-From the BFF: `npm run typecheck` and `npm test`. From web: `npm run lint` and `npm run build`.
-
-Current local verification: **145 backend unit/startup tests + 3 PostgreSQL integration tests + 10 Node tests = 158 passing tests**.
-Nine browser checks cover actual account creation, case assignment, restricted first login, personal password setup,
-practitioner denial, admin reset, old-password rejection and repeated setup after reset.
-Changed Python modules pass Ruff/Pyright. BFF TypeScript, web lint/build and the local Linux backend image build pass.
-No hosted CI run or clinical production approval is claimed.
-
-Raw archive, normalization, canonical measurements, export redesign, mobile delivery/capture, metric inventory,
-data replay/recovery, AI/ML, study-level delegation and cloud work remain separate.
-MFA/SSO, institutional identity policy, abuse controls, secret management, backup/restore and audit retention require production review.
+This finishes the account-persistence scope, not clinical production acceptance. Institutional authentication strength/MFA/SSO,
+patient/study-specific access, deployment networking, backup recovery, audit retention and device/data workflows need separate review.
+Grafana and extraction authorization tests do not certify a production Grafana/clinical export deployment.
 
 ## Change log — 30 October 2026
 
-1. Created the independent branch from main and extracted persistent account/case authority without the large foundation history.
-2. Added explicit case assignments, protected metadata, current-session checks and the account/case UI.
-3. Closed public signup and email authentication; added admin-created named accounts, password setup/change/reset and server recovery.
-4. Added credential migration, password hashing/throttling, temporary-session restrictions and regression/real-browser checks.
-5. Kept the work local. Main and the preserved foundation branch are unchanged; no push or deployment was performed.
-
-## UI review follow-up — 30 October 2026
-
-- Replaced all four visible native dropdowns with the shared shadcn Select.
-- Added accessible profile help with neutral theme colors and compact spacing.
-- Removed the obsolete Requests tab, navigation badge, polling and unused request UI/client code. Older inactive account records remain visible as staff accounts; no pending registration grants access.
-- Closed self-service role/admin request commands and added a regression check that they cannot write authority state.
-- Reset only the isolated local demo account data at the user’s request: one existing named admin remains, along with the sample patient/case records and admin assignment. No demo credentials or database connection values are stored here.
-- Rechecked web lint/build, BFF types/tests and PostgreSQL integration. Recorded the visual check and cleanup counts outside the repository. No push.
+1. Extracted the account authority work from main into an independent local branch.
+2. Added persistent users, requests, revisions, sessions and audit records.
+3. At the agreed scope revision, kept main's registration/approval/email-login flow and existing role-based data workflows.
+4. Removed mandatory case assignments and password-only account provisioning from the final feature scope.
+5. Added shared login limits, current-authority proxy checks, stale UI revision checks and approval-flow regressions.
+6. Kept a stable shared React auth context during development refresh. Retained the shared shadcn dropdown/help controls and corrected pending-role display and unknown DOB handling.
+7. Kept main and the preserved foundation checkout unchanged. No push or deployment.

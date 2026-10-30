@@ -428,39 +428,25 @@ def _seed_control_authority_lock(table, connection, **_kwargs):
     connection.execute(table.insert().values(id=1))
 
 
-class CaseAccess(Base):
-    __tablename__ = "case_access"
-    case_id: Mapped[UUID] = mapped_column(ForeignKey("cases.id", ondelete="RESTRICT"), primary_key=True)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("control_users.id", ondelete="RESTRICT"), primary_key=True)
-    patient_id: Mapped[UUID] = mapped_column(ForeignKey("patients.id", ondelete="RESTRICT"), nullable=False)
-    active: Mapped[bool] = mapped_column(nullable=False)
-    purpose: Mapped[str] = mapped_column(String(32), nullable=False)
-    scopes: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
-    revision: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(nullable=False)
+class LoginChallenge(Base):
+    """One-use email login proof. Only a digest is persisted."""
+
+    __tablename__ = "login_challenges"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("control_users.id", ondelete="CASCADE"), nullable=False)
+    auth_version: Mapped[int] = mapped_column(nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(nullable=False, index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class AuthAttempt(Base):
+    __tablename__ = "auth_attempts"
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    key_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    window_start: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    attempts: Mapped[int] = mapped_column(nullable=False)
     __table_args__ = (
-        CheckConstraint("revision > 0", name="case_access_revision"),
-        Index("ix_case_access_user_page", "user_id", "case_id"),
-        CheckConstraint("purpose IN ('clinical-reference','synthetic-research')", name="case_access_purpose"),
-    )
-
-
-class ControlPassword(Base):
-    """Only Argon2id hashes; no initial or permanent plaintext password is stored."""
-
-    __tablename__ = "control_passwords"
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("control_users.id", ondelete="CASCADE"), primary_key=True)
-    password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
-    must_change: Mapped[bool] = mapped_column(nullable=False)
-    temporary_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    failed_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
-    locked_until: Mapped[datetime | None] = mapped_column(nullable=True)
-    changed_at: Mapped[datetime] = mapped_column(nullable=False)
-    __table_args__ = (
-        CheckConstraint("failed_attempts >= 0", name="password_failed_attempts"),
-        CheckConstraint(
-            "(must_change AND temporary_expires_at IS NOT NULL) OR (NOT must_change AND temporary_expires_at IS NULL)",
-            name="password_temporary_expiry",
-        ),
+        CheckConstraint("attempts > 0", name="auth_attempts_positive"),
+        CheckConstraint("kind IN ('client','login','register','verify')", name="auth_attempts_kind"),
+        Index("ix_auth_attempts_window_start", "window_start"),
     )

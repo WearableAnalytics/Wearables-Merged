@@ -1,4 +1,6 @@
 <p align="center">
+
+This feature branch keeps the existing registration, approval and email-link login flow and adds persistent staff authority. See [accounts and permissions](docs/accounts-and-permissions.md) for setup, scope and checks.
   <img src=".github/assets/wearables-logo-horizontal.png" alt="Wearables logo" width="720" />
 </p>
 <h1 align="center">Cloud-Native Wearable Analytics Framework</h1>
@@ -21,10 +23,6 @@ The platform is designed to support clinical research workflows in which wearabl
 
 **Contact:** Dr.-Ing. Elias Grünewald — elias.gruenewald@charite.de
 </p>
-
-## Accounts and permissions branch
-
-Read the [scope, setup, compatibility limits and test log](docs/accounts-and-permissions.md) before running this branch. It contains admin-managed staff accounts, individual password login and case access control only; broad legacy charts/exports and sample hospital/QR flows are blocked pending separate scoped integrations.
 
 ## Overview
 This repository contains the Wearables platform end-to-end:

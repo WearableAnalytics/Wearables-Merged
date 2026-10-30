@@ -1,12 +1,16 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.api.control_auth import require_control_read, require_control_write
 from app.api.dependencies import PgSessionDep
 from app.schemas.control import (
+    AuthAttemptCreate,
+    LoginChallengeConsume,
+    LoginChallengeCreate,
     RevokeSessions,
+    UserCreate,
     UserDecision,
     UserDecisionResponse,
     UserPage,
@@ -14,9 +18,9 @@ from app.schemas.control import (
     UserResponse,
     UserStatus,
 )
-from app.schemas.passwords import PasswordChange, PasswordLogin, PasswordReset, PasswordResult, StaffCreate
+from app.services.auth_attempts import AuthAttempts
 from app.services.control_service import ControlService
-from app.services.password_service import PasswordService
+from app.services.login_challenge import LoginChallengeService
 
 router = APIRouter()
 read = [Depends(require_control_read)]
@@ -42,13 +46,13 @@ async def list_users(
 
 
 @router.post("/users", response_model=UserResponse, status_code=201, dependencies=write)
-async def create_user(item: StaffCreate, db: PgSessionDep):
-    return await PasswordService(db).create_staff(item)
+async def create_user(item: UserCreate, control: Service):
+    return await control.create_user(item)
 
 
 @router.post("/users/bootstrap", response_model=UserResponse, dependencies=write)
-async def bootstrap_user():
-    raise HTTPException(410, "SERVER_ADMIN_SETUP_REQUIRED")
+async def bootstrap_user(item: UserCreate, control: Service):
+    return await control.create_user(item, bootstrap=True)
 
 
 @router.get("/users/{user_id:uuid}", response_model=UserResponse, dependencies=write)
@@ -72,26 +76,16 @@ async def decide_user(item: UserDecision, control: Service):
 
 
 @router.post("/login-challenges", dependencies=write)
-@router.post("/login-challenges/consume", dependencies=write)
-async def closed_email_login():
-    raise HTTPException(410, "EMAIL_LOGIN_DISABLED")
+async def issue_login_challenge(item: LoginChallengeCreate, db: PgSessionDep):
+    await LoginChallengeService(db).issue(item)
+    return {"issued": True}
 
 
-@router.post("/password/login", response_model=PasswordResult, dependencies=write)
-async def password_login(item: PasswordLogin, db: PgSessionDep):
-    return await PasswordService(db).login(item)
+@router.post("/login-challenges/consume", response_model=UserResponse, dependencies=write)
+async def consume_login_challenge(item: LoginChallengeConsume, db: PgSessionDep):
+    return await LoginChallengeService(db).consume(item.token_hash)
 
 
-@router.post("/password/setup", response_model=PasswordResult, dependencies=write)
-async def password_setup(item: PasswordChange, db: PgSessionDep):
-    return await PasswordService(db).change(item, initial=True)
-
-
-@router.post("/password/change", response_model=PasswordResult, dependencies=write)
-async def password_change(item: PasswordChange, db: PgSessionDep):
-    return await PasswordService(db).change(item, initial=False)
-
-
-@router.post("/users/{user_id:uuid}/password-reset", response_model=UserResponse, dependencies=write)
-async def password_reset(user_id: UUID, item: PasswordReset, db: PgSessionDep):
-    return await PasswordService(db).reset(user_id, item)
+@router.post("/auth-attempts", dependencies=write)
+async def admit_auth_attempt(item: AuthAttemptCreate, db: PgSessionDep):
+    return await AuthAttempts(db).admit(item.kind, item.key_hash)

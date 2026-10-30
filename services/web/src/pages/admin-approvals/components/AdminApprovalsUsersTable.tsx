@@ -1,3 +1,4 @@
+import { AccessProfileHelp } from '@/components/account/AccessProfileHelp';
 import { Inbox } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,8 +37,6 @@ const toAccessProfile = (entry: AdminUser): AccessProfile => {
 
 type AdminApprovalsUsersTableProps = {
   users: AdminUser[];
-  onResetPassword: (entry: AdminUser) => void;
-  resetDisabled: boolean;
   currentUserId?: string;
   actionUserId: string | null;
   draftEdits: UserDraftEdits;
@@ -47,8 +46,6 @@ type AdminApprovalsUsersTableProps = {
 
 export function AdminApprovalsUsersTable({
   users,
-  onResetPassword,
-  resetDisabled,
   currentUserId,
   actionUserId,
   draftEdits,
@@ -68,7 +65,12 @@ export function AdminApprovalsUsersTable({
           <thead className="table-head">
             <tr className="table-row">
               <th className="px-3 py-3">Email</th>
-              <th className="px-3 py-3">Access profile</th>
+              <th className="px-3 py-3">
+                <span className="inline-flex items-center gap-1">
+                  Access profile
+                  <AccessProfileHelp />
+                </span>
+              </th>
               <th className="px-3 py-3">Access</th>
               <th className="px-3 py-3 text-right">Action</th>
             </tr>
@@ -151,16 +153,6 @@ export function AdminApprovalsUsersTable({
                         onClick={() => onUpdate(entry)}
                       >
                         Update
-                      </Button>
-                    )}
-                    {!isSelf && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={isBusy || resetDisabled}
-                        onClick={() => onResetPassword(entry)}
-                      >
-                        Reset password
                       </Button>
                     )}
                   </td>

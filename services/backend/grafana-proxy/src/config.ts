@@ -26,12 +26,31 @@ const readPrivateKey = (): string | null => {
 
 const grafanaPrivateKey = readPrivateKey();
 
+const authApiUrl = process.env.AUTH_API_URL ?? '';
+if (authApiUrl) {
+  const url = new URL(authApiUrl);
+  if (
+    url.username ||
+    url.password ||
+    (url.protocol !== 'https:' &&
+      !(
+        url.protocol === 'http:' &&
+        ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)
+      ))
+  )
+    throw new Error(
+      'AUTH_API_URL must be HTTPS or a loopback development endpoint.',
+    );
+}
 export const config = {
+  authApiUrl,
   port: Number(process.env.PORT) || 3002,
   proxyPrefix: normalizePrefix(process.env.PROXY_PREFIX ?? '/grafana-proxy'),
   grafanaBaseUrl: process.env.GRAFANA_BASE_URL ?? '',
   grafanaPathPrefix: normalizePrefix(process.env.GRAFANA_PATH_PREFIX ?? ''),
-  grafanaAllowedDashboardIds: parseCsvList(process.env.GRAFANA_ALLOWED_DASHBOARD_IDS ?? ''),
+  grafanaAllowedDashboardIds: parseCsvList(
+    process.env.GRAFANA_ALLOWED_DASHBOARD_IDS ?? '',
+  ),
   grafanaDashboardDatasource: process.env.GRAFANA_DASHBOARD_DATASOURCE ?? '',
   grafanaTlsSkipVerify: process.env.GRAFANA_TLS_SKIP_VERIFY === 'true',
   grafanaJwtHeader: process.env.GRAFANA_JWT_HEADER ?? 'X-JWT-Assertion',
@@ -40,7 +59,8 @@ export const config = {
   grafanaJwtTtlSeconds: Number(process.env.GRAFANA_JWT_TTL_SECONDS) || 300,
   grafanaOrgId: process.env.GRAFANA_ORG_ID ?? '',
   grafanaJwtPrivateKey: grafanaPrivateKey ?? '',
-  grafanaJwtIatSkewSeconds: Number(process.env.GRAFANA_JWT_IAT_SKEW_SECONDS) || 0,
+  grafanaJwtIatSkewSeconds:
+    Number(process.env.GRAFANA_JWT_IAT_SKEW_SECONDS) || 0,
   appJwtSecret: process.env.APP_JWT_SECRET ?? '',
   appJwtIssuer: process.env.APP_JWT_ISSUER ?? 'wearables-bff',
 };

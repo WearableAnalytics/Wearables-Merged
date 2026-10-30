@@ -1,6 +1,6 @@
-> This branch changes account and case access. Read [setup and compatibility limits](../../../docs/accounts-and-permissions.md) first.
-
 # db-lord
+
+This feature branch keeps the existing registration, approval and email-link login flow and adds persistent staff authority. See [accounts and permissions](../../../docs/accounts-and-permissions.md) for setup, scope and checks.
 
 Backend service for managing wearable domain entities and telemetry.
 
