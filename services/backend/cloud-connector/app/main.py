@@ -427,8 +427,9 @@ async def provider_webhook(
         )
 
     logger.info(
-        "Processed PUSH webhook from '%s': %d batches (%d measurements) published to Kafka",
+        "Processed Push webhook from '%s' (keys=%s): %d batches (%d measurements) published to Kafka",
         provider_name,
+        list(data.keys()),
         published_batches,
         total_measurements,
     )

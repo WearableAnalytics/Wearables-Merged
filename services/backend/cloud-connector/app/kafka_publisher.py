@@ -44,6 +44,32 @@ class CloudKafkaPublisher:
                 time.sleep(wait)
         logger.error("Failed to connect to Kafka after %d attempts: %s", self._connect_retries, last_exc)
 
+    @staticmethod
+    def _normalize_for_fhir_mapper(obj: Any) -> Any:
+        """
+        Normalizes payload for fhir-mapper-validator compatibility:
+        1. Strips trailing 'Z' or '+00:00' from ISO-8601 timestamps
+        2. Maps provider-specific type aliases (e.g. SLEEP_LIGHT -> SLEEP_ASLEEP_CORE)
+        """
+        if isinstance(obj, dict):
+            out = {}
+            for k, v in obj.items():
+                if k == "type" and isinstance(v, str):
+                    if v == "SLEEP_LIGHT":
+                        v = "SLEEP_ASLEEP_CORE"
+                    elif v == "HEART_RATE_VARIABILITY_RMSSD":
+                        v = "HEART_RATE_VARIABILITY_SDNN"
+                out[k] = CloudKafkaPublisher._normalize_for_fhir_mapper(v)
+            return out
+        if isinstance(obj, list):
+            return [CloudKafkaPublisher._normalize_for_fhir_mapper(item) for item in obj]
+        if isinstance(obj, str) and len(obj) >= 19 and obj[4:5] == "-" and obj[7:8] == "-" and obj[10:11] == "T":
+            if obj.endswith("Z"):
+                return obj[:-1]
+            if obj.endswith("+00:00"):
+                return obj[:-6]
+        return obj
+
     def publish_payload(self, payload: Dict[str, Any]) -> bool:
         self._ensure_producer()
         if not self.producer:
@@ -51,9 +77,9 @@ class CloudKafkaPublisher:
             return False
 
         try:
-            # Wrap in list as expected by fhir-mapper-validator
-            msg_data = [payload] if not isinstance(payload, list) else payload
-            payload_bytes = json.dumps(msg_data, default=str).encode('utf-8')
+            normalized = self._normalize_for_fhir_mapper(payload)
+            # Send single JSON object as expected by fhir-mapper-validator
+            payload_bytes = json.dumps(normalized, default=str).encode('utf-8')
             
             patient_id = payload.get("deviceInfo", {}).get("deviceId", "unknown")
             key = patient_id.encode('utf-8')
