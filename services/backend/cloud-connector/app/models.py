@@ -74,7 +74,7 @@ class IngestPayload(BaseModel):
 
 class SyncRequest(BaseModel):
     patient_id: str
-    credentials: Dict[str, Any]
+    credentials: Dict[str, Any] = Field(default_factory=dict)
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 

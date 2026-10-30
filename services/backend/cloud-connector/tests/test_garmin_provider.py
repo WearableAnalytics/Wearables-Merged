@@ -194,3 +194,73 @@ async def test_garmin_provider_parses_full_health_bundle_and_ecg():
     assert ecg_60.durationSeconds == 60.0
     assert ecg_60.samplingFrequencyHz == 500.0
     assert ecg_60.meanHeartRate == 63.2
+
+
+def test_garmin_pkce_and_webhook_user_linking(monkeypatch, tmp_path):
+    from app.config import get_settings
+    from app.storage import ConnectionStore
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("GARMIN_CLIENT_ID", "test-client-id-1234")
+    monkeypatch.setenv("GARMIN_CLIENT_SECRET", "test-client-secret-5678")
+    get_settings.cache_clear()
+
+    provider = GarminProvider()
+    verifier, challenge = provider.generate_pkce_pair()
+    assert 43 <= len(verifier) <= 128
+    assert "=" not in challenge
+
+    auth_url = provider.build_authorization_url(
+        state="state-xyz",
+        code_challenge=challenge,
+        redirect_uri="http://localhost/cloud/callback",
+    )
+    assert auth_url.startswith("https://connect.garmin.com/oauth2Confirm?")
+    assert "client_id=test-client-id-1234" in auth_url
+    assert "code_challenge_method=S256" in auth_url
+
+    store = ConnectionStore(storage_path=str(tmp_path / "connections.json"))
+    patient_id = "01a17e07-a10d-7a7c-aa23-2a0da2297b39"
+    garmin_uid = "d3315b1072421d0dd7c8f6b8e1de4df8"
+
+    store.save_connection(
+        provider="garmin",
+        patient_id=patient_id,
+        provider_user_id=garmin_uid,
+        access_token="access-token-abc",
+        refresh_token="refresh-token-def",
+        expires_in=86400,
+        permissions=["HEALTH_EXPORT", "ACTIVITY_EXPORT"],
+    )
+
+    assert store.resolve_patient_id("garmin", garmin_uid) == patient_id
+
+    webhook_push = {
+        "dailies": [
+            {
+                "userId": garmin_uid,
+                "startTimeInSeconds": 1730203417,
+                "durationInSeconds": 86400,
+                "steps": 6419,
+                "restingHeartRateInBeatsPerMinute": 56,
+            }
+        ],
+        "pulseOx": [
+            {
+                "userId": garmin_uid,
+                "startTimeInSeconds": 1730203417,
+                "timeOffsetSpo2Values": {"0": 97.0},
+            }
+        ],
+    }
+
+    payloads = provider.parse_webhook_payload(
+        data=webhook_push,
+        resolve_patient_id=lambda uid: store.resolve_patient_id("garmin", uid),
+    )
+    assert len(payloads) == 1
+    assert payloads[0].deviceInfo.deviceId == patient_id
+    assert payloads[0].totalStepsToday == 6419
+    assert len(payloads[0].measurements.instantaneous) == 2
+    assert len(payloads[0].measurements.cumulative) == 1
+    get_settings.cache_clear()

@@ -1,6 +1,10 @@
+import base64
+import hashlib
 import logging
+import secrets
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
+from urllib.parse import urlencode
 import httpx
 
 from .base import BaseCloudProvider
@@ -21,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class GarminProvider(BaseCloudProvider):
     """Garmin Health Cloud Provider
-    Compatible with Garmin Personal API and Garmin Business or Starter API -> Retrieves clinical and wellness telemetry normalizes them
+    Supports Garmin OAuth 2.0 PKCE user linking, PUSH webhook ingestion, and REST telemetry sync.
     """
 
     @property
@@ -31,6 +35,210 @@ class GarminProvider(BaseCloudProvider):
     def __init__(self, base_url: Optional[str] = None):
         self._settings = get_settings()
         self.base_url = base_url or self._settings.garmin_api_base_url
+        self.auth_url = self._settings.garmin_auth_url
+        self.token_url = self._settings.garmin_token_url
+        self.partner_gateway_url = self._settings.garmin_partner_gateway_url
+
+    def _get_client_credentials(self) -> tuple[str, str]:
+        settings = get_settings()
+        client_id = settings.garmin_client_id.strip()
+        client_secret = settings.garmin_client_secret.strip()
+        if not client_id or not client_secret:
+            raise ValueError(
+                "GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET must be set in the environment (.env)"
+            )
+        return client_id, client_secret
+
+    def _build_basic_auth_header(self, client_id: str, client_secret: str) -> str:
+        raw = f"{client_id}:{client_secret}".encode("utf-8")
+        return f"Basic {base64.b64encode(raw).decode('ascii')}"
+
+    def generate_pkce_pair(self) -> tuple[str, str]:
+        """Generates a 64-char code_verifier and S256 code_challenge per Garmin OAuth2 PKCE spec"""
+        code_verifier = secrets.token_urlsafe(48)  # 64 URL-safe characters (within 43..128 range)
+        digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+        code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+        return code_verifier, code_challenge
+
+    def build_authorization_url(
+        self,
+        state: str,
+        code_challenge: str,
+        redirect_uri: Optional[str] = None,
+    ) -> str:
+        client_id, _ = self._get_client_credentials()
+        effective_redirect = redirect_uri or get_settings().oauth_redirect_uri
+        params = {
+            "client_id": client_id,
+            "response_type": "code",
+            "state": state,
+            "redirect_uri": effective_redirect,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+        }
+        return f"{self.auth_url}?{urlencode(params)}"
+
+    async def exchange_code_for_token(
+        self,
+        code: str,
+        code_verifier: str,
+        redirect_uri: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        client_id, client_secret = self._get_client_credentials()
+        effective_redirect = redirect_uri or get_settings().oauth_redirect_uri
+
+        headers = {
+            "Authorization": self._build_basic_auth_header(client_id, client_secret),
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        data = {
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "code_verifier": code_verifier,
+            "redirect_uri": effective_redirect,
+        }
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(self.token_url, headers=headers, data=data)
+            if resp.status_code != 200:
+                logger.error("Garmin token exchange failed (%s): %s", resp.status_code, resp.text)
+                raise ValueError(f"Garmin token exchange failed ({resp.status_code}): {resp.text}")
+            return resp.json()
+
+    async def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:
+        client_id, client_secret = self._get_client_credentials()
+        headers = {
+            "Authorization": self._build_basic_auth_header(client_id, client_secret),
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        data = {
+            "grant_type": "refresh_token",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+        }
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(self.token_url, headers=headers, data=data)
+            if resp.status_code != 200:
+                logger.error("Garmin token refresh failed (%s): %s", resp.status_code, resp.text)
+                raise ValueError(f"Garmin token refresh failed ({resp.status_code}): {resp.text}")
+            return resp.json()
+
+    async def fetch_user_info(self, access_token: str) -> Dict[str, Any]:
+        headers = {"Authorization": f"Bearer {access_token}"}
+        user_id = ""
+        permissions: List[str] = []
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            id_resp = await client.get(f"{self.partner_gateway_url}/user/id", headers=headers)
+            if id_resp.status_code == 200:
+                user_id = id_resp.json().get("userId", "")
+            else:
+                logger.warning("Failed to fetch Garmin userId (%s): %s", id_resp.status_code, id_resp.text)
+
+            perm_resp = await client.get(
+                f"{self.partner_gateway_url}/user/permissions", headers=headers
+            )
+            if perm_resp.status_code == 200:
+                perm_data = perm_resp.json()
+                if isinstance(perm_data, dict):
+                    permissions = perm_data.get("permissions", [])
+                elif isinstance(perm_data, list):
+                    permissions = perm_data
+
+        return {
+            "provider_user_id": user_id,
+            "permissions": permissions,
+        }
+
+    async def deregister_user(self, access_token: str) -> bool:
+        headers = {"Authorization": f"Bearer {access_token}"}
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.delete(
+                f"{self.partner_gateway_url}/user/registration", headers=headers
+            )
+            return resp.status_code in (200, 204)
+
+    def parse_webhook_payload(
+        self,
+        data: Dict[str, Any],
+        resolve_patient_id: Callable[[str], Optional[str]],
+        default_patient_id: Optional[str] = None,
+    ) -> List[IngestPayload]:
+        """Groups incoming Garmin PUSH webhook arrays by Garmin userId and builds normalized IngestPayloads"""
+        summary_keys = [
+            "pulseOx",
+            "respiration",
+            "hrv",
+            "dailies",
+            "epochs",
+            "sleeps",
+            "stressDetails",
+            "bodyComps",
+            "bloodPressures",
+            "skinTemp",
+            "userMetrics",
+            "ecg",
+        ]
+
+        # Group items by resolved patient_id
+        bundles_by_patient: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+        for key in summary_keys:
+            if key not in data:
+                continue
+            raw_items = data[key]
+            items = raw_items if isinstance(raw_items, list) else [raw_items]
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                garmin_user_id = item.get("userId") or item.get("userAccessToken")
+                patient_id = (
+                    resolve_patient_id(str(garmin_user_id)) if garmin_user_id else None
+                ) or default_patient_id
+                if not patient_id:
+                    logger.warning(
+                        "Skipping Garmin webhook item in '%s': unlinked Garmin userId='%s'",
+                        key,
+                        garmin_user_id,
+                    )
+                    continue
+                patient_bundle = bundles_by_patient.setdefault(patient_id, {})
+                patient_bundle.setdefault(key, []).append(item)
+
+        now = datetime.now(timezone.utc)
+        payloads: List[IngestPayload] = []
+        for patient_id, patient_bundle in bundles_by_patient.items():
+            inst, cum, dur, wav, steps = self._parse_garmin_bundle(patient_bundle)
+            if not (inst or cum or dur or wav):
+                continue
+            payloads.append(
+                IngestPayload(
+                    deviceInfo=DeviceInfo(
+                        platform="Garmin",
+                        deviceId=patient_id,
+                        authorizationToken="cloud-connector-garmin",
+                    ),
+                    batchInfo=BatchInfo(
+                        collectionStart=now - timedelta(days=1),
+                        collectionEnd=now,
+                        lastSendTime=now,
+                    ),
+                    measurements=Measurements(
+                        instantaneous=inst,
+                        cumulative=cum,
+                        duration=dur,
+                        waveforms=wav,
+                    ),
+                    sourceName="Garmin Health Cloud",
+                    sourcePlatform="Garmin Connect",
+                    totalStepsToday=steps if steps > 0 else None,
+                    timestamp=now,
+                )
+            )
+        return payloads
 
     async def validate_credentials(self, credentials: Dict[str, Any]) -> bool:
         token = credentials.get("token") or credentials.get("personal_token")
