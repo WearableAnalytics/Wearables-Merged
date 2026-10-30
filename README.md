@@ -24,7 +24,7 @@ The platform is designed to support clinical research workflows in which wearabl
 
 ## Accounts and permissions branch
 
-Read the [scope, setup, compatibility limits and test log](docs/accounts-and-permissions.md) before running this branch. It contains staff access control only; broad legacy charts/exports and sample hospital/QR flows are blocked pending separate scoped integrations.
+Read the [scope, setup, compatibility limits and test log](docs/accounts-and-permissions.md) before running this branch. It contains admin-managed staff accounts, individual password login and case access control only; broad legacy charts/exports and sample hospital/QR flows are blocked pending separate scoped integrations.
 
 ## Overview
 This repository contains the Wearables platform end-to-end:

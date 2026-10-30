@@ -1,83 +1,42 @@
 import express from 'express';
 import type { CookieOptions, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
 import config from '../../config.js';
-import { controlRequest, asyncRoute, sendControlError } from '../../clients/controlApi.js';
-import { auth, getUserFromRequest } from '../../middleware.js';
-import { sendApprovalEmail, sendMagicLinkEmail } from '../../services/mailer.js';
-import { logger } from '../../logger.js';
+import { controlRequest, asyncRoute, ControlApiError } from '../../clients/controlApi.js';
+import { auth, getUserFromRequest, parseCookies, type JwtPayload } from '../../middleware.js';
 import {
   countActiveAdmins,
   revokeUserSessions,
-  createUser,
-  getUserByEmail,
   getUserById,
-  isAdminEmail,
   listAccessRequests,
   listUsersByStatus,
-  normalizeUserEmail,
   requestAdminAccess,
   requestRoleAccess,
   reviewAccessRequest,
   updateUserAccess,
   setUserStatus,
-  type AccessRequestType,
-  type NonAdminRole,
   fromDto,
   type UserDto,
   type UserRecord,
   type UserStatus,
+  type AccessRequestType,
+  type NonAdminRole,
 } from '../../services/userStore.js';
+
 const router = express.Router();
-const isLocalHost = (hostname: string) =>
-  hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-const parseHostname = (value: string): string | undefined => {
-  try {
-    return new URL(value).hostname;
-  } catch {
-    return undefined;
-  }
-};
-const isLocalCookieContext = () => {
-  const contextUrls = [
-    ...config.frontendOrigins,
-    config.frontendRedirectUrl,
-    config.backendUrl,
-  ].filter(Boolean);
-  const hostnames = contextUrls
-    .map((url) => parseHostname(url))
-    .filter((value): value is string => Boolean(value));
-  return hostnames.some((hostname) => isLocalHost(hostname));
-};
-const resolveSecureCookies = () => {
-  if (config.cookieSecure !== undefined) return config.cookieSecure;
-  if (config.isProduction) return true;
-  if (config.nodeEnv === 'development') return false;
-  if (isLocalCookieContext()) return false;
-  return true;
-};
-const useSecureCookies = resolveSecureCookies();
-const sameSite: CookieOptions['sameSite'] = useSecureCookies ? 'strict' : 'lax';
 const baseCookieOptions: CookieOptions = {
   httpOnly: true,
-  secure: useSecureCookies,
-  sameSite,
+  secure: config.isProduction || config.cookieSecure === true,
+  sameSite: config.isProduction || config.cookieSecure === true ? 'strict' : 'lax',
   path: '/',
 };
-const nonAdminRoles: readonly NonAdminRole[] = ['practitioner', 'researcher'];
-const nonAdminRoleSet = new Set<NonAdminRole>(nonAdminRoles);
-const accessRequestTypeSet = new Set<AccessRequestType>(['admin', ...nonAdminRoles]);
-const isNonAdminRole = (value: string): value is NonAdminRole =>
-  nonAdminRoleSet.has(value as NonAdminRole);
-const isAccessRequestType = (value: string): value is AccessRequestType =>
-  accessRequestTypeSet.has(value as AccessRequestType);
-const defaultRoleRequestStatuses = () => ({
-  practitioner: 'none' as const,
-  researcher: 'none' as const,
-});
+const clearAllCookies = (_req: Request, res: Response) => {
+  res.clearCookie('jwt', baseCookieOptions);
+  res.clearCookie('password_setup', baseCookieOptions);
+};
 const serializeUser = (user: UserRecord) => ({
   id: user.id,
+  revision: user.revision,
   email: user.email,
   name: user.name,
   isAdmin: user.isAdmin,
@@ -86,219 +45,235 @@ const serializeUser = (user: UserRecord) => ({
   adminRequestStatus: user.adminRequestStatus,
   roleRequestStatuses: user.roleRequestStatuses,
 });
-// Helper function to clear all cookies
-const clearAllCookies = (_req: Request, res: Response) => {
-  res.clearCookie('jwt', baseCookieOptions);
-};
-// Helper function to create JWT token
-const createJwtToken = (user: UserRecord) =>
-  jwt.sign(
-    { type: 'web-session', userId: user.id, email: user.email, sessionVersion: user.authVersion },
+const nonAdminRoles: readonly NonAdminRole[] = ['practitioner', 'researcher'];
+const isNonAdminRole = (value: string): value is NonAdminRole =>
+  nonAdminRoles.includes(value as NonAdminRole);
+const isAccessRequestType = (value: string): value is AccessRequestType =>
+  value === 'admin' || isNonAdminRole(value);
+const defaultRoleRequestStatuses = () => ({
+  practitioner: 'none' as const,
+  researcher: 'none' as const,
+});
+const issueSession = (res: Response, user: UserRecord, initial = false) => {
+  const expiry = initial ? 600 : config.authSessionExpirySeconds;
+  const token = jwt.sign(
+    {
+      auth_method: 'password-v1',
+      type: initial ? 'password-setup' : 'web-session',
+      userId: user.id,
+      email: user.email,
+      sessionVersion: user.authVersion,
+    },
     config.jwtSecret,
     {
       algorithm: 'HS256',
-      expiresIn: config.authSessionExpirySeconds,
       issuer: config.tokenIssuer,
-      audience: 'wearables-web',
+      audience: initial ? 'wearables-password-setup' : 'wearables-web',
       subject: user.id,
+      expiresIn: expiry,
     },
   );
-// Helper function to set auth cookie
-const setAuthCookie = (res: Response, token: string) => {
-  res.cookie('jwt', token, {
+  res.cookie(initial ? 'password_setup' : 'jwt', token, {
     ...baseCookieOptions,
-    maxAge: config.authSessionExpirySeconds * 1000,
+    maxAge: expiry * 1000,
   });
 };
-// Login proofs are one-use database records, shared across BFF instances.
-const tokenHash = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
-export const createMagicLinkToken = async (email: string) => {
-  const user = await getUserByEmail(email);
-  if (!user || user.status !== 'approved') throw new Error('Login not allowed');
-  const token = crypto.randomBytes(32).toString('hex');
-  const result = await controlRequest<{ issued: boolean }>('/login-challenges', 'POST', {
-    token_hash: tokenHash(token), user_id: user.id, auth_version: user.authVersion,
-    ttl_seconds: config.magicLinkExpirySeconds,
-  });
-  if (result?.issued !== true) throw new Error('Login proof unavailable');
-  return token;
+async function setupUser(req: Request): Promise<JwtPayload | undefined> {
+  let claim: jwt.JwtPayload;
+  try {
+    const token = parseCookies(req.headers.cookie).password_setup;
+    if (!token) return undefined;
+    const value = jwt.verify(token, config.jwtSecret, {
+      algorithms: ['HS256'],
+      issuer: config.tokenIssuer,
+      audience: 'wearables-password-setup',
+    });
+    if (
+      typeof value === 'string' ||
+      value.type !== 'password-setup' ||
+      value.auth_method !== 'password-v1' ||
+      value.userId !== value.sub ||
+      typeof value.userId !== 'string' ||
+      !Number.isSafeInteger(value.sessionVersion) ||
+      value.sessionVersion < 1 ||
+      typeof value.email !== 'string' ||
+      typeof value.exp !== 'number'
+    )
+      return undefined;
+    claim = value;
+  } catch {
+    return undefined;
+  }
+  const user = await getUserById(claim.userId);
+  if (
+    !user ||
+    user.status !== 'approved' ||
+    user.email !== claim.email ||
+    user.authVersion !== claim.sessionVersion
+  )
+    return undefined;
+  return { userId: user.id, sessionVersion: user.authVersion, email: user.email };
+}
+type PasswordDecision = {
+  allowed: boolean;
+  user: UserDto | null;
+  password_change_required: boolean;
 };
-const isMagicLinkBypass = () => config.devAuthBypass;
-// POST /login
+const checkedDecision = (value: PasswordDecision) => {
+  if (
+    !value ||
+    typeof value.allowed !== 'boolean' ||
+    typeof value.password_change_required !== 'boolean'
+  )
+    throw new ControlApiError(503);
+  if (!value.allowed) return undefined;
+  const user = fromDto(value.user!);
+  if (user.status !== 'approved') throw new ControlApiError(503);
+  return user;
+};
+const secretString = (value: unknown): value is string =>
+  typeof value === 'string' && value.length >= 1 && value.length <= 256;
+
+router.post('/register', (_req, res) =>
+  res
+    .status(410)
+    .json({
+      code: 'SELF_REGISTRATION_DISABLED',
+      error: 'Contact an administrator for an account.',
+    }),
+);
+router.get('/verify-magiclink', (_req, res) =>
+  res
+    .status(410)
+    .json({ code: 'EMAIL_LOGIN_DISABLED', error: 'Use your individual password to sign in.' }),
+);
 router.post(
   '/login',
-  asyncRoute(async (req: Request, res: Response) => {
-    const { email } = req.body;
-    if (typeof email !== 'string' || email.length > 320 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
-      res.status(400).json({ error: 'Email required' });
+  asyncRoute(async (req, res) => {
+    const { email, password, ...unknown } = req.body ?? {};
+    if (
+      typeof email !== 'string' ||
+      email.length > 320 ||
+      !secretString(password) ||
+      Object.keys(unknown).length
+    ) {
+      res.status(400).json({ error: 'Email and password are required.' });
       return;
     }
-    try {
-      const normalizedEmail = normalizeUserEmail(email);
-      let existingUser = await getUserByEmail(normalizedEmail);
-      clearAllCookies(req, res);
-      if (!existingUser) {
-        res.status(404).json({
-          error: 'User not found',
-          redirectToSignup: true,
-          message: 'This email is not registered. Please sign up first.',
-        });
-        return;
-      }
-      if (existingUser.status === 'pending') {
-        res.status(403).json({
-          error: 'Account pending approval',
-          message: 'Your account is awaiting admin approval.',
-          code: 'PENDING_APPROVAL',
-        });
-        return;
-      }
-      if (existingUser.status === 'denied') {
-        res.status(403).json({
-          error: 'Account denied',
-          message: 'Your access request was denied. Please contact an administrator.',
-          code: 'ACCOUNT_DENIED',
-        });
-        return;
-      }
-      if (isMagicLinkBypass()) {
-        const jwtToken = createJwtToken(existingUser);
-        setAuthCookie(res, jwtToken);
-        res.json({
-          authenticated: true,
-          message: 'Direct authentication successful',
-          userId: existingUser.id,
-        });
-        return;
-      }
-      const token = await createMagicLinkToken(existingUser.email);
-      await sendMagicLinkEmail(existingUser.email, token, { isRegistration: false });
-      res.json({ message: 'Magic link sent' });
-    } catch (err) {
-      if (sendControlError(res, err)) return;
-      logger.error('auth.magic_link.failed');
-      res.status(500).json({ error: 'Failed to process authentication request' });
+    clearAllCookies(req, res);
+    const decision = await controlRequest<PasswordDecision>('/password/login', 'POST', {
+      email,
+      password,
+    });
+    const user = checkedDecision(decision);
+    if (!user) {
+      res.status(401).json({ error: 'Invalid email or password.' });
+      return;
     }
+    issueSession(res, user, decision.password_change_required);
+    res.json(
+      decision.password_change_required
+        ? { passwordChangeRequired: true }
+        : { authenticated: true },
+    );
   }),
 );
-// POST /register - Initial registration endpoint
+
+for (const initial of [true, false]) {
+  router.post(
+    initial ? '/password/setup' : '/account/password',
+    ...(initial ? [] : [auth.required]),
+    asyncRoute(async (req, res) => {
+      const user = initial ? await setupUser(req) : req.user;
+      if (!user) {
+        res.status(401).json({ error: 'Sign in again before changing your password.' });
+        return;
+      }
+      const { currentPassword, newPassword, ...unknown } = req.body ?? {};
+      if (
+        !secretString(currentPassword) ||
+        !secretString(newPassword) ||
+        Object.keys(unknown).length
+      ) {
+        res.status(422).json({ error: 'Current and new passwords are required.' });
+        return;
+      }
+      const decision = await controlRequest<PasswordDecision>(
+        initial ? '/password/setup' : '/password/change',
+        'POST',
+        {
+          actor_id: user.userId,
+          actor_auth_version: user.sessionVersion,
+          current_password: currentPassword,
+          new_password: newPassword,
+        },
+      );
+      const changed = checkedDecision(decision);
+      if (!changed) {
+        res.status(400).json({ error: 'The current password was not accepted.' });
+        return;
+      }
+      if (
+        changed.id !== user.userId ||
+        changed.authVersion !== user.sessionVersion + 1 ||
+        decision.password_change_required
+      )
+        throw new ControlApiError(503);
+      clearAllCookies(req, res);
+      issueSession(res, changed);
+      res.json({ authenticated: true });
+    }),
+  );
+}
+
 router.post(
-  '/register',
-  asyncRoute(async (req: Request, res: Response) => {
-    const { email, role } = req.body as {
-      email?: string;
-      role?: string;
-    };
-    if (typeof email !== 'string' || email.length > 320 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
-      res.status(400).json({ error: 'Email required' });
+  '/admin/users',
+  ...auth.adminOnly,
+  asyncRoute(async (req, res) => {
+    const { email, name, isAdmin, roles, temporaryPassword, ...unknown } = req.body ?? {};
+    if (!secretString(temporaryPassword) || Object.keys(unknown).length) {
+      res.status(422).json({ error: 'Invalid staff account details.' });
       return;
     }
-    try {
-      const normalizedEmail = normalizeUserEmail(email);
-      const adminEmail = isAdminEmail(normalizedEmail);
-      const existingUser = await getUserByEmail(normalizedEmail);
-      clearAllCookies(req, res);
-      if (!adminEmail && (!role || !isNonAdminRole(role))) {
-        res.status(400).json({ error: 'A valid role is required' });
-        return;
-      }
-      if (adminEmail) {
-        const adminUser = existingUser;
-        if (!adminUser) {
-          res.status(409).json({ error: 'Administrator setup is required' });
-          return;
-        }
-        if (adminUser.status !== 'approved') {
-          res.status(403).json({ error: 'Account not approved' });
-          return;
-        }
-        if (isMagicLinkBypass()) {
-          const jwtToken = createJwtToken(adminUser);
-          setAuthCookie(res, jwtToken);
-          res.status(201).json({
-            authenticated: true,
-            message: 'Direct authentication successful',
-            id: adminUser.id,
-          });
-        } else {
-          const token = await createMagicLinkToken(adminUser.email);
-          await sendMagicLinkEmail(adminUser.email, token, { isRegistration: false });
-          res.status(201).json({ _id: adminUser.id, message: 'Magic link sent' });
-        }
-        return;
-      }
-      if (existingUser) {
-        if (existingUser.status === 'denied') {
-          res.status(403).json({
-            error: 'Account denied',
-            message: 'Your access request was denied. Please contact an administrator.',
-            code: 'ACCOUNT_DENIED',
-          });
-          return;
-        }
-        if (existingUser.status === 'pending') {
-          res.status(200).json({
-            message: 'Your account is awaiting admin approval.',
-            status: existingUser.status,
-          });
-          return;
-        }
-        res.status(409).json({
-          error: 'User already exists',
-          message: 'This email is already registered. Please login instead.',
-        });
-        return;
-      }
-      const initialRole = role as NonAdminRole;
-      const user = await createUser(normalizedEmail, { status: 'pending', roles: [initialRole] });
-      res.status(201).json({
-        _id: user.id,
-        status: user.status,
-        requestedRole: initialRole,
-        message: 'Your account is awaiting admin approval.',
-      });
-    } catch (err) {
-      if (sendControlError(res, err)) return;
-      logger.error('auth.registration.failed');
-      res.status(500).json({ error: 'Failed to process registration request' });
-    }
+    const user = fromDto(
+      await controlRequest<UserDto>('/users', 'POST', {
+        email,
+        name,
+        is_admin: isAdmin,
+        roles,
+        temporary_password: temporaryPassword,
+        actor_id: req.user!.userId,
+        actor_auth_version: req.user!.sessionVersion,
+      }),
+    );
+    res.status(201).json({ user: serializeUser(user), passwordChangeRequired: true });
   }),
 );
-// POST /verify-magiclink
-router.get(
-  '/verify-magiclink',
-  asyncRoute(async (req: Request, res: Response) => {
-    const { token } = req.query;
-    if (!token || typeof token !== 'string') {
-      res.status(400).json({ error: 'Token required' });
+router.post(
+  '/admin/users/:userId/password-reset',
+  ...auth.adminOnly,
+  asyncRoute(async (req, res) => {
+    const { temporaryPassword, expectedRevision, ...unknown } = req.body ?? {};
+    if (!secretString(temporaryPassword) || Object.keys(unknown).length) {
+      res.status(422).json({ error: 'A new temporary password is required.' });
       return;
     }
-    try {
-      clearAllCookies(req, res);
-      if (!/^[0-9a-f]{64}$/.test(token)) throw new Error('Invalid login link');
-      const user = fromDto(await controlRequest<UserDto>('/login-challenges/consume', 'POST', {
-        token_hash: tokenHash(token),
-      }));
-      const jwtToken = createJwtToken(user);
-      setAuthCookie(res, jwtToken);
-      if (config.nodeEnv !== 'development') {
-        const frontendUrl = config.frontendRedirectUrl;
-        const redirectPath =
-          user.isAdmin || user.roles.includes('practitioner') ? '/overview' : '/account';
-        res.redirect(frontendUrl + redirectPath);
-      } else {
-        res.json({
-          success: true,
-          user: serializeUser(user),
-        });
-      }
-    } catch (_err) {
-      // Always redirect to login page with error parameter
-      const frontendUrl = config.frontendRedirectUrl;
-      res.redirect(`${frontendUrl}/error-magic_link`);
-    }
+    const user = fromDto(
+      await controlRequest<UserDto>(
+        `/users/${encodeURIComponent(req.params.userId)}/password-reset`,
+        'POST',
+        {
+          temporary_password: temporaryPassword,
+          expected_revision: expectedRevision,
+          actor_id: req.user!.userId,
+          actor_auth_version: req.user!.sessionVersion,
+        },
+      ),
+    );
+    res.json({ user: serializeUser(user), passwordChangeRequired: true });
   }),
 );
+
 router.get(
   '/me',
   auth.required,
@@ -472,13 +447,6 @@ const updateUserStatus = async (req: Request, res: Response, status: UserStatus)
   if (!updated) {
     res.status(404).json({ error: 'User not found' });
     return;
-  }
-  if (status === 'approved') {
-    try {
-      await sendApprovalEmail(updated.email);
-    } catch (error) {
-      logger.error('mail.approval.failed');
-    }
   }
   res.json({
     success: true,
@@ -675,7 +643,6 @@ router.patch(
       });
       return;
     }
-    const previousStatus = userRecord.status;
     const updated = await updateUserAccess(
       userId,
       {
@@ -689,13 +656,6 @@ router.patch(
       res.status(404).json({ error: 'User not found' });
       return;
     }
-    if (status === 'approved' && previousStatus !== 'approved') {
-      try {
-        await sendApprovalEmail(updated.email);
-      } catch (error) {
-        logger.error('mail.approval.failed');
-      }
-    }
     res.json({
       success: true,
       user: serializeUser(updated),
@@ -705,7 +665,7 @@ router.patch(
 router.post(
   '/logout',
   asyncRoute(async (req: Request, res: Response) => {
-    const user = await getUserFromRequest(req);
+    const user = (await getUserFromRequest(req)) ?? (await setupUser(req));
     if (user) await revokeUserSessions(user.userId, user.sessionVersion);
     clearAllCookies(req, res);
     res.clearCookie('jwt', baseCookieOptions);

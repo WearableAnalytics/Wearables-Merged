@@ -124,14 +124,3 @@ class UserDecisionResponse(TunedBase):
     reason: str
     user: UserResponse | None
     current_auth_version: int | None
-
-
-class LoginChallengeCreate(TunedBase):
-    token_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    user_id: UUID
-    auth_version: int = Field(strict=True, ge=1)
-    ttl_seconds: int = Field(strict=True, ge=1, le=3600)
-
-
-class LoginChallengeConsume(TunedBase):
-    token_hash: str = Field(pattern=r"^[0-9a-f]{64}$")

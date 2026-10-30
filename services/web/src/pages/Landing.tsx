@@ -19,10 +19,6 @@ export function LandingPage() {
     void navigate('/login');
   };
 
-  const handleRegisterClick = () => {
-    void navigate('/register');
-  };
-
   return (
     <section className="relative flex min-h-[70vh] items-center justify-center">
       <div
@@ -51,12 +47,11 @@ export function LandingPage() {
             Welcome <br /> Choose how you want to continue.
           </h1>
           <p className="mt-3 text-base text-muted-foreground">
-            Access patient cases and monitor progress by signing in, or create a new account to get started.
+            Sign in with your staff account. Contact a project administrator if you need access.
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
             <Button type="button" onClick={handleLoginClick}>Login</Button>
-            <Button type="button" variant="outline" onClick={handleRegisterClick}>Register</Button>
           </div>
         </div>
       </div>

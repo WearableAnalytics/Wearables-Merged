@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import ConflictError, EntityNotFoundError
-from app.db.postgres.orm import ControlAudit, ControlAuthorityLock, ControlUser
+from app.db.postgres.orm import ControlAudit, ControlAuthorityLock, ControlPassword, ControlUser
 from app.schemas.control import (
     RequestState,
     RequestStatus,
@@ -21,7 +21,7 @@ from app.schemas.control import (
     UserPatch,
     UserResponse,
 )
-from app.services.case_access import clinical_transaction
+from app.services.case_access import clinical_transaction, current_actor
 
 
 def _forbidden() -> Never:
@@ -60,24 +60,8 @@ class ControlService:
         if gate is None:
             raise HTTPException(503, "CONTROL_SCHEMA_NOT_INITIALIZED")
 
-    async def _actor(
-        self, actor_id: UUID, auth_version: int, *, admin: bool = False, allow_pending: bool = False
-    ) -> ControlUser:
-        actor = await self.db.scalar(
-            select(ControlUser)
-            .where(ControlUser.id == actor_id)
-            .with_for_update(read=True)
-            .execution_options(populate_existing=True)
-        )
-        if (
-            actor is None
-            or actor.auth_version != auth_version
-            or (actor.status != "approved" and not (allow_pending and actor.status == "pending"))
-        ):
-            _forbidden()
-        if admin and not actor.is_admin:
-            _forbidden()
-        return actor
+    async def _actor(self, actor_id: UUID, auth_version: int, *, admin: bool = False) -> ControlUser:
+        return await current_actor(self.db, actor_id, auth_version, admin=admin)
 
     async def users(
         self, email: str | None, status: str | None, limit: int = 100, after: UUID | None = None
@@ -213,7 +197,13 @@ class ControlService:
                 others = await self.db.scalar(
                     select(func.count())
                     .select_from(ControlUser)
-                    .where(ControlUser.id != user_id, ControlUser.is_admin.is_(True), ControlUser.status == "approved")
+                    .join(ControlPassword, ControlPassword.user_id == ControlUser.id)
+                    .where(
+                        ControlUser.id != user_id,
+                        ControlUser.is_admin.is_(True),
+                        ControlUser.status == "approved",
+                        ControlPassword.must_change.is_(False),
+                    )
                 )
                 if not others:
                     raise ConflictError("LAST_ACTIVE_ADMIN")
@@ -283,6 +273,8 @@ class ControlService:
                 reason = "user_unapproved"
             elif user.auth_version != item.auth_version:
                 reason = "session_revoked"
+            elif (credential := await self.db.get(ControlPassword, user.id)) is None or credential.must_change:
+                reason = "password_setup_required"
             elif item.require_admin and not user.is_admin:
                 reason = "admin_required"
             elif item.required_roles and not (user.is_admin or set(item.required_roles).intersection(user.roles)):

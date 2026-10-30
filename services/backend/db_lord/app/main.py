@@ -189,7 +189,11 @@ def create_app() -> FastAPI:
     from fastapi.exception_handlers import request_validation_exception_handler
 
     async def validation_error(request: Request, exc: RequestValidationError):
-        if request.url.path.startswith("/control/"):
+        path = request.scope.get("path", "")
+        root = request.scope.get("root_path", "")
+        if root and path.startswith(root + "/"):
+            path = path[len(root) :]
+        if path.startswith("/control/"):
             return JSONResponse(
                 {"detail": "CONTROL_INVALID_REQUEST"}, status_code=422, headers={"Cache-Control": "no-store"}
             )

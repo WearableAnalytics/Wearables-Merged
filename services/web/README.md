@@ -11,9 +11,9 @@ Kubernetes deployment behavior is documented in `gitops/apps/web-frontend/README
 
 ## What This App Does
 
-- Renders auth, case management, and monitoring UI.
+- Renders individual password login, restricted password setup, admin staff management, case assignments and protected metadata.
 - Calls BFF APIs through the generated OpenAPI client and custom auth endpoints.
-- Embeds Grafana dashboards on the case page through `${GRAFANA_PROXY_URL}/embed`.
+- Public registration is disabled. Broad Grafana/export and sample hospital/phone-enrollment paths are visibly paused; see the scope document.
 
 ## Runtime Config In The Code
 

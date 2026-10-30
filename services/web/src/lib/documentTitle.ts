@@ -7,7 +7,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/approvals': 'Admin approvals',
   '/researcher/api-access': 'API access',
   '/login': 'Login',
-  '/register': 'Register',
+  '/set-password': 'Password setup',
   '/logout': 'Logged out',
   '/request-sent': 'Request received',
   '/error-magic_link': 'Link not valid',

@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { AddCasePage } from './pages/add-case/AddCase';
 import { OverviewPage } from './pages/Overview';
 import { LogoutPage } from './pages/Logout';
@@ -6,14 +6,12 @@ import { NotFoundPage } from './pages/NotFound';
 import { CasePage } from './pages/case/CasePage';
 import { PrivateRoute } from './components/PrivateRoute';
 import { LandingPage } from './pages/Landing';
-import { ErrorMagicLinkPage } from './pages/ErrorMagicLink';
 import { AdminCaseAccessPage } from './pages/AdminCaseAccess';
 import { AdminApprovalsPage } from './pages/AdminApprovals';
 import { AccountPage } from './pages/Account';
-import { AuthRequestSentPage } from './pages/AuthRequestSent';
 import { AccessPage } from './pages/Access';
 import { LoginPage } from './pages/Login';
-import { RegisterPage } from './pages/Register';
+import { SetPasswordPage } from './pages/SetPassword';
 import { ResearcherApiAccessPage } from './pages/ResearcherApiAccess';
 
 export function Routing() {
@@ -73,11 +71,12 @@ export function Routing() {
           </PrivateRoute>
         }
       />
-      <Route path="/request-sent" element={<AuthRequestSentPage />} />
+      <Route path="/request-sent" element={<Navigate to="/login" replace />} />
       <Route path="/access" element={<AccessPage />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/error-magic_link" element={<ErrorMagicLinkPage />} />
+      <Route path="/register" element={<Navigate to="/login" replace />} />
+      <Route path="/set-password" element={<SetPasswordPage />} />
+      <Route path="/error-magic_link" element={<Navigate to="/login" replace />} />
       <Route
         path="*"
         element={<NotFoundPage />}

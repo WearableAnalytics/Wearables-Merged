@@ -124,6 +124,7 @@ export const getUserFromRequest = async (req: Request, signal?: AbortSignal): Pr
     decoded = verified;
     if (
       decoded.type !== 'web-session' ||
+      decoded.auth_method !== 'password-v1' ||
       typeof decoded.userId !== 'string' ||
       !decoded.userId ||
       typeof decoded.email !== 'string' ||

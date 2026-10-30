@@ -80,65 +80,31 @@ export class DefaultApi {
   private patientsApi = new PatientsApi(sharedConfig);
 
   // Auth (custom)
-  login = async (email: string) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ email }),
+  login = async (email: string, password: string) => {
+    return this.passwordRequest('/login', { email, password });
+  };
+
+  private passwordRequest = async (path: string, body: unknown) => {
+    const response = await fetchWithAuthHandling(`${API_BASE_PATH}${path}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify(body),
     });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
-
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const errorCode = (data && (data.code ?? data.errorCode)) as string | undefined;
-      const message =
-        errorCode === 'ACCOUNT_DENIED'
-          ? 'Unable to log in. Please contact support.'
-          : (data && (data.message ?? data.error)) ??
-            (response.status === 404
-              ? 'This email is not registered. Please sign up first.'
-              : 'Unable to log in.');
-      const error = new Error(message) as Error & {
-        status?: number;
-        redirectToSignup?: boolean;
-        code?: string;
-      };
-      error.status = response.status;
-      error.code = (data && (data.code ?? data.errorCode)) as string | undefined;
-      if ((data as { redirectToSignup?: boolean }).redirectToSignup) {
-        error.redirectToSignup = true;
-      }
-      throw error;
+      const error = new Error(data.error ?? 'The account operation was rejected.') as Error & { status?: number };
+      error.status = response.status; throw error;
     }
-
     return data;
   };
 
-  register = async (email: string, role: NonAdminRole) => {
-    const response = await fetchWithAuthHandling(`${API_BASE_PATH}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ email, role }),
-    });
-    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+  changePassword = (currentPassword: string, newPassword: string, initial = false) =>
+    this.passwordRequest(initial ? '/password/setup' : '/account/password', { currentPassword, newPassword });
 
-    if (!response.ok) {
-      const errorCode = (data && (data.code ?? data.errorCode)) as string | undefined;
-      const message =
-        errorCode === 'ACCOUNT_DENIED'
-          ? 'Unable to submit request. Please contact support.'
-          : (data && (data.message ?? data.error)) ??
-            (response.status === 409
-              ? 'This email is already registered. Please log in instead.'
-              : 'Unable to register.');
-      const error = new Error(message) as Error & { status?: number };
-      error.status = response.status;
-      throw error;
-    }
+  createStaff = (details: { email: string; name?: string; isAdmin: boolean; roles: NonAdminRole[]; temporaryPassword: string }) =>
+    this.passwordRequest('/admin/users', details);
 
-    return data;
-  };
+  resetStaffPassword = (id: string, expectedRevision: number, temporaryPassword: string) =>
+    this.passwordRequest(`/admin/users/${encodeURIComponent(id)}/password-reset`, { expectedRevision, temporaryPassword });
 
   me = async () => {
     const response = await fetchWithAuthHandling(`${API_BASE_PATH}/me`, {

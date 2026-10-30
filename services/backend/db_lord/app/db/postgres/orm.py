@@ -446,12 +446,21 @@ class CaseAccess(Base):
     )
 
 
-class LoginChallenge(Base):
-    """One-use email login proof. Only a digest is persisted."""
+class ControlPassword(Base):
+    """Only Argon2id hashes; no initial or permanent plaintext password is stored."""
 
-    __tablename__ = "login_challenges"
-    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("control_users.id", ondelete="CASCADE"), nullable=False)
-    auth_version: Mapped[int] = mapped_column(nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(nullable=False, index=True)
-    consumed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    __tablename__ = "control_passwords"
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("control_users.id", ondelete="CASCADE"), primary_key=True)
+    password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    must_change: Mapped[bool] = mapped_column(nullable=False)
+    temporary_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    failed_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    locked_until: Mapped[datetime | None] = mapped_column(nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(nullable=False)
+    __table_args__ = (
+        CheckConstraint("failed_attempts >= 0", name="password_failed_attempts"),
+        CheckConstraint(
+            "(must_change AND temporary_expires_at IS NOT NULL) OR (NOT must_change AND temporary_expires_at IS NULL)",
+            name="password_temporary_expiry",
+        ),
+    )

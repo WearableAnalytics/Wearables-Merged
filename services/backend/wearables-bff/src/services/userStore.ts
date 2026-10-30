@@ -1,4 +1,3 @@
-import config from '../config.js';
 import { controlRequest, ControlApiError } from '../clients/controlApi.js';
 
 export type NonAdminRole = 'practitioner' | 'researcher';
@@ -39,9 +38,6 @@ const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const normalizeRoles = (roles: readonly NonAdminRole[]): NonAdminRole[] =>
   [...new Set(roles.filter((role) => role === 'practitioner' || role === 'researcher'))].sort();
 export const normalizeUserEmail = normalizeEmail;
-export const isAdminEmail = (email: string) =>
-  config.adminEmails.map(normalizeEmail).includes(normalizeEmail(email));
-
 export interface UserDto {
   id: string;
   email: string;
@@ -167,25 +163,8 @@ const allUsers = async (status?: UserStatus): Promise<UserRecord[]> => {
 export const listUsersByStatus = (status: UserStatus) => allUsers(status);
 export const countActiveAdmins = async () =>
   (await listUsersByStatus('approved')).filter((user) => user.isAdmin).length;
-export const createUser = async (
-  email: string,
-  options: Partial<Pick<UserRecord, 'isAdmin' | 'roles' | 'status' | 'name'>> = {},
-) =>
-  fromDto(
-    await controlRequest<UserDto>('/users', 'POST', {
-      email: normalizeEmail(email),
-      name: options.name,
-      roles: normalizeRoles(options.roles ?? ['practitioner']),
-    }),
-  );
-// Insert-only bootstrap. The database must return an existing record unchanged.
-export const ensureAdminUser = async (email: string) =>
-  fromDto(
-    await controlRequest<UserDto>('/users/bootstrap', 'POST', { email: normalizeEmail(email) }),
-  );
-export const initializeUsers = async () => {
-  for (const email of config.adminEmails) await ensureAdminUser(email);
-};
+// Startup checks durable authority availability; bootstrap is a protected server command.
+export const initializeUsers = async () => { await readPage(new URLSearchParams(), 1); };
 
 export interface ActorIdentity { userId: string; sessionVersion: number }
 

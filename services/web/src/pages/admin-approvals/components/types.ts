@@ -4,6 +4,7 @@ export type RequestStatus = 'none' | 'pending' | 'approved' | 'denied';
 
 export type AdminUser = {
   id: string;
+  revision?: number;
   email: string;
   name?: string;
   isAdmin?: boolean;

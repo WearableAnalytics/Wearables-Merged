@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AccessRequestType, NonAdminRole } from '@/api/defaultApi';
+import { CreateStaffAccountForm, ResetStaffPasswordForm } from '@/components/account/StaffAccountForms';
 import { PageHeader } from '@/components/custom/PageHeader';
 import { StatusCallout } from '@/components/custom/StatusCallout';
 import { defaultApi } from '@/api/defaultApi';
@@ -46,6 +47,8 @@ const toProfilePayload = (profile: AccessProfile): { isAdmin: boolean; roles: No
 
 export function AdminApprovalsPage() {
   const { user } = useAuth();
+  const [credentialNotice, setCredentialNotice] = useState('');
+  const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
   const [approvedUsers, setApprovedUsers] = useState<AdminUser[]>([]);
   const [pendingUsers, setPendingUsers] = useState<AdminUser[]>([]);
   const [deniedUsers, setDeniedUsers] = useState<AdminUser[]>([]);
@@ -53,7 +56,7 @@ export function AdminApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
-  const [view, setView] = useState<ViewMode>('requests');
+  const [view, setView] = useState<ViewMode>('users');
   const [search, setSearch] = useState('');
   const [draftEdits, setDraftEdits] = useState<UserDraftEdits>({});
   const permissionMessage = user && !isAdminUser(user) ? 'You do not have permission to view this page.' : null;
@@ -235,8 +238,13 @@ export function AdminApprovalsPage() {
       <PageHeader
         label="Admin"
         title="User access"
-        description="Manage users, access requests, and denied accounts."
+        description="Create named staff accounts, assign roles, and manage access. Public registration is disabled."
       />
+
+      {credentialNotice && <StatusCallout tone="success" message={credentialNotice} className="mt-4" />}
+      <CreateStaffAccountForm onSaved={loadData} />
+      {resetTarget && <ResetStaffPasswordForm key={resetTarget.id} target={resetTarget}
+        onCancel={() => setResetTarget(null)} onDone={() => { setResetTarget(null); setCredentialNotice('Password reset. Earlier sessions are invalid. The user must choose a new personal password.'); void loadData(); }} />}
 
       <section className="surface-card mt-6 p-4 md:p-5">
         {error ? <StatusCallout tone="error" message={error} className="mb-4" /> : null}
@@ -258,6 +266,8 @@ export function AdminApprovalsPage() {
           <AdminApprovalsUsersTable
             users={filteredApprovedUsers}
             currentUserId={user?.id}
+            resetDisabled={resetTarget !== null}
+            onResetPassword={(entry) => { setCredentialNotice(''); setResetTarget(entry); }}
             actionUserId={actionUserId}
             draftEdits={draftEdits}
             onDraftUpdate={updateDraft}

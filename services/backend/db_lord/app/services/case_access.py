@@ -10,7 +10,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.postgres.orm import Case, CaseAccess, ControlUser
+from app.db.postgres.orm import Case, CaseAccess, ControlPassword, ControlUser
 
 
 @asynccontextmanager
@@ -37,6 +37,7 @@ async def current_actor(
     admin: bool = False,
     clinical: bool = False,
     exclusive: bool = False,
+    allow_setup: bool = False,
 ) -> ControlUser:
     actor = await db.scalar(
         select(ControlUser)
@@ -52,6 +53,11 @@ async def current_actor(
         or (clinical and not (actor.is_admin or "practitioner" in actor.roles))
     ):
         raise HTTPException(403, "CASE_ACCESS_DENIED")
+    credential = await db.scalar(
+        select(ControlPassword).where(ControlPassword.user_id == actor.id).with_for_update(read=True)
+    )
+    if credential is None or (credential.must_change and not allow_setup):
+        raise HTTPException(403, "PASSWORD_SETUP_REQUIRED")
     return actor
 
 

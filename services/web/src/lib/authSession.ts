@@ -14,6 +14,7 @@ export const GUEST_ROUTE_PATHS = [
   '/access',
   '/register',
   '/login',
+  '/set-password',
   '/request-sent',
   '/error-magic_link',
 ];

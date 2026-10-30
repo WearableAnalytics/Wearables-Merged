@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { spawnSync } from 'node:child_process';
 import jwt from 'jsonwebtoken';
 import { PatientFromJSON, PatientToJSON } from '../src/api/openapi-client/models/Patient.js';
 import {
@@ -45,7 +46,14 @@ const user = {
 const originalFetch = globalThis.fetch;
 const cookie = (claims = {}, options = {}) =>
   jwt.sign(
-    { type: 'web-session', userId: id, email: user.email, sessionVersion: 2, ...claims },
+    {
+      type: 'web-session',
+      auth_method: 'password-v1',
+      userId: id,
+      email: user.email,
+      sessionVersion: 2,
+      ...claims,
+    },
     process.env.JWT_SECRET!,
     {
       algorithm: 'HS256',
@@ -98,6 +106,8 @@ test('revoked version, wrong account and wrong audience cannot reuse a session',
   try {
     for (const token of [
       cookie({ sessionVersion: 1 }),
+      cookie({ auth_method: undefined }),
+      cookie({ auth_method: 'email-link' }),
       cookie({ email: 'other@example.test' }),
       cookie({}, { audience: 'wearables-mobile' }),
       cookie({ type: 'case-verification' }),
@@ -164,4 +174,36 @@ test('cookie commands require an exact approved Origin; reads still work', () =>
     assert.equal(next, allowed);
     assert.equal(status, allowed ? 200 : 403);
   }
+});
+
+test('email-only development bypass is rejected at startup', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', '-e', "import('./src/config.ts')"],
+    {
+      env: { ...process.env, ALLOW_DEV_AUTH_BYPASS: 'true' },
+      encoding: 'utf8',
+    },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Email-only development login has been removed/);
+});
+test('production rejects plaintext password-authority transport', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', '-e', "import('./src/config.ts')"],
+    {
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        ALLOW_DEV_AUTH_BYPASS: 'false',
+        BACKEND_URL: 'https://api.example.test',
+        FRONTEND_REDIRECT_URL: 'https://app.example.test',
+        FRONTEND_ORIGINS: 'https://app.example.test',
+      },
+      encoding: 'utf8',
+    },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Password authority requests require HTTPS/);
 });

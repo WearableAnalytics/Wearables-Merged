@@ -72,31 +72,12 @@ const requiredEnvVars = [
   'DATABASE_API_URL',
   'DATABASE_API_TIMEOUT',
   'AUTH_SESSION_EXPIRY_SECONDS',
-  'MAGIC_LINK_EXPIRY_SECONDS',
   'TOKEN_ISSUER',
   'JWT_SECRET',
 ] as const;
 
-const productionOnlyRequiredEnvVars = [
-  'MAILER_FROM_NAME',
-  'MAILER_FROM_EMAIL',
-] as const;
-
-const nodeEnvRaw = optionalEnv('NODE_ENV');
-const missingRequiredEnvVars = requiredEnvVars.filter((name) => optionalEnv(name) === undefined);
-const missingProductionOnlyEnvVars =
-  nodeEnvRaw === 'production'
-    ? productionOnlyRequiredEnvVars.filter((name) => optionalEnv(name) === undefined)
-    : [];
-
-const allMissingRequiredEnvVars = [...missingRequiredEnvVars, ...missingProductionOnlyEnvVars];
-if (allMissingRequiredEnvVars.length > 0) {
-  throw new Error(
-    `Invalid configuration: missing required environment variables: ${allMissingRequiredEnvVars.join(
-      ', ',
-    )}.`,
-  );
-}
+const missing = requiredEnvVars.filter(name => optionalEnv(name) === undefined);
+if (missing.length) throw new Error(`Missing required configuration: ${missing.join(', ')}`);
 
 const nodeEnv = requireOneOfEnv<NodeEnv>('NODE_ENV', ['development', 'production']);
 const isProduction = nodeEnv === 'production';
@@ -136,8 +117,6 @@ const extractionApiUrl = extractionApiUrlRaw?.replace(/\/$/, '');
 
 // Strict env-driven auth/token configuration.
 const authSessionExpirySeconds = requirePositiveIntEnv('AUTH_SESSION_EXPIRY_SECONDS');
-const magicLinkExpirySeconds = requirePositiveIntEnv('MAGIC_LINK_EXPIRY_SECONDS');
-if (magicLinkExpirySeconds > 3600) throw new Error('MAGIC_LINK_EXPIRY_SECONDS must not exceed 3600.');
 // Case tokens are what phones upload with, so they stay valid for 3 years by default.
 const DEFAULT_CASE_TOKEN_EXPIRY_SECONDS = 3 * 365 * 24 * 60 * 60;
 const caseTokenExpirySeconds =
@@ -151,10 +130,12 @@ if (jwtSecret.length < 32) throw new Error('JWT_SECRET must contain at least 32 
 const controlWriteToken = requireEnv('CONTROL_WRITE_TOKEN');
 const apiTokenServiceToken = requireEnv('API_TOKEN_SERVICE_TOKEN');
 if (controlWriteToken === apiTokenServiceToken) throw new Error('Workload credentials must be distinct.');
-const devAuthBypass = optionalEnv('ALLOW_DEV_AUTH_BYPASS') === 'true';
-if (isProduction && (devAuthBypass || cookieSecureIsFalse()))
-  throw new Error('Production requires verified login and secure cookies.');
-function cookieSecureIsFalse() { return optionalEnv('COOKIE_SECURE') === 'false'; }
+if (optionalEnv('ALLOW_DEV_AUTH_BYPASS') === 'true')
+  throw new Error('Email-only development login has been removed. Use a named account password.');
+if (isProduction && optionalEnv('COOKIE_SECURE') === 'false')
+  throw new Error('Production requires secure cookies.');
+if (isProduction && new URL(databaseApiUrl).protocol !== 'https:')
+  throw new Error('Password authority requests require HTTPS in production.');
 
 const parseCsv = (value: string): string[] =>
   value
@@ -180,41 +161,12 @@ const cookieSecure =
     ? undefined
     : parseBooleanStrict(cookieSecureRaw.toLowerCase(), 'COOKIE_SECURE');
 
-const adminEmails = parseCsv(optionalEnv('ADMIN_EMAILS') ?? '');
-const mailerFromName = optionalEnv('MAILER_FROM_NAME');
-const mailerFromEmail = optionalEnv('MAILER_FROM_EMAIL');
-const brevoApiKeyRaw = optionalEnv('BREVO_API_KEY');
-const brevoApiKey =
-  brevoApiKeyRaw && brevoApiKeyRaw !== 'disabled' ? brevoApiKeyRaw : undefined;
-
-if (isProduction && !mailerFromName) {
-  throw new Error(
-    'Invalid configuration: MAILER_FROM_NAME is required when NODE_ENV=production.',
-  );
-}
-
-if (isProduction && !mailerFromEmail) {
-  throw new Error(
-    'Invalid configuration: MAILER_FROM_EMAIL is required when NODE_ENV=production.',
-  );
-}
-
-if (isProduction && mailerFromEmail && !mailerFromEmail.includes('@')) {
-  throw new Error(
-    'Invalid configuration: MAILER_FROM_EMAIL must be a valid email when NODE_ENV=production.',
-  );
-}
-
-// Never expose login links in operational logs. Production must have email delivery.
-if (isProduction && !brevoApiKey) throw new Error('Production email login requires BREVO_API_KEY.');
-
 if (isProduction && [backendUrl, frontendRedirectUrl, ...frontendOrigins].some(value => new URL(value).protocol !== 'https:'))
   throw new Error('Production browser and email-link URLs must use HTTPS.');
 
 export const config = {
   controlWriteToken,
   apiTokenServiceToken,
-  devAuthBypass,
   controlMaxInflightRequests: 16,
   controlTimeoutSeconds: 5,
   httpMaxInflightRequests: 64,
@@ -223,19 +175,14 @@ export const config = {
   isProduction,
   apiPrefix,
   logLevel,
-  mailerFromName,
-  mailerFromEmail,
-  brevoApiKey,
   frontendOrigins,
   frontendRedirectUrl,
   backendUrl,
   cookieSecure,
   jwtSecret,
   authSessionExpirySeconds,
-  magicLinkExpirySeconds,
   caseTokenExpirySeconds,
   tokenIssuer,
-  adminEmails,
   extractionApiUrl,
   databaseApi: {
     baseUrl: databaseApiUrl,

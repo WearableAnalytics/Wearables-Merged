@@ -200,9 +200,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <NavButton path="/login" invertedColors={true}>
                   Login
                 </NavButton>
-                <NavButton path="/register" invertedColors={true}>
-                  Register
-                </NavButton>
               </>
             )}
           </div>
@@ -307,14 +304,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onClick={handleMobileLinkClick}
                     >
                       Login
-                    </NavButtonMobile>
-                    <NavButtonMobile
-                      invertedColors={true}
-                      path="/register"
-                      className="w-full justify-start text-left"
-                      onClick={handleMobileLinkClick}
-                    >
-                      Register
                     </NavButtonMobile>
                   </div>
                 )}

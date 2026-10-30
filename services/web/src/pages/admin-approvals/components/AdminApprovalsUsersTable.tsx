@@ -23,6 +23,8 @@ const toAccessProfile = (entry: AdminUser): AccessProfile => {
 
 type AdminApprovalsUsersTableProps = {
   users: AdminUser[];
+  onResetPassword: (entry: AdminUser) => void;
+  resetDisabled: boolean;
   currentUserId?: string;
   actionUserId: string | null;
   draftEdits: UserDraftEdits;
@@ -32,6 +34,8 @@ type AdminApprovalsUsersTableProps = {
 
 export function AdminApprovalsUsersTable({
   users,
+  onResetPassword,
+  resetDisabled,
   currentUserId,
   actionUserId,
   draftEdits,
@@ -109,6 +113,7 @@ export function AdminApprovalsUsersTable({
                         Update
                       </Button>
                     )}
+                    {!isSelf && <Button size="sm" variant="outline" disabled={isBusy || resetDisabled} onClick={() => onResetPassword(entry)}>Reset password</Button>}
                   </td>
                 </tr>
               );

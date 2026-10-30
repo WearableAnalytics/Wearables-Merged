@@ -20,7 +20,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refreshUser: () => Promise<User | null>;
   checkSessionLazily: () => Promise<User | null>;
 }
 
@@ -82,8 +82,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
-  const refreshUser = useCallback(async (): Promise<void> => {
-    await fetchUser();
+  const refreshUser = useCallback(async (): Promise<User | null> => {
+    return fetchUser();
   }, [fetchUser]);
 
   const checkSessionLazily = useCallback(async (): Promise<User | null> => {

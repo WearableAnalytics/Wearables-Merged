@@ -169,7 +169,7 @@ app.use(errorHandler);
 // Startup fails if durable account authority cannot be reached. Never use memory as fallback.
 if (process.env.BFF_TEST_MODE !== 'true') {
   await initializeUsers();
-  app.listen(config.port, config.devAuthBypass ? '127.0.0.1' : '0.0.0.0', () =>
+  app.listen(config.port, config.isProduction ? '0.0.0.0' : '127.0.0.1', () =>
     logger.info('bff.started', { port: config.port }),
   );
 }
