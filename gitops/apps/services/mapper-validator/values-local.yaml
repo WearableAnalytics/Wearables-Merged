@@ -1,0 +1,19 @@
+# Local minikube: one small mapper instance.
+replicas: 1                  # Prod: 3
+
+envs:
+  numStreamThreads: "3"      # Prod: "10"; 30 partitions >= 1 replica x 3 threads
+  javaToolOptions: "-Xmx768m" # Prod: image default -Xmx3500m
+
+image:
+  repository: wearables-local/mapper-validator
+  tag: dev
+  imagePullPolicy: Never     # use the image built into minikube
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi              # 768m heap + JVM overhead

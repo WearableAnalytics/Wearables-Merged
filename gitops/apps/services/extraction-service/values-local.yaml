@@ -1,0 +1,5 @@
+# Local minikube: image built into minikube; reached through the BFF at /api/extraction.
+image:
+  repository: wearables-local/extraction-service
+  tag: dev
+  pullPolicy: Never   # use the image built into minikube

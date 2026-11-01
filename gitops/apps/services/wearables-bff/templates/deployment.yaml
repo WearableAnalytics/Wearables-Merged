@@ -33,6 +33,9 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
+            {{- with .Values.securityContext.runAsUser }}
+            runAsUser: {{ . }}
+            {{- end }}
             capabilities:
               drop:
                 - ALL

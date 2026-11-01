@@ -28,7 +28,7 @@ spec:
           imagePullPolicy: {{ .Values.image.imagePullPolicy }}
           env:
             - name: GF_SERVER_ROOT_URL
-              value: {{ if .Values.ingress.httpOnly }}http{{ else }}https{{ end }}://{{ .Values.ingress.host }}{{ .Values.ingress.prefix }}
+              value: {{ if .Values.ingress.httpOnly }}http{{ else }}https{{ end }}://{{ .Values.ingress.host }}{{ .Values.server.subPath | default .Values.ingress.prefix }}
             - name: GF_SERVER_SERVE_FROM_SUB_PATH
               value: "true"
             - name: GF_SECURITY_ALLOW_EMBEDDING
@@ -95,6 +95,11 @@ spec:
             - name: dashboards
               mountPath: /var/lib/grafana-dashboards
               readOnly: true
+            {{- if .Values.extraDashboardsConfigMap }}
+            - name: extra-dashboards
+              mountPath: /var/lib/grafana-dashboards-extra
+              readOnly: true
+            {{- end }}
       volumes:
         - name: "{{ .Release.Name }}-storage"
           persistentVolumeClaim:
@@ -110,4 +115,9 @@ spec:
             name: grafana-provisioning
         - name: dashboards
           configMap:
-            name: grafana-dashboards 
+            name: grafana-dashboards
+        {{- if .Values.extraDashboardsConfigMap }}
+        - name: extra-dashboards
+          configMap:
+            name: {{ .Values.extraDashboardsConfigMap }}
+        {{- end }}
