@@ -14,6 +14,10 @@ envs:
   numStreamThreads: "10" #how many partitions one instance can handle through multithreading
   partitions: "30" #number of partitions that the wearables raw topic has
   validationFrequency: 100 # every n-th message will be checked according to this (if 0, all messages are checked)
+  # javaToolOptions: "-Xmx3500m" # optional JVM flags; unset keeps the image default (-Xmx3500m)
+
+# Container resources; none set by default.
+resources: {}
 
 
 image:

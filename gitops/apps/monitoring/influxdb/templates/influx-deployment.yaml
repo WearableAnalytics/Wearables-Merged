@@ -23,6 +23,21 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.port }}
+          {{- if .Values.initSetup.enabled }}
+          env:
+            - name: DOCKER_INFLUXDB_INIT_MODE
+              value: setup
+            - name: DOCKER_INFLUXDB_INIT_USERNAME
+              value: {{ .Values.initSetup.username | quote }}
+            - name: DOCKER_INFLUXDB_INIT_PASSWORD
+              value: {{ .Values.initSetup.password | quote }}
+            - name: DOCKER_INFLUXDB_INIT_ORG
+              value: {{ .Values.initSetup.org | quote }}
+            - name: DOCKER_INFLUXDB_INIT_BUCKET
+              value: {{ .Values.initSetup.bucket | quote }}
+            - name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+              value: {{ .Values.initSetup.token | quote }}
+          {{- end }}
           volumeMounts:
             - name: "{{ .Values.name }}-storage"
               mountPath: /var/lib/influxdb2
