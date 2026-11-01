@@ -13,13 +13,3 @@ image:
 persistence:
   size: 10Gi
   storageClass: local-path # may need to be changed accordingly
-
-# Optional first-start setup of user, org, bucket and admin token.
-# Only takes effect on an empty volume.
-initSetup:
-  enabled: false
-  username: ""
-  password: ""
-  org: ""
-  bucket: ""
-  token: ""

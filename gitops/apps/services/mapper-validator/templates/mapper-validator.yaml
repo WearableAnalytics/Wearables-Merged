@@ -16,10 +16,6 @@ spec:
         - name: {{ .Release.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.imagePullPolicy}}
-          {{- with .Values.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.mapperEnvConfigMap }}

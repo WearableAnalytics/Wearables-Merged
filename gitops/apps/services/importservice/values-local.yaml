@@ -1,9 +1,0 @@
-# Local minikube: image built into minikube, plain HTTP under wearables.localhost.
-image:
-  repository: wearables-local/importservice
-  tag: dev
-  pullPolicy: Never           # use the image built into minikube
-
-ingress:
-  host: wearables.localhost   # Prod: wearables.charite.de
-  httpOnly: true              # Prod: false (HTTPS with a cert-manager certificate)

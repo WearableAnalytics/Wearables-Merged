@@ -16,16 +16,6 @@ data:
         updateIntervalSeconds: 60
         options:
           path: /var/lib/grafana-dashboards
-      {{- if .Values.extraDashboardsConfigMap }}
-      - name: wearables
-        folder: Wearables
-        type: file
-        disableDeletion: true
-        allowUiUpdates: false
-        updateIntervalSeconds: 60
-        options:
-          path: /var/lib/grafana-dashboards-extra
-      {{- end }}
   datasources.yaml: |
     apiVersion: 1
     datasources:
@@ -37,23 +27,6 @@ data:
         editable: false
         jsonData:
           timeInterval: 60s
-      {{- with .Values.influxDatasource }}
-      {{- if .enabled }}
-      # The patient dashboards use InfluxQL; InfluxDB 2.x maps the database name to the bucket.
-      - name: InfluxDB
-        uid: {{ .uid }}
-        type: influxdb
-        access: proxy
-        url: {{ .url }}
-        editable: false
-        jsonData:
-          dbName: {{ .bucket }}
-          httpMode: GET
-          httpHeaderName1: Authorization
-        secureJsonData:
-          httpHeaderValue1: Token {{ .token }}
-      {{- end }}
-      {{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap
