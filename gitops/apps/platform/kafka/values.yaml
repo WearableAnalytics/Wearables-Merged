@@ -28,7 +28,7 @@ kafkaNodePools:
   volume:
     size: 5Gi
 
-storageClassName: local-path # may need to be changed
+storageClassName: cinder-csi # Cinder volume; survives node replacement
 
 dualRole:
   resources:

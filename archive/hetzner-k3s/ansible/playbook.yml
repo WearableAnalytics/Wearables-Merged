@@ -1,0 +1,50 @@
+---
+# Single-node K3s cluster setup on Hetzner Cloud
+# Run via: make ansible  (or directly: ansible-playbook -i inventory/hosts.yml playbook.yml)
+# The inventory is auto-generated from Terraform output by gen-inventory.py
+
+- name: Secure server setup with K3s and monitoring
+  hosts: all
+  become: yes
+
+  vars:
+    server_hostname: "k3s-wearables"
+
+    # Team SSH keys: each user gets a Linux account with the key authorized.
+    # Kept out of the repo: put them in users.yml (git-ignored, see users.yml.example).
+    users: "{{ lookup('file', playbook_dir + '/users.yml') | from_yaml }}"
+
+    # K3s version to install – pin this to avoid unexpected upgrades
+    k3s_version: "v1.28.5+k3s1"
+
+    # Grafana admin password – override this with ansible-vault or an env var in production
+    grafana_admin_password: "admin"
+
+  roles:
+    # System hardening and base packages (curl, git, ufw, fail2ban, …)
+    - role: base
+      tags: ['base', 'initial']
+
+    # Create Linux users and authorize their SSH keys
+    - role: users
+      tags: ['users', 'initial']
+
+    # SSH hardening, UFW firewall, fail2ban
+    - role: security
+      tags: ['security', 'initial']
+
+    # Install Docker engine (needed for some workloads alongside containerd)
+    - role: docker
+      tags: ['docker']
+
+    # Install K3s (single-node), fetch kubeconfig to infra/kubeconfig.yaml
+    - role: k3s
+      tags: ['k3s']
+
+    # Install kubectl, helm, k9s
+    - role: k8s-tools
+      tags: ['k8s-tools', 'tools']
+
+    # Deploy kube-prometheus-stack (Prometheus + Grafana) via Helm
+    - role: monitoring
+      tags: ['monitoring']

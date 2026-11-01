@@ -4,8 +4,8 @@ server_type  = "cx21"
 location     = "nbg1"
 
 users = {
-  "robin" = {
-    ssh_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... robin@laptop"
+  "alice" = {
+    ssh_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... alice@laptop"
     sudo    = true
   }
   "developer1" = {
