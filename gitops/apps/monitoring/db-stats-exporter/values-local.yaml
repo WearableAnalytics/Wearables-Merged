@@ -1,0 +1,2 @@
+# Local minikube: query Postgres at most once a minute (matches the local scrape interval).
+minInterval: 1m              # Prod: 15m

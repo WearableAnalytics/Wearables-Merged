@@ -1,0 +1,9 @@
+# Local minikube: image built into minikube, credentials of the local Postgres and InfluxDB.
+image:
+  repository: wearables-local/db-lord
+  tag: dev
+  pullPolicy: Never              # use the image built into minikube
+
+env:
+  POSTGRES_PASSWORD: dblord      # matches prod-postgres values-local
+  INFLUX_TOKEN: dev-influx-token # matches influxdb initSetup.token
