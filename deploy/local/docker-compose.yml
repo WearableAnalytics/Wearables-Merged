@@ -293,7 +293,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ../../observability/dashboards:/var/lib/grafana-dashboards:ro
     ports:
-      - "3003:3000" # direct admin access: http://localhost:3003/proxy/ (admin / admin)
+      - "13003:3000" # direct admin access: http://localhost:3003/proxy/ (admin / admin)
     depends_on:
       influxdb:
         condition: service_healthy
