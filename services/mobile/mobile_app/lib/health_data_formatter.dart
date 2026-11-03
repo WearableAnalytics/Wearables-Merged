@@ -19,7 +19,7 @@ Map<String, dynamic> formatHealthDataByType(List<HealthDataPoint> healthData) {
           'type': data.type.toString().replaceAll('HealthDataType.', ''),
           'value': parseValue(data.value),
           'unit': data.unit.toString().replaceAll('HealthDataUnit.', ''),
-          'timestamp': data.dateFrom.toIso8601String(),
+          'timestamp': data.dateFrom.toUtc().toIso8601String(),
         };
         break;
 
@@ -28,8 +28,8 @@ Map<String, dynamic> formatHealthDataByType(List<HealthDataPoint> healthData) {
           'type': data.type.toString().replaceAll('HealthDataType.', ''),
           'value': parseValue(data.value),
           'unit': data.unit.toString().replaceAll('HealthDataUnit.', ''),
-          'periodStart': data.dateFrom.toIso8601String(),
-          'periodEnd': data.dateTo.toIso8601String(),
+          'periodStart': data.dateFrom.toUtc().toIso8601String(),
+          'periodEnd': data.dateTo.toUtc().toIso8601String(),
           'duration': data.dateTo.difference(data.dateFrom).inSeconds,
         };
         break;
@@ -39,8 +39,8 @@ Map<String, dynamic> formatHealthDataByType(List<HealthDataPoint> healthData) {
           'type': data.type.toString().replaceAll('HealthDataType.', ''),
           'value': parseDurationValue(data),
           'unit': data.unit.toString().replaceAll('HealthDataUnit.', ''),
-          'startTime': data.dateFrom.toIso8601String(),
-          'endTime': data.dateTo.toIso8601String(),
+          'startTime': data.dateFrom.toUtc().toIso8601String(),
+          'endTime': data.dateTo.toUtc().toIso8601String(),
           'durationMinutes': data.dateTo.difference(data.dateFrom).inMinutes,
         };
 
