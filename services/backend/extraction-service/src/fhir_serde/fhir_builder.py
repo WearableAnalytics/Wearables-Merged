@@ -1,4 +1,5 @@
 import copy
+from datetime import UTC, datetime
 from typing import Any
 
 from line_protocol_parser import parse_line
@@ -74,6 +75,14 @@ def _resolve_mapping(field_name: str, key: str, mappings: list[MappingDef] | Non
     return None
 
 
+def _normalize_timestamp(value: str) -> str:
+    instant = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    # Legacy naive input retains its historical UTC interpretation.
+    if instant.tzinfo is None:
+        instant = instant.replace(tzinfo=UTC)
+    return instant.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
 def _apply_transforms(
     value: Any,
     field_def: FieldDef,
@@ -90,8 +99,16 @@ def _apply_transforms(
             result = result.lower()
         elif t.type == "replace" and isinstance(result, str) and t.params and len(t.params) >= 2:
             result = result.replace(t.params[0], t.params[1])
+        elif t.type == "normalizeTimestamp" and isinstance(result, str):
+            result = _normalize_timestamp(result)
         elif t.type == "append" and isinstance(result, str) and t.params:
-            result = result + t.params[0]
+            # Database-supplied mappings may still use the old suffix rule.
+            if t.params == ["Z"] and field_def.target in {
+                "effectiveDateTime", "effectivePeriod.start", "effectivePeriod.end",
+            }:
+                result = _normalize_timestamp(result)
+            else:
+                result = result + t.params[0]
         elif t.type == "prepend" and isinstance(result, str) and t.params:
             result = t.params[0] + result
         elif t.type == "map":
