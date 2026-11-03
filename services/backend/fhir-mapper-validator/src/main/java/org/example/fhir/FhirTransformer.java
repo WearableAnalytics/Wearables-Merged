@@ -47,6 +47,11 @@ public class FhirTransformer extends Transformer{
                         break;
                     }
 
+                    case "normalizeTimestamp": {
+                        value = normalizeTimestamp(value);
+                        break;
+                    }
+
                     case "append": {
                         value = FhirTransformer.resolveAppend(vt, value);
                         break;
