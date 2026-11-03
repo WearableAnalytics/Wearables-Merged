@@ -168,9 +168,10 @@ class _ConnectedView extends StatelessWidget {
     final result = await state.syncNow();
     if (!context.mounted || result == null) return;
     final message = switch (result.status) {
-      HealthSyncStatus.success => 'Shared ${result.totalSent} data points.',
+      HealthSyncStatus.success =>
+        'Accepted ${result.totalSent} data points for processing.',
       HealthSyncStatus.partialSuccess =>
-        'Shared ${result.totalSent} of ${result.totalAvailable} data points.'
+        'Accepted ${result.totalSent} of ${result.totalAvailable} data points for processing.'
             '${_reason(result)}',
       HealthSyncStatus.nothingToSend =>
         'Up to date. There is no new data to share.',

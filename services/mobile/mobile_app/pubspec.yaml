@@ -11,6 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  crypto: ^3.0.7
   health: ^13.2.0
   background_fetch: ^1.7.0
   shared_preferences: ^2.2.2
