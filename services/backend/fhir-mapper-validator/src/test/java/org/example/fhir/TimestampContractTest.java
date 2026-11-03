@@ -1,7 +1,8 @@
 package org.example.fhir;
 
 import com.google.gson.JsonPrimitive;
-import org.example.fhir.model.FieldConfig;
+import org.example.dependencies.DependencyGraph;
+import org.example.fhir.model.*;
 import org.example.fhir.model.ValueTransformation;
 import org.junit.jupiter.api.Test;
 
@@ -10,6 +11,49 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TimestampContractTest {
+    @Test
+    void dependencyGraphRetainsRawTimestampAsBasisWhenNormalizationLosesOffsetSpelling() {
+        ValueTransformation normalization = new ValueTransformation();
+        normalization.setType("normalizeTimestamp");
+        FieldConfig normalized = new FieldConfig();
+        normalized.setName("t");
+        normalized.setLineProtocol(new LineProtocol());
+        normalized.getLineProtocol().setType("timestamp");
+        normalized.setRawSource("measurements.instantaneous.timestamp");
+        normalized.setTransform(List.of(normalization));
+        FieldConfig original = new FieldConfig();
+        original.setName("rawTimestamp");
+        original.setLineProtocol(new LineProtocol());
+        original.getLineProtocol().setType("timestamp");
+        original.setRawSource(normalized.getRawSource());
+        original.setTransform(List.of());
+        MetadataConfig metadata = new MetadataConfig();
+        metadata.setFields(List.of());
+        MeasurementPathConfig category = new MeasurementPathConfig();
+        category.setPath("measurements.instantaneous");
+        FieldConfig metric = new FieldConfig();
+        metric.setName("metric");
+        metric.setRawSource("measurements.instantaneous.type");
+        metric.setLineProtocol(new LineProtocol());
+        metric.getLineProtocol().setType("measurement");
+        FieldConfig value = new FieldConfig();
+        value.setName("value");
+        value.setRawSource("measurements.instantaneous.value");
+        value.setLineProtocol(new LineProtocol());
+        value.getLineProtocol().setType("field");
+        category.setFields(List.of(normalized, original, metric, value));
+        MeasurementConfig measurement = new MeasurementConfig();
+        measurement.setPaths(List.of(category));
+        MappingYaml yaml = new MappingYaml();
+        yaml.setMetadata(metadata);
+        yaml.setMeasurement(measurement);
+        DependencyGraph graph = new DependencyGraph(yaml);
+        graph.createGraphBase();
+        var basis = graph.build().get(category.getPath());
+        assertTrue(basis.stream().anyMatch(node -> node.getField().getName().equals("rawTimestamp")));
+        assertFalse(basis.stream().anyMatch(node -> node.getField().getName().equals("t")));
+    }
+
     @Test
     void preservesInstantsAndMicrosecondsAcrossOffsetsAndDst() {
         String[][] cases = {

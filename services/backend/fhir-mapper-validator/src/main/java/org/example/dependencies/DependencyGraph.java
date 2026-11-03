@@ -18,7 +18,8 @@ public class DependencyGraph {
     private static final Logger log = LoggerFactory.getLogger(DependencyGraph.class);
 
     //Maybe this will grow as we implement more operations
-    final Set<String> nonInjectiveFunctions = Set.of("toLowerCase", "substring");
+    // Normalization preserves the instant, but cannot recover the original offset spelling.
+    final Set<String> nonInjectiveFunctions = Set.of("toLowerCase", "substring", "normalizeTimestamp");
     final Set<String> alwaysInjectiveFunctions = Set.of("prepend", "append", "replace");
 
     MappingYaml yaml;
