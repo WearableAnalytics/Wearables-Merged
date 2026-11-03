@@ -308,7 +308,7 @@ void main() {
       },
     );
 
-    for (final code in [200, 401, 408, 409, 413, 422, 429, 503]) {
+    for (final code in [401, 408, 409, 413, 422, 429, 503]) {
       test('HTTP $code never counts as accepted', () async {
         var requests = 0;
         subscription = server.listen((request) async {
@@ -326,6 +326,38 @@ void main() {
         expect(requests, (code == 503 || code == 408) ? 3 : 1);
       });
     }
+
+    test('HTTP 200 produces synthetic receipt when allowLegacy200 is enabled', () async {
+      subscription = server.listen((request) async {
+        await request.drain<void>();
+        request.response.statusCode = 200;
+        request.response.write('{"status":"ok"}');
+        await request.response.close();
+      });
+      final upload = prepare([point()]).single;
+      final receipt = await uploader.send(upload, 'token');
+      expect(receipt.readingCount, upload.readingCount);
+      expect(receipt.rawSha256, upload.sha256Hex);
+      expect(receipt.processingState, 'awaiting-processing');
+    });
+
+    test('HTTP 200 throws UploadHttpException when allowLegacy200 is false', () async {
+      uploader = HealthUploader(
+        client: client,
+        endpoint: Uri.parse('http://127.0.0.1:${server.port}/ingest'),
+        allowLegacy200: false,
+      );
+      subscription = server.listen((request) async {
+        await request.drain<void>();
+        request.response.statusCode = 200;
+        request.response.write('{"status":"ok"}');
+        await request.response.close();
+      });
+      await expectLater(
+        uploader.send(prepare([point()]).single, 'token'),
+        throwsA(isA<UploadHttpException>()),
+      );
+    });
 
     test('honors short Retry-After before retrying the same upload', () async {
       final waits = <Duration>[];

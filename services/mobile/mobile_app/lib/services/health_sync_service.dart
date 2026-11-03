@@ -18,7 +18,7 @@ enum HealthSyncStatus {
   permissionDenied,
   protectedDataUnavailable,
 
-  /// The personal code expired; the QR code must be rescanned.
+  /// The personal code expired; the QR code must be rescanned
   codeExpired,
 
   /// The personal code was rejected by the server (e.g. 401)

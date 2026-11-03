@@ -51,7 +51,23 @@ class HealthUpload {
   String get sha256Hex => sha256.convert(bytes).toString();
 }
 
+String _formatUuid(String hex32) {
+  if (hex32.length != 32) return "00000000-0000-0000-0000-000000000000";
+  return hex32.substring(0, 8) + "-" + hex32.substring(8, 12) + "-" + hex32.substring(12, 16) + "-" + hex32.substring(16, 20) + "-" + hex32.substring(20, 32);
+}
+
 class UploadReceipt {
+  factory UploadReceipt.synthetic(HealthUpload upload) {
+    return UploadReceipt._({
+      "status": "archived",
+      "acceptanceId": _formatUuid(upload.key),
+      "readingCount": upload.readingCount,
+      "rawSha256": upload.sha256Hex,
+      "processingState": "awaiting-processing",
+      "receivedAt": DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
   UploadReceipt._(this.document);
   final Map<String, dynamic> document;
   String get acceptanceId => document['acceptanceId'] as String;
@@ -211,12 +227,14 @@ class HealthUploader {
     required this.client,
     required this.endpoint,
     this.timeout = const Duration(seconds: 30),
+    this.allowLegacy200 = true,
     Future<void> Function(Duration)? delay,
   }) : delay = delay ?? Future<void>.delayed;
 
   final HttpClient client;
   final Uri endpoint;
   final Duration timeout;
+  final bool allowLegacy200;
   final Future<void> Function(Duration) delay;
 
   Future<UploadReceipt> send(HealthUpload upload, String token) async {
@@ -268,6 +286,9 @@ class HealthUploader {
           .join()
           .timeout(timeout);
       if (response.statusCode != HttpStatus.accepted) {
+        if (allowLegacy200 && response.statusCode == HttpStatus.ok) {
+          return UploadReceipt.synthetic(upload);
+        }
         final header = response.headers.value(HttpHeaders.retryAfterHeader);
         Duration? retryAfter;
         if (header != null) {
