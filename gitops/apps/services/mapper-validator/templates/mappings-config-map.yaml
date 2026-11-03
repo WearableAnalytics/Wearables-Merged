@@ -205,9 +205,7 @@ data:
               rawSource: measurements.instantaneous.timestamp
               target: effectiveDateTime
               transform:
-                - type: append
-                  params:
-                    - Z
+                - type: normalizeTimestamp
               optional: false
               type: string
               lineProtocol:
@@ -496,9 +494,7 @@ data:
               rawSource: measurements.cumulative.periodStart
               target: effectiveDateTime
               transform:
-                - type: append
-                  params:
-                    - 'Z'
+                - type: normalizeTimestamp
               optional: false
               type: string
               lineProtocol:
@@ -791,9 +787,7 @@ data:
               rawSource: measurements.duration.startTime
               target: effectiveDateTime
               transform:
-                - type: append
-                  params:
-                    - Z
+                - type: normalizeTimestamp
               optional: false
               type: string
               lineProtocol:

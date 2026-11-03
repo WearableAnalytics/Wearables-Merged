@@ -50,8 +50,7 @@ def make_parser(config: FhirYamlConfig, category: str, graphs: dict[str, Graph] 
 
 
 def build_observation(parser: FhirParser, point: TelemetryPoint) -> dict:
-    # The mapping appends "Z" to the timestamp itself, so pass it without an offset.
-    timestamp = point.timestamp.astimezone(UTC).replace(tzinfo=None).isoformat()
+    timestamp = point.timestamp.astimezone(UTC).isoformat().replace("+00:00", "Z")
     observation = parser.build_fhir_from_telemetry(
         fields=point.fields,
         tags=point.tags,

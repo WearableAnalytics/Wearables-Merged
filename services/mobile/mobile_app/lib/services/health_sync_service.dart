@@ -1,15 +1,14 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 
-import '../health_data_formatter.dart';
 import '../health_data_types.dart';
 import '../storage_service.dart';
 import 'device_lock_service.dart';
+import 'health_upload.dart';
 import 'sync_activity_notifier.dart';
 
 enum HealthSyncStatus {
@@ -19,7 +18,7 @@ enum HealthSyncStatus {
   permissionDenied,
   protectedDataUnavailable,
 
-  /// The personal code expired; the QR code must be rescanned
+  /// The personal code expired; the QR code must be rescanned.
   codeExpired,
 
   /// The personal code was rejected by the server (e.g. 401)
@@ -51,21 +50,32 @@ class HealthSyncResult {
 /// Handles querying the Health API, chunking the payload, and pushing it
 /// to the ingest endpoint. UI/background layers simply react to the result.
 class HealthSyncService {
-  HealthSyncService({Health? health}) : _health = health ?? Health();
+  HealthSyncService({Health? health, Uri? endpoint})
+    : _health = health ?? Health(),
+      _endpoint =
+          endpoint ??
+          Uri.parse(
+            const String.fromEnvironment(
+              'INGEST_URL',
+              defaultValue: 'https://wearables.charite.de/import/ingest',
+            ),
+          );
 
   final Health _health;
-  static const _chunkSize = 2000;
+  final Uri _endpoint;
   // HealthKit types are read in parallel groups of this size; the plugin
   // itself queries one type after another.
   static const _typeGroupSize = 8;
-  static const _endpoint = 'https://wearables.charite.de/import/ingest';
 
   /// Resolves the target ingest endpoint
   /// In [kDebugMode], a study code may specify a custom URL for local testing; Release builds always use production [_endpoint]
-  static String endpointFor(String deviceId) {
+  Uri endpointFor(String deviceId) {
     if (kDebugMode) {
       final custom = StorageService.codeEndpoint(deviceId);
-      if (custom != null) return custom;
+      if (custom != null) {
+        final parsed = Uri.tryParse(custom);
+        if (parsed != null) return parsed;
+      }
     }
     return _endpoint;
   }
@@ -171,6 +181,12 @@ class HealthSyncService {
       }
 
       final deviceId = await StorageService.getOrCreateDeviceId();
+      final collectorId = await StorageService.getOrCreateCollectorId();
+      final targetEndpoint = endpointFor(deviceId);
+      if (kDebugMode && targetEndpoint != _endpoint) {
+        debugPrint('Syncing to custom dev endpoint: $targetEndpoint');
+      }
+      final uploader = HealthUploader(client: client, endpoint: targetEndpoint);
       final lastSendTime = await StorageService.getLastDataSendTime();
       final from = lastSendTime ?? await StorageService.getInitialSyncStart();
 
@@ -223,44 +239,50 @@ class HealthSyncService {
         final healthData = read.data;
 
         totalAvailable += healthData.length;
-        final chunks = _chunkHealthData(healthData);
-        var dayComplete = true;
-        for (int chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-          final chunk = chunks[chunkIndex];
-          try {
-            await _sendChunkWithRetry(
-              client: client,
-              chunk: chunk,
-              chunkIndex: chunkIndex,
-              totalChunks: chunks.length,
-              from: start,
-              to: end,
-              lastSendTime: lastSendTime,
-              deviceId: deviceId,
-              stepsToday: steps,
-            );
-            totalSent += chunk.length;
-          } catch (e) {
-            if (e is HttpException && e.message.startsWith('Status 401')) {
-              await StorageService.markCodeRejected(deviceId);
-              return complete(
-                _codeRejected(from, now, totalSent, totalAvailable),
-              );
-            }
-            lastError ??= 'Upload failed: $e';
-            dayComplete = false;
-            break;
+        try {
+          final uploads = prepareHealthUploads(
+            points: healthData,
+            collectorId: collectorId,
+            platform: Platform.isIOS ? 'iOS' : 'Android',
+            from: start,
+            to: end,
+            lastSendTime: lastSendTime,
+            stepsToday: steps,
+          );
+          final serialized = uploads.fold<int>(
+            0,
+            (n, upload) => n + upload.readingCount,
+          );
+          if (serialized < healthData.length) {
+            lastError =
+                '${healthData.length - serialized} readings in a collection window '
+                'could not be serialized and were skipped.';
           }
+          await deliverHealthUploads(
+            uploads: uploads,
+            send: (upload) => uploader.send(upload, deviceId),
+            saveReceipt: (receipt) =>
+                StorageService.saveUploadReceipt(deviceId, receipt.document),
+            onAccepted: (count) => totalSent += count,
+            checkpoint: () => StorageService.updateLastDataSendTime(end),
+          );
+        } catch (e) {
+          if (e is UploadHttpException && e.statusCode == 401) {
+            await StorageService.markCodeRejected(deviceId);
+            return complete(
+              _codeRejected(from, now, totalSent, totalAvailable),
+            );
+          }
+          lastError = 'Upload failed: $e';
+          break;
         }
-        if (!dayComplete) break;
 
-        await StorageService.updateLastDataSendTime(end);
         SyncActivityNotifier.reportProgress(
           end.difference(from).inSeconds / totalSeconds,
         );
       }
 
-      if (totalAvailable == 0 && lastError == null) {
+      if (totalAvailable == 0) {
         return complete(
           HealthSyncResult(
             status: HealthSyncStatus.nothingToSend,
@@ -406,109 +428,6 @@ class HealthSyncService {
       case HealthSyncStatus.codeRejected:
       case HealthSyncStatus.failed:
         return SyncOutcome.failure;
-    }
-  }
-
-  List<List<HealthDataPoint>> _chunkHealthData(List<HealthDataPoint> data) {
-    final chunks = <List<HealthDataPoint>>[];
-    for (var i = 0; i < data.length; i += _chunkSize) {
-      final end = (i + _chunkSize < data.length) ? i + _chunkSize : data.length;
-      chunks.add(data.sublist(i, end));
-    }
-    return chunks;
-  }
-
-  /// Retries transient failures (network drops, timeouts, server errors)
-  /// before giving up; 4xx responses are not retried.
-  Future<void> _sendChunkWithRetry({
-    required HttpClient client,
-    required List<HealthDataPoint> chunk,
-    required int chunkIndex,
-    required int totalChunks,
-    required DateTime from,
-    required DateTime to,
-    required DateTime? lastSendTime,
-    required String deviceId,
-    required int? stepsToday,
-  }) async {
-    const backoff = [Duration(seconds: 2), Duration(seconds: 6)];
-    for (var attempt = 0; ; attempt++) {
-      try {
-        return await _sendChunk(
-          client: client,
-          chunk: chunk,
-          chunkIndex: chunkIndex,
-          totalChunks: totalChunks,
-          from: from,
-          to: to,
-          lastSendTime: lastSendTime,
-          deviceId: deviceId,
-          stepsToday: stepsToday,
-        );
-      } catch (e) {
-        final transient =
-            e is SocketException ||
-            e is TimeoutException ||
-            e is HandshakeException ||
-            (e is HttpException && e.message.startsWith('Status 5'));
-        if (!transient || attempt >= backoff.length) rethrow;
-        await Future.delayed(backoff[attempt]);
-      }
-    }
-  }
-
-  Future<void> _sendChunk({
-    required HttpClient client,
-    required List<HealthDataPoint> chunk,
-    required int chunkIndex,
-    required int totalChunks,
-    required DateTime from,
-    required DateTime to,
-    required DateTime? lastSendTime,
-    required String deviceId,
-    required int? stepsToday,
-  }) async {
-    final payload = {
-      'deviceInfo': {
-        'platform': Platform.isIOS ? 'iOS' : 'Android',
-        'deviceId': deviceId,
-        'authorizationToken': 'your_auth_token_here',
-      },
-      'batchInfo': {
-        'batchId': '${DateTime.now().millisecondsSinceEpoch}_${chunkIndex + 1}',
-        'chunkNumber': chunkIndex + 1,
-        'totalChunks': totalChunks,
-        'collectionStart': from.toIso8601String(),
-        'collectionEnd': to.toIso8601String(),
-        'lastSendTime': lastSendTime?.toIso8601String(),
-        'dataPointCount': chunk.length,
-      },
-      'measurements': formatHealthDataByType(chunk),
-      'sourceName': chunk.isNotEmpty ? chunk.first.sourceName : 'N/A',
-      'sourcePlatform': chunk.isNotEmpty
-          ? chunk.first.sourcePlatform.toString()
-          : 'N/A',
-      'totalStepsToday': stepsToday,
-      'timestamp': DateTime.now().toIso8601String(),
-    };
-
-    final targetUrl = endpointFor(deviceId);
-    if (kDebugMode && targetUrl != _endpoint) {
-      debugPrint('Syncing to custom dev endpoint: $targetUrl');
-    }
-    final request = await client.postUrl(Uri.parse(targetUrl));
-    request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
-    request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $deviceId');
-    request.add(utf8.encode(jsonEncode(payload)));
-    final response = await request.close().timeout(const Duration(seconds: 30));
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = await response.transform(utf8.decoder).join();
-      throw HttpException('Status ${response.statusCode}: $body');
-    }
-    final responseBody = await response.transform(utf8.decoder).join();
-    // Optionally log or process the response body for successful requests
-    if (responseBody.isNotEmpty) {
-      print('Successful upload response: $responseBody');
     }
   }
 

@@ -7,6 +7,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -16,6 +20,17 @@ import static org.example.JsonUtils.toJsonElement;
 public class Transformer {
 
     private static final Logger log = LoggerFactory.getLogger(Transformer.class);
+
+    /** Offset-bearing instants are converted once. Legacy naive input keeps its
+     * historical UTC interpretation; its original timezone cannot be recovered. */
+    static JsonElement normalizeTimestamp(JsonElement value) {
+        String text = JsonUtils.elementToString(value);
+        try {
+            return toJsonElement(OffsetDateTime.parse(text).toInstant().toString());
+        } catch (DateTimeParseException offsetMissing) {
+            return toJsonElement(LocalDateTime.parse(text).toInstant(ZoneOffset.UTC).toString());
+        }
+    }
 
     static JsonElement resolveAppend(ValueTransformation vt, JsonElement value) {
         String s = JsonUtils.elementToString(value);

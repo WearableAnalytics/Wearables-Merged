@@ -50,6 +50,11 @@ public class RawTransformer extends Transformer{
                     break;
                 }
 
+                case "normalizeTimestamp": {
+                    value = normalizeTimestamp(value);
+                    break;
+                }
+
                 case "append": {
                     value = RawTransformer.resolveAppend(vt, value);
                     break;
