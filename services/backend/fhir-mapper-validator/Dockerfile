@@ -1,12 +1,13 @@
-FROM maven:3.9.3-eclipse-temurin-20 AS build
+FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
 # Copy source code
 COPY pom.xml .
 COPY src ./src
+COPY config ./config
 
 # Build the JAR
-RUN mvn clean package -DskipTests
+RUN mvn -B -ntp package
 
 FROM eclipse-temurin:17-jdk
 
@@ -24,7 +25,8 @@ COPY src/main/resources/mapping-2026-01-28.yaml /config/mapping.yaml
 # Allow configurable log level at build time; defaults to INFO
 ARG LOG_LEVEL=INFO
 ENV LOG_LEVEL=${LOG_LEVEL}
+ENV JAVA_TOOL_OPTIONS="-Xmx3500m"
 
 # Environment variables are set through k8s
 
-ENTRYPOINT ["java", "-Xmx3500m", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -43,6 +43,32 @@ class Repository:
     async def close(self):
         await self.pool.close()
 
+    async def check_ready(self):
+        # A reachable database alone is insufficient: the runtime must be able
+        # to retain uploads and update jobs, but not edit or delete the archive.
+        async with self.pool.connection() as conn:
+            row = await (
+                await conn.execute(
+                    "SELECT has_schema_privilege(current_user,'ingestion','USAGE') "
+                    "AND NOT has_schema_privilege(current_user,'ingestion','CREATE') "
+                    "AND has_table_privilege('ingestion.uploads','SELECT') "
+                    "AND has_table_privilege('ingestion.uploads','INSERT') "
+                    "AND NOT has_table_privilege('ingestion.uploads','UPDATE,DELETE,TRUNCATE') "
+                    "AND has_table_privilege('ingestion.upload_records','SELECT') "
+                    "AND has_table_privilege('ingestion.upload_records','INSERT') "
+                    "AND has_table_privilege('ingestion.records','SELECT') "
+                    "AND has_table_privilege('ingestion.records','INSERT') "
+                    "AND has_table_privilege('ingestion.records','UPDATE') "
+                    "AND has_table_privilege('ingestion.outbox','SELECT') "
+                    "AND has_table_privilege('ingestion.outbox','INSERT') "
+                    "AND has_table_privilege('ingestion.outbox','UPDATE') "
+                    "AND has_table_privilege('ingestion.events','INSERT') "
+                    "AND has_sequence_privilege('ingestion.events_id_seq','USAGE') AS ready"
+                )
+            ).fetchone()
+            if not row["ready"]:
+                raise RuntimeError("Ingestion runtime permissions are not ready")
+
     async def event(self, conn, code, record_id=None, upload_id=None, generation=None, mapper_version=None):
         await conn.execute(
             "INSERT INTO ingestion.events (code,record_id,upload_id,generation,mapper_version) VALUES (%s,%s,%s,%s,%s)",
@@ -360,7 +386,9 @@ class Repository:
         async with self.pool.connection() as conn, conn.transaction():
             upload = await (
                 await conn.execute(
-                    "SELECT id FROM ingestion.uploads WHERE id=%s AND case_id=%s AND participant_id=%s FOR UPDATE",
+                    # Upload identity is immutable. The ordered record locks
+                    # below serialize retries without granting archive UPDATE.
+                    "SELECT id FROM ingestion.uploads WHERE id=%s AND case_id=%s AND participant_id=%s",
                     (upload_id, claims["caseId"], claims["patientId"]),
                 )
             ).fetchone()

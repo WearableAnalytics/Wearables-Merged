@@ -57,7 +57,7 @@ async def test_real_pipeline_preserves_value_time_identity_and_partial_failure(r
     env = dict(
         os.environ,
         INGEST_SIGNING_KEY=settings.signing_key_b64,
-        MAPPING_YAML_PATH=str(mapper / "config/mapping-2026-01-28.yaml"),
+        MAPPING_YAML_PATH=os.getenv("INGEST_TEST_MAPPER_CONFIG", str(mapper / "config/mapping-2026-01-28.yaml")),
         KAFKA_BROKER_ENV_VAR=settings.kafka_bootstrap_servers,
         APP_ID="reliable-ingestion-test-" + str(uuid4()),
         VALIDATION_FREQUENCY="0",

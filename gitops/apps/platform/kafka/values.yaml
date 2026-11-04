@@ -58,6 +58,11 @@ topics:
     replicas: 3
     retentionMs: 7200000
     segmentBytes: 1073741824
+  - name: wearables-ingestion-results
+    partitions: 30
+    replicas: 3
+    retentionMs: 604800000 # 7 days; journal commits before result offsets advance.
+    segmentBytes: 1073741824
 
 
 # kafkaConnect:

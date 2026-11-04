@@ -8,6 +8,8 @@ data:
   MAPPING_YAML_PATH: {{ .Values.envs.fhirMappingYamlPath }}
   INPUT_TOPIC: {{ .Values.envs.inputTopic }}
   OUTPUT_TOPIC: {{ .Values.envs.outputTopic }}
+  RESULTS_TOPIC: {{ .Values.envs.resultsTopic | quote }}
+  JAVA_TOOL_OPTIONS: {{ .Values.envs.javaToolOptions | quote }}
   DLQ_TOPIC: {{ .Values.envs.dlqTopic }}
   NUM_STREAM_THREADS: {{ .Values.envs.numStreamThreads | quote }}
   PARTITIONS: {{ .Values.envs.partitions | quote }}

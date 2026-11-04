@@ -1,6 +1,6 @@
 name: Publish service images
 
-# Builds db-lord, wearables-bff, extraction-service, importservice and web and
+# Builds db-lord, wearables-bff, extraction-service, importservice, mapper and web and
 # publishes them to GitHub Container Registry (ghcr.io/wearableanalytics/<image>).
 # - Pull requests: build only, to catch broken Dockerfiles early.
 # - Pushes to main: build and publish, tagged with the commit SHA and `latest`.
@@ -14,7 +14,11 @@ on:
       - "services/backend/wearables-bff/**"
       - "services/backend/extraction-service/**"
       - "services/backend/importservice/**"
+      - "services/backend/fhir-mapper-validator/**"
       - "services/web/**"
+      - "gitops/apps/services/importservice/**"
+      - "gitops/apps/services/mapper-validator/**"
+      - "gitops/apps/platform/kafka/**"
       - ".github/workflows/publish-images.yml"
   pull_request:
     paths:
@@ -22,7 +26,11 @@ on:
       - "services/backend/wearables-bff/**"
       - "services/backend/extraction-service/**"
       - "services/backend/importservice/**"
+      - "services/backend/fhir-mapper-validator/**"
       - "services/web/**"
+      - "gitops/apps/services/importservice/**"
+      - "gitops/apps/services/mapper-validator/**"
+      - "gitops/apps/platform/kafka/**"
       - ".github/workflows/publish-images.yml"
   workflow_dispatch:
 
@@ -31,6 +39,40 @@ permissions:
   packages: write
 
 jobs:
+  ingestion-deployment:
+    name: Ingestion deployment checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: ingestion_test
+          POSTGRES_USER: ingestion
+          POSTGRES_PASSWORD: ingestion-test-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ingestion -d ingestion_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      INGEST_TEST_DATABASE_URL: postgresql://ingestion:ingestion-test-only@127.0.0.1:5432/ingestion_test
+    defaults:
+      run:
+        working-directory: services/backend/importservice
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.22.1
+      - name: Install check dependencies
+        run: python -m pip install -r requirements.txt pytest pytest-asyncio ruff pyyaml
+      - name: Lint and verify deployment contracts with PostgreSQL
+        run: |
+          ruff check app tests
+          pytest -q --ignore=tests/test_connected.py --ignore=tests/test_deployment_connected.py
+
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -45,6 +87,8 @@ jobs:
             context: services/backend/extraction-service
           - image: wearables-importservice
             context: services/backend/importservice
+          - image: wearables-mapper-validator
+            context: services/backend/fhir-mapper-validator
           - image: wearables-web
             context: services/web
     steps:
