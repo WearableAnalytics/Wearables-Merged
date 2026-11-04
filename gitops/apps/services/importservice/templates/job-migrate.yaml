@@ -1,0 +1,41 @@
+{{- if .Values.migration.enabled }}
+{{- if eq .Values.migration.secretName .Values.runtimeSecret.name }}
+{{- fail "migration.secretName must differ from runtimeSecret.name" }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-ingestion-migrate" .Release.Name | trunc 63 | trimSuffix "-" }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  backoffLimit: 0
+  template:
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: {{ include "importservice.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "app.migrate"]
+          env:
+            - name: INGEST_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "migration.secretName is required" .Values.migration.secretName }}
+                  key: {{ .Values.migration.databaseKey }}
+            - name: INGEST_RUNTIME_ROLE
+              value: {{ required "migration.runtimeRole is required" .Values.migration.runtimeRole | quote }}
+          {{- with .Values.migration.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.migration.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

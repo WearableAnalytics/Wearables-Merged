@@ -5,18 +5,33 @@ mappingConfig: mapping-config
 mappingConfigVol: mapping-config-vol
 
 envs:
-  brokerEnv: "kafka-kafka-bootstrap:9092"
+  brokerEnv: "kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
   appId: "mapper-validator"
   fhirMappingYamlPath:  "/config/mapping.yaml"
   inputTopic: "wearables-raw"
   outputTopic: "wearables-lp"
+  resultsTopic: "wearables-ingestion-results"
   dlqTopic: "dlq"
   numStreamThreads: "10" #how many partitions one instance can handle through multithreading
   partitions: "30" #number of partitions that the wearables raw topic has
   validationFrequency: 100 # every n-th message will be checked according to this (if 0, all messages are checked)
+  javaToolOptions: "-Xmx3500m"
 
 
 image:
-  repository: wearables42/mapper-validator
-  tag: 0.3.1
-  imagePullPolicy: Always
+  repository: ghcr.io/wearableanalytics/wearables-mapper-validator
+  tag: "" # Required: same built release as the mounted mapping configuration.
+  digest: ""
+  imagePullPolicy: IfNotPresent
+
+signingSecret:
+  name: ingestion-signing # Same signing value as importer; never its archive key.
+  key: INGEST_SIGNING_KEY
+
+kafkaSecuritySecret:
+  name: "" # Optional Java Kafka TLS/SASL properties JSON.
+  key: KAFKA_SECURITY_PROPERTIES_JSON
+
+extraVolumes: []
+extraVolumeMounts: []
+resources: {}

@@ -9,21 +9,46 @@ spec:
       app: {{ .Release.Name }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/env-vars.yaml") . | sha256sum }}
+        checksum/mapping: {{ include (print $.Template.BasePath "/mappings-config-map.yaml") . | sha256sum }}
       labels:
         app: {{ .Release.Name }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: {{ .Release.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "mapper-validator.image" . | quote }}
           imagePullPolicy: {{ .Values.image.imagePullPolicy}}
           envFrom:
             - configMapRef:
                 name: {{ .Values.mapperEnvConfigMap }}
+          env:
+            - name: INGEST_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "signingSecret.name is required" .Values.signingSecret.name }}
+                  key: {{ .Values.signingSecret.key }}
+            {{- if .Values.kafkaSecuritySecret.name }}
+            - name: KAFKA_SECURITY_PROPERTIES_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kafkaSecuritySecret.name }}
+                  key: {{ .Values.kafkaSecuritySecret.key }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: {{ .Values.mappingConfigVol}}
               mountPath: /config
+              readOnly: true
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
       volumes:
         - name: {{ .Values.mappingConfigVol }}
           configMap:
             name: {{ .Values.mappingConfig }}
-          
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

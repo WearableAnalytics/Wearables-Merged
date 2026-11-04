@@ -11,39 +11,86 @@ spec:
       app: {{ .Release.Name }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         app: {{ .Release.Name }}
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: {{ .Release.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "importservice.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
             - name: metrics
               containerPort: {{ .Values.metrics.port }}
+          envFrom:
+            - configMapRef:
+                name: "{{ .Release.Name }}-config"
           env:
-            - name: KAFKA_BOOTSTRAP_SERVERS
-              value: "{{ .Values.env.KAFKA_BOOTSTRAP_SERVERS }}"
-            - name: KAFKA_TOPIC
-              value: "{{ .Values.env.KAFKA_TOPIC }}"
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.jwtSecret.secretName }}
                   key: {{ .Values.jwtSecret.key }}
-            - name: JWT_ISSUER
-              value: "{{ .Values.env.JWT_ISSUER }}"
+            - name: INGEST_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "runtimeSecret.name is required" .Values.runtimeSecret.name }}
+                  key: {{ .Values.runtimeSecret.databaseKey }}
+            - name: INGEST_ARCHIVE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runtimeSecret.name }}
+                  key: {{ .Values.runtimeSecret.archiveKey }}
+            - name: INGEST_ARCHIVE_OLD_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runtimeSecret.name }}
+                  key: {{ .Values.runtimeSecret.archiveOldKeysKey }}
+                  optional: true
+            - name: INGEST_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "signingSecret.name is required" .Values.signingSecret.name }}
+                  key: {{ .Values.signingSecret.key }}
+            - name: INFLUXDB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runtimeSecret.name }}
+                  key: {{ .Values.runtimeSecret.influxTokenKey }}
+            {{- if .Values.kafkaSecuritySecret.name }}
+            - name: KAFKA_SECURITY_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kafkaSecuritySecret.name }}
+                  key: {{ .Values.kafkaSecuritySecret.key }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
             httpGet:
               path: "{{ .Values.livenessProbe.path }}"
               port: http
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
             httpGet:
               path: "{{ .Values.readinessProbe.path }}"
               port: http
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
