@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class DependencyGraph {
 
@@ -101,8 +102,8 @@ public class DependencyGraph {
                     .map(Node::getField)
                     .collect(Collectors.toSet());
 
-            Set<FieldConfig> mandatoryFields = m.getFields().stream()
-                    .filter(x -> x.getLineProtocol().isMandatory())
+            Set<FieldConfig> mandatoryFields = Stream.concat(m.getFields().stream(), this.yaml.getMetadata().getFields().stream())
+                    .filter(x -> x.getLineProtocol() != null && x.getLineProtocol().isMandatory())
                     .collect(Collectors.toSet());
 
             log.debug("Found node set");

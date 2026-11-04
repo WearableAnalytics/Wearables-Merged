@@ -84,6 +84,7 @@ public class ReliableProcessorTest {
     public void fhirSubjectAndSenderAreSeparate() {
         JsonObject fhir = mapper.mapFhir(data("HEART_RATE", "2026-10-30T10:15:00").toString()).getValue1();
         assertEquals("Patient/" + PATIENT, fhir.getAsJsonObject("subject").get("reference").getAsString());
+        assertEquals(PATIENT, fhir.getAsJsonObject("subject").getAsJsonObject("identifier").get("value").getAsString());
         assertEquals("phone-installation-9", fhir.getAsJsonObject("device").get("display").getAsString());
     }
 
@@ -97,6 +98,19 @@ public class ReliableProcessorTest {
         assertTrue(line, line.endsWith(" " + Instant.parse("2026-10-30T10:15:00Z").getEpochSecond() * 1_000_000_000L));
         assertTrue(line, line.contains("source-device-id=phone-installation-9"));
         assertTrue(line, line.contains("device-id-reference=Patient/" + PATIENT));
+        assertTrue(line, line.contains("patient-id=" + PATIENT));
+    }
+
+    @Test
+    public void legacyRecordWithoutParticipantTagsDeviceIdAsPatient() throws Exception {
+        JsonObject data = data("HEART_RATE", "2026-10-30T10:15:00Z");
+        data.remove("participantId");
+        ReliableProcessor processor = new ReliableProcessor(mapper, graphs, KEY, "a".repeat(64));
+        JsonObject outcome = result(processor.process(input(data)));
+        assertEquals(outcome.toString(), "normalized", outcome.get("status").getAsString());
+        String line = outcome.get("lineProtocol").getAsString();
+        assertTrue(line, line.contains("patient-id=phone-installation-9"));
+        assertTrue(line, line.contains("device-id-reference=Patient/phone-installation-9"));
     }
 
     @Test

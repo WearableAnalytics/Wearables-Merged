@@ -20,6 +20,15 @@ metadata:
       lineProtocol:
         type: tag
         name: device-id-reference
+    - name: patientId
+      rawSource: participantId
+      target: subject.identifier.value
+      optional: false
+      type: string
+      lineProtocol:
+        type: tag
+        name: patient-id
+        mandatory: true
 measurement:
   paths:
     - path: measurements.instantaneous
