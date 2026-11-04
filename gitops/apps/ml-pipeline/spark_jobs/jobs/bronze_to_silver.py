@@ -69,7 +69,7 @@ silver_df = (
     ))
     .withColumn("event_time", (col("raw_ts") / 1_000_000_000).cast("timestamp"))
     .withColumn("event_date", to_date(col("event_time")))
-    .select("device_id", "event_date", "measurement", "value",
+    .select("patient_id", "device_id", "event_date", "measurement", "value",
             "event_time", "tags", "ingestion_timestamp")
 )
 

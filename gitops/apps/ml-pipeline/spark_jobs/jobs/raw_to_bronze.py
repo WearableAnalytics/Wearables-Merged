@@ -6,6 +6,8 @@ import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, current_timestamp, to_date
 
+from lp_tags import patient_id
+
 # --- Config from environment ---
 S3_ENDPOINT = os.environ["S3_ENDPOINT"]
 S3_ACCESS_KEY = os.environ["S3_ACCESS_KEY"]
@@ -61,6 +63,7 @@ raw_stream = (
 bronze_df = raw_stream.select(
     col("key").cast("binary"),
     col("value").cast("string").alias("raw_payload"),
+    patient_id(col("value").cast("string")).alias("patient_id"),
     col("topic"),
     col("partition"),
     col("offset"),
