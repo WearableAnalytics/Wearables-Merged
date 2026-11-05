@@ -1,0 +1,15 @@
+apiVersion: 1
+datasources:
+  # The dashboards use InfluxQL; InfluxDB 2.x maps the database name to the bucket.
+  - name: InfluxDB
+    uid: dfa4opgnfgg00e
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: true
+    jsonData:
+      dbName: ${INFLUX_BUCKET}
+      httpMode: GET
+      httpHeaderName1: Authorization
+    secureJsonData:
+      httpHeaderValue1: Token ${INFLUX_TOKEN}

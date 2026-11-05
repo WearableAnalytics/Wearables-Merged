@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "wearables",
+      "credentials": [{ "accessKey": "wearables", "secretKey": "wearables-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

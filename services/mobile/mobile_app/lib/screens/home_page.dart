@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../app_config.dart';
+import '../storage_service.dart';
 import '../services/health_sync_service.dart';
 import '../services/sync_activity_notifier.dart';
 import '../state/app_state.dart';
@@ -168,9 +170,10 @@ class _ConnectedView extends StatelessWidget {
     final result = await state.syncNow();
     if (!context.mounted || result == null) return;
     final message = switch (result.status) {
-      HealthSyncStatus.success => 'Shared ${result.totalSent} data points.',
+      HealthSyncStatus.success =>
+        'Accepted ${result.totalSent} data points for processing.',
       HealthSyncStatus.partialSuccess =>
-        'Shared ${result.totalSent} of ${result.totalAvailable} data points.'
+        'Accepted ${result.totalSent} of ${result.totalAvailable} data points for processing.'
             '${_reason(result)}',
       HealthSyncStatus.nothingToSend =>
         'Up to date. There is no new data to share.',
@@ -179,6 +182,8 @@ class _ConnectedView extends StatelessWidget {
       HealthSyncStatus.permissionDenied =>
         'Access to ${AppConfig.healthStore} is needed. '
             '${AppConfig.healthAccessHint}',
+      HealthSyncStatus.codeRejected =>
+        'Your personal code was rejected by the server (Unauthorized). Please scan a new QR code.',
       HealthSyncStatus.codeExpired =>
         'Your personal code has expired. Please scan your QR code again.',
       HealthSyncStatus.failed =>
@@ -209,8 +214,10 @@ class _ConnectedView extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final expired = !state.isSyncing && state.codeExpired;
+    final rejected = !state.isSyncing && state.codeRejected;
     final failed =
         expired ||
+        rejected ||
         (!state.isSyncing && state.lastOutcome == SyncOutcome.failure);
     final incomplete =
         !state.isSyncing &&
@@ -241,13 +248,15 @@ class _ConnectedView extends StatelessWidget {
                         progress: state.progress,
                         failed: failed,
                         incomplete: incomplete,
-                        expired: expired,
+                        expired: expired || rejected,
                       ),
                     ),
                     const SizedBox(height: 28),
                     Text(
                       state.isSyncing
                           ? 'Sharing your data…'
+                          : rejected
+                          ? 'Personal code rejected'
                           : expired
                           ? 'Personal code expired'
                           : failed
@@ -263,6 +272,9 @@ class _ConnectedView extends StatelessWidget {
                       state.isSyncing
                           ? 'Please keep the app open until sharing has finished. '
                                 'Progress is saved, so it continues where it stopped.'
+                          : rejected
+                          ? 'The server refused your code (Unauthorized). '
+                                'Please scan a valid personal QR code again to continue.'
                           : expired
                           ? 'New data cannot be shared with your current code. '
                                 'Please scan the QR code on your information sheet '
@@ -281,6 +293,84 @@ class _ConnectedView extends StatelessWidget {
                       ),
                       textAlign: TextAlign.center,
                     ),
+                    if (kDebugMode &&
+                        StorageService.codeEndpoint(state.deviceId) !=
+                            null) ...[
+                      const SizedBox(height: 12),
+                      Builder(
+                        builder: (context) {
+                          final endpoint = StorageService.codeEndpoint(
+                            state.deviceId,
+                          )!;
+                          final isHttp = endpoint.toLowerCase().startsWith(
+                            'http://',
+                          );
+
+                          if (isHttp) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF3CD),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: const Color(0xFFFFEEBA),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Symbols.warning_amber_rounded,
+                                    size: 16,
+                                    color: Color(0xFF856404),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Local Dev Endpoint (HTTP unencrypted):',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF856404),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          endpoint,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontFamily: 'Menlo',
+                                            color: Color(0xFF856404),
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          return Text(
+                            'Dev Endpoint: $endpoint',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Menlo',
+                              color: AppColors.blue,
+                            ),
+                            textAlign: TextAlign.center,
+                          );
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 36),
                     Row(
                       children: [
@@ -298,13 +388,13 @@ class _ConnectedView extends StatelessWidget {
                           child: _InfoTile(
                             icon: Symbols.autorenew_sharp,
                             label: 'Automatic sharing',
-                            value: expired ? 'Paused' : 'On',
+                            value: (expired || rejected) ? 'Paused' : 'On',
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 28),
-                    if (expired)
+                    if (expired || rejected)
                       FilledButton.icon(
                         onPressed: () => _rescan(context),
                         icon: const Icon(Symbols.qr_code_scanner_sharp),
