@@ -72,6 +72,8 @@ class UploadReceipt {
   final Map<String, dynamic> document;
   String get acceptanceId => document['acceptanceId'] as String;
   String get processingState => document['processingState'] as String;
+  int get readingCount => document['readingCount'] as int;
+  String get rawSha256 => document['rawSha256'] as String;
 
   static UploadReceipt validate(String body, HealthUpload upload) {
     final value = jsonDecode(body);
