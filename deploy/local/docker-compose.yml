@@ -127,6 +127,20 @@ services:
       kafka-init:
         condition: service_completed_successfully
 
+  cloud-connector:
+    build: ../../services/backend/cloud-connector
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: wearables-raw
+      GARMIN_CLIENT_ID: ${GARMIN_CLIENT_ID:-}
+      GARMIN_CLIENT_SECRET: ${GARMIN_CLIENT_SECRET:-}
+      OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI:-http://localhost/cloud/callback}
+    volumes:
+      - cloud_connector_data:/data
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+
   fhir-mapper-validator:
     build: ../../services/backend/fhir-mapper-validator
     environment:
@@ -279,7 +293,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ../../observability/dashboards:/var/lib/grafana-dashboards:ro
     ports:
-      - "3003:3000" # direct admin access: http://localhost:3003/proxy/ (admin / admin)
+      - "13003:3000" # direct admin access: http://localhost:3003/proxy/ (admin / admin)
     depends_on:
       influxdb:
         condition: service_healthy
@@ -548,3 +562,4 @@ volumes:
   grafana_data:
   grafana_proxy_keys:
   seaweedfs_data:
+  cloud_connector_data:

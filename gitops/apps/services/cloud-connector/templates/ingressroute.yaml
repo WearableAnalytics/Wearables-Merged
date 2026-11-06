@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: "{{ .Release.Name }}-http"
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`{{ .Values.ingress.prefix }}`)"
+      kind: Rule
+      middlewares:
+        - name: cloud-rewrite-path
+      services:
+        - name: {{ .Release.Name }}
+          port: {{ .Values.service.port }}

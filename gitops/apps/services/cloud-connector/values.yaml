@@ -1,0 +1,53 @@
+replicaCount: 1
+
+image:
+  # Built by .github/workflows/publish-images.yml
+  repository: ghcr.io/wearableanalytics/wearables-cloud-connector
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+env:
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  KAFKA_TOPIC: "wearables-raw"
+  PUBLIC_BASE_URL: "https://wearables.charite.de"
+  CLOUD_CONNECTOR_STORAGE_PATH: "/data/connections.json"
+
+# Secrets for Garmin OAuth 2.0 PKCE
+secrets:
+  secretName: cloud-connector-secrets
+  garminClientIdKey: GARMIN_CLIENT_ID
+  garminClientSecretKey: GARMIN_CLIENT_SECRET
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+livenessProbe:
+  enabled: true
+  path: /health
+  initialDelaySeconds: 15
+  periodSeconds: 20
+
+readinessProbe:
+  enabled: true
+  path: /health
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+ingress:
+  host: "wearables.charite.de"
+  prefix: "/cloud"
+  httpOnly: false
+  regex: "^/cloud/?(.*)"
+  replacement: "/$1"
+  certificateSecret: wearables-tls
+
+certificate:
+  name: wearables-cert
+  secretName: wearables-tls
