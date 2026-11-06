@@ -12,7 +12,10 @@ RUN npm ci --no-audit --no-fund
 COPY . .
 
 # Expose port
+USER node
+
 EXPOSE 3001
 
 # Start the application
 CMD ["npm", "start"]
+
