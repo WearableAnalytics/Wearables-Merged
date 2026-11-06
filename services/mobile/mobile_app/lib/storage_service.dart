@@ -12,6 +12,10 @@ class StorageService {
   static const String _lastDataSendKey = 'last_data_send_time';
   static const String _initialSyncStartKey = 'initial_sync_start';
   static const String _rejectedCodeKey = 'rejected_code';
+  static const String _localHealthSyncEnabledKey = 'local_health_sync_enabled';
+  static const String _garminConnectedKey = 'garmin_cloud_connected';
+  static const String _garminUserIdKey = 'garmin_cloud_user_id';
+  static const String _garminLinkedAtKey = 'garmin_cloud_linked_at';
 
   /// Default look-back for the first upload when no start date was chosen.
   static const Duration defaultInitialWindow = Duration(days: 30);
@@ -134,6 +138,24 @@ class StorageService {
     }
   }
 
+  /// Extracts the patient/case identifier (`patientId`, `caseId`, or `sub`) & fallbacks
+  static String? patientIdFromCode(String? code) {
+    if (!isStudyCode(code)) return null;
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(code!.split('.')[1])),
+      );
+      final claims = jsonDecode(payload) as Map<String, dynamic>;
+      for (final key in ['patientId', 'caseId', 'sub']) {
+        final val = claims[key];
+        if (val is String && val.trim().isNotEmpty) {
+          return val.trim();
+        }
+      }
+    } catch (_) {}
+    return sha256.convert(utf8.encode(code!)).toString().substring(0, 16);
+  }
+
   /// Ingest endpoint specified in the QR code JWT (for local testing)
   /// Only in [kDebugMode]; release builds always ignore this
   static String? codeEndpoint(String? code) {
@@ -148,6 +170,41 @@ class StorageService {
         final trimmed = endpoint.trim();
         if (isAllowedDebugEndpoint(trimmed)) {
           return trimmed;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Cloud connector endpoint for local testing
+  /// Only in [kDebugMode]
+  static String? cloudEndpoint(String? code) {
+    if (!kDebugMode || !isStudyCode(code)) return null;
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(code!.split('.')[1])),
+      );
+      final map = jsonDecode(payload) as Map<String, dynamic>;
+      final explicit = map['cloudEndpoint'];
+      if (explicit is String && explicit.trim().isNotEmpty) {
+        final trimmed = explicit.trim();
+        if (isAllowedDebugEndpoint(trimmed)) {
+          return trimmed.endsWith('/')
+              ? trimmed.substring(0, trimmed.length - 1)
+              : trimmed;
+        }
+      }
+      final ingestEndpoint = codeEndpoint(code);
+      if (ingestEndpoint != null) {
+        final uri = Uri.tryParse(ingestEndpoint);
+        if (uri != null && uri.path.endsWith('/import/ingest')) {
+          final prefix = uri.path.substring(
+            0,
+            uri.path.length - '/import/ingest'.length,
+          );
+          return uri.replace(path: '$prefix/cloud').toString();
         }
       }
       return null;
@@ -226,5 +283,53 @@ class StorageService {
   static Future<void> setInitialSyncStart(DateTime start) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_initialSyncStartKey, start.millisecondsSinceEpoch);
+  }
+
+  /// Whether local phone health store sync is enabled. 
+  /// Defaults to `true` so local sensor uploads remains
+  static Future<bool> isLocalHealthSyncEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_localHealthSyncEnabledKey) ?? true;
+  }
+
+  static Future<void> setLocalHealthSyncEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_localHealthSyncEnabledKey, enabled);
+  }
+
+  /// Cached Garmin Cloud connection status for the linked participant
+  static Future<bool> isGarminConnected() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_garminConnectedKey) ?? false;
+  }
+
+  static Future<String?> getGarminUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_garminUserIdKey);
+  }
+
+  static Future<DateTime?> getGarminLinkedAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ts = prefs.getInt(_garminLinkedAtKey);
+    return ts != null ? DateTime.fromMillisecondsSinceEpoch(ts) : null;
+  }
+
+  static Future<void> setGarminConnection({
+    required bool connected,
+    String? providerUserId,
+    DateTime? linkedAt,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_garminConnectedKey, connected);
+    if (!connected || providerUserId == null) {
+      await prefs.remove(_garminUserIdKey);
+    } else {
+      await prefs.setString(_garminUserIdKey, providerUserId);
+    }
+    if (!connected || linkedAt == null) {
+      await prefs.remove(_garminLinkedAtKey);
+    } else {
+      await prefs.setInt(_garminLinkedAtKey, linkedAt.millisecondsSinceEpoch);
+    }
   }
 }
