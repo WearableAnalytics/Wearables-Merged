@@ -19,20 +19,41 @@ TIMEOUT="10m"
 # kafka.strimzi.io/v1 API; Traefik chart v28.0.0 matches the traefik:v3.0 image.
 STRIMZI_VERSION="1.0.0"
 TRAEFIK_CRDS="https://github.com/traefik/traefik-helm-chart/traefik/crds?ref=v28.0.0"
+ARGOCD_VERSION="v3.5.7"
+ARGOCD_MANIFEST="https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
+
+# The five applications Argo CD manages in --argocd mode (gitops/local/argocd/apps),
+# as <Argo CD application>:<Helm release>:<namespace>.
+ARGOCD_APPS=(
+  "cloud-connector:cloud-connector:cloud-connector"
+  "importservice:importservice:importservice"
+  "mapper-validator:mapper-validator:kafka"
+  "wearables-bff:wearables-bff:wearables-bff"
+  "web-frontend:web:web"
+)
 
 SKIP_BUILD=false
+USE_ARGOCD=false
+REVISION=""
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./gitops/local/setup-local.sh [--skip-build]
+  ./gitops/local/setup-local.sh [--skip-build] [--argocd [--revision <branch>]]
 
 Builds the service images into minikube and installs every chart with its
 values-local.yaml, in the order of gitops/local/README.md.
 
 Options:
-  --skip-build   do not rebuild the service images
-  -h, --help     show this help
+  --skip-build          do not rebuild the service images
+  --argocd              let Argo CD deploy cloud-connector, importservice,
+                        mapper-validator, wearables-bff and web from GitHub
+  --revision <branch>   the branch Argo CD reads from (default: main); it must
+                        be pushed, Argo CD does not see local changes
+  -h, --help            show this help
+
+Switching between the modes replaces these five deployments: --argocd removes
+their Helm releases, a run without --argocd removes their Argo CD applications.
 EOF
 }
 
@@ -65,13 +86,76 @@ install_chart() {
     --wait --timeout "$TIMEOUT" "$@"
 }
 
+argocd_root_exists() {
+  k get applications.argoproj.io wearables-local-root -n argocd >/dev/null 2>&1
+}
+
+# Helm mode on a cluster set up with --argocd: delete the applications. Their
+# finalizers make Argo CD delete the deployed resources first.
+remove_argocd_apps() {
+  argocd_root_exists || return 0
+  step "Removing the Argo CD applications (switching to Helm mode)"
+  k delete applications.argoproj.io wearables-local-root -n argocd --timeout="$TIMEOUT"
+  local entry
+  for entry in "${ARGOCD_APPS[@]}"; do
+    k wait applications.argoproj.io/"${entry%%:*}" -n argocd --for=delete --timeout="$TIMEOUT" >/dev/null 2>&1 || true
+  done
+}
+
+# --argocd on a cluster set up in Helm mode: uninstall the Helm releases, so
+# Argo CD creates the resources itself.
+remove_helm_releases() {
+  local entry rest release namespace
+  for entry in "${ARGOCD_APPS[@]}"; do
+    rest="${entry#*:}"
+    release="${rest%%:*}"
+    namespace="${rest#*:}"
+    if h status "$release" --namespace "$namespace" >/dev/null 2>&1; then
+      echo "uninstalling Helm release ${release} (${namespace})"
+      h uninstall "$release" --namespace "$namespace" --wait --timeout "$TIMEOUT"
+    fi
+  done
+}
+
+install_argocd() {
+  step "Argo CD ${ARGOCD_VERSION} (reading ${REVISION} from GitHub)"
+  ensure_namespace argocd
+  # Server-side apply: the CRDs are too large for the client-side annotation.
+  k apply -n argocd --server-side --force-conflicts -f "$ARGOCD_MANIFEST" >/dev/null
+  k wait -n argocd deployment --all --for=condition=Available --timeout="$TIMEOUT"
+  k rollout status -n argocd statefulset/argocd-application-controller --timeout="$TIMEOUT"
+
+  sed "s|__REVISION__|${REVISION}|g" "${SCRIPT_DIR}/argocd/root-app.yaml" | k apply -f -
+
+  local entry app
+  for entry in "${ARGOCD_APPS[@]}"; do
+    app="${entry%%:*}"
+    echo "waiting for ${app}"
+    # The root application creates the others; kubectl wait needs them to exist.
+    until k get applications.argoproj.io "$app" -n argocd >/dev/null 2>&1; do sleep 2; done
+    k wait applications.argoproj.io/"$app" -n argocd \
+      --for=jsonpath='{.status.sync.status}'=Synced --timeout="$TIMEOUT" >/dev/null
+    k wait applications.argoproj.io/"$app" -n argocd \
+      --for=jsonpath='{.status.health.status}'=Healthy --timeout="$TIMEOUT" >/dev/null
+  done
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
+    --argocd) USE_ARGOCD=true; shift ;;
+    --revision)
+      [[ $# -ge 2 ]] || die "--revision needs a branch"
+      REVISION="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1 (see --help)" ;;
   esac
 done
+
+if [[ -n "$REVISION" ]] && ! $USE_ARGOCD; then
+  die "--revision only works together with --argocd"
+fi
+REVISION="${REVISION:-main}"
 
 for tool in minikube kubectl helm openssl; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is required"
@@ -84,6 +168,12 @@ if ! $SKIP_BUILD; then
   "${SCRIPT_DIR}/build-local-images.sh"
 fi
 
+if $USE_ARGOCD; then
+  remove_helm_releases
+else
+  remove_argocd_apps
+fi
+
 step "Kafka (Strimzi ${STRIMZI_VERSION})"
 h upgrade --install strimzi-cluster-operator oci://quay.io/strimzi-helm/strimzi-kafka-operator \
   --version "$STRIMZI_VERSION" --namespace kafka --create-namespace --wait --timeout "$TIMEOUT"
@@ -91,8 +181,10 @@ install_chart kafka "${APPS}/platform/kafka" kafka
 # Helm does not wait for the Kafka custom resource; Strimzi reports readiness on it.
 k wait -n kafka kafka/kafka --for=condition=Ready --timeout="$TIMEOUT"
 
-step "FHIR mapper"
-install_chart mapper-validator "${APPS}/services/mapper-validator" kafka
+if ! $USE_ARGOCD; then
+  step "FHIR mapper"
+  install_chart mapper-validator "${APPS}/services/mapper-validator" kafka
+fi
 
 step "InfluxDB and Telegraf"
 install_chart influxdb "${APPS}/monitoring/influxdb" influx
@@ -126,11 +218,17 @@ if ! k get secret importservice-secrets -n importservice >/dev/null 2>&1; then
   k create secret generic importservice-secrets -n importservice \
     --from-literal=JWT_SECRET=dev-secret
 fi
-install_chart importservice "${APPS}/services/importservice" importservice
 
-step "wearables-bff and web frontend"
-install_chart wearables-bff "${APPS}/services/wearables-bff" wearables-bff
-install_chart web "${APPS}/web-frontend" web
+if $USE_ARGOCD; then
+  # Deploys the mapper, importservice, wearables-bff, web and cloud-connector.
+  install_argocd
+else
+  install_chart importservice "${APPS}/services/importservice" importservice
+
+  step "wearables-bff and web frontend"
+  install_chart wearables-bff "${APPS}/services/wearables-bff" wearables-bff
+  install_chart web "${APPS}/web-frontend" web
+fi
 
 step "Grafana and grafana-proxy"
 ensure_namespace grafana
@@ -159,8 +257,10 @@ step "Prometheus and db-stats-exporter"
 install_chart db-stats-exporter "${APPS}/monitoring/db-stats-exporter" db-lord
 install_chart prometheus "${APPS}/monitoring/prometheus" monitoring
 
-step "cloud-connector"
-install_chart cloud-connector "${APPS}/services/cloud-connector" cloud-connector
+if ! $USE_ARGOCD; then
+  step "cloud-connector"
+  install_chart cloud-connector "${APPS}/services/cloud-connector" cloud-connector
+fi
 
 step "Done"
 k get pods -A
@@ -171,3 +271,10 @@ Next:
        minikube tunnel
   2. Open http://wearables.localhost and log in with admin@example.com
 EOF
+if $USE_ARGOCD; then
+  cat <<'EOF'
+  3. Argo CD UI: kubectl port-forward -n argocd svc/argocd-server 8443:443
+     and open https://localhost:8443 (user admin, password:
+       kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' | base64 -d)
+EOF
+fi

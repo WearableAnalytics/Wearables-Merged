@@ -1,0 +1,25 @@
+# Root application of the local Argo CD mode (setup-local.sh --argocd).
+# __REVISION__ is replaced by the script with the branch Argo CD reads from.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: wearables-local-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/WearableAnalytics/Wearables-Merged.git
+    targetRevision: __REVISION__
+    path: gitops/local/argocd/apps
+    helm:
+      valuesObject:
+        revision: __REVISION__
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

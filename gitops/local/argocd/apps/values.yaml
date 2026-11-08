@@ -1,0 +1,22 @@
+repoURL: https://github.com/WearableAnalytics/Wearables-Merged.git
+revision: main                 # set by root-app.yaml (setup-local.sh --revision)
+
+# The same five applications as gitops/setup/argocd/apps, with values-local.yaml.
+# The release names match the Helm mode of setup-local.sh.
+apps:
+  - name: cloud-connector
+    path: gitops/apps/services/cloud-connector
+    namespace: cloud-connector
+  - name: importservice
+    path: gitops/apps/services/importservice
+    namespace: importservice
+  - name: mapper-validator
+    path: gitops/apps/services/mapper-validator
+    namespace: kafka
+  - name: wearables-bff
+    path: gitops/apps/services/wearables-bff
+    namespace: wearables-bff
+  - name: web-frontend
+    path: gitops/apps/web-frontend
+    namespace: web
+    releaseName: web
