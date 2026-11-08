@@ -18,6 +18,7 @@ SERVICES=(
   "extraction-service:services/backend/extraction-service"
   "importservice:services/backend/importservice"
   "mapper-validator:services/backend/fhir-mapper-validator"
+  "cloud-connector:services/backend/cloud-connector"
   "grafana-proxy:services/backend/grafana-proxy"
   "web:services/web"
 )
@@ -31,7 +32,7 @@ Builds the named services into minikube as wearables-local/<service>:dev,
 or all of them when none are named.
 
 Services: wearables-bff db-lord extraction-service importservice
-          mapper-validator grafana-proxy web
+          mapper-validator cloud-connector grafana-proxy web
 EOF
 }
 

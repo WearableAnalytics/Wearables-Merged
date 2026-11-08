@@ -159,6 +159,9 @@ step "Prometheus and db-stats-exporter"
 install_chart db-stats-exporter "${APPS}/monitoring/db-stats-exporter" db-lord
 install_chart prometheus "${APPS}/monitoring/prometheus" monitoring
 
+step "cloud-connector"
+install_chart cloud-connector "${APPS}/services/cloud-connector" cloud-connector
+
 step "Done"
 k get pods -A
 cat <<'EOF'

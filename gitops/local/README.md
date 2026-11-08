@@ -469,6 +469,36 @@ kubectl exec -n monitoring deployment/prometheus-server -- \
 
 The Prometheus UI is available with `kubectl port-forward -n monitoring svc/prometheus-service 9090:80` at http://localhost:9090. The platform dashboards ("Kafka Dashboard", "Wearables Platform Monitoring") are in Grafana's "Platform" folder (step 11).
 
+## 15. cloud-connector
+
+Fetches data from vendor clouds (currently Garmin) and publishes it to Kafka `wearables-raw`, like the importservice does for the app. Needs Kafka (step 3), Traefik with a running `minikube tunnel` (step 7) and the image from step 2 (`./gitops/local/build-local-images.sh cloud-connector`).
+
+```bash
+helm upgrade --install cloud-connector gitops/apps/services/cloud-connector \
+  -f gitops/apps/services/cloud-connector/values.yaml \
+  -f gitops/apps/services/cloud-connector/values-local.yaml \
+  --namespace cloud-connector --create-namespace
+```
+
+Locally the route listens on `http://wearables.localhost/cloud/...` over plain HTTP, and the linked accounts are kept on a 1 Gi volume (`connections.json`).
+
+```bash
+curl http://wearables.localhost/cloud/health        # {"status":"ok","service":"wearables-cloud-connector",...}
+curl http://wearables.localhost/cloud/providers     # {"available_providers":["garmin"]}
+curl http://wearables.localhost/cloud/connections   # {"connections":[]}
+```
+
+Without Garmin credentials only these endpoints are useful locally. Linking an account needs `GARMIN_CLIENT_ID` and `GARMIN_CLIENT_SECRET` in the secret `cloud-connector-secrets` (the chart treats it as optional), and Garmin's OAuth callback and webhooks need a public HTTPS URL, which `wearables.localhost` is not.
+
+The service only connects to Kafka when it publishes. To check that it can reach Kafka anyway:
+
+```bash
+kubectl exec -n cloud-connector deploy/cloud-connector -- python -c "
+from confluent_kafka.admin import AdminClient
+md = AdminClient({'bootstrap.servers':'kafka-kafka-bootstrap.kafka.svc.cluster.local:9092'}).list_topics(timeout=10)
+print('wearables-raw' in md.topics)"   # True
+```
+
 ## Stopping and resetting
 
 ```bash
