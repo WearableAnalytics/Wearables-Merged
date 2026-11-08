@@ -1,4 +1,5 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import type { NextFunction, Request, Response } from 'express';
 import { Readable } from 'stream';
 import type { ReadableStream as WebReadableStream } from 'stream/web';
@@ -13,10 +14,48 @@ import { checkApiToken } from '../../services/apiTokens.js';
  *
  * Access: a logged-in, approved researcher or admin (session cookie), or a
  * personal API token from the web app's API Access page as a Bearer token.
+ * The caller is forwarded to the extraction service as a short-lived signed JWT
+ * (`X-Extraction-Principal`), which checks the roles again before exporting.
  */
 const router = express.Router();
 
 const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'cache-control'];
+
+export const PRINCIPAL_HEADER = 'x-extraction-principal';
+const PRINCIPAL_AUDIENCE = 'extraction-service';
+const PRINCIPAL_TTL_SECONDS = 60;
+
+/** Who is calling the extraction API. Read by the extraction service (src/app/auth.py). */
+export interface ExtractionPrincipal {
+  subject: string;
+  roles: string[];
+  auth: 'session' | 'api_token';
+  /** `unverified`: API token whose owner is not in the in-memory user store, so no roles are known. */
+  roleSource: 'verified' | 'unverified';
+  tokenId?: string;
+}
+
+const rolesOf = (user: { isAdmin?: boolean; roles?: readonly string[] }): string[] => [
+  ...(user.isAdmin ? ['admin'] : []),
+  ...(user.roles ?? []),
+];
+
+export const signPrincipal = (principal: ExtractionPrincipal, secret: string): string =>
+  jwt.sign(
+    {
+      roles: principal.roles,
+      auth: principal.auth,
+      role_source: principal.roleSource,
+      ...(principal.tokenId ? { token_id: principal.tokenId } : {}),
+    },
+    secret,
+    {
+      algorithm: 'HS256',
+      audience: PRINCIPAL_AUDIENCE,
+      subject: principal.subject,
+      expiresIn: PRINCIPAL_TTL_SECONDS,
+    },
+  );
 
 const bearerToken = (req: Request): string | undefined => {
   const header = req.headers.authorization;
@@ -38,6 +77,13 @@ export const requireExtractionAccess = async (
         return;
       }
       res.locals.apiTokenOwner = check.record.owner_email;
+      res.locals.extractionPrincipal = {
+        subject: check.record.owner_email,
+        roles: check.owner ? rolesOf(check.owner) : [],
+        auth: 'api_token',
+        roleSource: check.owner ? 'verified' : 'unverified',
+        tokenId: check.record.id,
+      } satisfies ExtractionPrincipal;
       next();
     } catch (error) {
       logger.error('API token check failed', error as Error);
@@ -60,11 +106,17 @@ export const requireExtractionAccess = async (
     return;
   }
   req.user = user;
+  res.locals.extractionPrincipal = {
+    subject: user.email,
+    roles: rolesOf(user),
+    auth: 'session',
+    roleSource: 'verified',
+  } satisfies ExtractionPrincipal;
   next();
 };
 
 router.get('/*', requireExtractionAccess, async (req: Request, res: Response) => {
-  if (!config.extractionApiUrl) {
+  if (!config.extractionApiUrl || !config.extractionInternalJwtSecret) {
     res.status(503).json({ error: 'Extraction API is not configured' });
     return;
   }
@@ -76,7 +128,13 @@ router.get('/*', requireExtractionAccess, async (req: Request, res: Response) =>
 
   try {
     const upstream = await fetch(target, {
-      headers: { accept: req.headers.accept ?? '*/*' },
+      headers: {
+        accept: req.headers.accept ?? '*/*',
+        [PRINCIPAL_HEADER]: signPrincipal(
+          res.locals.extractionPrincipal as ExtractionPrincipal,
+          config.extractionInternalJwtSecret,
+        ),
+      },
       signal: abort.signal,
     });
 

@@ -63,6 +63,8 @@ This script:
 - ensures one shared JWT secret is used by both BFF and Grafana proxy
 - applies `wearables-bff-secrets` in namespace `wearables-bff`
 - applies `grafana-auth-secrets` in namespace `monitoring`
+- ensures one `EXTRACTION_INTERNAL_JWT_SECRET` is shared by the BFF (`wearables-bff-secrets`) and the
+  extraction service (`extraction-service-auth` in namespace `extraction-service`)
 
 ## 2. Deploy wearables-bff
 

@@ -16,6 +16,7 @@ from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, StreamingResponse
 
+from .auth import require_export_access
 from .clients import create_db_lord_client
 from .db_lord_api import DbLordApi
 from .fhir import ObservationBuilder
@@ -107,6 +108,8 @@ def get_db_lord_api(request: Request) -> DbLordApi:
 
 
 DbLordDep = Annotated[DbLordApi, Depends(get_db_lord_api)]
+# Added to every /v1 route: only callers the BFF signed with an export role get data.
+EXPORT_ACCESS = [Depends(require_export_access)]
 
 
 def as_utc(value: datetime | None) -> datetime | None:
@@ -150,6 +153,7 @@ async def health():
     "/v1/measurements/types",
     response_model=list[MeasurementType],
     tags=["measurements"],
+    dependencies=EXPORT_ACCESS,
     summary="List measurement types",
 )
 async def list_measurement_types(api: DbLordDep):
@@ -167,6 +171,7 @@ async def list_measurement_types(api: DbLordDep):
     "/v1/measurements",
     response_model=MeasurementPage,
     tags=["measurements"],
+    dependencies=EXPORT_ACCESS,
     summary="Read measurements page by page",
     description="Newest readings first. Pass `next_end` as `end` to get the next page until `has_more` is false. "
     "A page can hold slightly more than `limit` readings so that no timestamp is split across pages.",
@@ -192,6 +197,7 @@ def csv_line(values: list) -> str:
 @app.get(
     "/v1/measurements/export.csv",
     tags=["export"],
+    dependencies=EXPORT_ACCESS,
     summary="Export measurements as CSV",
     description="Streams all matching readings, newest first. `fields` holds any extra fields as JSON.",
     response_class=StreamingResponse,
@@ -228,6 +234,7 @@ async def export_measurements_csv(
 @app.get(
     "/v1/measurements/export.fhir",
     tags=["export"],
+    dependencies=EXPORT_ACCESS,
     summary="Export measurements as a FHIR Bundle",
     description="Streams a FHIR R4 `collection` Bundle with one Observation per reading. Readings whose type has "
     "no FHIR mapping are left out.",

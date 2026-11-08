@@ -133,6 +133,13 @@ if (extractionApiUrlRaw) {
   }
 }
 const extractionApiUrl = extractionApiUrlRaw?.replace(/\/$/, '');
+// Signs the caller forwarded to the extraction service (same value there). Required with EXTRACTION_API_URL.
+const extractionInternalJwtSecret = optionalEnv('EXTRACTION_INTERNAL_JWT_SECRET');
+if (extractionApiUrl && !extractionInternalJwtSecret) {
+  throw new Error(
+    'Invalid configuration: EXTRACTION_INTERNAL_JWT_SECRET is required when EXTRACTION_API_URL is set.',
+  );
+}
 
 // Strict env-driven auth/token configuration.
 const authSessionExpirySeconds = requirePositiveIntEnv('AUTH_SESSION_EXPIRY_SECONDS');
@@ -228,6 +235,7 @@ export const config = {
   tokenIssuer,
   adminEmails,
   extractionApiUrl,
+  extractionInternalJwtSecret,
   databaseApi: {
     baseUrl: databaseApiUrl,
     timeout: databaseApiTimeout,

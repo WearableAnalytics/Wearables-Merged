@@ -12,6 +12,9 @@ service:
   port: 8010
 
 secretRef: "extraction-service-secrets"
+# Holds EXTRACTION_INTERNAL_JWT_SECRET (shared with the BFF). Created by
+# scripts/bootstrap-runtime-secrets.sh; the pod waits until it exists.
+authSecretRef: "extraction-service-auth"
 
 env:
   DB_LORD_BASE_URL: "http://db-lord.db-lord.svc.cluster.local:8080"

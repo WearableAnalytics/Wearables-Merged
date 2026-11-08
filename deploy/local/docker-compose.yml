@@ -16,6 +16,10 @@ name: wearables
 x-jwt-env: &jwt-env
   JWT_SECRET: ${JWT_SECRET:-dev-secret}
 
+# The BFF signs the caller it forwards to the extraction service with this.
+x-extraction-env: &extraction-env
+  EXTRACTION_INTERNAL_JWT_SECRET: ${EXTRACTION_INTERNAL_JWT_SECRET:-dev-extraction-secret-change-me-32b}
+
 x-influx-env: &influx-env
   INFLUX_URL: http://influxdb:8086
   INFLUX_ORG: ${INFLUX_ORG:-wearables-project}
@@ -232,6 +236,7 @@ services:
   extraction-service:
     build: ../../services/backend/extraction-service
     environment:
+      <<: *extraction-env
       DB_LORD_BASE_URL: http://db-lord:8000
       # Served through the BFF at /api/extraction (Swagger at /api/extraction/docs).
       ROOT_PATH: /api/extraction
@@ -241,7 +246,7 @@ services:
   wearables-bff:
     build: ../../services/backend/wearables-bff
     environment:
-      <<: *jwt-env
+      <<: [*jwt-env, *extraction-env]
       PORT: 3001
       NODE_ENV: development
       API_PREFIX: /api

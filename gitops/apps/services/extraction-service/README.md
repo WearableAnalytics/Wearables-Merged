@@ -9,6 +9,10 @@ env:
   DB_LORD_BASE_URL: "http://db-lord.db-lord.svc.cluster.local:8080"
 ```
 
+The pod also reads the Secret `extraction-service-auth` (`authSecretRef`), which holds
+`EXTRACTION_INTERNAL_JWT_SECRET`. It must match the BFF's and is created for both by
+`scripts/bootstrap-runtime-secrets.sh`. The pod does not start until it exists.
+
 ## Accessing the Service
 
 Within the cluster:

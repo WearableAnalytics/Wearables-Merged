@@ -52,3 +52,5 @@ secret:
   data:
     JWT_SECRET: "dev-secret"
     BREVO_API_KEY: "key"
+    # Must match the extraction service's (see scripts/bootstrap-runtime-secrets.sh).
+    EXTRACTION_INTERNAL_JWT_SECRET: "dev-extraction-secret-change-me-32b"

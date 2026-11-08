@@ -8,12 +8,16 @@ BFF_NAMESPACE="${BFF_NAMESPACE:-wearables-bff}"
 BFF_SECRET_NAME="${BFF_SECRET_NAME:-wearables-bff-secrets}"
 GRAFANA_NAMESPACE="${GRAFANA_NAMESPACE:-monitoring}"
 GRAFANA_SECRET_NAME="${GRAFANA_SECRET_NAME:-grafana-auth-secrets}"
+EXTRACTION_NAMESPACE="${EXTRACTION_NAMESPACE:-extraction-service}"
+EXTRACTION_AUTH_SECRET_NAME="${EXTRACTION_AUTH_SECRET_NAME:-extraction-service-auth}"
 GRAFANA_JWT_PRIVATE_KEY_PATH="${GRAFANA_JWT_PRIVATE_KEY_PATH:-${REPO_ROOT}/secrets/grafana-jwt-private.pem}"
 GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING="${GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING:-true}"
 
 BREVO_API_KEY="${BREVO_API_KEY:-}"
 SHARED_APP_JWT_SECRET="${SHARED_APP_JWT_SECRET:-}"
 ROTATE_SHARED_APP_JWT_SECRET="${ROTATE_SHARED_APP_JWT_SECRET:-false}"
+EXTRACTION_INTERNAL_JWT_SECRET="${EXTRACTION_INTERNAL_JWT_SECRET:-}"
+ROTATE_EXTRACTION_INTERNAL_JWT_SECRET="${ROTATE_EXTRACTION_INTERNAL_JWT_SECRET:-false}"
 
 usage() {
   cat <<'EOF'
@@ -30,6 +34,10 @@ Environment variables:
   BREVO_API_KEY                       (optional)
   SHARED_APP_JWT_SECRET               (optional; overrides auto-discovery/generation)
   ROTATE_SHARED_APP_JWT_SECRET        (default: false; set true to force new random value)
+  EXTRACTION_NAMESPACE                (default: extraction-service)
+  EXTRACTION_AUTH_SECRET_NAME         (default: extraction-service-auth)
+  EXTRACTION_INTERNAL_JWT_SECRET      (optional; overrides auto-discovery/generation)
+  ROTATE_EXTRACTION_INTERNAL_JWT_SECRET (default: false; set true to force new random value)
 
 Behavior:
   - Ensures namespaces exist.
@@ -37,6 +45,11 @@ Behavior:
   - Generates one shared JWT secret and applies it to:
       * wearables-bff secret key: JWT_SECRET
       * grafana-auth secret key: APP_JWT_SECRET
+  - Generates one extraction secret (the BFF signs the caller it forwards to the
+    extraction service with it) and applies it to:
+      * wearables-bff secret key: EXTRACTION_INTERNAL_JWT_SECRET
+      * extraction-service-auth secret key: EXTRACTION_INTERNAL_JWT_SECRET
+    Restart both deployments after rotating it.
   - Applies grafana private key from GRAFANA_JWT_PRIVATE_KEY_PATH.
   - Optionally generates a new RSA private key at GRAFANA_JWT_PRIVATE_KEY_PATH when missing.
 EOF
@@ -135,14 +148,50 @@ select_shared_jwt_secret() {
   openssl rand -base64 48
 }
 
+select_extraction_internal_jwt_secret() {
+  local existing
+
+  if [[ "${ROTATE_EXTRACTION_INTERNAL_JWT_SECRET}" == "true" ]]; then
+    echo "Rotation enabled: generating a new extraction secret." >&2
+    openssl rand -base64 48
+    return 0
+  fi
+
+  if [[ -n "${EXTRACTION_INTERNAL_JWT_SECRET}" ]]; then
+    echo "Using EXTRACTION_INTERNAL_JWT_SECRET from environment." >&2
+    printf '%s' "${EXTRACTION_INTERNAL_JWT_SECRET}"
+    return 0
+  fi
+
+  existing="$(read_secret_key "${EXTRACTION_NAMESPACE}" "${EXTRACTION_AUTH_SECRET_NAME}" "EXTRACTION_INTERNAL_JWT_SECRET")"
+  if [[ -z "${existing}" ]]; then
+    existing="$(read_secret_key "${BFF_NAMESPACE}" "${BFF_SECRET_NAME}" "EXTRACTION_INTERNAL_JWT_SECRET")"
+  fi
+  if [[ -n "${existing}" ]]; then
+    echo "Reusing existing EXTRACTION_INTERNAL_JWT_SECRET." >&2
+    printf '%s' "${existing}"
+    return 0
+  fi
+
+  echo "Generating new extraction secret." >&2
+  openssl rand -base64 48
+}
+
 ensure_namespace "${BFF_NAMESPACE}"
 ensure_namespace "${GRAFANA_NAMESPACE}"
+ensure_namespace "${EXTRACTION_NAMESPACE}"
 
 SHARED_APP_JWT_SECRET="$(select_shared_jwt_secret)"
+EXTRACTION_INTERNAL_JWT_SECRET="$(select_extraction_internal_jwt_secret)"
 
 kubectl -n "${BFF_NAMESPACE}" create secret generic "${BFF_SECRET_NAME}" \
   --from-literal=JWT_SECRET="${SHARED_APP_JWT_SECRET}" \
   --from-literal=BREVO_API_KEY="${BREVO_API_KEY}" \
+  --from-literal=EXTRACTION_INTERNAL_JWT_SECRET="${EXTRACTION_INTERNAL_JWT_SECRET}" \
+  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+kubectl -n "${EXTRACTION_NAMESPACE}" create secret generic "${EXTRACTION_AUTH_SECRET_NAME}" \
+  --from-literal=EXTRACTION_INTERNAL_JWT_SECRET="${EXTRACTION_INTERNAL_JWT_SECRET}" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 kubectl -n "${GRAFANA_NAMESPACE}" create secret generic "${GRAFANA_SECRET_NAME}" \
@@ -151,5 +200,6 @@ kubectl -n "${GRAFANA_NAMESPACE}" create secret generic "${GRAFANA_SECRET_NAME}"
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 echo "Applied secrets:"
-echo "  - ${BFF_NAMESPACE}/${BFF_SECRET_NAME} (JWT_SECRET, BREVO_API_KEY)"
+echo "  - ${BFF_NAMESPACE}/${BFF_SECRET_NAME} (JWT_SECRET, BREVO_API_KEY, EXTRACTION_INTERNAL_JWT_SECRET)"
+echo "  - ${EXTRACTION_NAMESPACE}/${EXTRACTION_AUTH_SECRET_NAME} (EXTRACTION_INTERNAL_JWT_SECRET)"
 echo "  - ${GRAFANA_NAMESPACE}/${GRAFANA_SECRET_NAME} (GRAFANA_JWT_PRIVATE_KEY, APP_JWT_SECRET)"

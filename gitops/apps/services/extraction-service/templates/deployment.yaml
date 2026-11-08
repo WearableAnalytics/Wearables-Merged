@@ -24,6 +24,8 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.secretRef }}
+            - secretRef:
+                name: {{ .Values.authSecretRef }}
           {{- with .Values.config }}
           env:
             {{- range $key, $value := . }}
