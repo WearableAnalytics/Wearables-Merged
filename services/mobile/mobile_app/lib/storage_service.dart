@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'package:crypto/crypto.dart';
+import 'services/health_upload.dart';
 
 // Storage utility functions
 class StorageService {
@@ -33,6 +36,49 @@ class StorageService {
     return deviceId;
   }
 
+  /// Collector identity is independent of the study authentication token.
+  static Future<String> getOrCreateCollectorId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getString('collector_id');
+    if (existing != null) return existing;
+    final id = newUploadKey();
+    if (!await prefs.setString('collector_id', id)) {
+      throw StateError('Unable to persist collector identity');
+    }
+    return id;
+  }
+
+  static String _receiptKey(String token) =>
+      'upload_receipts_${sha256.convert(utf8.encode(token))}';
+
+  /// Receipts contain progress metadata only, never request bodies or tokens.
+  /// Retained by linked credential, so a different study cannot see them.
+  static Future<void> saveUploadReceipt(
+    String token,
+    Map<String, dynamic> receipt,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _receiptKey(token);
+    final receipts =
+        jsonDecode(prefs.getString(key) ?? '{}') as Map<String, dynamic>;
+    receipts[receipt['acceptanceId'] as String] = receipt;
+    if (!await prefs.setString(key, jsonEncode(receipts))) {
+      throw StateError('Unable to persist upload receipt');
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getUploadReceipts(
+    String token,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final receipts =
+        jsonDecode(prefs.getString(_receiptKey(token)) ?? '{}')
+            as Map<String, dynamic>;
+    return receipts.values
+        .map((value) => Map<String, dynamic>.from(value as Map))
+        .toList();
+  }
+
   // Get the last time data was sent
   static Future<DateTime?> getLastDataSendTime() async {
     final prefs = await SharedPreferences.getInstance();
@@ -46,7 +92,9 @@ class StorageService {
   static Future<void> updateLastDataSendTime([DateTime? time]) async {
     final prefs = await SharedPreferences.getInstance();
     final timestamp = (time ?? DateTime.now()).millisecondsSinceEpoch;
-    await prefs.setInt(_lastDataSendKey, timestamp);
+    if (!await prefs.setInt(_lastDataSendKey, timestamp)) {
+      throw StateError('Unable to persist upload checkpoint');
+    }
   }
 
   // Set a custom device ID (for testing)
@@ -86,6 +134,46 @@ class StorageService {
     }
   }
 
+  /// Ingest endpoint specified in the QR code JWT (for local testing)
+  /// Only in [kDebugMode]; release builds always ignore this
+  static String? codeEndpoint(String? code) {
+    if (!kDebugMode || !isStudyCode(code)) return null;
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(code!.split('.')[1])),
+      );
+      final endpoint =
+          (jsonDecode(payload) as Map<String, dynamic>)['endpoint'];
+      if (endpoint is String && endpoint.trim().isNotEmpty) {
+        final trimmed = endpoint.trim();
+        if (isAllowedDebugEndpoint(trimmed)) {
+          return trimmed;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Validates custom debug endpoints:
+  /// - [https] is always permitted
+  /// - [http] is strictly limited to localhost and private LANs (10.x, 192.168.x, 172.16-31.x)
+  static bool isAllowedDebugEndpoint(String url) {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null) return false;
+    if (uri.scheme == 'https') return true;
+    if (uri.scheme == 'http') {
+      final host = uri.host.toLowerCase();
+      if (host == 'localhost' || host == '127.0.0.1') return true;
+      if (host.startsWith('10.') || host.startsWith('192.168.')) return true;
+      final rfc1918_172 = RegExp(r'^172\.(1[6-9]|2[0-9]|3[0-1])\.');
+      if (rfc1918_172.hasMatch(host)) return true;
+      return false;
+    }
+    return false;
+  }
+
   static bool isCodeExpired(String? code, {DateTime? now}) {
     final expiry = codeExpiry(code);
     return expiry != null && !expiry.isAfter(now ?? DateTime.now());
@@ -96,6 +184,22 @@ class StorageService {
   static Future<void> markCodeRejected(String code) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_rejectedCodeKey, code);
+  }
+
+  /// Whether currently linked code was marked rejected by server
+  static Future<bool> isLinkedCodeRejected() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString(_deviceIdKey);
+    if (!isStudyCode(code)) return false;
+    return prefs.getString(_rejectedCodeKey) == code;
+  }
+
+  /// Whether currently linked code has expired by its exp timestamp
+  static Future<bool> isLinkedCodeExpired() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString(_deviceIdKey);
+    if (!isStudyCode(code)) return false;
+    return isCodeExpired(code);
   }
 
   /// The linked code has expired or was refused by the server; uploads

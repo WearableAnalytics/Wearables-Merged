@@ -4,9 +4,6 @@ image:
   tag: dev
   pullPolicy: Never                 # use the image built into minikube
 
-securityContext:
-  runAsUser: 1000                   # node user of the base image; the image itself runs as root
-
 ingress:
   host: wearables.localhost         # Prod: wearables.charite.de
   httpOnly: true

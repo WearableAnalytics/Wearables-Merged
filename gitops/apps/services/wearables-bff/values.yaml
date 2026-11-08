@@ -11,11 +11,6 @@ service:
   type: ClusterIP
   port: 3001
 
-# The container must run as non-root, but the image does not set a user.
-# Set a numeric user id here (e.g. 1000, the node user of the base image).
-securityContext:
-  runAsUser: null
-
 ingress:
   enabled: true
   host: "wearables.charite.de"

@@ -1,0 +1,13 @@
+{{- if not .Values.ingress.httpOnly }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.certificate.name }}
+spec:
+  secretName: {{ .Values.certificate.secretName }}
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - {{ .Values.ingress.host }}
+{{- end }}

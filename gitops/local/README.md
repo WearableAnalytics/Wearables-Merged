@@ -284,7 +284,6 @@ Local differences:
 - Admin login: `admin@example.com` (`ADMIN_EMAILS`).
 - URLs point to `http://wearables.localhost`; the API is served at `http://wearables.localhost/api`.
 - The chart creates its own secret with `JWT_SECRET: dev-secret`, the same value as the importservice secret in step 8, so case tokens issued by the BFF are accepted by the importservice.
-- `securityContext.runAsUser: 1000`: the chart requires a non-root container, but the image does not set a user and would be refused with `container has runAsNonRoot and image will run as root`. 1000 is the `node` user of the base image.
 
 Check login and the connection to db_lord:
 

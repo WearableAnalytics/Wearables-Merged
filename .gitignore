@@ -125,3 +125,4 @@ app.*.map.json
 # Ansible generated files
 infra/ansible/inventory/hosts.yml
 infra/kubeconfig.yaml
+.kotlin/

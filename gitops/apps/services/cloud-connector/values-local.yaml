@@ -1,0 +1,17 @@
+replicaCount: 1
+
+image:
+  repository: wearables-local/cloud-connector
+  tag: dev
+  pullPolicy: Never
+
+env:
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  PUBLIC_BASE_URL: "http://wearables.localhost"
+
+ingress:
+  host: "wearables.localhost"
+  httpOnly: true
+
+persistence:
+  storageClass: standard
