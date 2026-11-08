@@ -509,7 +509,7 @@ Production deploys cloud-connector, importservice, mapper-validator, wearables-b
 ./gitops/local/setup-local.sh --argocd --revision feat/my-branch   # default revision: main
 ```
 
-The script then installs Argo CD (pinned to v3.5.7) and applies `gitops/local/argocd/root-app.yaml`. This root application deploys the chart in `gitops/local/argocd/apps`, which creates the five applications: the same as in production, but with `values.yaml` plus `values-local.yaml` and the same release names as in Helm mode (the web frontend's release is `web`). Everything else (Kafka, Postgres, Traefik, Grafana, the secrets, ...) is still installed by Helm.
+The script then installs Argo CD (pinned to v3.5.7) and applies `gitops/local/argocd/root-app.yaml`. This root application deploys the same chart as production, `gitops/setup/argocd/apps`, with its `values-local.yaml`. The chart creates the five applications: the same as in production, but they pass `values.yaml` plus `values-local.yaml` to the service charts, and deleting one also deletes its resources. The release names are the same as in Helm mode and production (the web frontend's release is `web`). Everything else (Kafka, Postgres, Traefik, Grafana, the secrets, ...) is still installed by Helm.
 
 Use Helm mode (without `--argocd`) for day-to-day development: a change is in the cluster with one `helm upgrade`. Argo CD mode is slower, but behaves like production (automatic sync, self-heal, prune).
 
@@ -550,7 +550,7 @@ There are no Helm releases for the five services, so `helm uninstall` reports `r
 | The root application `wearables-local-root` | All five applications and their resources are removed and stay removed. |
 | A namespace | Argo CD recreates the namespace and its resources, but not the secrets created by the script (e.g. `importservice-secrets`); run `setup-local.sh` again. |
 
-Manual changes to a deployment are reverted the same way. To remove an application for good, delete it from `gitops/local/argocd/apps/values.yaml` and push (prune removes it). To change things by hand for a while, turn off automated sync for that application in the Argo CD UI first.
+Manual changes to a deployment are reverted the same way. To remove an application for good, delete it from `gitops/setup/argocd/apps/values.yaml` and push (prune removes it; this also removes it in production once it is on main). To change things by hand for a while, turn off automated sync for that application in the Argo CD UI first.
 
 ### Switching modes
 

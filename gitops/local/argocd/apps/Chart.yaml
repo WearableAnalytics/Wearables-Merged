@@ -1,5 +1,0 @@
-apiVersion: v2
-name: wearables-local-apps
-description: Argo CD applications for the local minikube cluster
-type: application
-version: 0.1.0

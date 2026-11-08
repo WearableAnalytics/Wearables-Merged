@@ -1,0 +1,6 @@
+# Local minikube cluster (setup-local.sh --argocd): only the differences to values.yaml.
+valueFiles:
+  - values.yaml
+  - values-local.yaml
+
+deleteResources: true

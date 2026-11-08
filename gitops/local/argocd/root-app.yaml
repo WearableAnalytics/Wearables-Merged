@@ -1,5 +1,7 @@
-# Root application of the local Argo CD mode (setup-local.sh --argocd).
-# __REVISION__ is replaced by the script with the branch Argo CD reads from.
+# Root application of the local Argo CD mode (setup-local.sh --argocd). It uses
+# the same chart as production (gitops/setup/argocd/root-app.yaml), plus
+# values-local.yaml. __REVISION__ is replaced by the script with the branch
+# Argo CD reads from.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -12,8 +14,11 @@ spec:
   source:
     repoURL: https://github.com/WearableAnalytics/Wearables-Merged.git
     targetRevision: __REVISION__
-    path: gitops/local/argocd/apps
+    path: gitops/setup/argocd/apps
     helm:
+      valueFiles:
+        - values.yaml
+        - values-local.yaml
       valuesObject:
         revision: __REVISION__
   destination:

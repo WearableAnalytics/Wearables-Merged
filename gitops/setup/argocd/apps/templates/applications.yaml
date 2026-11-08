@@ -5,10 +5,10 @@ kind: Application
 metadata:
   name: {{ .name }}
   namespace: argocd
-  # Deleting the application also deletes its resources, so the Helm mode can
-  # install the chart again afterwards.
+  {{- if $.Values.deleteResources }}
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  {{- end }}
 spec:
   project: default
   source:
@@ -16,10 +16,13 @@ spec:
     targetRevision: {{ $.Values.revision }}
     path: {{ .path }}
     helm:
-      releaseName: {{ .releaseName | default .name }}
+      {{- with .releaseName }}
+      releaseName: {{ . }}
+      {{- end }}
       valueFiles:
-        - values.yaml
-        - values-local.yaml
+        {{- range $.Values.valueFiles }}
+        - {{ . }}
+        {{- end }}
   destination:
     server: https://kubernetes.default.svc
     namespace: {{ .namespace }}

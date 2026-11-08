@@ -22,7 +22,7 @@ TRAEFIK_CRDS="https://github.com/traefik/traefik-helm-chart/traefik/crds?ref=v28
 ARGOCD_VERSION="v3.5.7"
 ARGOCD_MANIFEST="https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
 
-# The five applications Argo CD manages in --argocd mode (gitops/local/argocd/apps),
+# The five applications Argo CD manages in --argocd mode (gitops/setup/argocd/apps),
 # as <Argo CD application>:<Helm release>:<namespace>.
 ARGOCD_APPS=(
   "cloud-connector:cloud-connector:cloud-connector"
