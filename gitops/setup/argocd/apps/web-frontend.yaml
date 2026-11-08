@@ -10,7 +10,6 @@ spec:
     targetRevision: main
     path: gitops/apps/web-frontend
     helm:
-      releaseName: web
       valueFiles:
         - values.yaml
   destination:
