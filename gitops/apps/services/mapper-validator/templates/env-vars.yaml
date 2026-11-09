@@ -12,3 +12,6 @@ data:
   NUM_STREAM_THREADS: {{ .Values.envs.numStreamThreads | quote }}
   PARTITIONS: {{ .Values.envs.partitions | quote }}
   VALIDATION_FREQUENCY: {{ .Values.envs.validationFrequency | quote }}
+  {{- with .Values.envs.javaToolOptions }}
+  JAVA_TOOL_OPTIONS: {{ . | quote }}
+  {{- end }}

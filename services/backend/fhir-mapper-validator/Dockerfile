@@ -27,4 +27,7 @@ ENV LOG_LEVEL=${LOG_LEVEL}
 
 # Environment variables are set through k8s
 
-ENTRYPOINT ["java", "-Xmx3500m", "-jar", "/app/app.jar"]
+# Heap size can be overridden at runtime; defaults to the previous fixed value.
+ENV JAVA_TOOL_OPTIONS="-Xmx3500m"
+
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

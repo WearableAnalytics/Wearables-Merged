@@ -1,0 +1,10 @@
+# Local minikube: small volume, short history, faster db-stats scrape.
+persistence:
+  size: 2Gi                  # Prod: 5Gi
+  storageClassName: standard # Prod: cinder-csi
+
+retention: 7d                # Prod: 90d
+
+scrape:
+  dbStats:
+    interval: 1m             # Prod: 15m

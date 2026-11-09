@@ -1,0 +1,8 @@
+# Local minikube: one consumer, writes to the auto-created InfluxDB setup.
+replicas: 1                  # Prod: 3
+
+config:
+  influxProducer:
+    org: wearables-project
+    bucket: measurements
+    token: dev-influx-token  # must match influxdb initSetup.token

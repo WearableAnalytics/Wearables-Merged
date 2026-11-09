@@ -1,0 +1,5 @@
+apiVersion: v2
+name: wearables-apps
+description: Argo CD applications of the Wearables platform (production and local minikube)
+type: application
+version: 0.1.0

@@ -1,0 +1,27 @@
+# Production: rendered by root-app.yaml from main.
+# The local minikube cluster adds values-local.yaml (gitops/local/argocd/root-app.yaml).
+repoURL: https://github.com/WearableAnalytics/Wearables-Merged.git
+revision: main
+
+valueFiles:
+  - values.yaml
+
+deleteResources: false
+
+apps:
+  - name: cloud-connector
+    path: gitops/apps/services/cloud-connector
+    namespace: cloud-connector
+  - name: importservice
+    path: gitops/apps/services/importservice
+    namespace: importservice
+  - name: mapper-validator
+    path: gitops/apps/services/mapper-validator
+    namespace: kafka
+  - name: wearables-bff
+    path: gitops/apps/services/wearables-bff
+    namespace: wearables-bff
+  - name: web-frontend
+    path: gitops/apps/web-frontend
+    namespace: web
+    releaseName: web          # as in setup-script.sh
