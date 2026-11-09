@@ -42,7 +42,7 @@ env:
   EXTRACTION_API_URL: "http://extraction-service.extraction-service.svc.cluster.local:8010"
   LOG_LEVEL: "info"
   MAILER_FROM_NAME: "Wearables Platform"
-  MAILER_FROM_EMAIL: "jmm123@posteo.de"
+  MAILER_FROM_EMAIL: "noreply@wearables.charite.de"
   COOKIE_SECURE: "false"
 
 secret:
@@ -51,4 +51,4 @@ secret:
   name: ""
   data:
     JWT_SECRET: "dev-secret"
-    BREVO_API_KEY: "key"
+    BREVO_API_KEY: "disabled"
