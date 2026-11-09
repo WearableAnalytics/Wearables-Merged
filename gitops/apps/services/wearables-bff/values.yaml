@@ -15,7 +15,7 @@ ingress:
   enabled: true
   host: "wearables.charite.de"
   pathPrefix: "/api"
-  httpOnly: true
+  httpOnly: false
   certificateSecretName: "wearables-tls"
 
 configMap:
@@ -27,10 +27,10 @@ env:
   API_PREFIX: "/api"
   USE_MOCK_DATA: "false"
   NODE_ENV: "production"
-  FRONTEND_ORIGINS: ""
-  FRONTEND_REDIRECT_URL: ""
-  ADMIN_EMAILS: "linus.gustafsson@tu-berlin.de,j.moehler@posteo.de,admin@lukaszsztukiewicz.com,gmsdaniilplay@gmail.com"
-  BACKEND_URL: ""
+  FRONTEND_ORIGINS: "https://wearables.charite.de"
+  FRONTEND_REDIRECT_URL: "https://wearables.charite.de/"
+  ADMIN_EMAILS: ""
+  BACKEND_URL: "https://wearables.charite.de"
   AUTH_SESSION_EXPIRY_SECONDS: "604800"
   MAGIC_LINK_EXPIRY_SECONDS: "900"
   CASE_TOKEN_EXPIRY_SECONDS: "94608000"
@@ -42,7 +42,7 @@ env:
   EXTRACTION_API_URL: "http://extraction-service.extraction-service.svc.cluster.local:8010"
   LOG_LEVEL: "info"
   MAILER_FROM_NAME: "Wearables Platform"
-  MAILER_FROM_EMAIL: "jmm123@posteo.de"
+  MAILER_FROM_EMAIL: "noreply@wearables.charite.de"
   COOKIE_SECURE: "false"
 
 secret:
@@ -51,4 +51,4 @@ secret:
   name: ""
   data:
     JWT_SECRET: "dev-secret"
-    BREVO_API_KEY: "key"
+    BREVO_API_KEY: "disabled"

@@ -8,8 +8,8 @@ runtimeConfigMap:
   name: ""
 
 runtimeConfig:
-  apiBaseUrl: "http://wearables.charite.de/"
-  grafanaProxyUrl: "http://wearables.charite.de/proxy"
+  apiBaseUrl: "/api"
+  grafanaProxyUrl: "/proxy"
 
 # Service configuration
 service:
@@ -21,7 +21,7 @@ ingress:
   enabled: true
   host: "wearables.charite.de"
   path: "/"
-  httpOnly: true
+  httpOnly: false
   certificateSecretName: "wearables-tls"
 
 # Resource requests and limits
