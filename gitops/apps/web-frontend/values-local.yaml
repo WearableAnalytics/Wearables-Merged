@@ -10,3 +10,4 @@ runtimeConfig:                # relative paths, same as the Docker Compose stack
 
 ingress:
   host: wearables.localhost   # Prod: wearables.charite.de
+  httpOnly: true
