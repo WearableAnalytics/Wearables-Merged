@@ -26,3 +26,20 @@ security:
 prometheus:
   datasourceUid: ffct924rz8flsa
   url: http://prometheus-service.prometheus.svc.cluster.local
+
+# Path Grafana serves itself under; empty uses ingress.prefix. Set it to the
+# grafana-proxy prefix (/proxy) when dashboards are embedded through the proxy.
+server:
+  subPath: ""
+
+# Optional InfluxDB datasource (InfluxQL) for the patient dashboards, which
+# reference it by uid.
+influxDatasource:
+  enabled: false
+  uid: ""
+  url: ""
+  bucket: ""
+  token: ""
+
+# Optional ConfigMap with more dashboard JSON files, shown in the folder "Wearables".
+extraDashboardsConfigMap: ""

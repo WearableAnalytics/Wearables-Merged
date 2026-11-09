@@ -32,4 +32,13 @@ Open `https://localhost:8080` (Username: `admin`).
 * `importservice`: Mobile Ingestion Endpoint
 * `wearables-bff`: Backend-for-Frontend & Auth
 * `mapper-validator`: FHIR Mapping & Validation
-* `web-frontend`: Clinical Web UI
+* `web-frontend`: Clinical Web UI (Helm release `web`, as in `setup-script.sh`)
+
+`gitops/setup/argocd/apps/` is a small Helm chart: `templates/applications.yaml` creates one Argo CD application per entry in `values.yaml`. To add or remove an application, edit the `apps` list there.
+
+The local minikube cluster uses the same chart with `values-local.yaml` (see `gitops/local/README.md`, step 16), so both setups deploy the same applications. Check what the chart renders with:
+
+```bash
+helm template apps gitops/setup/argocd/apps                                  # production
+helm template apps gitops/setup/argocd/apps -f gitops/setup/argocd/apps/values-local.yaml   # local
+```
