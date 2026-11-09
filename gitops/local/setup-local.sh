@@ -30,6 +30,7 @@ ARGOCD_APPS=(
   "mapper-validator:mapper-validator:kafka"
   "wearables-bff:wearables-bff:wearables-bff"
   "web-frontend:web:web"
+  "grafana-proxy:grafana-proxy:monitoring"
 )
 
 SKIP_BUILD=false
