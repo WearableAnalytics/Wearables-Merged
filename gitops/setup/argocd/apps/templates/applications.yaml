@@ -28,8 +28,11 @@ spec:
     namespace: {{ .namespace }}
   syncPolicy:
     automated:
-      prune: true
-      selfHeal: true
+      prune: {{ if hasKey . "prune" }}{{ .prune }}{{ else }}true{{ end }}
+      selfHeal: {{ if hasKey . "selfHeal" }}{{ .selfHeal }}{{ else }}true{{ end }}
     syncOptions:
       - CreateNamespace=true
+      {{- range .syncOptions }}
+      - {{ . }}
+      {{- end }}
 {{- end }}

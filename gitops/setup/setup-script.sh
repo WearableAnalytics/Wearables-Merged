@@ -40,6 +40,19 @@ if ! command -v kubectl >/dev/null 2>&1; then
 	exit 1
 fi
 
+echo "##############################################################"
+echo "WARNING: The Wearables platform is managed via GitOps (ArgoCD)."
+echo "This script is intended exclusively for initial cluster bootstrapping or disaster recovery. Running manual Helm deployments on an active"
+echo "cluster can cause configuration drift!"
+echo "##############################################################"
+if [[ "${CI:-false}" != "true" && -t 0 ]]; then
+	read -r -p "Are you sure you want to proceed with manual Helm deployments? [y/N] " confirm
+	if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+		echo "Aborting execution. Use ArgoCD GitOps to manage cluster deployments"
+		exit 0
+	fi
+fi
+
 # --- helpers ---
 ensure_namespace() {
 	local namespace="$1"
