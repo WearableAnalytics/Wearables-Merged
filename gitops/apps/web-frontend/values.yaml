@@ -8,8 +8,8 @@ runtimeConfigMap:
   name: ""
 
 runtimeConfig:
-  apiBaseUrl: "http://wearables.charite.de/"
-  grafanaProxyUrl: "http://wearables.charite.de/proxy"
+  apiBaseUrl: "/api"
+  grafanaProxyUrl: "/proxy"
 
 # Service configuration
 service:
