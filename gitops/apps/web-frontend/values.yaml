@@ -21,7 +21,7 @@ ingress:
   enabled: true
   host: "wearables.charite.de"
   path: "/"
-  httpOnly: true
+  httpOnly: false
   certificateSecretName: "wearables-tls"
 
 # Resource requests and limits
