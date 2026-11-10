@@ -3,8 +3,119 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../storage_service.dart';
+
+/// Descriptor for a supported cloud wearable provider
+class CloudProvider {
+  const CloudProvider({
+    required this.id,
+    required this.name,
+    required this.displayName,
+    required this.description,
+    this.icon,
+    this.enabled = true,
+  });
+
+  /// Unique provider key matching the backend route (e.g. garmin)
+  final String id;
+
+  /// Short brand name (e.g. Garmin)
+  final String name;
+
+  /// Full display name (e.g. Garmin Connect)
+  final String displayName;
+
+  /// Human-readable explanation of what this provider syncs
+  final String description;
+
+  /// UI icon
+  final IconData? icon;
+
+  /// Whether this provider is enabled for participant connection
+  final bool enabled;
+
+  static const garmin = CloudProvider(
+    id: 'garmin',
+    name: 'Garmin',
+    displayName: 'Garmin Connect',
+    description: 'Direct cloud-to-cloud sync for Garmin wearables.',
+    icon: Symbols.watch_sharp,
+    enabled: true,
+  );
+
+  static const fitbit = CloudProvider(
+    id: 'fitbit',
+    name: 'Fitbit',
+    displayName: 'Fitbit',
+    description: 'Direct cloud sync for Fitbit & Pixel Watch.',
+    icon: Symbols.watch_button_sharp,
+    enabled: false,
+  );
+
+  static const oura = CloudProvider(
+    id: 'oura',
+    name: 'Oura',
+    displayName: 'Oura Ring',
+    description: 'Direct cloud sync for Oura sleep & readiness data.',
+    icon: Symbols.ring_volume_sharp,
+    enabled: false,
+  );
+
+  static const whoop = CloudProvider(
+    id: 'whoop',
+    name: 'Whoop',
+    displayName: 'Whoop Strap',
+    description: 'Direct cloud sync for Whoop recovery & strain.',
+    icon: Symbols.vital_signs_sharp,
+    enabled: false,
+  );
+
+  static const withings = CloudProvider(
+    id: 'withings',
+    name: 'Withings',
+    displayName: 'Withings Health',
+    description: 'Direct cloud sync for Withings devices.',
+    icon: Symbols.monitor_weight_sharp,
+    enabled: false,
+  );
+
+  static const polar = CloudProvider(
+    id: 'polar',
+    name: 'Polar',
+    displayName: 'Polar Flow',
+    description: 'Direct cloud sync for Polar heart rate & training.',
+    icon: Symbols.cardiology_sharp,
+    enabled: false,
+  );
+
+  /// Active providers currently enabled in the mobile app UI
+  static const List<CloudProvider> activeProviders = [garmin];
+
+  /// Catalog of all known cloud providers for seamless future extensions
+  static const List<CloudProvider> knownProviders = [
+    garmin,
+    fitbit,
+    oura,
+    whoop,
+    withings,
+    polar,
+  ];
+
+  static CloudProvider find(String id) {
+    return knownProviders.firstWhere(
+      (p) => p.id.toLowerCase() == id.toLowerCase(),
+      orElse: () => CloudProvider(
+        id: id,
+        name: id.isNotEmpty ? '${id[0].toUpperCase()}${id.substring(1)}' : id,
+        displayName: id,
+        description: 'Direct cloud sync for $id.',
+      ),
+    );
+  }
+}
 
 class CloudConnectionStatus {
   const CloudConnectionStatus({

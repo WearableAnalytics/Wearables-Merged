@@ -34,17 +34,48 @@ class AppState extends ChangeNotifier {
   /// Whether local phone health store sync is enabled
   bool localHealthSyncEnabled = true;
 
-  /// Whether a Cloud connection is linked for this participant
-  bool garminConnected = false;
-  String? garminUserId;
-  DateTime? garminLinkedAt;
-  bool garminBusy = false;
+  /// Map of provider ID (lowercase, e.g. 'garmin') -> connection status
+  final Map<String, CloudConnectionStatus> cloudConnections = {};
+  final Set<String> _busyProviders = {};
+
+  bool isCloudBusy(String provider) =>
+      _busyProviders.contains(provider.toLowerCase());
+  bool isCloudConnected(String provider) =>
+      cloudConnections[provider.toLowerCase()]?.connected ?? false;
+  String? cloudUserId(String provider) =>
+      cloudConnections[provider.toLowerCase()]?.providerUserId;
+  DateTime? cloudLinkedAt(String provider) =>
+      cloudConnections[provider.toLowerCase()]?.linkedAt;
+
+  /// True when at least one Cloud connection is active
+  bool get hasAnyCloudConnection =>
+      cloudConnections.values.any((c) => c.connected);
+
+  /// True when any Cloud connection is currently running an async network call
+  bool get isAnyCloudBusy => _busyProviders.isNotEmpty;
+
+  /// Returns the primary active cloud provider
+  CloudProvider? get primaryCloudProvider {
+    for (final entry in cloudConnections.entries) {
+      if (entry.value.connected) {
+        return CloudProvider.find(entry.key);
+      }
+    }
+    return null;
+  }
 
   /// True when Cloud is active and local phone upload is turned off
-  bool get isCloudOnlyMode => !localHealthSyncEnabled && garminConnected;
+  bool get isCloudOnlyMode => !localHealthSyncEnabled && hasAnyCloudConnection;
 
   /// True when both local HealthKit/Health Connect and Cloud are active
-  bool get isParallelSyncMode => localHealthSyncEnabled && garminConnected;
+  bool get isParallelSyncMode =>
+      localHealthSyncEnabled && hasAnyCloudConnection;
+
+  // Backward compatible properties for Garmin
+  bool get garminConnected => isCloudConnected('garmin');
+  String? get garminUserId => cloudUserId('garmin');
+  DateTime? get garminLinkedAt => cloudLinkedAt('garmin');
+  bool get garminBusy => isCloudBusy('garmin');
 
   /// The personal code expired or was refused; a new QR scan is needed.
   bool codeExpired = false;
@@ -63,17 +94,42 @@ class AppState extends ChangeNotifier {
   SyncOutcome? get lastOutcome => SyncActivityNotifier.lastResult.value;
 
   Future<void> load() async {
-    deviceId = await StorageService.getOrCreateDeviceId();
-    lastSendTime = await StorageService.getLastDataSendTime();
-    initialSyncStart = await StorageService.getInitialSyncStart();
-    localHealthSyncEnabled = await StorageService.isLocalHealthSyncEnabled();
-    garminConnected = await StorageService.isGarminConnected();
-    garminUserId = await StorageService.getGarminUserId();
-    garminLinkedAt = await StorageService.getGarminLinkedAt();
-    codeExpired = StorageService.isCodeExpired(deviceId);
-    codeRejected = await StorageService.isLinkedCodeRejected();
-    loaded = true;
-    notifyListeners();
+    try {
+      deviceId = await StorageService.getOrCreateDeviceId();
+      lastSendTime = await StorageService.getLastDataSendTime();
+      initialSyncStart = await StorageService.getInitialSyncStart();
+      localHealthSyncEnabled = await StorageService.isLocalHealthSyncEnabled();
+
+      final currentPatientId = _cloudService.patientIdFor(deviceId);
+      for (final provider in CloudProvider.knownProviders) {
+        final connected = await StorageService.isCloudConnected(provider.id);
+        if (connected) {
+          final userId = await StorageService.getCloudUserId(provider.id);
+          final linkedAt = await StorageService.getCloudLinkedAt(provider.id);
+          cloudConnections[provider.id] = CloudConnectionStatus(
+            connected: true,
+            provider: provider.id,
+            patientId: currentPatientId,
+            providerUserId: userId,
+            linkedAt: linkedAt,
+          );
+        } else {
+          cloudConnections[provider.id] = CloudConnectionStatus(
+            connected: false,
+            provider: provider.id,
+            patientId: currentPatientId,
+          );
+        }
+      }
+
+      codeExpired = StorageService.isCodeExpired(deviceId);
+      codeRejected = await StorageService.isLinkedCodeRejected();
+    } catch (e, st) {
+      debugPrint('Error loading app state: $e\n$st');
+    } finally {
+      loaded = true;
+      notifyListeners();
+    }
   }
 
   /// Stores a new study code. [resetLastSync] makes the next upload start
@@ -103,66 +159,84 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Builds the OAuth 2.0 PKCE login URL for the current participant
-  Uri get garminOAuthLoginUri => _cloudService.buildOAuthLoginUri(deviceId);
+  /// Builds the OAuth 2.0 PKCE login URL for any cloud provider
+  Uri cloudOAuthLoginUri(String provider) =>
+      _cloudService.buildOAuthLoginUri(deviceId, provider: provider);
 
-  /// Opens the Garmin OAuth 2.0 PKCE login page in the browser
-  Future<bool> startGarminConnect() async {
+  /// Opens the cloud provider's OAuth 2.0 PKCE login page in the browser
+  Future<bool> startCloudConnect(String provider) async {
     if (!isLinked) return false;
-    final uri = _cloudService.buildOAuthLoginUri(deviceId);
+    final uri = cloudOAuthLoginUri(provider);
     return _urlLauncher(uri);
   }
 
-  /// Queries the Cloud Connector server
-  Future<CloudConnectionStatus> refreshGarminStatus() async {
-    garminBusy = true;
+  /// Queries the Cloud Connector server for a specific provider
+  Future<CloudConnectionStatus> refreshCloudStatus(String provider) async {
+    final key = provider.toLowerCase();
+    _busyProviders.add(key);
     notifyListeners();
     try {
       final status = await _cloudService.fetchConnectionStatus(
         deviceId,
-        provider: 'garmin',
+        provider: provider,
       );
-      await StorageService.setGarminConnection(
+      cloudConnections[key] = status;
+      await StorageService.setCloudConnection(
+        provider: provider,
         connected: status.connected,
         providerUserId: status.providerUserId,
         linkedAt: status.linkedAt,
       );
-      garminConnected = status.connected;
-      garminUserId = status.providerUserId;
-      garminLinkedAt = status.linkedAt;
       return status;
     } finally {
-      garminBusy = false;
+      _busyProviders.remove(key);
       notifyListeners();
     }
   }
 
-  /// Communicates with the Cloud Connector server (DELETE /cloud/connections/garmin/{patientId}) to deregister the Garmin connection on the server and clear local state.
-  Future<void> disconnectGarmin() async {
-    garminBusy = true;
+  /// Communicates with the Cloud Connector server (DELETE /cloud/connections/{provider}/{patientId}) to deregister the provider on the server and clear local state.
+  Future<void> disconnectCloud(String provider) async {
+    final key = provider.toLowerCase();
+    _busyProviders.add(key);
     notifyListeners();
     try {
-      await _cloudService.disconnect(deviceId, provider: 'garmin');
-      await StorageService.setGarminConnection(connected: false);
-      garminConnected = false;
-      garminUserId = null;
-      garminLinkedAt = null;
-      if (!localHealthSyncEnabled) {
+      await _cloudService.disconnect(deviceId, provider: provider);
+      await StorageService.setCloudConnection(
+        provider: provider,
+        connected: false,
+      );
+      cloudConnections[key] = CloudConnectionStatus(
+        connected: false,
+        provider: provider,
+        patientId: _cloudService.patientIdFor(deviceId),
+      );
+      if (!localHealthSyncEnabled && !hasAnyCloudConnection) {
         await StorageService.setLocalHealthSyncEnabled(true);
         localHealthSyncEnabled = true;
       }
     } finally {
-      garminBusy = false;
+      _busyProviders.remove(key);
       notifyListeners();
     }
   }
 
+  // Backward compatible methods for Garmin
+  Uri get garminOAuthLoginUri => cloudOAuthLoginUri('garmin');
+  Future<bool> startGarminConnect() => startCloudConnect('garmin');
+  Future<CloudConnectionStatus> refreshGarminStatus() =>
+      refreshCloudStatus('garmin');
+  Future<void> disconnectGarmin() => disconnectCloud('garmin');
+
   Future<HealthSyncResult?> syncNow() async {
     if (isSyncing) return null;
     if (!localHealthSyncEnabled) {
-      if (garminConnected) {
+      if (hasAnyCloudConnection) {
         try {
-          await refreshGarminStatus();
+          for (final entry in cloudConnections.entries) {
+            if (entry.value.connected) {
+              await refreshCloudStatus(entry.key);
+            }
+          }
         } catch (_) {}
       }
       return null;

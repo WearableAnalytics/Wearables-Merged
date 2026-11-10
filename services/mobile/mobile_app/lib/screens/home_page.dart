@@ -168,16 +168,20 @@ class _ConnectedView extends StatelessWidget {
 
   Future<void> _syncNow(BuildContext context) async {
     if (!state.localHealthSyncEnabled) {
-      if (state.garminConnected) {
+      if (state.hasAnyCloudConnection) {
         try {
-          final status = await state.refreshGarminStatus();
+          final provider = state.primaryCloudProvider;
+          final status = await state.refreshCloudStatus(
+            provider?.id ?? 'garmin',
+          );
           if (!context.mounted) return;
+          final name = provider?.name ?? 'Garmin';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
                 status.connected
-                    ? 'Garmin Cloud connection is active. Data syncs directly via cloud.'
-                    : 'Garmin Cloud is no longer connected. Check Account settings.',
+                    ? '$name Cloud connection is active. Data syncs directly via cloud.'
+                    : '$name Cloud is no longer connected. Check Account settings.',
               ),
             ),
           );
@@ -281,7 +285,7 @@ class _ConnectedView extends StatelessWidget {
                     const SizedBox(height: 40),
                     Center(
                       child: _StatusBadge(
-                        syncing: state.isSyncing || state.garminBusy,
+                        syncing: state.isSyncing || state.isAnyCloudBusy,
                         progress: state.progress,
                         failed: failed,
                         incomplete: incomplete,
@@ -323,10 +327,10 @@ class _ConnectedView extends StatelessWidget {
                           ? 'Your data will be sent again automatically. You can also '
                                 'try it now.'
                           : state.isCloudOnlyMode
-                          ? 'Your Garmin wearable data is synchronized directly via '
-                                'Garmin Cloud. No phone upload is needed.'
+                          ? 'Your ${state.primaryCloudProvider?.name ?? "Garmin"} wearable data is synchronized directly via '
+                                '${state.primaryCloudProvider?.name ?? "Garmin"} Cloud. No phone upload is needed.'
                           : state.isParallelSyncMode
-                          ? 'Your ${AppConfig.healthStore} data and Garmin Cloud are '
+                          ? 'Your ${AppConfig.healthStore} data and ${state.primaryCloudProvider?.name ?? "Garmin"} Cloud are '
                                 'shared securely with the Charité Wearables platform.'
                           : 'Your ${AppConfig.healthStore} data is shared securely with the '
                                 'Charité Wearables platform.',
@@ -436,7 +440,7 @@ class _ConnectedView extends StatelessWidget {
                             value: (expired || rejected)
                                 ? 'Paused'
                                 : state.isCloudOnlyMode
-                                ? 'Garmin Cloud'
+                                ? '${state.primaryCloudProvider?.name ?? "Garmin"} Cloud'
                                 : !state.localHealthSyncEnabled
                                 ? 'Paused'
                                 : 'On',
@@ -453,7 +457,7 @@ class _ConnectedView extends StatelessWidget {
                       )
                     else
                       FilledButton.icon(
-                        onPressed: (state.isSyncing || state.garminBusy)
+                        onPressed: (state.isSyncing || state.isAnyCloudBusy)
                             ? null
                             : () => _syncNow(context),
                         icon: Icon(
@@ -465,14 +469,14 @@ class _ConnectedView extends StatelessWidget {
                           state.isSyncing
                               ? 'Sharing…'
                               : state.isCloudOnlyMode
-                              ? 'Check Garmin status'
+                              ? 'Check ${state.primaryCloudProvider?.name ?? "Garmin"} status'
                               : 'Share now',
                         ),
                       ),
                     const SizedBox(height: 12),
                     Text(
                       state.isCloudOnlyMode
-                          ? 'Garmin pushes new data directly to the server.'
+                          ? '${state.primaryCloudProvider?.name ?? "Garmin"} pushes new data directly to the server.'
                           : state.lastSendTime == null
                           ? 'The first upload covers everything since '
                                 '${formatDate(state.initialSyncStart)}.'

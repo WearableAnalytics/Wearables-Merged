@@ -3,6 +3,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../app_config.dart';
+import '../services/cloud_connector_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatting.dart';
@@ -21,7 +22,7 @@ class StudyPage extends StatefulWidget {
 
 class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
   bool _showCode = false;
-  bool _awaitingGarminAuth = false;
+  String? _awaitingAuthProvider;
   String _version = '';
 
   AppState get state => widget.state;
@@ -45,46 +46,48 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
-    if (lifecycleState == AppLifecycleState.resumed && _awaitingGarminAuth) {
-      _awaitingGarminAuth = false;
-      _checkGarminAfterAuth();
+    if (lifecycleState == AppLifecycleState.resumed &&
+        _awaitingAuthProvider != null) {
+      final providerId = _awaitingAuthProvider!;
+      _awaitingAuthProvider = null;
+      _checkCloudAfterAuth(CloudProvider.find(providerId));
     }
   }
 
-  Future<void> _checkGarminAfterAuth() async {
+  Future<void> _checkCloudAfterAuth(CloudProvider provider) async {
     try {
-      final wasConnected = state.garminConnected;
-      final status = await state.refreshGarminStatus();
+      final wasConnected = state.isCloudConnected(provider.id);
+      final status = await state.refreshCloudStatus(provider.id);
       if (!mounted) return;
       if (status.connected && !wasConnected) {
-        _toast('Garmin Cloud connected.');
-        await _promptSyncModeAfterGarminConnect();
+        _toast('${provider.name} Cloud connected.');
+        await _promptSyncModeAfterConnect(provider);
       } else if (status.connected) {
-        _toast('Garmin Cloud connection is active.');
+        _toast('${provider.name} Cloud connection is active.');
       }
     } catch (e) {
       if (mounted) {
-        _toast('Could not verify Garmin connection: $e');
+        _toast('Could not verify ${provider.name} connection: $e');
       }
     }
   }
 
-  Future<void> _promptSyncModeAfterGarminConnect() async {
+  Future<void> _promptSyncModeAfterConnect(CloudProvider provider) async {
     if (!mounted) return;
     final keepLocal = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Garmin Cloud connected'),
+        title: Text('${provider.name} Cloud connected'),
         content: Text(
-          'Garmin now sends your wearable data directly via the cloud without '
+          '${provider.name} now sends your wearable data directly via the cloud without '
           'needing phone uploads.\n\n'
           'Do you also want to continue syncing ${AppConfig.healthStore} in parallel, '
-          'or use Garmin Cloud only?',
+          'or use ${provider.name} Cloud only?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Garmin Cloud only'),
+            child: Text('${provider.name} Cloud only'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
@@ -98,53 +101,53 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
     await state.setLocalHealthSyncEnabled(keepLocal);
     _toast(
       keepLocal
-          ? 'Parallel sync active (${AppConfig.healthStore} + Garmin Cloud).'
-          : 'Garmin Cloud-only mode active. Local phone uploads paused.',
+          ? 'Parallel sync active (${AppConfig.healthStore} + ${provider.name} Cloud).'
+          : '${provider.name} Cloud-only mode active. Local phone uploads paused.',
     );
   }
 
-  Future<void> _connectGarmin() async {
+  Future<void> _connectCloud(CloudProvider provider) async {
     if (!state.isLinked) {
       _toast('Please link your personal QR code first.');
       return;
     }
-    _awaitingGarminAuth = true;
-    final launched = await state.startGarminConnect();
+    _awaitingAuthProvider = provider.id;
+    final launched = await state.startCloudConnect(provider.id);
     if (!mounted) return;
     if (!launched) {
-      _awaitingGarminAuth = false;
-      _toast('Could not open Garmin login page.');
+      _awaitingAuthProvider = null;
+      _toast('Could not open ${provider.name} login page.');
     }
   }
 
-  Future<void> _refreshGarminStatus() async {
+  Future<void> _refreshCloudStatus(CloudProvider provider) async {
     try {
-      final wasConnected = state.garminConnected;
-      final status = await state.refreshGarminStatus();
+      final wasConnected = state.isCloudConnected(provider.id);
+      final status = await state.refreshCloudStatus(provider.id);
       if (!mounted) return;
       if (status.connected) {
         if (!wasConnected) {
-          await _promptSyncModeAfterGarminConnect();
+          await _promptSyncModeAfterConnect(provider);
         } else {
-          _toast('Garmin Cloud is connected.');
+          _toast('${provider.name} Cloud is connected.');
         }
       } else {
-        _toast('Garmin Cloud is not connected yet.');
+        _toast('${provider.name} Cloud is not connected yet.');
       }
     } catch (e) {
       if (mounted) {
-        _toast('Failed to check Garmin Cloud status.');
+        _toast('Failed to check ${provider.name} Cloud status.');
       }
     }
   }
 
-  Future<void> _confirmDisconnectGarmin() async {
+  Future<void> _confirmDisconnectCloud(CloudProvider provider) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove Garmin Cloud connection?'),
-        content: const Text(
-          'This will deregister your Garmin account on the server and stop '
+        title: Text('Remove ${provider.name} Cloud connection?'),
+        content: Text(
+          'This will deregister your ${provider.name} account on the server and stop '
           'direct cloud synchronization.',
         ),
         actions: [
@@ -165,24 +168,29 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
     );
     if (ok != true || !mounted) return;
     try {
-      await state.disconnectGarmin();
-      _toast('Garmin Cloud connection removed from server.');
+      await state.disconnectCloud(provider.id);
+      if (!mounted) return;
+      _toast('${provider.name} Cloud connection removed from server.');
     } catch (e) {
-      _toast('Could not remove Garmin Cloud connection: $e');
+      if (!mounted) return;
+      _toast('Could not remove ${provider.name} Cloud connection: $e');
     }
   }
 
   Future<void> _toggleLocalSync(bool enabled) async {
     await state.setLocalHealthSyncEnabled(enabled);
     if (!mounted) return;
-    if (!enabled && state.garminConnected) {
-      _toast('Garmin Cloud-only mode active. Local phone uploads paused.');
-    } else if (!enabled && !state.garminConnected) {
+    final cloudName = state.primaryCloudProvider?.name ?? 'Cloud';
+    if (!enabled && state.hasAnyCloudConnection) {
+      _toast('$cloudName Cloud-only mode active. Local phone uploads paused.');
+    } else if (!enabled && !state.hasAnyCloudConnection) {
       _toast(
-        'Local ${AppConfig.healthStore} uploads paused. Connect Garmin Cloud below for cloud sync.',
+        'Local ${AppConfig.healthStore} uploads paused. Connect a Cloud wearable below for cloud sync.',
       );
-    } else if (enabled && state.garminConnected) {
-      _toast('Parallel sync active (${AppConfig.healthStore} + Garmin Cloud).');
+    } else if (enabled && state.hasAnyCloudConnection) {
+      _toast(
+        'Parallel sync active (${AppConfig.healthStore} + $cloudName Cloud).',
+      );
     } else {
       _toast('${AppConfig.healthStore} synchronization enabled.');
     }
@@ -409,63 +417,31 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
                     secondary: const Icon(Symbols.favorite_sharp),
                     title: Text(AppConfig.healthStore),
                     subtitle: Text(
-                      state.localHealthSyncEnabled && state.garminConnected
-                          ? 'Syncing local phone data in parallel with Garmin Cloud.'
+                      state.localHealthSyncEnabled &&
+                              state.hasAnyCloudConnection
+                          ? 'Syncing local phone data in parallel with ${state.primaryCloudProvider?.name ?? "Cloud"} Cloud.'
                           : state.localHealthSyncEnabled
                           ? 'Syncs health data stored on this ${AppConfig.deviceName}.'
-                          : state.garminConnected
-                          ? 'Paused - using Garmin Cloud only (no phone upload needed).'
-                          : 'Paused - enable or connect Garmin Cloud below.',
+                          : state.hasAnyCloudConnection
+                          ? 'Paused - using ${state.primaryCloudProvider?.name ?? "Cloud"} Cloud only (no phone upload needed).'
+                          : 'Paused - enable or connect a Cloud wearable below.',
                     ),
                     value: state.localHealthSyncEnabled,
-                    activeColor: AppColors.blue,
+                    activeThumbColor: AppColors.blue,
                     onChanged: _toggleLocalSync,
                   ),
-                  const Divider(indent: 20, endIndent: 20),
-                  ListTile(
-                    leading: Icon(
-                      Symbols.watch_sharp,
-                      color: state.garminConnected ? AppColors.success : null,
+                  for (final provider in CloudProvider.activeProviders) ...[
+                    const Divider(indent: 20, endIndent: 20),
+                    _CloudProviderTile(
+                      provider: provider,
+                      connected: state.isCloudConnected(provider.id),
+                      busy: state.isCloudBusy(provider.id),
+                      userId: state.cloudUserId(provider.id),
+                      onRefresh: () => _refreshCloudStatus(provider),
+                      onConnect: () => _connectCloud(provider),
+                      onDisconnect: () => _confirmDisconnectCloud(provider),
                     ),
-                    title: const Text('Garmin Connect (Cloud)'),
-                    subtitle: Text(
-                      state.garminConnected
-                          ? (state.garminUserId != null
-                                ? 'Connected (${state.garminUserId}) - direct cloud sync active.'
-                                : 'Connected — direct cloud sync active.')
-                          : 'Direct cloud-to-cloud sync for Garmin wearables.',
-                    ),
-                    trailing: state.garminBusy
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : IconButton(
-                            tooltip: 'Check Garmin connection status',
-                            icon: const Icon(Symbols.refresh_sharp),
-                            onPressed: _refreshGarminStatus,
-                          ),
-                  ),
-                  if (!state.garminConnected)
-                    ListTile(
-                      leading: const Icon(Symbols.add_link_sharp),
-                      title: const Text('Connect Garmin Cloud'),
-                      trailing: const Icon(Symbols.open_in_new_sharp, size: 20),
-                      onTap: state.garminBusy ? null : _connectGarmin,
-                    )
-                  else
-                    ListTile(
-                      leading: const Icon(
-                        Symbols.link_off_sharp,
-                        color: AppColors.coral,
-                      ),
-                      title: const Text(
-                        'Remove Garmin Cloud connection',
-                        style: TextStyle(color: AppColors.coral),
-                      ),
-                      onTap: state.garminBusy ? null : _confirmDisconnectGarmin,
-                    ),
+                  ],
                 ],
               ),
             ),
@@ -543,6 +519,76 @@ class _Pill extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+}
+
+class _CloudProviderTile extends StatelessWidget {
+  const _CloudProviderTile({
+    required this.provider,
+    required this.connected,
+    required this.busy,
+    this.userId,
+    required this.onRefresh,
+    required this.onConnect,
+    required this.onDisconnect,
+  });
+
+  final CloudProvider provider;
+  final bool connected;
+  final bool busy;
+  final String? userId;
+  final VoidCallback onRefresh;
+  final VoidCallback onConnect;
+  final VoidCallback onDisconnect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListTile(
+          leading: Icon(
+            provider.icon ?? Symbols.watch_sharp,
+            color: connected ? AppColors.success : null,
+          ),
+          title: Text('${provider.displayName} (Cloud)'),
+          subtitle: Text(
+            connected
+                ? (userId != null
+                      ? 'Connected ($userId) - direct cloud sync active.'
+                      : 'Connected — direct cloud sync active.')
+                : provider.description,
+          ),
+          trailing: busy
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : IconButton(
+                  tooltip: 'Check ${provider.name} connection status',
+                  icon: const Icon(Symbols.refresh_sharp),
+                  onPressed: onRefresh,
+                ),
+        ),
+        if (!connected)
+          ListTile(
+            leading: const Icon(Symbols.add_link_sharp),
+            title: Text('Connect ${provider.name} Cloud'),
+            trailing: const Icon(Symbols.open_in_new_sharp, size: 20),
+            onTap: busy ? null : onConnect,
+          )
+        else
+          ListTile(
+            leading: const Icon(Symbols.link_off_sharp, color: AppColors.coral),
+            title: Text(
+              'Remove ${provider.name} Cloud connection',
+              style: const TextStyle(color: AppColors.coral),
+            ),
+            onTap: busy ? null : onDisconnect,
+          ),
+      ],
     );
   }
 }

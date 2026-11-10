@@ -13,9 +13,6 @@ class StorageService {
   static const String _initialSyncStartKey = 'initial_sync_start';
   static const String _rejectedCodeKey = 'rejected_code';
   static const String _localHealthSyncEnabledKey = 'local_health_sync_enabled';
-  static const String _garminConnectedKey = 'garmin_cloud_connected';
-  static const String _garminUserIdKey = 'garmin_cloud_user_id';
-  static const String _garminLinkedAtKey = 'garmin_cloud_linked_at';
 
   /// Default look-back for the first upload when no start date was chosen.
   static const Duration defaultInitialWindow = Duration(days: 30);
@@ -285,7 +282,7 @@ class StorageService {
     await prefs.setInt(_initialSyncStartKey, start.millisecondsSinceEpoch);
   }
 
-  /// Whether local phone health store sync is enabled. 
+  /// Whether local phone health store sync is enabled.
   /// Defaults to `true` so local sensor uploads remains
   static Future<bool> isLocalHealthSyncEnabled() async {
     final prefs = await SharedPreferences.getInstance();
@@ -297,39 +294,76 @@ class StorageService {
     await prefs.setBool(_localHealthSyncEnabledKey, enabled);
   }
 
-  /// Cached Garmin Cloud connection status for the linked participant
-  static Future<bool> isGarminConnected() async {
+  static String _cloudConnectedKey(String provider) =>
+      '${provider.toLowerCase()}_cloud_connected';
+  static String _cloudUserIdKey(String provider) =>
+      '${provider.toLowerCase()}_cloud_user_id';
+  static String _cloudLinkedAtKey(String provider) =>
+      '${provider.toLowerCase()}_cloud_linked_at';
+
+  /// Cached cloud connection status for a provider
+  static Future<bool> isCloudConnected(String provider) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_garminConnectedKey) ?? false;
+    final raw = prefs.get(_cloudConnectedKey(provider));
+    if (raw is bool) return raw;
+    if (raw is String) return raw.toLowerCase() == 'true';
+    return false;
   }
 
-  static Future<String?> getGarminUserId() async {
+  static Future<String?> getCloudUserId(String provider) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_garminUserIdKey);
+    final raw = prefs.get(_cloudUserIdKey(provider));
+    return raw?.toString();
   }
 
-  static Future<DateTime?> getGarminLinkedAt() async {
+  static Future<DateTime?> getCloudLinkedAt(String provider) async {
     final prefs = await SharedPreferences.getInstance();
-    final ts = prefs.getInt(_garminLinkedAtKey);
-    return ts != null ? DateTime.fromMillisecondsSinceEpoch(ts) : null;
+    final raw = prefs.get(_cloudLinkedAtKey(provider));
+    if (raw is int) {
+      return DateTime.fromMillisecondsSinceEpoch(raw);
+    }
+    if (raw is String) {
+      return DateTime.tryParse(raw);
+    }
+    return null;
   }
 
-  static Future<void> setGarminConnection({
+  static Future<void> setCloudConnection({
+    required String provider,
     required bool connected,
     String? providerUserId,
     DateTime? linkedAt,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_garminConnectedKey, connected);
+    final keyConnected = _cloudConnectedKey(provider);
+    final keyUserId = _cloudUserIdKey(provider);
+    final keyLinkedAt = _cloudLinkedAtKey(provider);
+
+    await prefs.setBool(keyConnected, connected);
     if (!connected || providerUserId == null) {
-      await prefs.remove(_garminUserIdKey);
+      await prefs.remove(keyUserId);
     } else {
-      await prefs.setString(_garminUserIdKey, providerUserId);
+      await prefs.setString(keyUserId, providerUserId);
     }
     if (!connected || linkedAt == null) {
-      await prefs.remove(_garminLinkedAtKey);
+      await prefs.remove(keyLinkedAt);
     } else {
-      await prefs.setInt(_garminLinkedAtKey, linkedAt.millisecondsSinceEpoch);
+      await prefs.setInt(keyLinkedAt, linkedAt.millisecondsSinceEpoch);
     }
   }
+
+  /// Backward compatible aliases for Garmin
+  static Future<bool> isGarminConnected() => isCloudConnected('garmin');
+  static Future<String?> getGarminUserId() => getCloudUserId('garmin');
+  static Future<DateTime?> getGarminLinkedAt() => getCloudLinkedAt('garmin');
+  static Future<void> setGarminConnection({
+    required bool connected,
+    String? providerUserId,
+    DateTime? linkedAt,
+  }) => setCloudConnection(
+    provider: 'garmin',
+    connected: connected,
+    providerUserId: providerUserId,
+    linkedAt: linkedAt,
+  );
 }
