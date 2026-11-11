@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../utils/formatting.dart';
 import '../widgets/study_code_entry.dart';
 import '../widgets/study_info_link.dart';
+import '../widgets/sync_mode_dialog.dart';
 
 /// Third tab: the linked study code, sharing options, data sources and app information.
 class StudyPage extends StatefulWidget {
@@ -76,36 +77,7 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
 
   Future<void> _promptSyncModeAfterConnect(CloudProvider provider) async {
     if (!mounted) return;
-    final keepLocal = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('${provider.name} Cloud connected'),
-        content: Text(
-          '${provider.name} now sends your wearable data directly via the cloud without '
-          'needing phone uploads.\n\n'
-          'Do you also want to continue syncing ${AppConfig.healthStore} in parallel, '
-          'or use ${provider.name} Cloud only?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('${provider.name} Cloud only'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Both (${AppConfig.healthStore} + Cloud)'),
-          ),
-        ],
-      ),
-    );
-    if (keepLocal == null || !mounted) return;
-    await state.setLocalHealthSyncEnabled(keepLocal);
-    _toast(
-      keepLocal
-          ? 'Parallel sync active (${AppConfig.healthStore} + ${provider.name} Cloud).'
-          : '${provider.name} Cloud-only mode active. Local phone uploads paused.',
-    );
+    await promptSyncModeAfterConnect(context, state, provider);
   }
 
   Future<void> _connectCloud(CloudProvider provider) async {

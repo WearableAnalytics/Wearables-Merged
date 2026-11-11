@@ -238,6 +238,20 @@ void main() {
       expect(find.text('Connect Garmin Cloud'), findsOneWidget);
     },
   );
+
+  test('restoreCloudConnections queries server and restores active connections', () async {
+    SharedPreferences.setMockInitialValues({'device_id': _studyCodeWithPatient});
+    final fakeCloud = _FakeCloudConnectorService()..serverConnected = true;
+    final state = AppState(cloudService: fakeCloud);
+    await state.load();
+    expect(state.isCloudConnected('garmin'), isFalse);
+
+    final restored = await state.restoreCloudConnections();
+    expect(restored.length, 1);
+    expect(restored.first.id, 'garmin');
+    expect(state.isCloudConnected('garmin'), isTrue);
+    expect(state.cloudUserId('garmin'), 'garmin-user-99');
+  });
 }
 
 class _FakeCloudConnectorService extends CloudConnectorService {

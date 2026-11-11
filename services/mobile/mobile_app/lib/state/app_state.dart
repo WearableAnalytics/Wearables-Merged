@@ -198,6 +198,36 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Checks active cloud providers on the server (e.g. after re-install) & updates local storage
+  /// Returns the list of providers that were found to be active on the server
+  Future<List<CloudProvider>> restoreCloudConnections() async {
+    if (!isLinked) return const [];
+    final restored = <CloudProvider>[];
+    for (final provider in CloudProvider.activeProviders) {
+      try {
+        final status = await _cloudService.fetchConnectionStatus(
+          deviceId,
+          provider: provider.id,
+        );
+        if (status.connected) {
+          cloudConnections[provider.id] = status;
+          await StorageService.setCloudConnection(
+            provider: provider.id,
+            connected: true,
+            providerUserId: status.providerUserId,
+            linkedAt: status.linkedAt,
+          );
+          restored.add(provider);
+        }
+      } catch (_) {
+      }
+    }
+    if (restored.isNotEmpty) {
+      notifyListeners();
+    }
+    return restored;
+  }
+
   /// Communicates with the Cloud Connector server (DELETE /cloud/connections/{provider}/{patientId}) to deregister the provider on the server and clear local state.
   Future<void> disconnectCloud(String provider) async {
     final key = provider.toLowerCase();

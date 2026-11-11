@@ -12,6 +12,7 @@ import '../utils/formatting.dart';
 import '../widgets/brand_header.dart';
 import '../widgets/study_code_entry.dart';
 import '../widgets/study_info_link.dart';
+import '../widgets/sync_mode_dialog.dart';
 
 /// First tab: welcome flow until a study code is linked, then the
 /// connection status with a manual "share now" action.
@@ -46,13 +47,29 @@ class _WelcomeView extends StatelessWidget {
   final AppState state;
 
   Future<void> _link(BuildContext context, {required bool scan}) async {
+    final rootContext = Navigator.of(context, rootNavigator: true).context;
     final code = scan
         ? await scanStudyCode(context)
         : await enterStudyCodeManually(context);
     if (code == null) return;
     // A newly linked participant always starts from the chosen period.
     await state.linkStudyCode(code, resetLastSync: true);
-    await state.syncNow();
+
+    // Auto-detect previously connected cloud providers on the server
+    final restored = await state.restoreCloudConnections();
+    if (!rootContext.mounted) return;
+
+    if (restored.isNotEmpty) {
+      for (final provider in restored) {
+        if (!rootContext.mounted) break;
+        await promptSyncModeAfterConnect(rootContext, state, provider);
+      }
+      if (state.localHealthSyncEnabled) {
+        await state.syncNow();
+      }
+    } else {
+      await state.syncNow();
+    }
   }
 
   @override
@@ -234,10 +251,26 @@ class _ConnectedView extends StatelessWidget {
 
   /// Links the newly scanned code and continues where sharing stopped.
   Future<void> _rescan(BuildContext context) async {
+    final rootContext = Navigator.of(context, rootNavigator: true).context;
     final code = await scanStudyCode(context);
     if (code == null) return;
     await state.linkStudyCode(code, resetLastSync: false);
-    if (context.mounted) await _syncNow(context);
+
+    final restored = await state.restoreCloudConnections();
+    if (!rootContext.mounted) return;
+
+    if (restored.isNotEmpty) {
+      for (final provider in restored) {
+        if (!rootContext.mounted) break;
+        await promptSyncModeAfterConnect(rootContext, state, provider);
+      }
+      if (state.localHealthSyncEnabled) {
+        if (!rootContext.mounted) return;
+        await _syncNow(rootContext);
+      }
+    } else {
+      await _syncNow(rootContext);
+    }
   }
 
   /// Short server or network reason, e.g. "Status 422".
