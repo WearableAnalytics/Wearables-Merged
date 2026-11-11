@@ -53,7 +53,7 @@ class HealthUpload {
 
 String _formatUuid(String hex32) {
   if (hex32.length != 32) return "00000000-0000-0000-0000-000000000000";
-  return hex32.substring(0, 8) + "-" + hex32.substring(8, 12) + "-" + hex32.substring(12, 16) + "-" + hex32.substring(16, 20) + "-" + hex32.substring(20, 32);
+  return "${hex32.substring(0, 8)}-${hex32.substring(8, 12)}-${hex32.substring(12, 16)}-${hex32.substring(16, 20)}-${hex32.substring(20, 32)}";
 }
 
 class UploadReceipt {
