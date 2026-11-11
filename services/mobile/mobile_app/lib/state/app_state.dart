@@ -17,7 +17,7 @@ class AppState extends ChangeNotifier {
        _cloudService = cloudService ?? CloudConnectorService(),
        _urlLauncher =
            urlLauncher ??
-           ((uri) => launchUrl(uri, mode: LaunchMode.externalApplication)) {
+           ((uri) => launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
     SyncActivityNotifier.isSyncing.addListener(_onSyncActivity);
     SyncActivityNotifier.progress.addListener(notifyListeners);
   }
@@ -160,8 +160,12 @@ class AppState extends ChangeNotifier {
   }
 
   /// Builds the OAuth 2.0 PKCE login URL for any cloud provider
-  Uri cloudOAuthLoginUri(String provider) =>
-      _cloudService.buildOAuthLoginUri(deviceId, provider: provider);
+  Uri cloudOAuthLoginUri(String provider, {String? returnUrl = 'wearables://oauth-callback'}) =>
+      _cloudService.buildOAuthLoginUri(
+        deviceId,
+        provider: provider,
+        returnUrl: returnUrl,
+      );
 
   /// Opens the cloud provider's OAuth 2.0 PKCE login page in the browser
   Future<bool> startCloudConnect(String provider) async {

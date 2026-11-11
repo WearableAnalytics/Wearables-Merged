@@ -56,6 +56,8 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
 
   Future<void> _checkCloudAfterAuth(CloudProvider provider) async {
     try {
+      // Small delay for InAppBrowser closes
+      await Future.delayed(const Duration(milliseconds: 350));
       final wasConnected = state.isCloudConnected(provider.id);
       final status = await state.refreshCloudStatus(provider.id);
       if (!mounted) return;

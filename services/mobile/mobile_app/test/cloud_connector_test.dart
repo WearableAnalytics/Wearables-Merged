@@ -182,7 +182,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         launchedUri.toString(),
-        'https://wearables.charite.de/cloud/auth/garmin/login?patient_id=patient-42',
+        'https://wearables.charite.de/cloud/auth/garmin/login?patient_id=patient-42&return_url=wearables%3A%2F%2Foauth-callback',
       );
 
       // Simulate server has access
