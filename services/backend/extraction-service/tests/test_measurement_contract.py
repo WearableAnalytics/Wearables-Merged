@@ -35,6 +35,8 @@ async def test_roundtrip_preserves_period_precision_and_light_sleep():
     assert observation["code"]["coding"][0]["code"] == "93830-8"
     assert observation["effectivePeriod"]["end"] == "2026-11-12T09:01:30.250000Z"
     assert "effectiveDateTime" not in observation
+    assert observation["meta"]["profile"] == ["http://hl7.org/fhir/StructureDefinition/Observation"]
+    assert observation["category"][0]["coding"][0]["code"] == "activity"
 
 
 @pytest.mark.asyncio

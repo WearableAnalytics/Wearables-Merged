@@ -36,6 +36,7 @@ class MeasurementContractTest {
     }
 
     @Test void everyDeclaredMetricMapsWithItsCanonicalUnit() {
+        Validator.initiliazeFhirValidator(0);
         for (var path : config.getMeasurement().getPaths()) {
             String category = path.getPath().substring("measurements.".length());
             var codes = path.getMappings().stream().filter(m -> m.getFieldName().equals("codeCodingCodeZero"))
@@ -44,6 +45,13 @@ class MeasurementContractTest {
                 String unit = NumericMeasurementNormalizer.mapped(path, "valueUnit", entry.getValue());
                 var result = mapper.mapFhir(input(category, entry.getKey().toUpperCase().replace('-', '_'), 1, unit).toString());
                 assertEquals(unit, result.getValue1().getAsJsonObject("valueQuantity").get("unit").getAsString());
+                Validator.validateAlways(result.getValue1());
+                if (!category.equals("instantaneous")) {
+                    assertEquals("http://hl7.org/fhir/StructureDefinition/Observation",
+                            result.getValue1().getAsJsonObject("meta").getAsJsonArray("profile").get(0).getAsString());
+                    assertEquals("activity", result.getValue1().getAsJsonArray("category").get(0).getAsJsonObject()
+                            .getAsJsonArray("coding").get(0).getAsJsonObject().get("code").getAsString());
+                }
             }
         }
     }

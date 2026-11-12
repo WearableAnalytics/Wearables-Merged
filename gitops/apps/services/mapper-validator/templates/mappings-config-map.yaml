@@ -518,7 +518,7 @@ data:
                 name: codeCodingDisplayOne
                 mandatory: false
             - name: categoryZeroCodingZeroCode
-              value: vital-signs
+              value: activity
               target: category[0].coding[0].code
               optional: false
               type: string
@@ -536,7 +536,7 @@ data:
                 name: categoryZeroCodingZeroSystem
                 mandatory: false
             - name: categoryZeroCodingZeroDisplay
-              value: Vital Signs
+              value: Activity
               target: category[0].coding[0].display
               optional: false
               type: string
@@ -554,7 +554,7 @@ data:
                 name: categoryZeroText
                 mandatory: false
             - name: metaProfileZero
-              value: http://hl7.org/fhir/StructureDefinition/vitalsigns
+              value: http://hl7.org/fhir/StructureDefinition/Observation
               target: meta.profile[0]
               optional: false
               type: string
@@ -871,7 +871,7 @@ data:
                 name: codeCodingDisplayOne
                 mandatory: false
             - name: categoryZeroCodingZeroCode
-              value: vital-signs
+              value: activity
               target: category[0].coding[0].code
               optional: false
               type: string
@@ -889,7 +889,7 @@ data:
                 name: categoryZeroCodingZeroSystem
                 mandatory: false
             - name: categoryZeroCodingZeroDisplay
-              value: Vital Signs
+              value: Activity
               target: category[0].coding[0].display
               optional: false
               type: string
@@ -907,7 +907,7 @@ data:
                 name: categoryZeroText
                 mandatory: false
             - name: metaProfileZero
-              value: http://hl7.org/fhir/StructureDefinition/vitalsigns
+              value: http://hl7.org/fhir/StructureDefinition/Observation
               target: meta.profile[0]
               optional: false
               type: string
