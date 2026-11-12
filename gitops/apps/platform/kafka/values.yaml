@@ -75,6 +75,12 @@ topics:
 #     id: connect-cluster
 
 sourceConnector:
+  # The connector needs a Kafka Connect cluster, which this chart does not deploy
+  # (kafkaConnect above is commented out); without one it stays NotReady and Argo CD
+  # reports the kafka application as Degraded.
+  # TODO: check in production whether a Kafka Connect cluster and Mosquitto run there;
+  # if not, set this to false.
+  enabled: true
   mosquittoName: mosquitto # Must match your mosquitto DEPLOYMENT name
   mosquittoNamespace: mosquitto # Must match your mosquitto namespace
   mosquittoPort: 1883

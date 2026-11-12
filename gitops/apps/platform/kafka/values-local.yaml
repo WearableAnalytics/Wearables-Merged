@@ -31,3 +31,6 @@ topics:                # same as Prod, but one replica each
     replicas: 1        # Prod: 3
     retentionMs: 7200000
     segmentBytes: 1073741824
+
+sourceConnector:
+  enabled: false       # Prod: true (to be checked); no Kafka Connect or Mosquitto locally

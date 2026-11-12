@@ -71,7 +71,7 @@ kubectl get pods -n kafka
 kubectl get kafkatopics -n kafka   # dlq, wearables-lp, wearables-raw: READY True
 ```
 
-The `kafka-mosquitto-source` KafkaConnector stays without status: the chart has no Kafka Connect cluster for it to run on. It is harmless locally.
+Locally the chart does not create the `kafka-mosquitto-source` KafkaConnector (`sourceConnector.enabled: false`): there is no Kafka Connect cluster for it to run on, and Argo CD would report the kafka application as Degraded.
 
 ## 4. FHIR mapper
 
