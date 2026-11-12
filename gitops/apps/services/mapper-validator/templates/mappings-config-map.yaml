@@ -289,8 +289,6 @@ data:
                   value: http://unitsofmeasure.org
                 - key: /min
                   value: http://unitsofmeasure.org
-                - key: /min
-                  value: http://unitsofmeasure.org
                 - key: kcal/d
                   value: http://unitsofmeasure.org
             - fieldName: codeCodingCodeZero

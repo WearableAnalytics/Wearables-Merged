@@ -35,6 +35,19 @@ class MeasurementContractTest {
         return root;
     }
 
+    @Test void everyDeclaredMetricMapsWithItsCanonicalUnit() {
+        for (var path : config.getMeasurement().getPaths()) {
+            String category = path.getPath().substring("measurements.".length());
+            var codes = path.getMappings().stream().filter(m -> m.getFieldName().equals("codeCodingCodeZero"))
+                    .findFirst().orElseThrow();
+            for (var entry : codes.getMap()) {
+                String unit = NumericMeasurementNormalizer.mapped(path, "valueUnit", entry.getValue());
+                var result = mapper.mapFhir(input(category, entry.getKey().toUpperCase().replace('-', '_'), 1, unit).toString());
+                assertEquals(unit, result.getValue1().getAsJsonObject("valueQuantity").get("unit").getAsString());
+            }
+        }
+    }
+
     @Test void distinguishesLightDeepAndHrvMethods() {
         for (String metric : List.of("SLEEP_LIGHT", "SLEEP_ASLEEP_CORE")) {
             var fhir = mapper.mapFhir(input("duration", metric, 1.5, "MINUTE").toString()).getValue1();
