@@ -17,21 +17,21 @@ String newUploadKey() {
 }
 
 /// Native provider identity, independent of the collector and authentication.
-/// Keep the ID even while the legacy wire shape only carries name/platform.
 typedef UploadSource = ({String id, String name, String platform});
 
 UploadSource _sourceOf(HealthDataPoint point) => (
   id: point.sourceId,
   name: point.sourceName,
-  platform: point.sourcePlatform.toString(),
+  platform: point.sourcePlatform == HealthPlatformType.appleHealth
+      ? 'apple-health'
+      : 'health-connect',
 );
 
 extension UploadSourceMetadata on UploadSource {
   Map<String, String> toLegacyMetadata() => {
     'sourceName': name,
     'sourcePlatform': platform,
-    // Future sourceId transport belongs here once its namespace/contract is
-    // agreed with ingest. Native sourceId is not a sourceRecordId or collector ID.
+    if (id.isNotEmpty) 'sourceId': id,
   };
 }
 
@@ -172,6 +172,8 @@ List<HealthUpload> prepareHealthUploads({
         'duration': <Map<String, dynamic>>[],
       },
       ..._sourceOf(point).toLegacyMetadata(),
+      if (point.uuid.isNotEmpty && point.sourceId.isNotEmpty)
+        'contractVersion': 'wearables-numeric/1',
       'totalStepsToday': stepsToday,
       'timestamp': timestamp,
     };
@@ -190,8 +192,15 @@ List<HealthUpload> prepareHealthUploads({
     final readings = formatted[category] as List;
     if (readings.isEmpty) continue;
     final reading = readings.single as Map<String, dynamic>;
+    if (point.uuid.isNotEmpty) reading['sourceRecordId'] = point.uuid;
+    if (point.sourceDeviceId.isNotEmpty) {
+      reading['sourceDeviceId'] = point.sourceDeviceId;
+    }
     final pointSource = _sourceOf(point);
-    if (payload == null || source != pointSource) {
+    final identified = point.uuid.isNotEmpty && point.sourceId.isNotEmpty;
+    if (payload == null ||
+        source != pointSource ||
+        payload!.containsKey('contractVersion') != identified) {
       finish();
       start(point);
       source = pointSource;

@@ -134,7 +134,8 @@ async def test_garmin_provider_parses_full_health_bundle_and_ecg():
     )
 
     assert payload.deviceInfo.platform == "Garmin"
-    assert payload.deviceInfo.deviceId == patient_id
+    assert payload.participantId == patient_id
+    assert payload.deviceInfo.deviceId == "cloud-connector:garmin"
     assert payload.totalStepsToday == 7842
 
     inst = payload.measurements.instantaneous
@@ -259,7 +260,8 @@ def test_garmin_pkce_and_webhook_user_linking(monkeypatch, tmp_path):
         resolve_patient_id=lambda uid: store.resolve_patient_id("garmin", uid),
     )
     assert len(payloads) == 1
-    assert payloads[0].deviceInfo.deviceId == patient_id
+    assert payloads[0].participantId == patient_id
+    assert payloads[0].deviceInfo.deviceId == "cloud-connector:garmin"
     assert payloads[0].totalStepsToday == 6419
     assert len(payloads[0].measurements.instantaneous) == 2
     assert len(payloads[0].measurements.cumulative) == 1

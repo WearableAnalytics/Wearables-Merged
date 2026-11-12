@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
 
 class DeviceInfo(BaseModel):
@@ -12,13 +12,17 @@ class BatchInfo(BaseModel):
     collectionEnd: datetime
     lastSendTime: Optional[datetime] = None
 
-class InstantaneousMeasurement(BaseModel):
+class SourceRecord(BaseModel):
+    sourceRecordId: Optional[str] = Field(default=None, min_length=1, max_length=512)
+    sourceDeviceId: Optional[str] = Field(default=None, min_length=1, max_length=512)
+
+class InstantaneousMeasurement(SourceRecord):
     type: str
     value: float
     unit: str
     timestamp: datetime
 
-class CumulativeMeasurement(BaseModel):
+class CumulativeMeasurement(SourceRecord):
     type: str
     value: float
     unit: str
@@ -26,7 +30,7 @@ class CumulativeMeasurement(BaseModel):
     periodEnd: datetime
     duration: int
 
-class DurationMeasurement(BaseModel):
+class DurationMeasurement(SourceRecord):
     type: str
     value: float
     unit: str
@@ -40,11 +44,13 @@ class Measurements(BaseModel):
     duration: List[DurationMeasurement] = Field(default_factory=list)
 
 class IngestPayload(BaseModel):
+    contractVersion: Optional[Literal["wearables-numeric/1"]] = None
     deviceInfo: DeviceInfo
     batchInfo: BatchInfo
     measurements: Measurements
     sourceName: str
     sourcePlatform: Optional[str] = None
+    sourceId: Optional[str] = Field(default=None, min_length=1, max_length=256)
     totalStepsToday: Optional[int] = None
     timestamp: datetime
 

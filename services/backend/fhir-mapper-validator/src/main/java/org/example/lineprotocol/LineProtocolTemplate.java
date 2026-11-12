@@ -40,6 +40,7 @@ public class LineProtocolTemplate {
     private Map<String, String> fields;
     @JsonProperty("tag-mappings")
     private Map<String, String> tags;
+    private Set<String> stringFields = new HashSet<>();
 
 
     @Getter
@@ -93,6 +94,9 @@ public class LineProtocolTemplate {
 
                             String tagValue = value.getAsString();
                             String tagKey = x.getLineProtocol().getName();
+                            if (type.equals("field") && value.getAsJsonPrimitive().isString()) {
+                                stringFields.add(tagKey);
+                            }
 
                             elementsMap.put(tagKey, tagValue);
                         }
