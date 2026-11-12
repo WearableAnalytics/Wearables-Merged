@@ -67,12 +67,12 @@ public class LineProtocolParser {
         } else {
             //with tags with comma
             sb.append(",");
-            insertMaps("tag", template.getTags(), sb);
+            insertMaps("tag", template.getTags(), template.getStringFields(), sb);
             sb.append(" "); //space between tags and fields
         }
 
         //set fields
-        insertMaps("field", template.getFields(), sb);
+        insertMaps("field", template.getFields(), template.getStringFields(), sb);
 
         sb.append(" "); //space between fields and timestamp
 
@@ -85,13 +85,13 @@ public class LineProtocolParser {
         return lpString;
     }
 
-    private static void insertMaps(String type, Map<String, String> map, StringBuilder sb) {
+    private static void insertMaps(String type, Map<String, String> map, Set<String> stringFields, StringBuilder sb) {
         Iterator<Map.Entry<String, String>> it = map.entrySet().iterator();
 
         while (it.hasNext()) {
             Map.Entry<String, String> e = it.next();
 
-            boolean b = checkNumber(e.getValue());
+            boolean b = !stringFields.contains(e.getKey()) && checkNumber(e.getValue());
 
             String quotedIfString = e.getValue();
 

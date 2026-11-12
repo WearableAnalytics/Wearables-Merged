@@ -1,4 +1,4 @@
-version: 2.0.0
+version: 2.1.0
 numericContract: wearables-numeric/2
 metadata:
   fields:
@@ -9,9 +9,9 @@ metadata:
       type: string
       lineProtocol:
         type: tag
-        name: device-id
+        name: source-device-id
     - name: deviceReference
-      rawSource: deviceInfo.deviceId
+      rawSource: participantId
       target: subject.reference
       transform:
         - type: prepend
@@ -258,6 +258,104 @@ measurement:
           target: extension[2].url
           optional: false
           type: string
+        - name: sourceKey
+          rawSource: measurements.instantaneous.sourceKey
+          target: extension[3].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: tag
+            name: source-key
+            mandatory: true
+        - name: sourceUrl3
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source-key
+          target: extension[3].url
+          optional: false
+          type: string
+        - name: sourcePlatform
+          rawSource: measurements.instantaneous.sourcePlatform
+          target: extension[4].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_platform
+            mandatory: true
+        - name: sourceUrl4
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_platform
+          target: extension[4].url
+          optional: false
+          type: string
+        - name: sourceId
+          rawSource: measurements.instantaneous.sourceId
+          target: extension[5].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_id
+            mandatory: true
+        - name: sourceUrl5
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_id
+          target: extension[5].url
+          optional: false
+          type: string
+        - name: sourceName
+          rawSource: measurements.instantaneous.sourceName
+          target: extension[6].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_name
+            mandatory: true
+        - name: sourceUrl6
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_name
+          target: extension[6].url
+          optional: false
+          type: string
+        - name: collectorId
+          rawSource: measurements.instantaneous.collectorId
+          target: extension[7].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: collector_id
+            mandatory: true
+        - name: sourceUrl7
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/collector_id
+          target: extension[7].url
+          optional: false
+          type: string
+        - name: sourceRecordId
+          rawSource: measurements.instantaneous.sourceRecordId
+          target: extension[8].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_record_id
+            mandatory: true
+        - name: sourceUrl8
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_record_id
+          target: extension[8].url
+          optional: false
+          type: string
+        - name: sourceDeviceId
+          rawSource: measurements.instantaneous.sourceDeviceId
+          target: extension[9].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_device_id
+            mandatory: true
+        - name: sourceUrl9
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_device_id
+          target: extension[9].url
+          optional: false
+          type: string
       mappings:
         - fieldName: valueUnit
           valueType: string
@@ -280,8 +378,6 @@ measurement:
           valueType: string
           map:
             - key: ms
-              value: http://unitsofmeasure.org
-            - key: /min
               value: http://unitsofmeasure.org
             - key: /min
               value: http://unitsofmeasure.org
@@ -637,6 +733,104 @@ measurement:
             type: field
             name: period_end
             mandatory: true
+        - name: sourceKey
+          rawSource: measurements.cumulative.sourceKey
+          target: extension[3].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: tag
+            name: source-key
+            mandatory: true
+        - name: sourceUrl3
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source-key
+          target: extension[3].url
+          optional: false
+          type: string
+        - name: sourcePlatform
+          rawSource: measurements.cumulative.sourcePlatform
+          target: extension[4].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_platform
+            mandatory: true
+        - name: sourceUrl4
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_platform
+          target: extension[4].url
+          optional: false
+          type: string
+        - name: sourceId
+          rawSource: measurements.cumulative.sourceId
+          target: extension[5].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_id
+            mandatory: true
+        - name: sourceUrl5
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_id
+          target: extension[5].url
+          optional: false
+          type: string
+        - name: sourceName
+          rawSource: measurements.cumulative.sourceName
+          target: extension[6].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_name
+            mandatory: true
+        - name: sourceUrl6
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_name
+          target: extension[6].url
+          optional: false
+          type: string
+        - name: collectorId
+          rawSource: measurements.cumulative.collectorId
+          target: extension[7].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: collector_id
+            mandatory: true
+        - name: sourceUrl7
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/collector_id
+          target: extension[7].url
+          optional: false
+          type: string
+        - name: sourceRecordId
+          rawSource: measurements.cumulative.sourceRecordId
+          target: extension[8].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_record_id
+            mandatory: true
+        - name: sourceUrl8
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_record_id
+          target: extension[8].url
+          optional: false
+          type: string
+        - name: sourceDeviceId
+          rawSource: measurements.cumulative.sourceDeviceId
+          target: extension[9].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_device_id
+            mandatory: true
+        - name: sourceUrl9
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_device_id
+          target: extension[9].url
+          optional: false
+          type: string
       mappings:
         - fieldName: valueSystem
           valueType: string
@@ -990,6 +1184,104 @@ measurement:
             type: field
             name: period_end
             mandatory: true
+        - name: sourceKey
+          rawSource: measurements.duration.sourceKey
+          target: extension[3].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: tag
+            name: source-key
+            mandatory: true
+        - name: sourceUrl3
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source-key
+          target: extension[3].url
+          optional: false
+          type: string
+        - name: sourcePlatform
+          rawSource: measurements.duration.sourcePlatform
+          target: extension[4].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_platform
+            mandatory: true
+        - name: sourceUrl4
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_platform
+          target: extension[4].url
+          optional: false
+          type: string
+        - name: sourceId
+          rawSource: measurements.duration.sourceId
+          target: extension[5].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_id
+            mandatory: true
+        - name: sourceUrl5
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_id
+          target: extension[5].url
+          optional: false
+          type: string
+        - name: sourceName
+          rawSource: measurements.duration.sourceName
+          target: extension[6].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_name
+            mandatory: true
+        - name: sourceUrl6
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_name
+          target: extension[6].url
+          optional: false
+          type: string
+        - name: collectorId
+          rawSource: measurements.duration.collectorId
+          target: extension[7].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: collector_id
+            mandatory: true
+        - name: sourceUrl7
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/collector_id
+          target: extension[7].url
+          optional: false
+          type: string
+        - name: sourceRecordId
+          rawSource: measurements.duration.sourceRecordId
+          target: extension[8].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_record_id
+            mandatory: true
+        - name: sourceUrl8
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_record_id
+          target: extension[8].url
+          optional: false
+          type: string
+        - name: sourceDeviceId
+          rawSource: measurements.duration.sourceDeviceId
+          target: extension[9].valueString
+          optional: true
+          type: string
+          lineProtocol:
+            type: field
+            name: source_device_id
+            mandatory: true
+        - name: sourceUrl9
+          value: https://wearableanalytics.github.io/fhir/StructureDefinition/source_device_id
+          target: extension[9].url
+          optional: false
+          type: string
       mappings:
         - fieldName: valueSystem
           valueType: string

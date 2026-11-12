@@ -39,7 +39,8 @@ async def ingest(
     claims=Depends(verify_case_verification_token),
 ):
     data = payload.model_dump(mode="json")
-    data["deviceInfo"]["deviceId"] = claims["patientId"]
+    data["participantId"] = claims["patientId"]
+    data["caseId"] = claims["caseId"]
     kafka_msg = [data]
 
     loop = asyncio.get_running_loop()

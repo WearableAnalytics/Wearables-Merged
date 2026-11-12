@@ -35,6 +35,19 @@ class MeasurementContractTest {
         return root;
     }
 
+    @Test void everyDeclaredMetricMapsWithItsCanonicalUnit() {
+        for (var path : config.getMeasurement().getPaths()) {
+            String category = path.getPath().substring("measurements.".length());
+            var codes = path.getMappings().stream().filter(m -> m.getFieldName().equals("codeCodingCodeZero"))
+                    .findFirst().orElseThrow();
+            for (var entry : codes.getMap()) {
+                String unit = NumericMeasurementNormalizer.mapped(path, "valueUnit", entry.getValue());
+                var result = mapper.mapFhir(input(category, entry.getKey().toUpperCase().replace('-', '_'), 1, unit).toString());
+                assertEquals(unit, result.getValue1().getAsJsonObject("valueQuantity").get("unit").getAsString());
+            }
+        }
+    }
+
     @Test void distinguishesLightDeepAndHrvMethods() {
         for (String metric : List.of("SLEEP_LIGHT", "SLEEP_ASLEEP_CORE")) {
             var fhir = mapper.mapFhir(input("duration", metric, 1.5, "MINUTE").toString()).getValue1();
@@ -80,7 +93,7 @@ class MeasurementContractTest {
         String line = new LineProtocolParser(config).parse(mapped.getValue0(), mapped.getValue1(), graph.build().get(mapped.getValue0()));
         assertTrue(line.contains("period_end=\"2026-11-12T10:00:00.123456Z\""), line);
         assertTrue(line.contains("input_unit=\"SECOND\""), line);
-        assertTrue(line.contains("version=2.0.0"), line);
+        assertTrue(line.contains("version=2.1.0"), line);
         Files.createDirectories(Path.of("target/contract"));
         Files.writeString(Path.of("target/contract/sleep-light.lp"), line);
     }
@@ -92,5 +105,32 @@ class MeasurementContractTest {
         assertNotEquals(active.getAsJsonObject("code"), elapsed.getAsJsonObject("code"));
         assertThrows(IllegalArgumentException.class,
             () -> mapper.mapFhir(input("duration", "WORKOUT_ACTIVE_TIME", 61, "MINUTE").toString()));
+    }
+
+    @Test void retainsNumericLookingNativeIdsAndSeparatesPhysicalSources() throws Exception {
+        JsonObject root = input("instantaneous", "HEART_RATE", 72, "BEATS_PER_MINUTE");
+        root.addProperty("sourcePlatform", "apple-health");
+        root.addProperty("sourceId", "com.example.health");
+        root.addProperty("sourceName", "Watch App");
+        JsonObject reading = root.getAsJsonObject("measurements").getAsJsonArray("instantaneous").get(0).getAsJsonObject();
+        reading.addProperty("sourceRecordId", "00123");
+        reading.addProperty("sourceDeviceId", "watch-1");
+        var first = mapper.mapFhir(root.toString());
+        reading.addProperty("sourceDeviceId", "watch-2");
+        var second = mapper.mapFhir(root.toString());
+        DependencyGraph graph = new DependencyGraph(config);
+        graph.createGraphBase(); graph.enrichGraphWithFhir();
+        var basis = graph.build().get(first.getValue0());
+        LineProtocolParser parser = new LineProtocolParser(config);
+        String line = parser.parse(first.getValue0(), first.getValue1(), basis);
+        String other = parser.parse(second.getValue0(), second.getValue1(), basis);
+        assertTrue(line.contains("source_record_id=\"00123\""), line);
+        var sourceTag = java.util.regex.Pattern.compile("(?:^|,)source-key=([a-f0-9]{64})");
+        var one = sourceTag.matcher(line);
+        var two = sourceTag.matcher(other);
+        assertTrue(one.find(), line);
+        assertTrue(two.find(), other);
+        assertNotEquals(one.group(1), two.group(1));
+        Files.writeString(Path.of("target/contract/source.lp"), line);
     }
 }

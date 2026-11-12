@@ -19,7 +19,8 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from .clients import create_db_lord_client
 from .db_lord_api import DbLordApi
 from .fhir import ObservationBuilder
-from .points import iter_readings, read_page
+from .points import iter_readings, read_page, reading_key
+from .reconciliation import Mode, bounded_readings, reconcile
 from .schemas import MeasurementPage, MeasurementPoint, MeasurementType
 from .settings import settings
 
@@ -127,23 +128,45 @@ class ReadingFilter:
             datetime | None, Query(description="Inclusive start. Defaults to 2020-01-01T00:00:00Z.")
         ] = None,
         end: Annotated[datetime | None, Query(description="Exclusive end. Defaults to now.")] = None,
+        source_key: Annotated[
+            str | None, Query(min_length=1, max_length=64, description="One source-key from the source policy view.")
+        ] = None,
     ):
         self.measurement = measurement or None
         self.patient_id = patient_id or None
         self.start = as_utc(start) or settings.default_start
         self.end = as_utc(end)
+        self.source_key = source_key
         if self.end is not None and self.start >= self.end:
             raise HTTPException(status_code=422, detail="start must be before end")
 
     def readings(self, api: DbLordApi):
         return iter_readings(
-            api, measurement=self.measurement, start=self.start, end=self.end, patient_id=self.patient_id
+            api, measurement=self.measurement, start=self.start, end=self.end, patient_id=self.patient_id,
+            source_key=self.source_key,
         )
 
 
 @app.get("/health", include_in_schema=False)
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/v1/measurements/reconciled", tags=["measurements"],
+         summary="Compare sources or select one source for a measurement")
+async def get_reconciled_measurements(
+    api: DbLordDep,
+    patient_id: Annotated[str, Query(min_length=1, max_length=128)],
+    measurement: Annotated[str, Query(min_length=1, max_length=128)],
+    start: datetime,
+    end: datetime,
+    mode: Mode = "separate",
+    source_key: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
+    source_priority: Annotated[list[str] | None, Query(max_length=32)] = None,
+):
+    points = await bounded_readings(api, patient_id=patient_id, measurement=measurement, start=start, end=end)
+    return reconcile(points, measurement=measurement, start=start, end=end, mode=mode,
+                     source_key=source_key, priorities=source_priority)
 
 
 @app.get(
@@ -248,8 +271,10 @@ async def export_measurements_fhir(
                 observation = await builder.build(point)
                 if observation is None:
                     continue
-                reading = f"{point.patient_id}/{point.measurement}/{point.timestamp.isoformat()}"
-                entry = {"fullUrl": f"urn:uuid:{uuid5(NAMESPACE_URL, reading)}", "resource": observation}
+                reading = json.dumps([point.timestamp.isoformat(), reading_key(point)], sort_keys=True, default=str)
+                resource_id = str(uuid5(NAMESPACE_URL, reading))
+                observation["id"] = resource_id
+                entry = {"fullUrl": f"urn:uuid:{resource_id}", "resource": observation}
                 yield ("" if first else ",") + json.dumps(entry, ensure_ascii=False)
                 first = False
         yield "]}"
