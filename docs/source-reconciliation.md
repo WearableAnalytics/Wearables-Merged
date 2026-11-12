@@ -92,6 +92,11 @@ Completed locally on 12 November 2026:
 - A temporary local InfluxDB run verified source grouping including historical
   points without a source tag, and preserved native ID `00123` as a string.
   Its container and data were removed after the check.
+- A detached integration checkout combined this work with `reliable-ingestion`
+  and `ingestion-source-contract`. Thirty-three importer checks and the real
+  PostgreSQL/Kafka/Java/Telegraf/InfluxDB test passed. The latter checked native
+  writer/device/record identity, duplicate delivery, rejected unknown metrics,
+  and a fractional light-sleep duration with its full interval.
 - Tests use synthetic records. Physical provider synchronization and validation
   of platform-specific aggregation preferences require device testing.
 
@@ -100,6 +105,12 @@ When combining this branch with `reliable-ingestion`, apply the small
 the signed mapper input and accepts fractional duration fields. The reliable
 journal supplies immutable-record admission and projection collision protection.
 Plain main's older importer retains its earlier asynchronous delivery behavior.
+The temporary combined check resolved four overlapping files deliberately:
+keep the receipt-backed importer and its compatible wire model; include the
+numeric/source normalizer in Mapper; and retain both test generations in the
+Maven configuration. These integration resolutions are not a merge into main.
+Interval resources now use the base Observation profile and activity category,
+and every declared metric is checked by the HAPI validator.
 
 Review this branch with Oskar's #116/#117 model changes, Domingo's patient tag,
 and Philip/Arian's export work before integration. No schema or export policy
