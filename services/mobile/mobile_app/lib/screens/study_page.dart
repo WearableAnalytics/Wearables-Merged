@@ -32,6 +32,7 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    state.oauthCallbackCount.addListener(_onAuthReturned);
     PackageInfo.fromPlatform().then((info) {
       if (mounted) {
         setState(() => _version = '${info.version} (${info.buildNumber})');
@@ -40,34 +41,69 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
   }
 
   @override
+  void didUpdateWidget(covariant StudyPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state != widget.state) {
+      oldWidget.state.oauthCallbackCount.removeListener(_onAuthReturned);
+      widget.state.oauthCallbackCount.addListener(_onAuthReturned);
+    }
+  }
+
+  @override
   void dispose() {
+    state.oauthCallbackCount.removeListener(_onAuthReturned);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
-    if (lifecycleState == AppLifecycleState.resumed &&
-        _awaitingAuthProvider != null) {
-      final providerId = _awaitingAuthProvider!;
-      _awaitingAuthProvider = null;
-      _checkCloudAfterAuth(CloudProvider.find(providerId));
+    if (lifecycleState == AppLifecycleState.resumed) {
+      _onAuthReturned();
     }
+  }
+
+  void _onAuthReturned() {
+    final providerId = _awaitingAuthProvider;
+    if (providerId == null) return;
+    _awaitingAuthProvider = null;
+    _checkCloudAfterAuth(CloudProvider.find(providerId));
   }
 
   Future<void> _checkCloudAfterAuth(CloudProvider provider) async {
     try {
-      // Small delay for InAppBrowser closes
-      await Future.delayed(const Duration(milliseconds: 350));
       final wasConnected = state.isCloudConnected(provider.id);
-      final status = await state.refreshCloudStatus(provider.id);
-      if (!mounted) return;
-      if (status.connected && !wasConnected) {
-        _toast('${provider.name} Cloud connected.');
-        await _promptSyncModeAfterConnect(provider);
-      } else if (status.connected) {
-        _toast('${provider.name} Cloud connection is active.');
+      CloudConnectionStatus? lastStatus;
+
+      // Poll with brief retries
+      const retryDelays = [
+        Duration(milliseconds: 400),
+        Duration(milliseconds: 800),
+        Duration(milliseconds: 1200),
+      ];
+
+      for (final delay in retryDelays) {
+        await Future.delayed(delay);
+        if (!mounted) return;
+        lastStatus = await state.refreshCloudStatus(provider.id);
+        if (lastStatus.connected) {
+          break;
+        }
       }
+
+      if (!mounted) return;
+      if (lastStatus != null && lastStatus.connected) {
+        if (!wasConnected) {
+          _toast('${provider.name} Cloud connected.');
+          await _promptSyncModeAfterConnect(provider);
+        } else {
+          _toast('${provider.name} Cloud connection is active.');
+        }
+      } else {
+        _toast('${provider.name} Cloud is not connected yet.');
+      }
+      await state.load();
+      if (mounted) setState(() {});
     } catch (e) {
       if (mounted) {
         _toast('Could not verify ${provider.name} connection: $e');
@@ -108,6 +144,8 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
       } else {
         _toast('${provider.name} Cloud is not connected yet.');
       }
+      await state.load();
+      if (mounted) setState(() {});
     } catch (e) {
       if (mounted) {
         _toast('Failed to check ${provider.name} Cloud status.');
@@ -518,21 +556,35 @@ class _CloudProviderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!connected) {
+      return ListTile(
+        leading: Icon(provider.icon ?? Symbols.watch_sharp),
+        title: Text('Connect ${provider.name} Cloud'),
+        subtitle: Text(provider.description),
+        trailing: busy
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Symbols.open_in_new_sharp, size: 20),
+        onTap: busy ? null : onConnect,
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         ListTile(
           leading: Icon(
             provider.icon ?? Symbols.watch_sharp,
-            color: connected ? AppColors.success : null,
+            color: AppColors.success,
           ),
           title: Text('${provider.displayName} (Cloud)'),
           subtitle: Text(
-            connected
-                ? (userId != null
-                      ? 'Connected ($userId) - direct cloud sync active.'
-                      : 'Connected — direct cloud sync active.')
-                : provider.description,
+            userId != null
+                ? 'Connected ($userId) - direct cloud sync active.'
+                : 'Connected — direct cloud sync active.',
           ),
           trailing: busy
               ? const SizedBox(
@@ -546,22 +598,14 @@ class _CloudProviderTile extends StatelessWidget {
                   onPressed: onRefresh,
                 ),
         ),
-        if (!connected)
-          ListTile(
-            leading: const Icon(Symbols.add_link_sharp),
-            title: Text('Connect ${provider.name} Cloud'),
-            trailing: const Icon(Symbols.open_in_new_sharp, size: 20),
-            onTap: busy ? null : onConnect,
-          )
-        else
-          ListTile(
-            leading: const Icon(Symbols.link_off_sharp, color: AppColors.coral),
-            title: Text(
-              'Remove ${provider.name} Cloud connection',
-              style: const TextStyle(color: AppColors.coral),
-            ),
-            onTap: busy ? null : onDisconnect,
+        ListTile(
+          leading: const Icon(Symbols.link_off_sharp, color: AppColors.coral),
+          title: Text(
+            'Remove ${provider.name} Cloud connection',
+            style: const TextStyle(color: AppColors.coral),
           ),
+          onTap: busy ? null : onDisconnect,
+        ),
       ],
     );
   }

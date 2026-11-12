@@ -38,6 +38,13 @@ class AppState extends ChangeNotifier {
   final Map<String, CloudConnectionStatus> cloudConnections = {};
   final Set<String> _busyProviders = {};
 
+  /// Emits when OAuth deep link (wearables://oauth-callback) returns for verifying
+  final ValueNotifier<int> oauthCallbackCount = ValueNotifier(0);
+
+  void notifyOAuthCallback() {
+    oauthCallbackCount.value++;
+  }
+
   bool isCloudBusy(String provider) =>
       _busyProviders.contains(provider.toLowerCase());
   bool isCloudConnected(String provider) =>
@@ -295,6 +302,7 @@ class AppState extends ChangeNotifier {
   void dispose() {
     SyncActivityNotifier.isSyncing.removeListener(_onSyncActivity);
     SyncActivityNotifier.progress.removeListener(notifyListeners);
+    oauthCallbackCount.dispose();
     super.dispose();
   }
 }

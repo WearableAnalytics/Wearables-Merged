@@ -32,8 +32,12 @@ Future<bool?> promptSyncModeAfterConnect(
       ],
     ),
   );
-  if (keepLocal == null) return null;
+  if (keepLocal == null) {
+    await state.load();
+    return null;
+  }
   await state.setLocalHealthSyncEnabled(keepLocal);
+  await state.load();
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

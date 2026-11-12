@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:charite_wearables/main.dart' as app_main;
 import 'package:charite_wearables/screens/main_page.dart';
 import 'package:charite_wearables/services/cloud_connector_service.dart';
 import 'package:charite_wearables/state/app_state.dart';
@@ -172,8 +174,8 @@ void main() {
       await tester.tap(find.text('Account'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Garmin Connect (Cloud)'), findsOneWidget);
       expect(find.text('Connect Garmin Cloud'), findsOneWidget);
+      expect(find.text('Garmin Connect (Cloud)'), findsNothing);
 
       // Scroll down to "Connect Garmin Cloud" and tap it -> launches OAuth URL
       await tester.ensureVisible(find.text('Connect Garmin Cloud'));
@@ -185,13 +187,13 @@ void main() {
         'https://wearables.charite.de/cloud/auth/garmin/login?patient_id=patient-42&return_url=wearables%3A%2F%2Foauth-callback',
       );
 
-      // Simulate server has access
+      // Refresh icon should be hidden while not connected
+      expect(find.byTooltip('Check Garmin connection status'), findsNothing);
+
+      // Simulate server has access and app resumes from OAuth browser
       fakeCloud.serverConnected = true;
-      await tester.ensureVisible(
-        find.byTooltip('Check Garmin connection status'),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Check Garmin connection status'));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
 
       // Dialog prompts
@@ -203,6 +205,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(state.garminConnected, isTrue);
+      expect(find.byTooltip('Check Garmin connection status'), findsOneWidget);
       expect(state.localHealthSyncEnabled, isFalse);
       expect(state.isCloudOnlyMode, isTrue);
 
@@ -236,6 +239,7 @@ void main() {
       expect(fakeCloud.disconnectCalls, 1);
       expect(state.garminConnected, isFalse);
       expect(find.text('Connect Garmin Cloud'), findsOneWidget);
+      expect(find.text('Garmin Connect (Cloud)'), findsNothing);
     },
   );
 
@@ -252,6 +256,66 @@ void main() {
     expect(state.isCloudConnected('garmin'), isTrue);
     expect(state.cloudUserId('garmin'), 'garmin-user-99');
   });
+
+  testWidgets(
+    'OAuth deep link wearables://oauth-callback does not push duplicate MainPage and updates UI immediately',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'device_id': _studyCodeWithPatient,
+      });
+      final fakeCloud = _FakeCloudConnectorService();
+      final state = AppState(
+        cloudService: fakeCloud,
+        urlLauncher: (_) async => true,
+      );
+      await state.load();
+
+      await tester.pumpWidget(app_main.MyApp(state: state));
+      await tester.pumpAndSettle();
+
+      // Navigate to Account tab
+      await tester.tap(find.text('Account'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Connect Garmin Cloud'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Connect Garmin Cloud'));
+      await tester.pumpAndSettle();
+
+      // Simulate backend returning wearables://oauth-callback deep link
+      fakeCloud.serverConnected = true;
+      await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+        'flutter/navigation',
+        const JSONMethodCodec().encodeMethodCall(
+          const MethodCall('pushRouteInformation', {
+            'location': 'wearables://oauth-callback?provider=garmin',
+          }),
+        ),
+        (_) {},
+      );
+      await tester.pump(const Duration(milliseconds: 450));
+      await tester.pumpAndSettle();
+
+      // Still on a single MainPage
+      expect(find.byType(MainPage), findsOneWidget);
+      expect(find.byType(BackButton), findsNothing);
+      expect(find.text('Garmin Cloud connected'), findsOneWidget);
+
+      // Select Garmin Cloud only
+      await tester.tap(find.text('Garmin Cloud only'));
+      await tester.pumpAndSettle();
+
+      // Account Data Sources updates immediately without restart
+      expect(find.text('Garmin Connect (Cloud)'), findsOneWidget);
+      expect(find.text('Remove Garmin Cloud connection'), findsOneWidget);
+      expect(find.text('Connect Garmin Cloud'), findsNothing);
+
+      // Home tab updates immediately without restart
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+      expect(find.text('Check Garmin status'), findsOneWidget);
+      expect(find.text('Garmin Cloud'), findsOneWidget);
+    },
+  );
 }
 
 class _FakeCloudConnectorService extends CloudConnectorService {

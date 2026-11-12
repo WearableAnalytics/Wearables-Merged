@@ -50,27 +50,46 @@ class NotificationService {
     }
     _initializingCompleter = Completer<void>();
     try {
-      const androidInit = AndroidInitializationSettings('ic_notification');
       const iosInit = DarwinInitializationSettings();
-      final settings = InitializationSettings(
-        android: androidInit,
-        iOS: iosInit,
-      );
-
-      debugPrint('NotificationService.initialize: calling _plugin.initialize');
-      await _plugin.initialize(
-        settings,
-        onDidReceiveNotificationResponse: _handleNotificationResponse,
-      );
+      InitializationSettings settings;
+      try {
+        const androidInit = AndroidInitializationSettings('ic_notification');
+        settings = const InitializationSettings(
+          android: androidInit,
+          iOS: iosInit,
+        );
+        debugPrint('NotificationService.initialize: calling _plugin.initialize');
+        await _plugin.initialize(
+          settings,
+          onDidReceiveNotificationResponse: _handleNotificationResponse,
+        );
+      } catch (iconError) {
+        debugPrint(
+          'NotificationService.initialize: ic_notification failed ($iconError), falling back to @mipmap/ic_launcher',
+        );
+        const fallbackAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+        settings = const InitializationSettings(
+          android: fallbackAndroid,
+          iOS: iosInit,
+        );
+        await _plugin.initialize(
+          settings,
+          onDidReceiveNotificationResponse: _handleNotificationResponse,
+        );
+      }
       _initialized = true;
+      _initializingCompleter!.complete();
 
       if (requestPermissions) {
-        await _requestPermissions();
+        unawaited(
+          _requestPermissions().catchError((Object permError) {
+            debugPrint('NotificationService._requestPermissions failed: $permError');
+          }),
+        );
       }
-      _initializingCompleter!.complete();
     } catch (e, st) {
+      debugPrint('NotificationService.initialize unexpected error: $e');
       _initializingCompleter!.completeError(e, st);
-      rethrow;
     } finally {
       _initializingCompleter = null;
     }
