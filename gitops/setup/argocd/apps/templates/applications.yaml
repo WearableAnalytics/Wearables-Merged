@@ -30,6 +30,15 @@ spec:
     automated:
       prune: {{ if hasKey . "prune" }}{{ .prune }}{{ else }}true{{ end }}
       selfHeal: {{ if hasKey . "selfHeal" }}{{ .selfHeal }}{{ else }}true{{ end }}
+    {{- /* The applications sync in parallel, so a sync can fail while a dependency is
+    still starting (e.g. the db-lord migration before Postgres is up). Without
+    retry, Argo CD does not sync the same revision again on its own. */}}
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
     syncOptions:
       - CreateNamespace=true
       {{- range .syncOptions }}

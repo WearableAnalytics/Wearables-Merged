@@ -16,7 +16,7 @@ Then open http://wearables.localhost and log in with `admin@example.com`.
 
 `setup-local.sh` runs the steps below in order and can be run again at any time: Helm upgrades the releases, and secrets are only created when they are missing. Use `--skip-build` to keep the current images. Every `kubectl` and `helm` call in the script is pinned to the `minikube` context. The sections below explain each step and how to check it.
 
-With `--argocd`, Argo CD deploys five of the services from GitHub instead of Helm, as in production (step 16).
+With `--argocd`, Argo CD deploys the applications from GitHub instead of Helm, as in production (step 16).
 
 ## Prerequisites
 
@@ -380,7 +380,7 @@ The proxy needs a secret with two values: `APP_JWT_SECRET` checks the BFF sessio
 ```bash
 kubectl create namespace monitoring
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/grafana-jwt.pem
-kubectl create secret generic grafana-proxy-secrets -n monitoring \
+kubectl create secret generic grafana-auth-secrets -n monitoring \
   --from-file=GRAFANA_JWT_PRIVATE_KEY=/tmp/grafana-jwt.pem \
   --from-literal=APP_JWT_SECRET=dev-secret
 rm /tmp/grafana-jwt.pem
@@ -503,13 +503,22 @@ print('wearables-raw' in md.topics)"   # True
 
 ## 16. Argo CD mode (optional)
 
-Production deploys cloud-connector, importservice, mapper-validator, wearables-bff and the web frontend with Argo CD (`gitops/setup/argocd/`). To try the same locally:
+Production deploys the applications with Argo CD (`gitops/setup/argocd/`): Postgres, InfluxDB, Kafka, db_lord, extraction-service, cloud-connector, importservice, mapper-validator, wearables-bff, the web frontend, Grafana and grafana-proxy. To try the same locally:
 
 ```bash
 ./gitops/local/setup-local.sh --argocd --revision feat/my-branch   # default revision: main
 ```
 
-The script then installs Argo CD (pinned to v3.5.7) and applies `gitops/local/argocd/root-app.yaml`. This root application deploys the same chart as production, `gitops/setup/argocd/apps`, with its `values-local.yaml`. The chart creates the five applications: the same as in production, but they pass `values.yaml` plus `values-local.yaml` to the service charts, and deleting one also deletes its resources. The release names are the same as in Helm mode and production (the web frontend's release is `web`). Everything else (Kafka, Postgres, Traefik, Grafana, the secrets, ...) is still installed by Helm.
+The script then installs Argo CD (pinned to v3.5.7) and applies `gitops/local/argocd/root-app.yaml`. This root application deploys the same chart as production, `gitops/setup/argocd/apps`, with its `values-local.yaml`. The chart creates the same applications as in production, but they pass `values.yaml` plus `values-local.yaml` to the charts, and deleting one also deletes its resources. The release names are the same as in Helm mode and production (the web frontend's release is `web`).
+
+Like the production setup script, the script itself only installs what the applications need beforehand, then waits until all applications are synced and healthy:
+
+- the Strimzi operator and Traefik (with its CRDs),
+- the secrets `importservice-secrets`, `grafana-auth-secrets` and `db-lord-secrets`, and the ConfigMap `grafana-patient-dashboards`. Argo CD runs the db_lord migration before it applies the chart's secret, so the script renders `db-lord-secrets` from the chart beforehand.
+
+Afterwards it installs Telegraf, Prometheus and db-stats-exporter with Helm, which are not managed by Argo CD in production either.
+
+The applications sync in parallel, so some fail or restart at first until Kafka and Postgres are up (e.g. the db_lord migration). Argo CD retries a failed sync up to five times (`retry` in `gitops/setup/argocd/apps/templates/applications.yaml`), so the first run takes a few minutes longer than in Helm mode.
 
 Use Helm mode (without `--argocd`) for day-to-day development: a change is in the cluster with one `helm upgrade`. Argo CD mode is slower, but behaves like production (automatic sync, self-heal, prune).
 
@@ -529,7 +538,7 @@ kubectl rollout restart deployment/importservice -n importservice
 
 ```bash
 kubectl get applications -n argocd   # all SYNCED and HEALTHY, including wearables-local-root
-helm list -A                         # the five services are not listed: Argo CD renders the charts itself
+helm list -A                         # only strimzi, traefik, telegraf, prometheus and db-stats-exporter: Argo CD renders the other charts itself
 ```
 
 Argo CD UI:
@@ -541,13 +550,13 @@ kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.pas
 
 ### Working in Argo CD mode
 
-There are no Helm releases for the five services, so `helm uninstall` reports `release not found`. Deleting things by hand has these effects:
+There are no Helm releases for the applications, so `helm uninstall` reports `release not found`. Deleting things by hand has these effects:
 
 | Deleted | Result |
 |---|---|
 | A resource, e.g. `kubectl delete deployment importservice -n importservice` | Argo CD creates it again within seconds (self-heal). |
 | An application, e.g. `kubectl delete application importservice -n argocd` | Its finalizer deletes its resources too, but the root application creates the application again, which then redeploys everything. |
-| The root application `wearables-local-root` | All five applications and their resources are removed and stay removed. |
+| The root application `wearables-local-root` | All applications and their resources are removed and stay removed. |
 | A namespace | Argo CD recreates the namespace and its resources, but not the secrets created by the script (e.g. `importservice-secrets`); run `setup-local.sh` again. |
 
 Manual changes to a deployment are reverted the same way. To remove an application for good, delete it from `gitops/setup/argocd/apps/values.yaml` and push (prune removes it; this also removes it in production once it is on main). To change things by hand for a while, turn off automated sync for that application in the Argo CD UI first.
@@ -556,10 +565,10 @@ Manual changes to a deployment are reverted the same way. To remove an applicati
 
 The script switches in both directions:
 
-- `--argocd` uninstalls existing Helm releases of the five services, then Argo CD creates them again.
-- A run without `--argocd` deletes the root application, waits until the five applications and their resources are gone, and installs the charts with Helm.
+- `--argocd` uninstalls existing Helm releases of the applications, then Argo CD creates them again.
+- A run without `--argocd` deletes the root application, waits until the applications and their resources are gone, and installs the charts with Helm.
 
-Both cause a short downtime of these services, and the cloud-connector volume (`connections.json`) is created anew. Argo CD itself stays installed in Helm mode, without applications.
+Both cause a downtime of the whole platform, and the volumes are created anew: the data of Postgres, InfluxDB, Kafka and Grafana and the cloud-connector volume (`connections.json`) are lost. Argo CD itself stays installed in Helm mode, without applications.
 
 ## Stopping and resetting
 
