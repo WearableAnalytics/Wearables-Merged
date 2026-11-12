@@ -45,7 +45,7 @@ New mappings need the matching Java and export code from this branch.
 - 36 Flutter tests passed, including Android/Apple basal semantics and duration
   precision. Tests used the local Flutter SDK's compatible test dependencies;
   the tracked lockfile stays at main's versions.
-- 11 Java tests passed and the mapper JAR packaged. JUnit versions/discovery are
+- 12 Java tests passed and the mapper JAR packaged. JUnit versions/discovery are
   pinned so both existing JUnit 4 and new JUnit 5 tests execute. The old graph
   test referenced an absent file and now checks the real mapping.
 - 49 export tests and four cloud application tests passed.
