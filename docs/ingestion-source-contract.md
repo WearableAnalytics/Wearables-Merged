@@ -17,3 +17,13 @@ and `source-reconciliation` application branches with reliable ingestion.
 The latter phone uploader opts into stable source-record identity only when
 the native writer and record IDs are both available. Missing IDs retain the
 legacy upload identity. Native device metadata is not an authentication claim.
+
+## Verification on 12 November 2026
+
+Thirty-two importer contract/API/delivery/metrics tests passed. A detached
+integration checkout with the two application branches also passed 33 importer
+checks and the real PostgreSQL -> Kafka -> Java mapper -> Telegraf -> InfluxDB
+test. It verified native writer/device/record fields, retry reuse, explicit
+rejection and a fractional light-sleep interval through storage. All test data
+was synthetic. This check needed deliberate importer, model, Mapper and Maven
+merge resolutions; it did not change main or deploy any application.
