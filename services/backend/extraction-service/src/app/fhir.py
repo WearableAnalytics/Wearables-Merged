@@ -26,6 +26,12 @@ def default_mapping() -> FhirYamlConfig:
     return load_mapping(settings.fhir_default_mapping_path)
 
 
+def builtin_mapping(point: TelemetryPoint) -> FhirYamlConfig:
+    if point.tags.get("version", "1.0.0").startswith("2."):
+        return default_mapping()
+    return load_mapping(Path(__file__).with_name("legacy_fhir_mapping.yaml"))
+
+
 def category_for(config: FhirYamlConfig, point: TelemetryPoint) -> str | None:
     """The mapping path (category) to build the point with.
 
@@ -61,6 +67,27 @@ def build_observation(parser: FhirParser, point: TelemetryPoint) -> dict:
     # (it would prepend "Patient/" to an existing reference), so set it from the patient id.
     if point.patient_id:
         observation["subject"] = {"reference": f"{PATIENT_REFERENCE_PREFIX}{point.patient_id}"}
+    # Stored units and codes describe the accepted point. A later mapping must
+    # not change them while reconstructing an export.
+    quantity = observation.setdefault("valueQuantity", {})
+    if "valueUnit" in point.tags:
+        quantity.update(unit=point.tags["valueUnit"], code=point.tags.get("valueCode", point.tags["valueUnit"]))
+    if "valueSystem" in point.tags:
+        quantity["system"] = point.tags["valueSystem"]
+    if "codeCodingCodeZero" in point.tags:
+        observation.setdefault("code", {})["coding"] = [
+            {
+                "code": point.tags["codeCodingCodeZero"],
+                "system": point.tags.get("codeCodingSystemZero", "http://loinc.org"),
+                "display": point.tags.get("codeCodingDisplayZero", point.measurement),
+            }
+        ]
+    if "period_end" in point.fields:
+        observation.pop("effectiveDateTime", None)
+        observation["effectivePeriod"] = {
+            "start": point.fields.get("period_start", timestamp),
+            "end": point.fields["period_end"],
+        }
     return observation
 
 
@@ -86,14 +113,11 @@ class ObservationBuilder:
     async def _mapping_for(self, point: TelemetryPoint) -> FhirYamlConfig:
         mapping_id = point.mapping_id
         if mapping_id is None:
-            return default_mapping()
+            return builtin_mapping(point)
         if mapping_id not in self._mappings:
-            try:
-                response = await self._api.get_fhir_mapping(mapping_id)
-                self._mappings[mapping_id] = FhirYamlConfig.model_validate(response.full_mapping)
-            except Exception:
-                self._mappings[mapping_id] = None
-        return self._mappings[mapping_id] or default_mapping()
+            response = await self._api.get_fhir_mapping(mapping_id)
+            self._mappings[mapping_id] = FhirYamlConfig.model_validate(response.full_mapping)
+        return self._mappings[mapping_id]
 
     async def _graphs_for(self, point: TelemetryPoint) -> dict[str, Graph]:
         dot_id = point.dot_dependency_file_id

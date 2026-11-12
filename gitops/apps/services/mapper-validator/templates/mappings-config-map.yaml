@@ -4,7 +4,8 @@ metadata:
   name: {{ .Values.mappingConfig }}
 data:
   mapping.yaml: |
-    version: 1.0.0
+    version: 2.0.0
+    numericContract: wearables-numeric/2
     metadata:
       fields:
         - name: device
@@ -70,6 +71,7 @@ data:
               lineProtocol:
                 type: tag
                 name: valueUnit
+                mandatory: true
             - name: valueSystem
               fhirSource: valueQuantity.unit
               target: valueQuantity.system
@@ -89,7 +91,7 @@ data:
               lineProtocol:
                 type: tag
                 name: valueCode
-                mandatory: false
+                mandatory: true
             - name: codeCodingCodeZero
               fhirSource: id
               target: code.coding[0].code
@@ -100,7 +102,7 @@ data:
               lineProtocol:
                 type: tag
                 name: codeCodingCodeZero
-                mandatory: false
+                mandatory: true
             - name: codeCodingSystemZero
               fhirSource: code.coding[0].code
               target: code.coding[0].system
@@ -111,7 +113,7 @@ data:
               lineProtocol:
                 type: tag
                 name: codeCodingSystemZero
-                mandatory: false
+                mandatory: true
             - name: codeCodingDisplayZero
               fhirSource: code.coding[0].code
               target: code.coding[0].display
@@ -122,7 +124,7 @@ data:
               lineProtocol:
                 type: tag
                 name: codeCodingDisplayZero
-                mandatory: false
+                mandatory: true
             - name: codeCodingCodeOne
               fhirSource: code.coding[0].code
               target: code.coding[1].code
@@ -220,6 +222,48 @@ data:
                 type: field
                 name: status
                 mandatory: false
+            - name: inputUnit
+              rawSource: measurements.instantaneous.inputUnit
+              target: extension[0].valueString
+              optional: false
+              type: string
+              lineProtocol:
+                type: field
+                name: input_unit
+                mandatory: true
+            - name: inputValue
+              rawSource: measurements.instantaneous.inputValue
+              target: extension[1].valueDecimal
+              optional: false
+              type: real
+              lineProtocol:
+                type: field
+                name: input_value
+                mandatory: true
+            - name: timestampPolicy
+              rawSource: measurements.instantaneous.timestampPolicy
+              target: extension[2].valueCode
+              optional: false
+              type: string
+              lineProtocol:
+                type: field
+                name: timestamp_policy
+                mandatory: true
+            - name: extensionUrl0
+              value: https://wearableanalytics.github.io/fhir/StructureDefinition/input-unit
+              target: extension[0].url
+              optional: false
+              type: string
+            - name: extensionUrl1
+              value: https://wearableanalytics.github.io/fhir/StructureDefinition/input-value
+              target: extension[1].url
+              optional: false
+              type: string
+            - name: extensionUrl2
+              value: https://wearableanalytics.github.io/fhir/StructureDefinition/timestamp-policy
+              target: extension[2].url
+              optional: false
+              type: string
           mappings:
             - fieldName: valueUnit
               valueType: string
@@ -227,22 +271,28 @@ data:
                 - key: 80404-7
                   value: ms
                 - key: 8867-4
-                  value: bpm
+                  value: /min
                 - key: 40443-4
-                  value: bpm
+                  value: /min
                 - key: 76528-9
-                  value: breaths/min
+                  value: /min
                 - key: 69001-6
-                  value: bpm
+                  value: /min
+                - key: hrv-rmssd
+                  value: ms
+                - key: basal-metabolic-rate
+                  value: kcal/d
             - fieldName: valueSystem
               valueType: string
               map:
                 - key: ms
-                  value: http://www.nist.gov/pml/owm/metric-si/si-units
-                - key: bpm
-                  value: http://www.nist.gov/pml/owm/metric-si/si-units
-                - key: breaths/min
-                  value: http://www.nist.gov/pml/owm/metric-si/si-units
+                  value: http://unitsofmeasure.org
+                - key: /min
+                  value: http://unitsofmeasure.org
+                - key: /min
+                  value: http://unitsofmeasure.org
+                - key: kcal/d
+                  value: http://unitsofmeasure.org
             - fieldName: codeCodingCodeZero
               valueType: string
               map:
@@ -256,6 +306,10 @@ data:
                   value: 69001-6
                 - key: respiratory-rate
                   value: 76528-9
+                - key: heart-rate-variability-rmssd
+                  value: hrv-rmssd
+                - key: basal-metabolic-rate
+                  value: basal-metabolic-rate
             - fieldName: codeCodingSystemZero
               valueType: string
               map:
@@ -269,6 +323,10 @@ data:
                   value: http://loinc.org/
                 - key: 69001-6
                   value: http://loinc.org/
+                - key: hrv-rmssd
+                  value: https://wearableanalytics.github.io/fhir/CodeSystem/measurement
+                - key: basal-metabolic-rate
+                  value: https://wearableanalytics.github.io/fhir/CodeSystem/measurement
             - fieldName: codeCodingDisplayZero
               valueType: string
               map:
@@ -282,6 +340,10 @@ data:
                   value: Walking / Standing heart rate
                 - key: 76528-9
                   value: Breath rate spontaneous
+                - key: hrv-rmssd
+                  value: Heart rate variability RMSSD
+                - key: basal-metabolic-rate
+                  value: Basal metabolic rate
             - fieldName: codeCodingCodeOne
               valueType: string
               map:
@@ -295,6 +357,10 @@ data:
                   value: 55425-3
                 - key: 76528-9
                   value: 9279-1
+                - key: hrv-rmssd
+                  value: hrv-rmssd
+                - key: basal-metabolic-rate
+                  value: basal-metabolic-rate
             - fieldName: codeCodingSystemOne
               valueType: string
               map:
@@ -304,6 +370,10 @@ data:
                   value: http://loinc.org/
                 - key: 9279-1
                   value: http://loinc.org/
+                - key: hrv-rmssd
+                  value: https://wearableanalytics.github.io/fhir/CodeSystem/measurement
+                - key: basal-metabolic-rate
+                  value: https://wearableanalytics.github.io/fhir/CodeSystem/measurement
             - fieldName: codeCodingDisplayOne
               valueType: string
               map:
@@ -313,6 +383,10 @@ data:
                   value: Heart Rate Variability Standard Deviation by EKG
                 - key: 9279-1
                   value: Respiratory Rate
+                - key: hrv-rmssd
+                  value: Heart rate variability RMSSD
+                - key: basal-metabolic-rate
+                  value: Basal metabolic rate
         - path: measurements.cumulative
           arrayMapAll: true
           fields:
@@ -358,7 +432,7 @@ data:
               lineProtocol:
                 type: tag
                 name: valueUnit
-                mandatory: false
+                mandatory: true
             - name: valueSystem
               fhirSource: valueQuantity.unit
               target: valueQuantity.system
@@ -378,7 +452,7 @@ data:
               lineProtocol:
                 type: tag
                 name: valueCode
-                mandatory: false
+                mandatory: true
             - name: codeCodingCodeZero
               fhirSource: id
               target: code.coding[0].code
@@ -389,7 +463,7 @@ data:
               lineProtocol:
                 type: tag
                 name: codeCodingCodeZero
-                mandatory: false
+                mandatory: true
             - name: codeCodingSystemZero
               fhirSource: code.coding[0].code
               target: code.coding[0].system
@@ -400,7 +474,7 @@ data:
               lineProtocol:
                 type: tag
                 name: codeCodingSystemZero
-                mandatory: false
+                mandatory: true
             - name: codeCodingDisplayZero
               fhirSource: code.coding[0].code
               target: code.coding[0].display
@@ -411,7 +485,7 @@ data:
               lineProtocol:
                 type: tag
                 name: codeCodingDisplayZero
-                mandatory: false
+                mandatory: true
             - name: codeCodingCodeOne
               fhirSource: code.coding[0].code
               target: code.coding[1].code
@@ -492,7 +566,7 @@ data:
                 mandatory: false
             - name: start
               rawSource: measurements.cumulative.periodStart
-              target: effectiveDateTime
+              target: effectivePeriod.start
               transform:
                 - type: normalizeTimestamp
               optional: false
@@ -509,16 +583,76 @@ data:
                 type: field
                 name: status
                 mandatory: false
+            - name: inputUnit
+              rawSource: measurements.cumulative.inputUnit
+              target: extension[0].valueString
+              optional: false
+              type: string
+              lineProtocol:
+                type: field
+                name: input_unit
+                mandatory: true
+            - name: inputValue
+              rawSource: measurements.cumulative.inputValue
+              target: extension[1].valueDecimal
+              optional: false
+              type: real
+              lineProtocol:
+                type: field
+                name: input_value
+                mandatory: true
+            - name: timestampPolicy
+              rawSource: measurements.cumulative.timestampPolicy
+              target: extension[2].valueCode
+              optional: false
+              type: string
+              lineProtocol:
+                type: field
+                name: timestamp_policy
+                mandatory: true
+            - name: extensionUrl0
+              value: https://wearableanalytics.github.io/fhir/StructureDefinition/input-unit
+              target: extension[0].url
+              optional: false
+              type: string
+            - name: extensionUrl1
+              value: https://wearableanalytics.github.io/fhir/StructureDefinition/input-value
+              target: extension[1].url
+              optional: false
+              type: string
+            - name: extensionUrl2
+              value: https://wearableanalytics.github.io/fhir/StructureDefinition/timestamp-policy
+              target: extension[2].url
+              optional: false
+              type: string
+            - name: periodStart
+              rawSource: measurements.cumulative.periodStart
+              target: effectivePeriod.start
+              optional: false
+              type: string
+              lineProtocol:
+                type: field
+                name: period_start
+                mandatory: true
+            - name: periodEnd
+              rawSource: measurements.cumulative.periodEnd
+              target: effectivePeriod.end
+              optional: false
+              type: string
+              lineProtocol:
+                type: field
+                name: period_end
+                mandatory: true
           mappings:
             - fieldName: valueSystem
               valueType: string
               map:
                 - key: kcal
-                  value: http://www.nist.gov/pml/owm/metric-si/si-units
-                - key: one
-                  value: http://www.nist.gov/pml/owm/metric-si/si-units
+                  value: http://unitsofmeasure.org
+                - key: "1"
+                  value: http://unitsofmeasure.org
                 - key: m
-                  value: http://www.nist.gov/pml/owm/metric-si/si-units
+                  value: http://unitsofmeasure.org
             - fieldName: codeCodingCodeZero
               valueType: string
               map:
@@ -597,9 +731,9 @@ data:
               valueType: string
               map:
                 - key: 55423-8
-                  value: one
+                  value: "1"
                 - key: 100304-5
-                  value: one
+                  value: "1"
                 - key: 93819-1
                   value: kcal
                 - key: 55424-6
@@ -651,7 +785,7 @@ data:
               lineProtocol:
                 type: tag
                 name: valueUnit
-                mandatory: false
+                mandatory: true
             - name: valueSystem
               fhirSource: valueQuantity.unit
               target: valueQuantity.system
@@ -671,7 +805,7 @@ data:
               lineProtocol:
                 type: tag
                 name: valueCode
-                mandatory: false
+                mandatory: true
             - name: codeCodingCodeZero
               fhirSource: id
               target: code.coding[0].code
@@ -682,7 +816,7 @@ data:
               lineProtocol:
                 type: tag
                 name: codeCodingCodeZero
-                mandatory: false
+                mandatory: true
             - name: codeCodingSystemZero
               fhirSource: code.coding[0].code
               target: code.coding[0].system
@@ -693,7 +827,7 @@ data:
               lineProtocol:
                 type: tag
                 name: codeCodingSystemZero
-                mandatory: false
+                mandatory: true
             - name: codeCodingDisplayZero
               fhirSource: code.coding[0].code
               target: code.coding[0].display
@@ -704,7 +838,7 @@ data:
               lineProtocol:
                 type: tag
                 name: codeCodingDisplayZero
-                mandatory: false
+                mandatory: true
             - name: codeCodingCodeOne
               fhirSource: code.coding[0].code
               target: code.coding[1].code
@@ -785,7 +919,7 @@ data:
                 mandatory: false
             - name: start
               rawSource: measurements.duration.startTime
-              target: effectiveDateTime
+              target: effectivePeriod.start
               transform:
                 - type: normalizeTimestamp
               optional: false
@@ -802,12 +936,72 @@ data:
                 type: field
                 name: status
                 mandatory: false
+            - name: inputUnit
+              rawSource: measurements.duration.inputUnit
+              target: extension[0].valueString
+              optional: false
+              type: string
+              lineProtocol:
+                type: field
+                name: input_unit
+                mandatory: true
+            - name: inputValue
+              rawSource: measurements.duration.inputValue
+              target: extension[1].valueDecimal
+              optional: false
+              type: real
+              lineProtocol:
+                type: field
+                name: input_value
+                mandatory: true
+            - name: timestampPolicy
+              rawSource: measurements.duration.timestampPolicy
+              target: extension[2].valueCode
+              optional: false
+              type: string
+              lineProtocol:
+                type: field
+                name: timestamp_policy
+                mandatory: true
+            - name: extensionUrl0
+              value: https://wearableanalytics.github.io/fhir/StructureDefinition/input-unit
+              target: extension[0].url
+              optional: false
+              type: string
+            - name: extensionUrl1
+              value: https://wearableanalytics.github.io/fhir/StructureDefinition/input-value
+              target: extension[1].url
+              optional: false
+              type: string
+            - name: extensionUrl2
+              value: https://wearableanalytics.github.io/fhir/StructureDefinition/timestamp-policy
+              target: extension[2].url
+              optional: false
+              type: string
+            - name: periodStart
+              rawSource: measurements.duration.startTime
+              target: effectivePeriod.start
+              optional: false
+              type: string
+              lineProtocol:
+                type: field
+                name: period_start
+                mandatory: true
+            - name: periodEnd
+              rawSource: measurements.duration.endTime
+              target: effectivePeriod.end
+              optional: false
+              type: string
+              lineProtocol:
+                type: field
+                name: period_end
+                mandatory: true
           mappings:
             - fieldName: valueSystem
               valueType: string
               map:
                 - key: min
-                  value: http://www.nist.gov/pml/owm/metric-si/si-units
+                  value: http://unitsofmeasure.org
             - fieldName: codeCodingCodeZero
               valueType: string
               map:
@@ -824,11 +1018,17 @@ data:
                 - key: sleep-rem
                   value: 93829-0
                 - key: sleep-asleep-core
-                  value: 93831-6
+                  value: 93830-8
                 - key: sleep-asleep-deep
                   value: 93831-6
                 - key: sleep-asleep-rem
                   value: 93829-0
+                - key: sleep-light
+                  value: 93830-8
+                - key: workout-elapsed-time
+                  value: workout-elapsed-time
+                - key: workout-active-time
+                  value: workout-active-time
             - fieldName: codeCodingSystemZero
               valueType: string
               map:
@@ -844,6 +1044,12 @@ data:
                   value: http://loinc.org/
                 - key: 93829-0
                   value: http://loinc.org/
+                - key: 93830-8
+                  value: http://loinc.org
+                - key: workout-elapsed-time
+                  value: https://wearableanalytics.github.io/fhir/CodeSystem/measurement
+                - key: workout-active-time
+                  value: https://wearableanalytics.github.io/fhir/CodeSystem/measurement
             - fieldName: codeCodingDisplayZero
               valueType: string
               map:
@@ -859,6 +1065,12 @@ data:
                   value: Deep sleep duration
                 - key: 93829-0
                   value: REM sleep duration
+                - key: 93830-8
+                  value: Light sleep duration
+                - key: workout-elapsed-time
+                  value: Workout elapsed duration
+                - key: workout-active-time
+                  value: Workout active duration
             - fieldName: codeCodingCodeOne
               valueType: string
               map:
@@ -874,6 +1086,12 @@ data:
                   value: 107145-5
                 - key: 93829-0
                   value: 107145-5
+                - key: 93830-8
+                  value: 93830-8
+                - key: workout-elapsed-time
+                  value: workout-elapsed-time
+                - key: workout-active-time
+                  value: workout-active-time
             - fieldName: codeCodingSystemOne
               valueType: string
               map:
@@ -881,6 +1099,12 @@ data:
                   value: http://loinc.org/
                 - key: 107145-5
                   value: http://loinc.org/
+                - key: 93830-8
+                  value: http://loinc.org
+                - key: workout-elapsed-time
+                  value: https://wearableanalytics.github.io/fhir/CodeSystem/measurement
+                - key: workout-active-time
+                  value: https://wearableanalytics.github.io/fhir/CodeSystem/measurement
             - fieldName: codeCodingDisplayOne
               valueType: string
               map:
@@ -888,6 +1112,12 @@ data:
                   value: Exercise Duration
                 - key: 107145-5
                   value: Sleep status
+                - key: 93830-8
+                  value: Light sleep duration
+                - key: workout-elapsed-time
+                  value: Workout elapsed duration
+                - key: workout-active-time
+                  value: Workout active duration
             - fieldName: valueUnit
               valueType: string
               map:
@@ -902,4 +1132,10 @@ data:
                 - key: 93831-6
                   value: min
                 - key: 93829-0
+                  value: min
+                - key: 93830-8
+                  value: min
+                - key: workout-elapsed-time
+                  value: min
+                - key: workout-active-time
                   value: min

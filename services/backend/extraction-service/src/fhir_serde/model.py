@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from typing import Any, Literal, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict
+
 
 class LineProtocol(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: Literal["tag", "field", "measurement", "timestamp"]
-    name: Optional[str] = None
-    mandatory: Optional[bool] = None
+    name: str | None = None
+    mandatory: bool | None = None
 
 
 class Transform(BaseModel):
@@ -19,10 +21,11 @@ class Transform(BaseModel):
       - {type: append, params: ['Z']}
       - {type: map}
     """
+
     model_config = ConfigDict(extra="forbid")
 
     type: str
-    params: Optional[list[Any]] = None
+    params: list[Any] | None = None
 
 
 class FieldDef(BaseModel):
@@ -34,12 +37,12 @@ class FieldDef(BaseModel):
     type: str
 
     # exactly one (or none) of these is typically present
-    rawSource: Optional[str] = None
-    fhirSource: Optional[str] = None
-    value: Optional[Union[str, int, float, bool]] = None
+    rawSource: str | None = None
+    fhirSource: str | None = None
+    value: str | int | float | bool | None = None
 
-    transform: Optional[list[Transform]] = None
-    lineProtocol: Optional[LineProtocol] = None
+    transform: list[Transform] | None = None
+    lineProtocol: LineProtocol | None = None
 
 
 class MapEntry(BaseModel):
@@ -59,6 +62,7 @@ class MappingDef(BaseModel):
 
 # --------- top-level sections ---------
 
+
 class Metadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -71,7 +75,7 @@ class MeasurementPath(BaseModel):
     path: str
     arrayMapAll: bool = False
     fields: list[FieldDef]
-    mappings: Optional[list[MappingDef]] = None
+    mappings: list[MappingDef] | None = None
 
 
 class Measurement(BaseModel):
@@ -84,8 +88,10 @@ class FhirYamlConfig(BaseModel):
     """
     Root object representing your YAML.
     """
+
     model_config = ConfigDict(extra="forbid")
 
     version: str
+    numericContract: str | None = None
     metadata: Metadata
     measurement: Measurement
