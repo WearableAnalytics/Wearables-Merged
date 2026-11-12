@@ -96,6 +96,14 @@ install_chart() {
     --wait --timeout "$TIMEOUT" "$@"
 }
 
+# keep_secret <namespace> <secret>
+# Older versions of the prod-postgres and wearables-bff charts created their
+# secret themselves; without this, the next helm upgrade of an existing release
+# would delete it.
+keep_secret() {
+  k annotate secret "$2" -n "$1" helm.sh/resource-policy=keep --overwrite >/dev/null
+}
+
 install_strimzi() {
   h upgrade --install strimzi-cluster-operator oci://quay.io/strimzi-helm/strimzi-kafka-operator \
     --version "$STRIMZI_VERSION" --namespace kafka --create-namespace --wait --timeout "$TIMEOUT"
@@ -120,6 +128,19 @@ create_importservice_secret() {
   fi
 }
 
+# The wearables-bff chart does not create its secret (as in production).
+# JWT_SECRET is the same as the importservice's and grafana-proxy's: the BFF
+# issues the tokens they check. No Brevo key: locally no mails are sent.
+create_bff_secret() {
+  ensure_namespace wearables-bff
+  if ! k get secret wearables-bff-secrets -n wearables-bff >/dev/null 2>&1; then
+    k create secret generic wearables-bff-secrets -n wearables-bff \
+      --from-literal=JWT_SECRET=dev-secret \
+      --from-literal=BREVO_API_KEY=disabled
+  fi
+  keep_secret wearables-bff wearables-bff-secrets
+}
+
 # Same name as in production (secret.name in the grafana-proxy values.yaml).
 create_grafana_proxy_secret() {
   ensure_namespace monitoring
@@ -142,16 +163,32 @@ apply_grafana_dashboards() {
     --dry-run=client -o yaml | k apply -f - >/dev/null
 }
 
-# Argo CD runs the db-lord migration (a PreSync hook) before it applies the
-# chart's db-lord-secrets, so the secret has to exist beforehand. It is rendered
-# from the chart, so it has the same content Argo CD applies later.
+# The prod-postgres chart does not create its secret (as in production).
+create_postgres_secret() {
+  ensure_namespace prod-postgres
+  if ! k get secret prod-postgres-secret -n prod-postgres >/dev/null 2>&1; then
+    k create secret generic prod-postgres-secret -n prod-postgres \
+      --from-literal=POSTGRES_PASSWORD=postgres
+  fi
+  keep_secret prod-postgres prod-postgres-secret
+}
+
+# The db-lord chart does not create its secret (as in production). The values
+# match the local Postgres (prod-postgres values-local) and InfluxDB
+# (influxdb initSetup in values-local).
 create_db_lord_secret() {
   ensure_namespace db-lord
   if ! k get secret db-lord-secrets -n db-lord >/dev/null 2>&1; then
-    h template db-lord "${APPS}/services/db-lord" \
-      -f "${APPS}/services/db-lord/values.yaml" \
-      -f "${APPS}/services/db-lord/values-local.yaml" \
-      --show-only templates/db-lord-secrets.yaml | k apply -n db-lord -f - >/dev/null
+    k create secret generic db-lord-secrets -n db-lord \
+      --from-literal=POSTGRES_SERVER=prod-postgres.prod-postgres.svc.cluster.local \
+      --from-literal=POSTGRES_PORT=5432 \
+      --from-literal=POSTGRES_DB=dblord \
+      --from-literal=POSTGRES_USER=dblord \
+      --from-literal=POSTGRES_PASSWORD=dblord \
+      --from-literal=INFLUX_URL=http://influxdb-service.influx.svc.cluster.local:8086 \
+      --from-literal=INFLUX_ORG=wearables-project \
+      --from-literal=INFLUX_BUCKET=measurements \
+      --from-literal=INFLUX_TOKEN=dev-influx-token
   fi
 }
 
@@ -254,7 +291,9 @@ if $USE_ARGOCD; then
 
   step "Secrets and Grafana dashboards"
   create_importservice_secret
+  create_postgres_secret
   create_db_lord_secret
+  create_bff_secret
   create_grafana_proxy_secret
   apply_grafana_dashboards
 
@@ -280,15 +319,9 @@ else
   install_chart telegraf "${APPS}/monitoring/telegraf" telegraf
 
   step "Postgres and db_lord"
+  create_postgres_secret
   install_chart prod-postgres "${APPS}/platform/prod-postgres" prod-postgres
-  # The migration job is a pre-install hook that needs db-lord-secrets, which the
-  # chart only creates during the install itself; so the first install skips hooks.
-  if ! h status db-lord --namespace db-lord >/dev/null 2>&1; then
-    h install db-lord "${APPS}/services/db-lord" \
-      -f "${APPS}/services/db-lord/values.yaml" \
-      -f "${APPS}/services/db-lord/values-local.yaml" \
-      --namespace db-lord --create-namespace --no-hooks
-  fi
+  create_db_lord_secret
   install_chart db-lord "${APPS}/services/db-lord" db-lord
 
   step "Traefik"
@@ -299,6 +332,7 @@ else
   install_chart importservice "${APPS}/services/importservice" importservice
 
   step "wearables-bff and web frontend"
+  create_bff_secret
   install_chart wearables-bff "${APPS}/services/wearables-bff" wearables-bff
   install_chart web "${APPS}/web-frontend" web
 

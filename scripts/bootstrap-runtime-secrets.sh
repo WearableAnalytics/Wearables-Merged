@@ -10,6 +10,14 @@ GRAFANA_NAMESPACE="${GRAFANA_NAMESPACE:-monitoring}"
 GRAFANA_SECRET_NAME="${GRAFANA_SECRET_NAME:-grafana-auth-secrets}"
 GRAFANA_JWT_PRIVATE_KEY_PATH="${GRAFANA_JWT_PRIVATE_KEY_PATH:-${REPO_ROOT}/secrets/grafana-jwt-private.pem}"
 GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING="${GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING:-true}"
+PROD_POSTGRES_NAMESPACE="${PROD_POSTGRES_NAMESPACE:-prod-postgres}"
+PROD_POSTGRES_SECRET_NAME="${PROD_POSTGRES_SECRET_NAME:-prod-postgres-secret}"
+DB_LORD_NAMESPACE="${DB_LORD_NAMESPACE:-db-lord}"
+DB_LORD_SECRET_NAME="${DB_LORD_SECRET_NAME:-db-lord-secrets}"
+# The Influx settings of db-lord default to the ones of Telegraf.
+DB_LORD_INFLUX_ORG="${DB_LORD_INFLUX_ORG:-${INFLUX_ORG:-}}"
+DB_LORD_INFLUX_BUCKET="${DB_LORD_INFLUX_BUCKET:-${INFLUX_BUCKET:-}}"
+DB_LORD_INFLUX_TOKEN="${DB_LORD_INFLUX_TOKEN:-${INFLUX_TOKEN:-}}"
 
 BREVO_API_KEY="${BREVO_API_KEY:-}"
 SHARED_APP_JWT_SECRET="${SHARED_APP_JWT_SECRET:-}"
@@ -30,6 +38,15 @@ Environment variables:
   BREVO_API_KEY                       (optional)
   SHARED_APP_JWT_SECRET               (optional; overrides auto-discovery/generation)
   ROTATE_SHARED_APP_JWT_SECRET        (default: false; set true to force new random value)
+  PROD_POSTGRES_PASSWORD              (admin password of prod-postgres)
+  PROD_POSTGRES_NAMESPACE             (default: prod-postgres)
+  PROD_POSTGRES_SECRET_NAME           (default: prod-postgres-secret)
+  DB_LORD_NAMESPACE                   (default: db-lord)
+  DB_LORD_SECRET_NAME                 (default: db-lord-secrets)
+  DB_LORD_POSTGRES_SERVER, DB_LORD_POSTGRES_PORT, DB_LORD_POSTGRES_DB,
+  DB_LORD_POSTGRES_USER, DB_LORD_POSTGRES_PASSWORD, DB_LORD_INFLUX_URL
+  DB_LORD_INFLUX_ORG, DB_LORD_INFLUX_BUCKET, DB_LORD_INFLUX_TOKEN
+                                      (default: INFLUX_ORG, INFLUX_BUCKET, INFLUX_TOKEN)
 
 Behavior:
   - Ensures namespaces exist.
@@ -39,6 +56,9 @@ Behavior:
       * grafana-auth secret key: APP_JWT_SECRET
   - Applies grafana private key from GRAFANA_JWT_PRIVATE_KEY_PATH.
   - Optionally generates a new RSA private key at GRAFANA_JWT_PRIVATE_KEY_PATH when missing.
+  - Applies the prod-postgres secret from PROD_POSTGRES_PASSWORD and the db-lord
+    secret from the DB_LORD_* variables; their charts do not create them.
+    Without all of a secret's variables set, an existing secret is kept.
 EOF
 }
 
@@ -153,3 +173,58 @@ kubectl -n "${GRAFANA_NAMESPACE}" create secret generic "${GRAFANA_SECRET_NAME}"
 echo "Applied secrets:"
 echo "  - ${BFF_NAMESPACE}/${BFF_SECRET_NAME} (JWT_SECRET, BREVO_API_KEY)"
 echo "  - ${GRAFANA_NAMESPACE}/${GRAFANA_SECRET_NAME} (GRAFANA_JWT_PRIVATE_KEY, APP_JWT_SECRET)"
+
+DB_LORD_VARS=(
+  DB_LORD_POSTGRES_SERVER DB_LORD_POSTGRES_PORT DB_LORD_POSTGRES_DB
+  DB_LORD_POSTGRES_USER DB_LORD_POSTGRES_PASSWORD DB_LORD_INFLUX_URL
+  DB_LORD_INFLUX_ORG DB_LORD_INFLUX_BUCKET DB_LORD_INFLUX_TOKEN
+)
+
+# secret_vars_set <namespace> <secret name> <variable...>
+# Succeeds when all variables are set, so the caller applies the secret. If not,
+# an existing secret is kept (returns 1); without one, the script stops.
+secret_vars_set() {
+  local namespace="$1" secret_name="$2" var
+  shift 2
+  local missing=()
+  for var in "$@"; do
+    [[ -n "${!var:-}" ]] || missing+=("${var}")
+  done
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    return 0
+  fi
+  if kubectl -n "${namespace}" get secret "${secret_name}" >/dev/null 2>&1; then
+    echo "  - kept existing ${namespace}/${secret_name} (not set: ${missing[*]})"
+    return 1
+  fi
+  echo "Error: ${namespace}/${secret_name} does not exist and these variables are not set: ${missing[*]}" >&2
+  exit 1
+}
+
+if secret_vars_set "${PROD_POSTGRES_NAMESPACE}" "${PROD_POSTGRES_SECRET_NAME}" PROD_POSTGRES_PASSWORD; then
+  ensure_namespace "${PROD_POSTGRES_NAMESPACE}"
+  kubectl -n "${PROD_POSTGRES_NAMESPACE}" create secret generic "${PROD_POSTGRES_SECRET_NAME}" \
+    --from-literal=POSTGRES_PASSWORD="${PROD_POSTGRES_PASSWORD}" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  echo "  - ${PROD_POSTGRES_NAMESPACE}/${PROD_POSTGRES_SECRET_NAME} (POSTGRES_PASSWORD)"
+fi
+# Older versions of the chart created this secret with Helm; without this, a
+# later helm upgrade of the release would delete it.
+kubectl -n "${PROD_POSTGRES_NAMESPACE}" annotate secret "${PROD_POSTGRES_SECRET_NAME}" \
+  helm.sh/resource-policy=keep --overwrite >/dev/null
+
+if secret_vars_set "${DB_LORD_NAMESPACE}" "${DB_LORD_SECRET_NAME}" "${DB_LORD_VARS[@]}"; then
+  ensure_namespace "${DB_LORD_NAMESPACE}"
+  kubectl -n "${DB_LORD_NAMESPACE}" create secret generic "${DB_LORD_SECRET_NAME}" \
+    --from-literal=POSTGRES_SERVER="${DB_LORD_POSTGRES_SERVER}" \
+    --from-literal=POSTGRES_PORT="${DB_LORD_POSTGRES_PORT}" \
+    --from-literal=POSTGRES_DB="${DB_LORD_POSTGRES_DB}" \
+    --from-literal=POSTGRES_USER="${DB_LORD_POSTGRES_USER}" \
+    --from-literal=POSTGRES_PASSWORD="${DB_LORD_POSTGRES_PASSWORD}" \
+    --from-literal=INFLUX_URL="${DB_LORD_INFLUX_URL}" \
+    --from-literal=INFLUX_ORG="${DB_LORD_INFLUX_ORG}" \
+    --from-literal=INFLUX_BUCKET="${DB_LORD_INFLUX_BUCKET}" \
+    --from-literal=INFLUX_TOKEN="${DB_LORD_INFLUX_TOKEN}" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  echo "  - ${DB_LORD_NAMESPACE}/${DB_LORD_SECRET_NAME} (POSTGRES_*, INFLUX_*)"
+fi

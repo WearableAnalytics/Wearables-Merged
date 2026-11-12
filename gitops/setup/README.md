@@ -105,22 +105,24 @@ This will transparently forward all calls to 80. To restore run `sudo pfctl -ef 
 These are required to proceed past the Telegraf step.
 
 ### prod-postgres secrets (required)
-- PROD_POSTGRES_PASSWORD: Password for the main postgres user.
+- PROD_POSTGRES_PASSWORD: Password for the main postgres user. `scripts/bootstrap-runtime-secrets.sh` stores it in the secret `prod-postgres-secret`; the chart does not create it. If it is not set, an existing secret is kept. Postgres only reads it on the first start (empty volume), so on an existing cluster it must be the password already set in the database (see `gitops/setup/argocd/README.md`, Secrets).
 - PROD_POSTGRES_INFISICAL_PASSWORD: Password for the infisical database user.
 - PROD_POSTGRES_DBLORD_PASSWORD: Password for the db-lord database user.
 - PROD_POSTGRES_LAKEFS_PASSWORD: Password for the lakefs database user.
 - PROD_POSTGRES_NAMESPACE: Namespace for prod-postgres. Default is prod-postgres.
 
-### db-lord secrets (required)
+### db-lord secrets (required for the first setup)
+`scripts/bootstrap-runtime-secrets.sh` creates the secret `db-lord-secrets` from these variables; the db-lord chart does not create it. If not all of them are set, an existing secret is kept.
+
 - DB_LORD_POSTGRES_SERVER: Postgres host for db-lord.
 - DB_LORD_POSTGRES_PORT: Postgres port for db-lord.
 - DB_LORD_POSTGRES_DB: Postgres database name for db-lord.
 - DB_LORD_POSTGRES_USER: Postgres user for db-lord.
 - DB_LORD_POSTGRES_PASSWORD: Postgres password for db-lord.
 - DB_LORD_INFLUX_URL: Influx base URL for db-lord.
-- DB_LORD_INFLUX_ORG: Influx org for db-lord.
-- DB_LORD_INFLUX_BUCKET: Influx bucket for db-lord.
-- DB_LORD_INFLUX_TOKEN: Influx token for db-lord.
+- DB_LORD_INFLUX_ORG: Influx org for db-lord. Default is INFLUX_ORG.
+- DB_LORD_INFLUX_BUCKET: Influx bucket for db-lord. Default is INFLUX_BUCKET.
+- DB_LORD_INFLUX_TOKEN: Influx token for db-lord. Default is INFLUX_TOKEN.
 - DB_LORD_NAMESPACE: Namespace for db-lord. Default is db-lord.
 - DB_LORD_SECRET_NAME: Secret name for db-lord. Default is db-lord-secrets.
 

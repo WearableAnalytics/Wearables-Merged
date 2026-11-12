@@ -148,6 +148,10 @@ To open the InfluxDB UI: `kubectl port-forward -n influx svc/influxdb-service 80
 Needs InfluxDB from step 5 and the image from step 2 (`./gitops/local/build-local-images.sh db-lord`).
 
 ```bash
+kubectl create namespace prod-postgres
+kubectl create secret generic prod-postgres-secret -n prod-postgres \
+  --from-literal=POSTGRES_PASSWORD=postgres
+
 helm upgrade --install prod-postgres gitops/apps/platform/prod-postgres \
   -f gitops/apps/platform/prod-postgres/values.yaml \
   -f gitops/apps/platform/prod-postgres/values-local.yaml \
@@ -155,27 +159,30 @@ helm upgrade --install prod-postgres gitops/apps/platform/prod-postgres \
 kubectl rollout status statefulset/prod-postgres -n prod-postgres
 ```
 
-Locally Postgres gets a 2 Gi volume, smaller resources and local-only passwords (`postgres` for the admin, `dblord` for the db_lord user). Only the `dblord` database is created; production also creates `lakefs` for the ML pipeline.
+Locally Postgres gets a 2 Gi volume, smaller resources and local-only passwords (`postgres` for the admin, `dblord` for the db_lord user). As in production, the chart does not create the secret with the admin password, `prod-postgres-secret`. Only the `dblord` database is created; production also creates `lakefs` for the ML pipeline.
 
-db_lord is installed in **two steps** on the first install:
+As in production, the chart does not create its secret `db-lord-secrets`; it has to exist before the install, because the migration job (a `pre-install` hook) reads it. Create it with the credentials of the local Postgres and InfluxDB, then install db_lord:
 
 ```bash
-# 1. Create the secret and the deployment, skip the migration hook
-helm install db-lord gitops/apps/services/db-lord \
-  -f gitops/apps/services/db-lord/values.yaml \
-  -f gitops/apps/services/db-lord/values-local.yaml \
-  --namespace db-lord --create-namespace --no-hooks
+kubectl create namespace db-lord
+kubectl create secret generic db-lord-secrets -n db-lord \
+  --from-literal=POSTGRES_SERVER=prod-postgres.prod-postgres.svc.cluster.local \
+  --from-literal=POSTGRES_PORT=5432 \
+  --from-literal=POSTGRES_DB=dblord \
+  --from-literal=POSTGRES_USER=dblord \
+  --from-literal=POSTGRES_PASSWORD=dblord \
+  --from-literal=INFLUX_URL=http://influxdb-service.influx.svc.cluster.local:8086 \
+  --from-literal=INFLUX_ORG=wearables-project \
+  --from-literal=INFLUX_BUCKET=measurements \
+  --from-literal=INFLUX_TOKEN=dev-influx-token
 
-# 2. Upgrade: the migration job now runs with the secret in place
-helm upgrade db-lord gitops/apps/services/db-lord \
+helm upgrade --install db-lord gitops/apps/services/db-lord \
   -f gitops/apps/services/db-lord/values.yaml \
   -f gitops/apps/services/db-lord/values-local.yaml \
   --namespace db-lord --wait --timeout 5m
 ```
 
-Why: the migration job is a `pre-install` hook, so Helm runs it before it creates the `db-lord-secrets` secret it reads, and a plain first install hangs with `secret "db-lord-secrets" not found`. Later upgrades need only step 2.
-
-The secret is created once and then kept on purpose. After changing `env` in `values-local.yaml`, delete it (`kubectl delete secret db-lord-secrets -n db-lord`) and run both steps again.
+`setup-local.sh` creates the secret only when it is missing. To change a value, delete it (`kubectl delete secret db-lord-secrets -n db-lord`), run the script again and restart db_lord (`kubectl rollout restart deployment/db-lord -n db-lord`).
 
 Check that db_lord reaches Postgres and InfluxDB:
 
@@ -274,6 +281,11 @@ kubectl exec -n kafka kafka-dual-role-0 -- \
 Needs db_lord (step 6), Traefik with a running `minikube tunnel` (step 7) and the image from step 2 (`./gitops/local/build-local-images.sh wearables-bff`).
 
 ```bash
+kubectl create namespace wearables-bff
+kubectl create secret generic wearables-bff-secrets -n wearables-bff \
+  --from-literal=JWT_SECRET=dev-secret \
+  --from-literal=BREVO_API_KEY=disabled
+
 helm upgrade --install wearables-bff gitops/apps/services/wearables-bff \
   -f gitops/apps/services/wearables-bff/values.yaml \
   -f gitops/apps/services/wearables-bff/values-local.yaml \
@@ -285,7 +297,7 @@ Local differences:
 - `NODE_ENV: development`: login works with the email address alone, no magic-link mail and no Brevo key.
 - Admin login: `admin@example.com` (`ADMIN_EMAILS`).
 - URLs point to `http://wearables.localhost`; the API is served at `http://wearables.localhost/api`.
-- The chart creates its own secret with `JWT_SECRET: dev-secret`, the same value as the importservice secret in step 8, so case tokens issued by the BFF are accepted by the importservice.
+- As in production, the chart does not create its secret `wearables-bff-secrets`. Its `JWT_SECRET` is `dev-secret`, the same value as the importservice secret in step 8, so case tokens issued by the BFF are accepted by the importservice. `BREVO_API_KEY` is not used in development mode.
 
 Check login and the connection to db_lord:
 
@@ -514,7 +526,7 @@ The script then installs Argo CD (pinned to v3.5.7) and applies `gitops/local/ar
 Like the production setup script, the script itself only installs what the applications need beforehand, then waits until all applications are synced and healthy:
 
 - the Strimzi operator and Traefik (with its CRDs),
-- the secrets `importservice-secrets`, `grafana-auth-secrets` and `db-lord-secrets`, and the ConfigMap `grafana-patient-dashboards`. Argo CD runs the db_lord migration before it applies the chart's secret, so the script renders `db-lord-secrets` from the chart beforehand.
+- the secrets `importservice-secrets`, `prod-postgres-secret`, `db-lord-secrets`, `wearables-bff-secrets` and `grafana-auth-secrets`, and the ConfigMap `grafana-patient-dashboards`. As in production, the charts do not create these secrets.
 
 Afterwards it installs Telegraf, Prometheus and db-stats-exporter with Helm, which are not managed by Argo CD in production either.
 

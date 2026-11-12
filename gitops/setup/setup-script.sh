@@ -388,41 +388,30 @@ done
 
 configure_grafana_datasources
 
-# --- prod-postgres ---
+# --- runtime secrets ---
+# The charts only reference these secrets. Created before prod-postgres and
+# db-lord: Postgres needs its admin password on the first start, and db-lord's
+# migration job (a pre-install hook) needs db-lord-secrets.
+bash "$REPO_ROOT/scripts/bootstrap-runtime-secrets.sh"
 
-require_env PROD_POSTGRES_PASSWORD
+echo "Successfully executed bootrap script"
+
+# --- prod-postgres ---
+# Only used by the init script, which creates the users on an empty volume.
 require_env PROD_POSTGRES_DBLORD_PASSWORD
 require_env PROD_POSTGRES_LAKEFS_PASSWORD
 
 (
 	cd "$APPS_DIR/platform"
 	helm upgrade --install prod-postgres ./prod-postgres --values ./prod-postgres/values.yaml --namespace "$PROD_POSTGRES_NAMESPACE" --create-namespace \
-		--set-string auth.postgresPassword="$PROD_POSTGRES_PASSWORD"\
 		--set-string databases[0].password="$PROD_POSTGRES_DBLORD_PASSWORD" \
 		--set-string databases[1].password="$PROD_POSTGRES_LAKEFS_PASSWORD"
 )
 
 # --- db-lord ---
-require_env DB_LORD_POSTGRES_SERVER
-require_env DB_LORD_POSTGRES_PORT
-require_env DB_LORD_POSTGRES_DB
-require_env DB_LORD_POSTGRES_USER
-require_env DB_LORD_POSTGRES_PASSWORD
-require_env DB_LORD_INFLUX_URL
-
-
 helm upgrade --install db-lord "$APPS_DIR/services/db-lord" \
 	--namespace "$DB_LORD_NAMESPACE" \
-	--create-namespace \
-	--set env.POSTGRES_SERVER="$DB_LORD_POSTGRES_SERVER" \
-	--set env.POSTGRES_PORT="$DB_LORD_POSTGRES_PORT" \
-	--set env.POSTGRES_DB="$DB_LORD_POSTGRES_DB" \
-	--set env.POSTGRES_USER="$DB_LORD_POSTGRES_USER" \
-	--set env.POSTGRES_PASSWORD="$DB_LORD_POSTGRES_PASSWORD" \
-	--set env.INFLUX_URL="$DB_LORD_INFLUX_URL" \
-	--set env.INFLUX_ORG="$INFLUX_ORG" \
-	--set env.INFLUX_BUCKET="$INFLUX_BUCKET" \
-	--set env.INFLUX_TOKEN="$INFLUX_TOKEN"
+	--create-namespace
 
 # --- extraction-service ---
 require_env EXTRACTION_SERVICE_DB_LORD_BASE_URL
@@ -430,11 +419,7 @@ require_env EXTRACTION_SERVICE_DB_LORD_BASE_URL
 helm upgrade --install extraction-service "$APPS_DIR/services/extraction-service" --namespace "$EXTRACTION_SERVICE_NAMESPACE" --create-namespace \
 	--set env.DB_LORD_BASE_URL="$EXTRACTION_SERVICE_DB_LORD_BASE_URL"
 
-# --- runtime secrets + bff/grafana-proxy/frontend ---
-bash "$REPO_ROOT/scripts/bootstrap-runtime-secrets.sh"
-
-echo "Successfully executed bootrap script"
-
+# --- bff/grafana-proxy/frontend ---
 require_file "$GRAFANA_JWT_PRIVATE_KEY_PATH"
 
 BFF_ADMIN_EMAILS_HELM_ESCAPED="${BFF_ADMIN_EMAILS//,/\\,}"

@@ -1,7 +1,5 @@
-# Local minikube: small volume and footprint, local-only passwords.
-auth:
-  postgresPassword: postgres   # local only
-
+# Local minikube: small volume and footprint, local-only passwords. The admin
+# password (postgres) is in prod-postgres-secret, created by gitops/local/setup-local.sh.
 databases:                     # Prod also creates lakefs (ML pipeline, not part of the local core)
   - name: dblord
     user: dblord

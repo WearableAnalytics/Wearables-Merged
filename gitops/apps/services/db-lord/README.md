@@ -43,18 +43,6 @@ INFLUX_TOKEN: "token"
 
 Please be aware that you must be careful how you deploy the secrets (use `kubectl`)!
 
-But for testing, you can also do following or just set the values in the `values.yaml` file.
-
-You can also leave the `POSTGRES_PASSWORD` and `INFLUX_TOKEN` out and set them via CLI like following:
-```shell
-helm install <name> ./<path> \
-  --set env.POSTGRES_PASSWORD="password"
-  --set env.INFLUX_TOKEN="token"
-```
-> [!WARNING]
-> Secrets passed via `--set` can appear in shell history or logs. Avoid in production!
-
-
 Apply it:
 ```shell
 kubectl apply -n <namespace-name> -f ./path/to/secret.yaml
@@ -88,9 +76,8 @@ At that point, `latest` will represent a stable release. Versioned tags will als
 
 ## Setup
 
-### Render and apply the secret:
-helm template db-lord ./gitops/apps/services/db-lord --namespace db-lord -s templates/db-lord-secrets.yaml > db-lord-secrets.yaml
-kubectl apply -f db-lord-secrets.yaml -n db-lord
+### Create the secret:
+Create `db-lord-secrets` with the keys above (see Installation, step 2); the chart never creates it.
 
 ### Render and apply the migration Job:
 helm template db-lord ./gitops/apps/services/db-lord --namespace db-lord -s templates/job-migrate.yaml > job-migrate.yaml
