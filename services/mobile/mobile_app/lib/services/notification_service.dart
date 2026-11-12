@@ -50,7 +50,7 @@ class NotificationService {
     }
     _initializingCompleter = Completer<void>();
     try {
-      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidInit = AndroidInitializationSettings('ic_notification');
       const iosInit = DarwinInitializationSettings();
       final settings = InitializationSettings(
         android: androidInit,
@@ -273,6 +273,8 @@ class NotificationService {
       channelDescription: 'Reminders about sharing your health data',
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
+      icon: 'ic_notification',
+      color: Color(0xFF294D91),
     ),
     iOS: DarwinNotificationDetails(threadIdentifier: 'data-sharing'),
   );
