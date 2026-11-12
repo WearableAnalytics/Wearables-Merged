@@ -27,6 +27,7 @@ class Reading(InputModel):
     value: float
     unit: str = Field(min_length=1, max_length=96)
     sourceRecordId: str | None = Field(default=None, min_length=1, max_length=512)
+    sourceDeviceId: str | None = Field(default=None, min_length=1, max_length=512)
 
 
 class InstantaneousMeasurement(Reading):
@@ -36,13 +37,13 @@ class InstantaneousMeasurement(Reading):
 class CumulativeMeasurement(Reading):
     periodStart: datetime
     periodEnd: datetime
-    duration: int = Field(ge=0)
+    duration: float = Field(ge=0)
 
 
 class DurationMeasurement(Reading):
     startTime: datetime
     endTime: datetime
-    durationMinutes: int = Field(ge=0)
+    durationMinutes: float = Field(ge=0)
 
 
 class Measurements(InputModel):
