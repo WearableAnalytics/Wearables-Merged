@@ -21,6 +21,10 @@ numeric upload shapes and service entry points. Mapping version `2.0.0` opts int
   coding, mapping version and timestamp interpretation. New cumulative and
   duration records preserve both interval endpoints through line protocol and
   FHIR export. Phone and Garmin duration values retain fractional minutes.
+- Activity intervals use the base FHIR Observation profile and activity category.
+  They no longer claim the Vital Signs profile, whose effective-time constraint
+  rejects these interval resources. Every declared metric is checked with the
+  HAPI validator, including the new period representation.
 - Phone workout elapsed duration is explicit. A supplied active duration has a
   separate code and is not replaced with elapsed duration. Obtaining native pause
   events and session relationships remains Oskar's work in #117.
@@ -66,3 +70,5 @@ References:
 - https://developer.android.com/reference/kotlin/androidx/health/connect/client/records/BasalMetabolicRateRecord
 - https://developer.apple.com/documentation/healthkit/hkquantitytypeidentifier/basalenergyburned
 - https://loinc.org/93830-8/
+- https://hl7.org/fhir/R4/observation-vitalsigns.html
+- https://hl7.org/fhir/R4/observation.html
