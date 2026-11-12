@@ -1,7 +1,8 @@
 name: Publish service images
 
-# Builds db-lord, wearables-bff, extraction-service, importservice, web and
-# wearables-cloud-connector and publishes them to GitHub Container Registry
+# Builds db-lord, wearables-bff, extraction-service, importservice, web,
+# wearables-cloud-connector, mapper-validator and grafana-proxy and publishes
+# them to GitHub Container Registry
 # (ghcr.io/wearableanalytics/<image>).
 # - Pull requests: build only, to catch broken Dockerfiles early.
 # - Pushes to main: build and publish, tagged with the commit SHA and `latest`.
@@ -16,6 +17,8 @@ on:
       - "services/backend/extraction-service/**"
       - "services/backend/importservice/**"
       - "services/backend/cloud-connector/**"
+      - "services/backend/fhir-mapper-validator/**"
+      - "services/backend/grafana-proxy/**"
       - "services/web/**"
       - ".github/workflows/publish-images.yml"
   pull_request:
@@ -25,6 +28,8 @@ on:
       - "services/backend/extraction-service/**"
       - "services/backend/importservice/**"
       - "services/backend/cloud-connector/**"
+      - "services/backend/fhir-mapper-validator/**"
+      - "services/backend/grafana-proxy/**"
       - "services/web/**"
       - ".github/workflows/publish-images.yml"
   workflow_dispatch:
@@ -52,6 +57,10 @@ jobs:
             context: services/backend/cloud-connector
           - image: wearables-web
             context: services/web
+          - image: wearables-mapper-validator
+            context: services/backend/fhir-mapper-validator
+          - image: wearables-grafana-proxy
+            context: services/backend/grafana-proxy
     steps:
       - uses: actions/checkout@v4
 

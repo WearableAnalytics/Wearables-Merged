@@ -1,8 +1,8 @@
 replicaCount: 1
 
 image:
-  # Docker image for the grafana-proxy-node service
-  repository: gmsdaniil/wearables-grafana-proxy
+  # Built by .github/workflows/publish-images.yml
+  repository: ghcr.io/wearableanalytics/wearables-grafana-proxy
   pullPolicy: Always
   tag: "latest"
 
