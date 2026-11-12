@@ -41,7 +41,8 @@ async def bounded_readings(
         raise HTTPException(422, "Use a nonempty source policy window of at most 31 days")
     records = {}
     scanned = 0
-    for tags in patient_tag_filters(patient_id):
+    filters = patient_tag_filters(patient_id)
+    for tags in filters:
         stream: AsyncIterator[TelemetryPoint] = api.stream_telemetry(
             measurement=measurement,
             start=start,
@@ -51,10 +52,12 @@ async def bounded_readings(
         async with aclosing(stream):
             async for point in stream:
                 scanned += 1
+                if scanned > MAX_RECORDS * len(filters):
+                    raise HTTPException(413, "Too many readings. Use a smaller time range")
                 if point.patient_id != patient_id:
                     continue
                 records.setdefault((point.timestamp, reading_key(point)), point)
-                if len(records) > MAX_RECORDS or scanned > MAX_RECORDS * len(patient_tag_filters(patient_id)):
+                if len(records) > MAX_RECORDS:
                     raise HTTPException(413, "Too many readings. Use a smaller time range")
     return sorted(records.values(), key=lambda point: point.timestamp)
 
@@ -73,12 +76,6 @@ def _summary(source: str, points: list[TelemetryPoint], policy: str, start: date
         "unit": None,
         "reported_interval_seconds": 0.0,
     }
-    if policy == "samples":
-        return summary
-    if source == "legacy":
-        return {**summary, "status": "source-unknown"}
-    intervals = []
-    units = set()
     source_records = set()
     for point in points:
         record_id = point.fields.get("source_record_id")
@@ -86,6 +83,13 @@ def _summary(source: str, points: list[TelemetryPoint], policy: str, start: date
             return {**summary, "status": "conflicting-source-record"}
         if record_id:
             source_records.add(record_id)
+    if policy == "samples":
+        return summary
+    if source == "legacy":
+        return {**summary, "status": "source-unknown"}
+    intervals = []
+    units = set()
+    for point in points:
         try:
             if isinstance(point.fields["value"], bool):
                 return {**summary, "status": "invalid-record"}
@@ -93,7 +97,7 @@ def _summary(source: str, points: list[TelemetryPoint], policy: str, start: date
             finish = datetime.fromisoformat(point.fields["period_end"].replace("Z", "+00:00"))
             value = float(point.fields["value"])
             unit = point.tags["valueUnit"]
-        except (KeyError, TypeError, ValueError):
+        except (AttributeError, KeyError, TypeError, ValueError):
             return {**summary, "status": "incomplete-interval-or-unit"}
         if begin.tzinfo is None or finish.tzinfo is None or not isfinite(value) or value < 0 or finish < begin:
             return {**summary, "status": "invalid-record"}
@@ -111,6 +115,8 @@ def _summary(source: str, points: list[TelemetryPoint], policy: str, start: date
             return {**summary, "status": "overlapping-records"}
         last_end = finish
         total += value
+        if not isfinite(total):
+            return {**summary, "status": "non-finite-total"}
         covered_seconds += (finish - begin).total_seconds()
     return {
         **summary,

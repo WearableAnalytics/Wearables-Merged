@@ -176,6 +176,44 @@ def test_instantaneous_measurements_remain_samples(client):
     assert result["selection"]["value"] is None
 
 
+def test_scanned_limit_also_applies_to_mismatched_patient_results(client, monkeypatch):
+    client, api = client
+    import src.app.reconciliation as policy
+    monkeypatch.setattr(policy, "MAX_RECORDS", 1)
+    api.points = [reading(record_id=str(index)) for index in range(5)]
+    for point in api.points:
+        point.tags["patient-id"] = "different-patient"
+    assert query(client).status_code == 413
+
+
+def test_invalid_legacy_interval_type_has_an_explicit_outcome(client):
+    client, api = client
+    api.points = [reading(period_start=123)]
+    result = query(client, mode="select", source_key=WATCH).json()["selection"]
+    assert result["status"] == "incomplete-interval-or-unit"
+    assert result["value"] is None
+
+
+def test_finite_inputs_cannot_overflow_a_reconciled_total(client):
+    client, api = client
+    middle = START + timedelta(minutes=30)
+    api.points = [reading(value=1e308, finish=middle),
+                  reading(value=1e308, record_id="record-2", begin=middle)]
+    result = query(client, mode="select", source_key=WATCH).json()["selection"]
+    assert result["status"] == "non-finite-total"
+    assert result["value"] is None
+
+
+def test_conflicting_instantaneous_ids_are_reported(client):
+    client, api = client
+    api.points = [reading(value=70), reading(value=75)]
+    for point in api.points:
+        point.measurement = "heart-rate"
+    result = query(client, measurement="heart-rate", mode="select", source_key=WATCH).json()["selection"]
+    assert result["status"] == "conflicting-source-record"
+    assert result["value"] is None
+
+
 def test_dashboards_keep_sources_in_distinct_series():
     import json
     from pathlib import Path

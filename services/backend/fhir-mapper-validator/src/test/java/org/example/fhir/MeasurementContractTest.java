@@ -131,6 +131,7 @@ class MeasurementContractTest {
         assertTrue(one.find(), line);
         assertTrue(two.find(), other);
         assertNotEquals(one.group(1), two.group(1));
+        Files.createDirectories(Path.of("target/contract"));
         Files.writeString(Path.of("target/contract/source.lp"), line);
     }
 }

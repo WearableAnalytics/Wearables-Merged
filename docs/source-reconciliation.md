@@ -78,12 +78,16 @@ Sleep hour displays use the stored minute unit and include canonical light sleep
 
 Completed locally on 12 November 2026:
 
-- 37 Flutter tests, 13 Java tests, 66 extraction/source-policy tests, four Garmin
+- 37 Flutter tests, 13 Java tests, 70 extraction/source-policy tests, four Garmin
   application tests, and an importer identity-boundary test passed.
 - Cases include equal-valued distinct sources, native numeric-looking IDs,
   collector replacement, duplicate/conflicting IDs, overlapping intervals,
   legacy data, per-patient filtering, priority selection, size/time limits,
   interval boundaries, distinct FHIR Bundle IDs and dashboard source grouping.
+- Follow-up checks cover finite-sum overflow, malformed legacy intervals,
+  conflicting instantaneous IDs and scan limits even for mismatched patient
+  results. The importer boundary test uses HTTP and works with both importer APIs.
+  Mapper artifact tests create their own directories and do not depend on order.
 - The original mapping checks and all declared numeric metrics also pass.
 - A temporary local InfluxDB run verified source grouping including historical
   points without a source tag, and preserved native ID `00123` as a string.
