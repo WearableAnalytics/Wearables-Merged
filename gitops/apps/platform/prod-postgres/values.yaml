@@ -31,4 +31,4 @@ service:
 
 storage:
   size: 20Gi
-  storageClassName: local-path
+  storageClassName: cinder-csi

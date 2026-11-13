@@ -4,7 +4,7 @@ kafkaNodePools:
   volume:
     size: 2Gi          # Prod: 5Gi
 
-storageClassName: standard   # Minikube's default class (Prod: local-path)
+storageClassName: standard   # Minikube's default class (Prod: cinder-csi)
 
 dualRole:
   resources:
@@ -33,4 +33,4 @@ topics:                # same as Prod, but one replica each
     segmentBytes: 1073741824
 
 sourceConnector:
-  enabled: false       # Prod: true (to be checked); no Kafka Connect or Mosquitto locally
+  enabled: false       # Prod: true; no Kafka Connect or Mosquitto locally

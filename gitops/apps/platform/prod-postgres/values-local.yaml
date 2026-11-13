@@ -15,4 +15,4 @@ resources:
 
 storage:
   size: 2Gi                    # Prod: 20Gi
-  storageClassName: standard   # Prod: local-path
+  storageClassName: standard   # Prod: cinder-csi

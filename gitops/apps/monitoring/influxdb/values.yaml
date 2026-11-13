@@ -11,8 +11,8 @@ image:
   tag: "2.7"
 
 persistence:
-  size: 10Gi
-  storageClass: local-path # may need to be changed accordingly
+  size: 100Gi
+  storageClass: cinder-csi
 
 # Optional first-start setup of user, org, bucket and admin token.
 # Only takes effect on an empty volume.
