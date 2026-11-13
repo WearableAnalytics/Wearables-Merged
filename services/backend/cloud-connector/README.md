@@ -47,11 +47,13 @@ Providers are registered in `app/providers/`:
 | `GET` | `/providers` | List all registered cloud providers |
 | `GET` | `/auth/{provider_name}/login?patient_id=...` | Initiates OAuth 2.0 PKCE login and redirects user to the vendor consent page |
 | `GET` | `/callback` | OAuth 2.0 PKCE callback: exchanges code for tokens, fetches vendor `userId`, and links `patient_id` |
-| `GET` | `/connections` | Lists linked patient accounts and granted permissions |
-| `POST` | `/connections/{provider_name}/{patient_id}/refresh` | Refreshes an OAuth 2.0 access token using the stored `refresh_token` |
-| `DELETE` | `/connections/{provider_name}/{patient_id}` | Deregisters the user at the vendor and deletes the local link |
+| `GET` | `/connections` | Lists linked accounts for the authenticated patient only (`Bearer <case-jwt>`) |
+| `POST` | `/connections/{provider_name}/{patient_id}/refresh` | Refreshes an OAuth 2.0 access token for the authenticated patient |
+| `DELETE` | `/connections/{provider_name}/{patient_id}` | Deregisters the user at the vendor and deletes the local link (patient JWT required) |
 | `POST` | `/webhooks/{provider_name}` | Receives PUSH webhook notifications, maps vendor `userId` to `patient_id`, and publishes to Kafka |
-| `POST` | `/sync/{provider_name}` | Triggers telemetry fetch & Kafka publication for a patient |
+| `POST` | `/sync/{provider_name}` | Triggers telemetry fetch & Kafka publication for the authenticated patient |
+
+Cluster-internal admin reads (not exposed to Traefik ingress) are served on `INTERNAL_PORT` (`8001`): `GET /connections` lists all patient links without tokens for debugging via `kubectl port-forward`
 
 ## Example Sync Request
 

@@ -128,6 +128,15 @@ create_importservice_secret() {
   fi
 }
 
+create_cloud_connector_secret() {
+  ensure_namespace cloud-connector
+  if ! k get secret cloud-connector-secrets -n cloud-connector >/dev/null 2>&1; then
+    # Same value as the BFF's JWT_SECRET, which issues the case tokens.
+    k create secret generic cloud-connector-secrets -n cloud-connector \
+      --from-literal=JWT_SECRET=dev-secret
+  fi
+}
+
 # The wearables-bff chart does not create its secret (as in production).
 # JWT_SECRET is the same as the importservice's and grafana-proxy's: the BFF
 # issues the tokens they check. No Brevo key: locally no mails are sent.
@@ -291,6 +300,7 @@ if $USE_ARGOCD; then
 
   step "Secrets and Grafana dashboards"
   create_importservice_secret
+  create_cloud_connector_secret
   create_postgres_secret
   create_db_lord_secret
   create_bff_secret
@@ -350,6 +360,7 @@ else
   install_chart prometheus "${APPS}/monitoring/prometheus" monitoring
 
   step "cloud-connector"
+  create_cloud_connector_secret
   install_chart cloud-connector "${APPS}/services/cloud-connector" cloud-connector
 fi
 

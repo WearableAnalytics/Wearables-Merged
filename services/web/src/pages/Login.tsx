@@ -35,7 +35,7 @@ export function LoginPage() {
     const trimmedEmail = getTrimmedOrNull(email);
 
     if (!trimmedEmail) {
-      setError('Please enter your email address.');
+      setError('Please enter email address.');
       return;
     }
 
@@ -77,7 +77,7 @@ export function LoginPage() {
   return (
     <AuthEmailFormPage
       headerLabel="Login"
-      headerTitle="Sign in with your email"
+      headerTitle="Sign in with email"
       headerDescription="Enter the email you used to register. Approved accounts will receive a login link."
       email={email}
       loading={isSubmitting}
