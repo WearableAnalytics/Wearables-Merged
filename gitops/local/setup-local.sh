@@ -219,6 +219,12 @@ if ! k get secret importservice-secrets -n importservice >/dev/null 2>&1; then
     --from-literal=JWT_SECRET=dev-secret
 fi
 
+ensure_namespace cloud-connector
+if ! k get secret cloud-connector-secrets -n cloud-connector >/dev/null 2>&1; then
+  k create secret generic cloud-connector-secrets -n cloud-connector \
+    --from-literal=JWT_SECRET=dev-secret
+fi
+
 if $USE_ARGOCD; then
   # Deploys the mapper, importservice, wearables-bff, web and cloud-connector.
   install_argocd

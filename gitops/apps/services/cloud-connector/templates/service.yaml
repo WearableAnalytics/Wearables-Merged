@@ -11,5 +11,9 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+    - port: {{ .Values.internal.port }}
+      targetPort: internal
+      protocol: TCP
+      name: internal
   selector:
     app: {{ .Release.Name }}

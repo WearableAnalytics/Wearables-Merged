@@ -10,6 +10,12 @@ from .providers import get_provider, list_available_providers
 from .kafka_publisher import get_publisher, CloudKafkaPublisher
 from .storage import get_store, ConnectionStore
 from .config import get_settings
+from .internal_server import start_internal_server
+from .security import (
+    assert_patient_matches,
+    extract_patient_id,
+    verify_case_verification_token,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -19,6 +25,11 @@ app = FastAPI(
     description="Modular multi-provider cloud telemetry connector for the Wearables platform",
     version="1.0.0",
 )
+
+
+@app.on_event("startup")
+async def _start_internal_admin():
+    start_internal_server()
 
 
 @app.get("/health")
@@ -227,10 +238,12 @@ async def oauth_callback_provider(
 async def list_connections(
     provider: Optional[str] = Query(None),
     store: ConnectionStore = Depends(get_store),
+    claims: dict = Depends(verify_case_verification_token),
 ):
-    """Lists all linked patient <-> cloud provider accounts (without exposing tokens)"""
+    """Lists linked cloud provider accounts for the authenticated patient only (without exposing tokens)"""
+    patient_id = extract_patient_id(claims)
     return {
-        "connections": store.list_connections(provider=provider),
+        "connections": store.list_connections(provider=provider, patient_id=patient_id),
     }
 
 
@@ -239,8 +252,10 @@ async def refresh_connection_token(
     provider_name: str,
     patient_id: str,
     store: ConnectionStore = Depends(get_store),
+    claims: dict = Depends(verify_case_verification_token),
 ):
     """Refreshes an OAuth 2.0 access token using the stored refresh_token"""
+    assert_patient_matches(claims, patient_id)
     conn = store.get_connection(provider_name, patient_id)
     if not conn or not conn.get("refresh_token"):
         raise HTTPException(
@@ -277,8 +292,10 @@ async def delete_connection(
     provider_name: str,
     patient_id: str,
     store: ConnectionStore = Depends(get_store),
+    claims: dict = Depends(verify_case_verification_token),
 ):
     """Deregisters the user at the provider and deletes the local patient link"""
+    assert_patient_matches(claims, patient_id)
     conn = store.get_connection(provider_name, patient_id)
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
@@ -304,7 +321,9 @@ async def sync_provider(
     request: SyncRequest,
     publisher: CloudKafkaPublisher = Depends(get_publisher),
     store: ConnectionStore = Depends(get_store),
+    claims: dict = Depends(verify_case_verification_token),
 ):
+    assert_patient_matches(claims, request.patient_id)
     try:
         provider = get_provider(provider_name)
     except ValueError as e:

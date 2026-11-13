@@ -10,17 +10,23 @@ service:
   type: ClusterIP
   port: 8000
 
+# Cluster-internal admin port
+internal:
+  port: 8001
+
 env:
   KAFKA_BOOTSTRAP_SERVERS: "kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
   KAFKA_TOPIC: "wearables-raw"
   PUBLIC_BASE_URL: "https://wearables.charite.de"
   CLOUD_CONNECTOR_STORAGE_PATH: "/data/connections.json"
+  JWT_ISSUER: "wearables-bff"
 
-# Secrets for Garmin OAuth 2.0 PKCE
+# Secrets for Garmin OAuth 2.0 PKCE and Case JWT verification
 secrets:
   secretName: cloud-connector-secrets
   garminClientIdKey: GARMIN_CLIENT_ID
   garminClientSecretKey: GARMIN_CLIENT_SECRET
+  jwtSecretKey: JWT_SECRET
 
 persistence:
   enabled: true

@@ -28,6 +28,15 @@ class Settings:
         default_factory=lambda: os.getenv("PUBLIC_BASE_URL", "http://localhost")
     )
 
+    # Case-JWT verification
+    jwt_secret: str = field(default_factory=lambda: os.getenv("JWT_SECRET", ""))
+    jwt_issuer: str = field(
+        default_factory=lambda: os.getenv("JWT_ISSUER", "wearables-bff")
+    )
+    internal_port: int = field(
+        default_factory=lambda: int(os.getenv("INTERNAL_PORT", "8001"))
+    )
+
     # Garmin OAuth 2.0 PKCE & API settings
     garmin_client_id: str = field(default_factory=lambda: os.getenv("GARMIN_CLIENT_ID", ""))
     garmin_client_secret: str = field(

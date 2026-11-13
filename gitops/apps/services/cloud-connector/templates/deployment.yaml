@@ -21,6 +21,8 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
+            - name: internal
+              containerPort: {{ .Values.internal.port }}
           env:
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: "{{ .Values.env.KAFKA_BOOTSTRAP_SERVERS }}"
@@ -30,6 +32,15 @@ spec:
               value: "{{ .Values.env.PUBLIC_BASE_URL }}"
             - name: CLOUD_CONNECTOR_STORAGE_PATH
               value: "{{ .Values.env.CLOUD_CONNECTOR_STORAGE_PATH }}"
+            - name: INTERNAL_PORT
+              value: "{{ .Values.internal.port }}"
+            - name: JWT_ISSUER
+              value: "{{ .Values.env.JWT_ISSUER }}"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.jwtSecretKey }}
             - name: GARMIN_CLIENT_ID
               valueFrom:
                 secretKeyRef:
