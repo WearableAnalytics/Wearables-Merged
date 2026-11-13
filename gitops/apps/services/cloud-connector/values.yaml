@@ -4,7 +4,7 @@ image:
   # Built by .github/workflows/publish-images.yml
   repository: ghcr.io/wearableanalytics/wearables-cloud-connector
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
   type: ClusterIP
