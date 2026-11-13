@@ -18,6 +18,10 @@ DB_LORD_SECRET_NAME="${DB_LORD_SECRET_NAME:-db-lord-secrets}"
 DB_LORD_INFLUX_ORG="${DB_LORD_INFLUX_ORG:-${INFLUX_ORG:-}}"
 DB_LORD_INFLUX_BUCKET="${DB_LORD_INFLUX_BUCKET:-${INFLUX_BUCKET:-}}"
 DB_LORD_INFLUX_TOKEN="${DB_LORD_INFLUX_TOKEN:-${INFLUX_TOKEN:-}}"
+CLOUD_CONNECTOR_NAMESPACE="${CLOUD_CONNECTOR_NAMESPACE:-cloud-connector}"
+CLOUD_CONNECTOR_SECRET_NAME="${CLOUD_CONNECTOR_SECRET_NAME:-cloud-connector-secrets}"
+GARMIN_CLIENT_ID="${GARMIN_CLIENT_ID:-}"
+GARMIN_CLIENT_SECRET="${GARMIN_CLIENT_SECRET:-}"
 
 BREVO_API_KEY="${BREVO_API_KEY:-}"
 SHARED_APP_JWT_SECRET="${SHARED_APP_JWT_SECRET:-}"
@@ -47,6 +51,9 @@ Environment variables:
   DB_LORD_POSTGRES_USER, DB_LORD_POSTGRES_PASSWORD, DB_LORD_INFLUX_URL
   DB_LORD_INFLUX_ORG, DB_LORD_INFLUX_BUCKET, DB_LORD_INFLUX_TOKEN
                                       (default: INFLUX_ORG, INFLUX_BUCKET, INFLUX_TOKEN)
+  GARMIN_CLIENT_ID, GARMIN_CLIENT_SECRET (optional; Garmin OAuth app of cloud-connector)
+  CLOUD_CONNECTOR_NAMESPACE           (default: cloud-connector)
+  CLOUD_CONNECTOR_SECRET_NAME         (default: cloud-connector-secrets)
 
 Behavior:
   - Ensures namespaces exist.
@@ -59,6 +66,8 @@ Behavior:
   - Applies the prod-postgres secret from PROD_POSTGRES_PASSWORD and the db-lord
     secret from the DB_LORD_* variables; their charts do not create them.
     Without all of a secret's variables set, an existing secret is kept.
+  - Applies the Garmin keys of the cloud-connector secret when both GARMIN_*
+    variables are set; other keys of that secret (JWT_SECRET) are left as they are.
 EOF
 }
 
@@ -227,4 +236,18 @@ if secret_vars_set "${DB_LORD_NAMESPACE}" "${DB_LORD_SECRET_NAME}" "${DB_LORD_VA
     --from-literal=INFLUX_TOKEN="${DB_LORD_INFLUX_TOKEN}" \
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
   echo "  - ${DB_LORD_NAMESPACE}/${DB_LORD_SECRET_NAME} (POSTGRES_*, INFLUX_*)"
+fi
+
+# Garmin is optional in the cloud-connector chart, so missing variables only skip
+# this secret. kubectl apply only removes keys from its last applied configuration,
+# so the secret's JWT_SECRET (not set with kubectl apply) is kept.
+if [[ -n "${GARMIN_CLIENT_ID}" && -n "${GARMIN_CLIENT_SECRET}" ]]; then
+  ensure_namespace "${CLOUD_CONNECTOR_NAMESPACE}"
+  kubectl -n "${CLOUD_CONNECTOR_NAMESPACE}" create secret generic "${CLOUD_CONNECTOR_SECRET_NAME}" \
+    --from-literal=GARMIN_CLIENT_ID="${GARMIN_CLIENT_ID}" \
+    --from-literal=GARMIN_CLIENT_SECRET="${GARMIN_CLIENT_SECRET}" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  echo "  - ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (GARMIN_CLIENT_ID, GARMIN_CLIENT_SECRET)"
+else
+  echo "  - skipped ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET not set)"
 fi
