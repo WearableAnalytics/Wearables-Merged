@@ -5,7 +5,7 @@ image:
   # deploy time (--set image.tag=<sha>) instead of relying on latest.
   repository: ghcr.io/wearableanalytics/wearables-importservice
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
   type: ClusterIP
