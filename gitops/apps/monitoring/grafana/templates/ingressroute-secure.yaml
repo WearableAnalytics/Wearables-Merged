@@ -9,9 +9,11 @@ spec:
   routes:
     - match: "Host(`{{ .Values.ingress.host }}`) && PathPrefix(`{{ .Values.ingress.prefix }}`)"
       kind: Rule
+      {{- with .Values.ingress.authMiddleware }}
       middlewares:
-        - name: grafana-auth
-          namespace: {{ .Release.Namespace }}
+        - name: {{ . }}
+          namespace: {{ $.Release.Namespace }}
+      {{- end }}
       services:
         - name: {{ .Release.Name }}
           port: {{ .Values.container.port }}
