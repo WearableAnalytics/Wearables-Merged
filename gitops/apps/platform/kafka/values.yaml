@@ -75,14 +75,12 @@ topics:
 #     id: connect-cluster
 
 sourceConnector:
-  # Requires an active Kafka Connect cluster (`kafkaconnect/kafka` runs in prod,
-  # though this chart leaves kafkaConnect commented out).
-  enabled: true
-  mosquittoName: mosquitto # Must match your mosquitto DEPLOYMENT name
-  mosquittoNamespace: mosquitto # Must match your mosquitto namespace
-  mosquittoPort: 1883
-  class: io.lenses.streamreactor.connect.mqtt.source.MqttSourceConnector
-  tasksMax: 1
+  enabled: false
+  # mosquittoName: mosquitto # Must match your mosquitto DEPLOYMENT name
+  # mosquittoNamespace: mosquitto # Must match your mosquitto namespace
+  # mosquittoPort: 1883
+  # class: io.lenses.streamreactor.connect.mqtt.source.MqttSourceConnector
+  # tasksMax: 1
 
 
 offsets.topic.replication.factor: 1
