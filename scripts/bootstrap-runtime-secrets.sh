@@ -20,6 +20,8 @@ DB_LORD_INFLUX_BUCKET="${DB_LORD_INFLUX_BUCKET:-${INFLUX_BUCKET:-}}"
 DB_LORD_INFLUX_TOKEN="${DB_LORD_INFLUX_TOKEN:-${INFLUX_TOKEN:-}}"
 CLOUD_CONNECTOR_NAMESPACE="${CLOUD_CONNECTOR_NAMESPACE:-cloud-connector}"
 CLOUD_CONNECTOR_SECRET_NAME="${CLOUD_CONNECTOR_SECRET_NAME:-cloud-connector-secrets}"
+IMPORTSERVICE_NAMESPACE="${IMPORTSERVICE_NAMESPACE:-importservice}"
+IMPORTSERVICE_SECRET_NAME="${IMPORTSERVICE_SECRET_NAME:-importservice-secrets}"
 GARMIN_CLIENT_ID="${GARMIN_CLIENT_ID:-}"
 GARMIN_CLIENT_SECRET="${GARMIN_CLIENT_SECRET:-}"
 
@@ -39,9 +41,11 @@ Environment variables:
   GRAFANA_SECRET_NAME                 (default: grafana-auth-secrets)
   GRAFANA_JWT_PRIVATE_KEY_PATH        (default: ./secrets/grafana-jwt-private.pem)
   GENERATE_GRAFANA_JWT_PRIVATE_KEY_IF_MISSING (default: false; set true to generate RSA key if missing)
-  BREVO_API_KEY                       (optional)
+  BREVO_API_KEY                       (optional; existing cluster value kept if unset)
   SHARED_APP_JWT_SECRET               (optional; overrides auto-discovery/generation)
   ROTATE_SHARED_APP_JWT_SECRET        (default: false; set true to force new random value)
+  IMPORTSERVICE_NAMESPACE             (default: importservice)
+  IMPORTSERVICE_SECRET_NAME           (default: importservice-secrets)
   PROD_POSTGRES_PASSWORD              (admin password of prod-postgres)
   PROD_POSTGRES_NAMESPACE             (default: prod-postgres)
   PROD_POSTGRES_SECRET_NAME           (default: prod-postgres-secret)
@@ -57,17 +61,20 @@ Environment variables:
 
 Behavior:
   - Ensures namespaces exist.
-  - Reuses existing JWT secret if found (unless rotation is forced).
-  - Generates one shared JWT secret and applies it to:
+  - Reuses existing non-placeholder JWT secret if found (unless rotation is forced).
+  - Applies one shared JWT secret cleanly via merge-patch (preserving extra keys
+    such as BREVO_API_KEY, GRAFANA_JWT_PRIVATE_KEY, GARMIN_CLIENT_ID/SECRET) to:
       * wearables-bff secret key: JWT_SECRET
       * grafana-auth secret key: APP_JWT_SECRET
-  - Applies grafana private key from GRAFANA_JWT_PRIVATE_KEY_PATH.
+      * importservice secret key: JWT_SECRET
+      * cloud-connector secret key: JWT_SECRET
+  - Applies grafana private key from GRAFANA_JWT_PRIVATE_KEY_PATH if not already present in cluster
   - Optionally generates a new RSA private key at GRAFANA_JWT_PRIVATE_KEY_PATH when missing.
   - Applies the prod-postgres secret from PROD_POSTGRES_PASSWORD and the db-lord
     secret from the DB_LORD_* variables; their charts do not create them.
     Without all of a secret's variables set, an existing secret is kept.
   - Applies the Garmin keys of the cloud-connector secret when both GARMIN_*
-    variables are set; other keys of that secret (JWT_SECRET) are left as they are.
+    variables are set JWT_SECRET.
 EOF
 }
 
@@ -104,14 +111,16 @@ ensure_grafana_private_key_file() {
   exit 1
 }
 
-ensure_grafana_private_key_file
-
 decode_b64() {
   local encoded="$1"
   if [[ -z "${encoded}" ]]; then
     return 0
   fi
   printf '%s' "${encoded}" | openssl base64 -d -A 2>/dev/null || true
+}
+
+encode_b64() {
+  printf '%s' "$1" | openssl base64 -A
 }
 
 read_secret_key() {
@@ -131,12 +140,33 @@ ensure_namespace() {
   fi
 }
 
+# upsert_secret_key <namespace> <secret_name> <key> <value>
+upsert_secret_key() {
+  local namespace="$1" secret_name="$2" key="$3" value="$4"
+  local encoded
+  ensure_namespace "${namespace}"
+  encoded="$(encode_b64 "${value}")"
+  if kubectl -n "${namespace}" get secret "${secret_name}" >/dev/null 2>&1; then
+    kubectl -n "${namespace}" patch secret "${secret_name}" --type=merge \
+      -p "{\"data\":{\"${key}\":\"${encoded}\"}}" >/dev/null
+  else
+    kubectl -n "${namespace}" create secret generic "${secret_name}" \
+      --from-literal="${key}=${value}" \
+      --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  fi
+}
+
+is_usable_jwt_secret() {
+  local value="$1"
+  [[ -n "${value}" && "${value}" != "dev-secret" ]]
+}
+
 select_shared_jwt_secret() {
-  local existing_from_bff existing_from_grafana
+  local entry ns secret_name key candidate
 
   if [[ "${ROTATE_SHARED_APP_JWT_SECRET}" == "true" ]]; then
     echo "Rotation enabled: generating a new shared JWT secret." >&2
-    openssl rand -base64 48
+    openssl rand -base64 48 | tr -d '\r\n'
     return 0
   fi
 
@@ -146,22 +176,23 @@ select_shared_jwt_secret() {
     return 0
   fi
 
-  existing_from_bff="$(read_secret_key "${BFF_NAMESPACE}" "${BFF_SECRET_NAME}" "JWT_SECRET")"
-  if [[ -n "${existing_from_bff}" ]]; then
-    echo "Reusing existing ${BFF_NAMESPACE}/${BFF_SECRET_NAME} JWT_SECRET." >&2
-    printf '%s' "${existing_from_bff}"
-    return 0
-  fi
-
-  existing_from_grafana="$(read_secret_key "${GRAFANA_NAMESPACE}" "${GRAFANA_SECRET_NAME}" "APP_JWT_SECRET")"
-  if [[ -n "${existing_from_grafana}" ]]; then
-    echo "Reusing existing ${GRAFANA_NAMESPACE}/${GRAFANA_SECRET_NAME} APP_JWT_SECRET." >&2
-    printf '%s' "${existing_from_grafana}"
-    return 0
-  fi
+  for entry in \
+    "${IMPORTSERVICE_NAMESPACE}|${IMPORTSERVICE_SECRET_NAME}|JWT_SECRET" \
+    "${CLOUD_CONNECTOR_NAMESPACE}|${CLOUD_CONNECTOR_SECRET_NAME}|JWT_SECRET" \
+    "${BFF_NAMESPACE}|${BFF_SECRET_NAME}|JWT_SECRET" \
+    "${GRAFANA_NAMESPACE}|${GRAFANA_SECRET_NAME}|APP_JWT_SECRET"
+  do
+    IFS='|' read -r ns secret_name key <<< "${entry}"
+    candidate="$(read_secret_key "${ns}" "${secret_name}" "${key}")"
+    if is_usable_jwt_secret "${candidate}"; then
+      echo "Reusing existing ${ns}/${secret_name} ${key}." >&2
+      printf '%s' "${candidate}"
+      return 0
+    fi
+  done
 
   echo "Generating new shared JWT secret." >&2
-  openssl rand -base64 48
+  openssl rand -base64 48 | tr -d '\r\n'
 }
 
 ensure_namespace "${BFF_NAMESPACE}"
@@ -169,19 +200,40 @@ ensure_namespace "${GRAFANA_NAMESPACE}"
 
 SHARED_APP_JWT_SECRET="$(select_shared_jwt_secret)"
 
-kubectl -n "${BFF_NAMESPACE}" create secret generic "${BFF_SECRET_NAME}" \
-  --from-literal=JWT_SECRET="${SHARED_APP_JWT_SECRET}" \
-  --from-literal=BREVO_API_KEY="${BREVO_API_KEY}" \
-  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+# BFF: BREVO_API_KEY
+if kubectl -n "${BFF_NAMESPACE}" get secret "${BFF_SECRET_NAME}" >/dev/null 2>&1; then
+  upsert_secret_key "${BFF_NAMESPACE}" "${BFF_SECRET_NAME}" "JWT_SECRET" "${SHARED_APP_JWT_SECRET}"
+  if [[ -n "${BREVO_API_KEY}" ]]; then
+    upsert_secret_key "${BFF_NAMESPACE}" "${BFF_SECRET_NAME}" "BREVO_API_KEY" "${BREVO_API_KEY}"
+  fi
+else
+  kubectl -n "${BFF_NAMESPACE}" create secret generic "${BFF_SECRET_NAME}" \
+    --from-literal=JWT_SECRET="${SHARED_APP_JWT_SECRET}" \
+    --from-literal=BREVO_API_KEY="${BREVO_API_KEY}" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+fi
+kubectl -n "${BFF_NAMESPACE}" annotate secret "${BFF_SECRET_NAME}" \
+  helm.sh/resource-policy=keep argocd.argoproj.io/sync-options=Prune=false --overwrite >/dev/null
 
-kubectl -n "${GRAFANA_NAMESPACE}" create secret generic "${GRAFANA_SECRET_NAME}" \
-  --from-file=GRAFANA_JWT_PRIVATE_KEY="${GRAFANA_JWT_PRIVATE_KEY_PATH}" \
-  --from-literal=APP_JWT_SECRET="${SHARED_APP_JWT_SECRET}" \
-  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+# Grafana proxy
+existing_grafana_priv="$(read_secret_key "${GRAFANA_NAMESPACE}" "${GRAFANA_SECRET_NAME}" "GRAFANA_JWT_PRIVATE_KEY")"
+if [[ -n "${existing_grafana_priv}" && ! -f "${GRAFANA_JWT_PRIVATE_KEY_PATH}" ]]; then
+  upsert_secret_key "${GRAFANA_NAMESPACE}" "${GRAFANA_SECRET_NAME}" "APP_JWT_SECRET" "${SHARED_APP_JWT_SECRET}"
+else
+  ensure_grafana_private_key_file
+  grafana_priv_content="$(cat "${GRAFANA_JWT_PRIVATE_KEY_PATH}")"
+  upsert_secret_key "${GRAFANA_NAMESPACE}" "${GRAFANA_SECRET_NAME}" "APP_JWT_SECRET" "${SHARED_APP_JWT_SECRET}"
+  upsert_secret_key "${GRAFANA_NAMESPACE}" "${GRAFANA_SECRET_NAME}" "GRAFANA_JWT_PRIVATE_KEY" "${grafana_priv_content}"
+fi
+
+upsert_secret_key "${IMPORTSERVICE_NAMESPACE}" "${IMPORTSERVICE_SECRET_NAME}" "JWT_SECRET" "${SHARED_APP_JWT_SECRET}"
+upsert_secret_key "${CLOUD_CONNECTOR_NAMESPACE}" "${CLOUD_CONNECTOR_SECRET_NAME}" "JWT_SECRET" "${SHARED_APP_JWT_SECRET}"
 
 echo "Applied secrets:"
-echo "  - ${BFF_NAMESPACE}/${BFF_SECRET_NAME} (JWT_SECRET, BREVO_API_KEY)"
-echo "  - ${GRAFANA_NAMESPACE}/${GRAFANA_SECRET_NAME} (GRAFANA_JWT_PRIVATE_KEY, APP_JWT_SECRET)"
+echo "  - ${BFF_NAMESPACE}/${BFF_SECRET_NAME} (JWT_SECRET, preserved/updated BREVO_API_KEY)"
+echo "  - ${GRAFANA_NAMESPACE}/${GRAFANA_SECRET_NAME} (APP_JWT_SECRET, GRAFANA_JWT_PRIVATE_KEY)"
+echo "  - ${IMPORTSERVICE_NAMESPACE}/${IMPORTSERVICE_SECRET_NAME} (JWT_SECRET)"
+echo "  - ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (JWT_SECRET)"
 
 DB_LORD_VARS=(
   DB_LORD_POSTGRES_SERVER DB_LORD_POSTGRES_PORT DB_LORD_POSTGRES_DB
@@ -239,15 +291,10 @@ if secret_vars_set "${DB_LORD_NAMESPACE}" "${DB_LORD_SECRET_NAME}" "${DB_LORD_VA
 fi
 
 # Garmin is optional in the cloud-connector chart, so missing variables only skip
-# this secret. kubectl apply only removes keys from its last applied configuration,
-# so the secret's JWT_SECRET (not set with kubectl apply) is kept.
 if [[ -n "${GARMIN_CLIENT_ID}" && -n "${GARMIN_CLIENT_SECRET}" ]]; then
-  ensure_namespace "${CLOUD_CONNECTOR_NAMESPACE}"
-  kubectl -n "${CLOUD_CONNECTOR_NAMESPACE}" create secret generic "${CLOUD_CONNECTOR_SECRET_NAME}" \
-    --from-literal=GARMIN_CLIENT_ID="${GARMIN_CLIENT_ID}" \
-    --from-literal=GARMIN_CLIENT_SECRET="${GARMIN_CLIENT_SECRET}" \
-    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  upsert_secret_key "${CLOUD_CONNECTOR_NAMESPACE}" "${CLOUD_CONNECTOR_SECRET_NAME}" "GARMIN_CLIENT_ID" "${GARMIN_CLIENT_ID}"
+  upsert_secret_key "${CLOUD_CONNECTOR_NAMESPACE}" "${CLOUD_CONNECTOR_SECRET_NAME}" "GARMIN_CLIENT_SECRET" "${GARMIN_CLIENT_SECRET}"
   echo "  - ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (GARMIN_CLIENT_ID, GARMIN_CLIENT_SECRET)"
 else
-  echo "  - skipped ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET not set)"
+  echo "  - kept/skipped Garmin keys in ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET not set)"
 fi
