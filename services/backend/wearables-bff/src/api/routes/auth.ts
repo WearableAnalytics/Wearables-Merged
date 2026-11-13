@@ -741,6 +741,11 @@ router.patch('/admin/users/:userId', ...auth.adminOnly, async (req: Request, res
   });
 });
 
+// Traefik ForwardAuth endpoint: access only to approved admin sessions
+router.get('/admin/forward-auth', ...auth.adminOnly, (_req: Request, res: Response) => {
+  res.status(204).end();
+});
+
 router.post('/logout', (req: Request, res: Response) => {
   clearAllCookies(req, res);
   res.clearCookie('jwt', baseCookieOptions);
