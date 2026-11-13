@@ -15,6 +15,7 @@ ingress:
   host: "wearables.charite.de"
   prefix: "/grafana"
   httpOnly: false
+  authMiddleware: ""
 certificate:
   name: wearables-cert
   secretName: wearables-tls
