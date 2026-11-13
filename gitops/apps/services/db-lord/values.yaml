@@ -14,18 +14,9 @@ service:
   type: ClusterIP
   port: 8080
 
+# Existing secret with the connection settings and credentials. The chart never
+# creates it: it is created out of band before the install (production:
+# scripts/bootstrap-runtime-secrets.sh, locally: gitops/local/setup-local.sh).
+# Keys: POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD,
+#       INFLUX_URL, INFLUX_ORG, INFLUX_BUCKET, INFLUX_TOKEN
 secretRef: "db-lord-secrets"
-
-# Only used to create db-lord-secrets the first time (templates/db-lord-secrets.yaml);
-# an existing secret is never overwritten.
-env:
-  POSTGRES_SERVER: "prod-postgres.prod-postgres.svc.cluster.local"
-  POSTGRES_PORT: "5432"
-  POSTGRES_DB: "dblord"
-  POSTGRES_USER: "dblord"
-  POSTGRES_PASSWORD: "password"
-
-  INFLUX_URL: "http://influxdb-service.influx.svc.cluster.local:8086"
-  INFLUX_ORG: "wearables-project"
-  INFLUX_BUCKET: "measurements"
-  INFLUX_TOKEN: "token"

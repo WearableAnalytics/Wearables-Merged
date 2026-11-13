@@ -1,4 +1,5 @@
 # Local minikube cluster (setup-local.sh --argocd): only the differences to values.yaml.
+# The applications are the same as in production.
 valueFiles:
   - values.yaml
   - values-local.yaml

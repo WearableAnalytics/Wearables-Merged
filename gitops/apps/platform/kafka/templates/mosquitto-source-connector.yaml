@@ -1,3 +1,4 @@
+{{- if .Values.sourceConnector.enabled }}
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaConnector
 metadata:
@@ -20,3 +21,4 @@ spec:
     key.converter.schemas.enable: false
     value.converter: org.apache.kafka.connect.converters.ByteArrayConverter
     value.converter.schemas.enable: false
+{{- end }}

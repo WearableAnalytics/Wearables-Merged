@@ -119,11 +119,7 @@ INFLUX_BUCKET: "test"
 INFLUX_TOKEN: "token"
 ```
 
-2. Render and apply secrets
-
-`helm template db-lord ./apps/services/db-lord --namespace db-lord -s templates/db-lord-secrets.yaml > db-lord-secrets.yaml`
-
-`kubectl apply -f db-lord-secrets.yaml -n db-lord`
+2. Create the secret `db-lord-secrets` with these keys (the chart never creates it), e.g. with `kubectl create secret generic db-lord-secrets -n db-lord --from-literal=POSTGRES_SERVER=... ...`
 
 3. Render and apply the migration job
 

@@ -1,5 +1,8 @@
+# Existing secret with the admin password (key POSTGRES_PASSWORD). The chart never
+# creates it: production: scripts/bootstrap-runtime-secrets.sh, locally:
+# gitops/local/setup-local.sh. Postgres only reads it when the volume is empty.
 auth:
-  postgresPassword: Xk9mPqL2vNwR7sYhT4jB6cAeF8gU3iZo
+  secretName: prod-postgres-secret
 
 databases:
   - name: dblord
@@ -28,4 +31,4 @@ service:
 
 storage:
   size: 20Gi
-  storageClassName: local-path
+  storageClassName: cinder-csi

@@ -22,14 +22,21 @@ TRAEFIK_CRDS="https://github.com/traefik/traefik-helm-chart/traefik/crds?ref=v28
 ARGOCD_VERSION="v3.5.7"
 ARGOCD_MANIFEST="https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
 
-# The five applications Argo CD manages in --argocd mode (gitops/setup/argocd/apps),
-# as <Argo CD application>:<Helm release>:<namespace>.
+# The applications Argo CD manages in --argocd mode, the same as in production
+# (gitops/setup/argocd/apps/values.yaml), as <Argo CD application>:<Helm release>:<namespace>.
 ARGOCD_APPS=(
+  "prod-postgres:prod-postgres:prod-postgres"
+  "influxdb:influxdb:influx"
+  "kafka:kafka:kafka"
+  "db-lord:db-lord:db-lord"
+  "extraction-service:extraction-service:extraction-service"
   "cloud-connector:cloud-connector:cloud-connector"
   "importservice:importservice:importservice"
   "mapper-validator:mapper-validator:kafka"
   "wearables-bff:wearables-bff:wearables-bff"
   "web-frontend:web:web"
+  "grafana:grafana:grafana"
+  "grafana-proxy:grafana-proxy:monitoring"
 )
 
 SKIP_BUILD=false
@@ -46,14 +53,17 @@ values-local.yaml, in the order of gitops/local/README.md.
 
 Options:
   --skip-build          do not rebuild the service images
-  --argocd              let Argo CD deploy cloud-connector, importservice,
-                        mapper-validator, wearables-bff and web from GitHub
+  --argocd              let Argo CD deploy the applications from GitHub, as in
+                        production (gitops/setup/argocd/apps); the script only
+                        installs Strimzi, Traefik, the secrets, Telegraf,
+                        Prometheus and db-stats-exporter
   --revision <branch>   the branch Argo CD reads from (default: main); it must
                         be pushed, Argo CD does not see local changes
   -h, --help            show this help
 
-Switching between the modes replaces these five deployments: --argocd removes
-their Helm releases, a run without --argocd removes their Argo CD applications.
+Switching between the modes replaces these deployments: --argocd removes their
+Helm releases, a run without --argocd removes their Argo CD applications. The
+data of Postgres, InfluxDB, Kafka and Grafana is lost on a switch.
 EOF
 }
 
@@ -84,6 +94,111 @@ install_chart() {
     -f "${chart}/values-local.yaml" \
     --namespace "$namespace" --create-namespace \
     --wait --timeout "$TIMEOUT" "$@"
+}
+
+# keep_secret <namespace> <secret>
+# Older versions of the prod-postgres and wearables-bff charts created their
+# secret themselves; without this, the next helm upgrade of an existing release
+# would delete it.
+keep_secret() {
+  k annotate secret "$2" -n "$1" helm.sh/resource-policy=keep --overwrite >/dev/null
+}
+
+install_strimzi() {
+  h upgrade --install strimzi-cluster-operator oci://quay.io/strimzi-helm/strimzi-kafka-operator \
+    --version "$STRIMZI_VERSION" --namespace kafka --create-namespace --wait --timeout "$TIMEOUT"
+}
+
+install_traefik() {
+  k apply --server-side -k "$TRAEFIK_CRDS" >/dev/null
+  h upgrade --install traefik "${NETWORK}/ingresscontroller" \
+    -f "${NETWORK}/ingresscontroller/values.yaml" \
+    --namespace ingress --create-namespace --wait --timeout "$TIMEOUT"
+  h upgrade --install traefik-ingress "${NETWORK}/ingress" \
+    -f "${NETWORK}/ingress/values.yaml" \
+    --namespace ingress --wait --timeout "$TIMEOUT"
+}
+
+create_importservice_secret() {
+  ensure_namespace importservice
+  if ! k get secret importservice-secrets -n importservice >/dev/null 2>&1; then
+    # Same value as the BFF's JWT_SECRET, which issues the case tokens.
+    k create secret generic importservice-secrets -n importservice \
+      --from-literal=JWT_SECRET=dev-secret
+  fi
+}
+
+create_cloud_connector_secret() {
+  ensure_namespace cloud-connector
+  if ! k get secret cloud-connector-secrets -n cloud-connector >/dev/null 2>&1; then
+    # Same value as the BFF's JWT_SECRET, which issues the case tokens.
+    k create secret generic cloud-connector-secrets -n cloud-connector \
+      --from-literal=JWT_SECRET=dev-secret
+  fi
+}
+
+# The wearables-bff chart does not create its secret (as in production).
+# JWT_SECRET is the same as the importservice's and grafana-proxy's: the BFF
+# issues the tokens they check. No Brevo key: locally no mails are sent.
+create_bff_secret() {
+  ensure_namespace wearables-bff
+  if ! k get secret wearables-bff-secrets -n wearables-bff >/dev/null 2>&1; then
+    k create secret generic wearables-bff-secrets -n wearables-bff \
+      --from-literal=JWT_SECRET=dev-secret \
+      --from-literal=BREVO_API_KEY=disabled
+  fi
+  keep_secret wearables-bff wearables-bff-secrets
+}
+
+# Same name as in production (secret.name in the grafana-proxy values.yaml).
+create_grafana_proxy_secret() {
+  ensure_namespace monitoring
+  if ! k get secret grafana-auth-secrets -n monitoring >/dev/null 2>&1; then
+    key_file="$(mktemp)"
+    trap 'rm -f "$key_file"' EXIT
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$key_file" 2>/dev/null
+    k create secret generic grafana-auth-secrets -n monitoring \
+      --from-file=GRAFANA_JWT_PRIVATE_KEY="$key_file" \
+      --from-literal=APP_JWT_SECRET=dev-secret
+    rm -f "$key_file"
+  fi
+}
+
+# Applied on every run, so dashboard changes in observability/dashboards are picked up.
+apply_grafana_dashboards() {
+  ensure_namespace grafana
+  k create configmap grafana-patient-dashboards -n grafana \
+    --from-file="${REPO_ROOT}/observability/dashboards/" \
+    --dry-run=client -o yaml | k apply -f - >/dev/null
+}
+
+# The prod-postgres chart does not create its secret (as in production).
+create_postgres_secret() {
+  ensure_namespace prod-postgres
+  if ! k get secret prod-postgres-secret -n prod-postgres >/dev/null 2>&1; then
+    k create secret generic prod-postgres-secret -n prod-postgres \
+      --from-literal=POSTGRES_PASSWORD=postgres
+  fi
+  keep_secret prod-postgres prod-postgres-secret
+}
+
+# The db-lord chart does not create its secret (as in production). The values
+# match the local Postgres (prod-postgres values-local) and InfluxDB
+# (influxdb initSetup in values-local).
+create_db_lord_secret() {
+  ensure_namespace db-lord
+  if ! k get secret db-lord-secrets -n db-lord >/dev/null 2>&1; then
+    k create secret generic db-lord-secrets -n db-lord \
+      --from-literal=POSTGRES_SERVER=prod-postgres.prod-postgres.svc.cluster.local \
+      --from-literal=POSTGRES_PORT=5432 \
+      --from-literal=POSTGRES_DB=dblord \
+      --from-literal=POSTGRES_USER=dblord \
+      --from-literal=POSTGRES_PASSWORD=dblord \
+      --from-literal=INFLUX_URL=http://influxdb-service.influx.svc.cluster.local:8086 \
+      --from-literal=INFLUX_ORG=wearables-project \
+      --from-literal=INFLUX_BUCKET=measurements \
+      --from-literal=INFLUX_TOKEN=dev-influx-token
+  fi
 }
 
 argocd_root_exists() {
@@ -174,97 +289,78 @@ else
   remove_argocd_apps
 fi
 
-step "Kafka (Strimzi ${STRIMZI_VERSION})"
-h upgrade --install strimzi-cluster-operator oci://quay.io/strimzi-helm/strimzi-kafka-operator \
-  --version "$STRIMZI_VERSION" --namespace kafka --create-namespace --wait --timeout "$TIMEOUT"
-install_chart kafka "${APPS}/platform/kafka" kafka
-# Helm does not wait for the Kafka custom resource; Strimzi reports readiness on it.
-k wait -n kafka kafka/kafka --for=condition=Ready --timeout="$TIMEOUT"
+if $USE_ARGOCD; then
+  # As in production: the script only installs what the applications need
+  # beforehand, Argo CD deploys the applications.
+  step "Kafka operator (Strimzi ${STRIMZI_VERSION})"
+  install_strimzi
 
-if ! $USE_ARGOCD; then
+  step "Traefik"
+  install_traefik
+
+  step "Secrets and Grafana dashboards"
+  create_importservice_secret
+  create_cloud_connector_secret
+  create_postgres_secret
+  create_db_lord_secret
+  create_bff_secret
+  create_grafana_proxy_secret
+  apply_grafana_dashboards
+
+  install_argocd
+
+  # Not managed by Argo CD in production either.
+  step "Telegraf, Prometheus and db-stats-exporter"
+  install_chart telegraf "${APPS}/monitoring/telegraf" telegraf
+  install_chart db-stats-exporter "${APPS}/monitoring/db-stats-exporter" db-lord
+  install_chart prometheus "${APPS}/monitoring/prometheus" monitoring
+else
+  step "Kafka (Strimzi ${STRIMZI_VERSION})"
+  install_strimzi
+  install_chart kafka "${APPS}/platform/kafka" kafka
+  # Helm does not wait for the Kafka custom resource; Strimzi reports readiness on it.
+  k wait -n kafka kafka/kafka --for=condition=Ready --timeout="$TIMEOUT"
+
   step "FHIR mapper"
   install_chart mapper-validator "${APPS}/services/mapper-validator" kafka
-fi
 
-step "InfluxDB and Telegraf"
-install_chart influxdb "${APPS}/monitoring/influxdb" influx
-install_chart telegraf "${APPS}/monitoring/telegraf" telegraf
+  step "InfluxDB and Telegraf"
+  install_chart influxdb "${APPS}/monitoring/influxdb" influx
+  install_chart telegraf "${APPS}/monitoring/telegraf" telegraf
 
-step "Postgres and db_lord"
-install_chart prod-postgres "${APPS}/platform/prod-postgres" prod-postgres
-# The migration job is a pre-install hook that needs db-lord-secrets, which the
-# chart only creates during the install itself; so the first install skips hooks.
-if ! h status db-lord --namespace db-lord >/dev/null 2>&1; then
-  h install db-lord "${APPS}/services/db-lord" \
-    -f "${APPS}/services/db-lord/values.yaml" \
-    -f "${APPS}/services/db-lord/values-local.yaml" \
-    --namespace db-lord --create-namespace --no-hooks
-fi
-install_chart db-lord "${APPS}/services/db-lord" db-lord
+  step "Postgres and db_lord"
+  create_postgres_secret
+  install_chart prod-postgres "${APPS}/platform/prod-postgres" prod-postgres
+  create_db_lord_secret
+  install_chart db-lord "${APPS}/services/db-lord" db-lord
 
-step "Traefik"
-k apply --server-side -k "$TRAEFIK_CRDS" >/dev/null
-h upgrade --install traefik "${NETWORK}/ingresscontroller" \
-  -f "${NETWORK}/ingresscontroller/values.yaml" \
-  --namespace ingress --create-namespace --wait --timeout "$TIMEOUT"
-h upgrade --install traefik-ingress "${NETWORK}/ingress" \
-  -f "${NETWORK}/ingress/values.yaml" \
-  --namespace ingress --wait --timeout "$TIMEOUT"
+  step "Traefik"
+  install_traefik
 
-step "importservice"
-ensure_namespace importservice
-if ! k get secret importservice-secrets -n importservice >/dev/null 2>&1; then
-  # Same value as the BFF's JWT_SECRET, which issues the case tokens.
-  k create secret generic importservice-secrets -n importservice \
-    --from-literal=JWT_SECRET=dev-secret
-fi
-
-ensure_namespace cloud-connector
-if ! k get secret cloud-connector-secrets -n cloud-connector >/dev/null 2>&1; then
-  k create secret generic cloud-connector-secrets -n cloud-connector \
-    --from-literal=JWT_SECRET=dev-secret
-fi
-
-if $USE_ARGOCD; then
-  # Deploys the mapper, importservice, wearables-bff, web and cloud-connector.
-  install_argocd
-else
+  step "importservice"
+  create_importservice_secret
   install_chart importservice "${APPS}/services/importservice" importservice
 
   step "wearables-bff and web frontend"
+  create_bff_secret
   install_chart wearables-bff "${APPS}/services/wearables-bff" wearables-bff
   install_chart web "${APPS}/web-frontend" web
-fi
 
-step "Grafana and grafana-proxy"
-ensure_namespace grafana
-# Applied on every run, so dashboard changes in observability/dashboards are picked up.
-k create configmap grafana-patient-dashboards -n grafana \
-  --from-file="${REPO_ROOT}/observability/dashboards/" \
-  --dry-run=client -o yaml | k apply -f - >/dev/null
-install_chart grafana "${APPS}/monitoring/grafana" grafana
+  step "Grafana and grafana-proxy"
+  apply_grafana_dashboards
+  install_chart grafana "${APPS}/monitoring/grafana" grafana
+  create_grafana_proxy_secret
+  install_chart grafana-proxy "${APPS}/monitoring/grafana-proxy" monitoring
 
-ensure_namespace monitoring
-if ! k get secret grafana-proxy-secrets -n monitoring >/dev/null 2>&1; then
-  key_file="$(mktemp)"
-  trap 'rm -f "$key_file"' EXIT
-  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$key_file" 2>/dev/null
-  k create secret generic grafana-proxy-secrets -n monitoring \
-    --from-file=GRAFANA_JWT_PRIVATE_KEY="$key_file" \
-    --from-literal=APP_JWT_SECRET=dev-secret
-  rm -f "$key_file"
-fi
-install_chart grafana-proxy "${APPS}/monitoring/grafana-proxy" monitoring
+  step "extraction-service"
+  install_chart extraction-service "${APPS}/services/extraction-service" extraction-service
 
-step "extraction-service"
-install_chart extraction-service "${APPS}/services/extraction-service" extraction-service
+  step "Prometheus and db-stats-exporter"
+  install_chart db-stats-exporter "${APPS}/monitoring/db-stats-exporter" db-lord
+  install_chart prometheus "${APPS}/monitoring/prometheus" monitoring
 
-step "Prometheus and db-stats-exporter"
-install_chart db-stats-exporter "${APPS}/monitoring/db-stats-exporter" db-lord
-install_chart prometheus "${APPS}/monitoring/prometheus" monitoring
-
-if ! $USE_ARGOCD; then
   step "cloud-connector"
+  create_cloud_connector_secret
   install_chart cloud-connector "${APPS}/services/cloud-connector" cloud-connector
 fi
 

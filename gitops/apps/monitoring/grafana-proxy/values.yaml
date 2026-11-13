@@ -1,8 +1,8 @@
 replicaCount: 1
 
 image:
-  # Docker image for the grafana-proxy-node service
-  repository: gmsdaniil/wearables-grafana-proxy
+  # Built by .github/workflows/publish-images.yml
+  repository: ghcr.io/wearableanalytics/wearables-grafana-proxy
   pullPolicy: Always
   tag: "latest"
 
@@ -12,9 +12,9 @@ configMap:
 
 secret:
   create: false
-  name: ""
+  name: "grafana-auth-secrets"
   data:
-    APP_JWT_SECRET: "change-me"
+    APP_JWT_SECRET: "dev-secret"
     GRAFANA_JWT_PRIVATE_KEY: ""
 
 proxy:
@@ -28,7 +28,7 @@ ingress:
   enabled: true
   host: "wearables.charite.de"
   pathPrefix: "/proxy"
-  httpOnly: true
+  httpOnly: false
   certificateSecretName: "wearables-tls"
 
 session:
@@ -49,7 +49,6 @@ grafana:
   jwtIatSkewSeconds: "120"
 
   # Dashboard configuration for the /embed endpoint
-  # AI_PLACEHOLDER_TODO: replace with the final AI Insights dashboard UID when available.
-  allowedDashboardIds: "wearables-health-real,wearables-six-min,AI_PLACEHOLDER_TODO"
+  allowedDashboardIds: "wearables-health-real,wearables-six-min,adgf864"
   dashboardDatasource: "dfa4opgnfgg00e"
   orgId: "1"
