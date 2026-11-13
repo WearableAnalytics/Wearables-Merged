@@ -81,6 +81,7 @@ class BackgroundSyncManager {
   static Future<void> runQuietSync() async {
     try {
       if (!await StorageService.hasStudyCode()) return;
+      if (!await StorageService.isLocalHealthSyncEnabled()) return;
       if (SyncActivityNotifier.isSyncing.value) return;
       if (!await DeviceLockService.isDeviceUnlocked()) return;
       final result = await _healthSyncService.sendSinceLastSync(
@@ -90,10 +91,11 @@ class BackgroundSyncManager {
     } catch (e) {
       debugPrint('[BackgroundSync] Health sync failed: $e');
     } finally {
-      await NotificationService.scheduleInactivityReminder(
-        await StorageService.getLastDataSendTime(),
-      );
+      if (await StorageService.isLocalHealthSyncEnabled()) {
+        await NotificationService.scheduleInactivityReminder(
+          await StorageService.getLastDataSendTime(),
+        );
+      }
     }
   }
-
 }

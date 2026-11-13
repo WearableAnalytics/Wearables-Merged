@@ -122,8 +122,13 @@ def _render_connected_html(provider_name: str, permissions: list[str]) -> str:
       <div style="font-size:12px;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Active Permissions</div>
       {perms_badges}
     </div>
-    <a href="/" onclick="if(window.opener){{window.close();return false;}}" style="display:inline-block;background:#0a4c9a;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;">Done</a>
+    <a href="wearables://oauth-callback?provider={provider_name}" onclick="if(window.opener){{window.close();return false;}}" style="display:inline-block;background:#0a4c9a;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:600;">Return to Wearables App</a>
   </div>
+  <script>
+    setTimeout(function() {{
+      window.location.href = "wearables://oauth-callback?provider={provider_name}";
+    }}, 1000);
+  </script>
 </body>
 </html>"""
 

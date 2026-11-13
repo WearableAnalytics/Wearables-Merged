@@ -66,43 +66,43 @@ class _MainPageState extends State<MainPage> {
     return ListenableBuilder(
       listenable: _state,
       builder: (context, _) {
-        if (_state.loaded && !_state.isLinked) {
-          return HomePage(state: _state);
-        }
+        final isWelcome = _state.loaded && !_state.isLinked;
         return Scaffold(
           body: IndexedStack(
-            index: _tab,
+            index: isWelcome ? 0 : _tab,
             children: [
               HomePage(state: _state),
               const DataViewPage(),
               StudyPage(state: _state),
             ],
           ),
-          bottomNavigationBar: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Theme.of(context).dividerColor),
-              ),
-            ),
-            child: NavigationBar(
-              selectedIndex: _tab,
-              onDestinationSelected: (i) => setState(() => _tab = i),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Symbols.home_sharp),
-                  label: 'Home',
+          bottomNavigationBar: isWelcome
+              ? null
+              : DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(color: Theme.of(context).dividerColor),
+                    ),
+                  ),
+                  child: NavigationBar(
+                    selectedIndex: _tab,
+                    onDestinationSelected: (i) => setState(() => _tab = i),
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(Symbols.home_sharp),
+                        label: 'Home',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Symbols.insights_sharp),
+                        label: 'My data',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Symbols.badge_sharp),
+                        label: 'Account',
+                      ),
+                    ],
+                  ),
                 ),
-                NavigationDestination(
-                  icon: Icon(Symbols.insights_sharp),
-                  label: 'My data',
-                ),
-                NavigationDestination(
-                  icon: Icon(Symbols.badge_sharp),
-                  label: 'Account',
-                ),
-              ],
-            ),
-          ),
         );
       },
     );

@@ -12,6 +12,7 @@ class StorageService {
   static const String _lastDataSendKey = 'last_data_send_time';
   static const String _initialSyncStartKey = 'initial_sync_start';
   static const String _rejectedCodeKey = 'rejected_code';
+  static const String _localHealthSyncEnabledKey = 'local_health_sync_enabled';
 
   /// Default look-back for the first upload when no start date was chosen.
   static const Duration defaultInitialWindow = Duration(days: 30);
@@ -134,6 +135,24 @@ class StorageService {
     }
   }
 
+  /// Extracts the patient/case identifier (`patientId`, `caseId`, or `sub`) & fallbacks
+  static String? patientIdFromCode(String? code) {
+    if (!isStudyCode(code)) return null;
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(code!.split('.')[1])),
+      );
+      final claims = jsonDecode(payload) as Map<String, dynamic>;
+      for (final key in ['patientId', 'caseId', 'sub']) {
+        final val = claims[key];
+        if (val is String && val.trim().isNotEmpty) {
+          return val.trim();
+        }
+      }
+    } catch (_) {}
+    return sha256.convert(utf8.encode(code!)).toString().substring(0, 16);
+  }
+
   /// Ingest endpoint specified in the QR code JWT (for local testing)
   /// Only in [kDebugMode]; release builds always ignore this
   static String? codeEndpoint(String? code) {
@@ -148,6 +167,41 @@ class StorageService {
         final trimmed = endpoint.trim();
         if (isAllowedDebugEndpoint(trimmed)) {
           return trimmed;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Cloud connector endpoint for local testing
+  /// Only in [kDebugMode]
+  static String? cloudEndpoint(String? code) {
+    if (!kDebugMode || !isStudyCode(code)) return null;
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(code!.split('.')[1])),
+      );
+      final map = jsonDecode(payload) as Map<String, dynamic>;
+      final explicit = map['cloudEndpoint'];
+      if (explicit is String && explicit.trim().isNotEmpty) {
+        final trimmed = explicit.trim();
+        if (isAllowedDebugEndpoint(trimmed)) {
+          return trimmed.endsWith('/')
+              ? trimmed.substring(0, trimmed.length - 1)
+              : trimmed;
+        }
+      }
+      final ingestEndpoint = codeEndpoint(code);
+      if (ingestEndpoint != null) {
+        final uri = Uri.tryParse(ingestEndpoint);
+        if (uri != null && uri.path.endsWith('/import/ingest')) {
+          final prefix = uri.path.substring(
+            0,
+            uri.path.length - '/import/ingest'.length,
+          );
+          return uri.replace(path: '$prefix/cloud').toString();
         }
       }
       return null;
@@ -227,4 +281,89 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_initialSyncStartKey, start.millisecondsSinceEpoch);
   }
+
+  /// Whether local phone health store sync is enabled.
+  /// Defaults to `true` so local sensor uploads remains
+  static Future<bool> isLocalHealthSyncEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_localHealthSyncEnabledKey) ?? true;
+  }
+
+  static Future<void> setLocalHealthSyncEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_localHealthSyncEnabledKey, enabled);
+  }
+
+  static String _cloudConnectedKey(String provider) =>
+      '${provider.toLowerCase()}_cloud_connected';
+  static String _cloudUserIdKey(String provider) =>
+      '${provider.toLowerCase()}_cloud_user_id';
+  static String _cloudLinkedAtKey(String provider) =>
+      '${provider.toLowerCase()}_cloud_linked_at';
+
+  /// Cached cloud connection status for a provider
+  static Future<bool> isCloudConnected(String provider) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.get(_cloudConnectedKey(provider));
+    if (raw is bool) return raw;
+    if (raw is String) return raw.toLowerCase() == 'true';
+    return false;
+  }
+
+  static Future<String?> getCloudUserId(String provider) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.get(_cloudUserIdKey(provider));
+    return raw?.toString();
+  }
+
+  static Future<DateTime?> getCloudLinkedAt(String provider) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.get(_cloudLinkedAtKey(provider));
+    if (raw is int) {
+      return DateTime.fromMillisecondsSinceEpoch(raw);
+    }
+    if (raw is String) {
+      return DateTime.tryParse(raw);
+    }
+    return null;
+  }
+
+  static Future<void> setCloudConnection({
+    required String provider,
+    required bool connected,
+    String? providerUserId,
+    DateTime? linkedAt,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final keyConnected = _cloudConnectedKey(provider);
+    final keyUserId = _cloudUserIdKey(provider);
+    final keyLinkedAt = _cloudLinkedAtKey(provider);
+
+    await prefs.setBool(keyConnected, connected);
+    if (!connected || providerUserId == null) {
+      await prefs.remove(keyUserId);
+    } else {
+      await prefs.setString(keyUserId, providerUserId);
+    }
+    if (!connected || linkedAt == null) {
+      await prefs.remove(keyLinkedAt);
+    } else {
+      await prefs.setInt(keyLinkedAt, linkedAt.millisecondsSinceEpoch);
+    }
+  }
+
+  /// Backward compatible aliases for Garmin
+  static Future<bool> isGarminConnected() => isCloudConnected('garmin');
+  static Future<String?> getGarminUserId() => getCloudUserId('garmin');
+  static Future<DateTime?> getGarminLinkedAt() => getCloudLinkedAt('garmin');
+  static Future<void> setGarminConnection({
+    required bool connected,
+    String? providerUserId,
+    DateTime? linkedAt,
+  }) => setCloudConnection(
+    provider: 'garmin',
+    connected: connected,
+    providerUserId: providerUserId,
+    linkedAt: linkedAt,
+  );
 }
