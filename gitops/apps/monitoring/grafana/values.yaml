@@ -15,7 +15,8 @@ ingress:
   host: "wearables.charite.de"
   prefix: "/grafana"
   httpOnly: false
-  authMiddleware: ""
+  authMiddleware: "grafana-admin-auth"
+  forwardAuthUrl: "http://wearables-bff.wearables-bff.svc.cluster.local:3001/api/admin/forward-auth"
 certificate:
   name: wearables-cert
   secretName: wearables-tls

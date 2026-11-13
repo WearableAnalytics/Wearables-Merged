@@ -48,7 +48,9 @@ export const getUserFromRequest = (req: Request): JwtPayload | undefined => {
       parseCookies(req.headers.cookie);
     const token = cookies.jwt;
     if (!token) return undefined;
-    const decoded = jwt.verify(token, config.jwtSecret) as JwtPayload;
+    const decoded = jwt.verify(token, config.jwtSecret, {
+      algorithms: ['HS256'],
+    }) as JwtPayload;
     if (!decoded.userId || !decoded.email) {
       throw new Error('Invalid token payload');
     }
