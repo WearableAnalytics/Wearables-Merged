@@ -4,7 +4,7 @@ image:
   # Built by .github/workflows/publish-images.yml. Pin a commit SHA tag at
   # deploy time (--set image.tag=<sha>) instead of relying on latest.
   repository: ghcr.io/wearableanalytics/wearables-db-lord
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   tag: "latest"
 
 # Port uvicorn listens on inside the image (services/backend/db_lord/Dockerfile).
