@@ -59,7 +59,7 @@ public class LineProtocolParser {
         StringBuilder sb = new StringBuilder();
 
         //set measurement
-        sb.append(template.getMeasurement());
+        sb.append(escapeKey(template.getMeasurement(), false));
 
         if (template.getTags() == null || template.getTags().isEmpty()) {
             //no tags with space
@@ -80,7 +80,7 @@ public class LineProtocolParser {
         sb.append(template.getTimestamp());
 
         String lpString = sb.toString();
-        log.info("Created LP string: {}", lpString);
+        log.debug("Created line protocol point");
 
         return lpString;
     }
@@ -97,10 +97,11 @@ public class LineProtocolParser {
 
             //if it's a field AND not a number, it needs to be quoted, in all other cases it doesn't
             if (type.equals("field") && !b) {
-                quotedIfString = "\"" + e.getValue() + "\"";
+                quotedIfString = "\"" + e.getValue().replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
             }
 
-            sb.append(e.getKey()).append("=").append(quotedIfString);
+            if (type.equals("tag")) quotedIfString = escapeKey(e.getValue(), true);
+            sb.append(escapeKey(e.getKey(), true)).append("=").append(quotedIfString);
 
             if (it.hasNext()) {
                 sb.append(",");
@@ -108,11 +109,18 @@ public class LineProtocolParser {
         }
     }
 
+    private static String escapeKey(String value, boolean equals) {
+        if (value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0 || value.indexOf(0) >= 0) {
+            throw new IllegalArgumentException("Control character in line protocol identifier");
+        }
+        String escaped = value.replace("\\", "\\\\").replace(" ", "\\ ").replace(",", "\\,");
+        return equals ? escaped.replace("=", "\\=") : escaped;
+    }
+
     private static boolean checkNumber(String s) {
 
         try {
-            Float.parseFloat(s);
-            return true;
+            return Double.isFinite(Double.parseDouble(s));
         } catch (NumberFormatException ignored) {
             return false;
         }

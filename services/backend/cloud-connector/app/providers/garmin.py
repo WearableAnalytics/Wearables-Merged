@@ -590,7 +590,7 @@ class GarminProvider(BaseCloudProvider):
             vig_sec = int(item.get("vigorousIntensityDurationInSeconds", 0) or 0)
             total_ex_sec = mod_sec + vig_sec
             if total_ex_sec > 0:
-                ex_min = round(total_ex_sec / 60.0, 2)
+                ex_min = total_ex_sec / 60.0
                 dur_results.append(
                     DurationMeasurement(
                         type="EXERCISE_TIME",
@@ -598,7 +598,7 @@ class GarminProvider(BaseCloudProvider):
                         unit="MINUTE",
                         startTime=p_start,
                         endTime=datetime.fromtimestamp(start_ts + total_ex_sec, tz=timezone.utc),
-                        durationMinutes=int(round(ex_min)),
+                        durationMinutes=ex_min,
                     )
                 )
 
@@ -679,7 +679,7 @@ class GarminProvider(BaseCloudProvider):
 
             s_start = datetime.fromtimestamp(start_ts, tz=timezone.utc)
             s_end = datetime.fromtimestamp(start_ts + duration_sec, tz=timezone.utc)
-            total_min = round(duration_sec / 60.0, 2)
+            total_min = duration_sec / 60.0
 
             results.append(
                 DurationMeasurement(
@@ -688,7 +688,7 @@ class GarminProvider(BaseCloudProvider):
                     unit="MINUTE",
                     startTime=s_start,
                     endTime=s_end,
-                    durationMinutes=int(round(total_min)),
+                    durationMinutes=total_min,
                 )
             )
 
@@ -701,7 +701,7 @@ class GarminProvider(BaseCloudProvider):
             for field_name, metric_type in stage_fields:
                 stage_sec = int(item.get(field_name, 0) or 0)
                 if stage_sec > 0:
-                    stage_min = round(stage_sec / 60.0, 2)
+                    stage_min = stage_sec / 60.0
                     results.append(
                         DurationMeasurement(
                             type=metric_type,
@@ -709,7 +709,7 @@ class GarminProvider(BaseCloudProvider):
                             unit="MINUTE",
                             startTime=s_start,
                             endTime=datetime.fromtimestamp(start_ts + stage_sec, tz=timezone.utc),
-                            durationMinutes=int(round(stage_min)),
+                            durationMinutes=stage_min,
                         )
                     )
         return results

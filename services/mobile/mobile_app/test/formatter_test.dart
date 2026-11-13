@@ -22,6 +22,55 @@ HealthDataPoint _point(HealthDataType type, HealthValue value) {
 }
 
 void main() {
+  test('Android basal rate is separate from Apple resting energy', () {
+    final apple = _point(
+      HealthDataType.BASAL_ENERGY_BURNED,
+      NumericHealthValue(numericValue: 1800),
+    );
+    apple.unit = HealthDataUnit.KILOCALORIE;
+    final android = HealthDataPoint(
+      uuid: apple.uuid,
+      value: apple.value,
+      type: apple.type,
+      unit: apple.unit,
+      dateFrom: apple.dateFrom,
+      dateTo: apple.dateTo,
+      sourcePlatform: HealthPlatformType.googleHealthConnect,
+      sourceDeviceId: apple.sourceDeviceId,
+      sourceId: apple.sourceId,
+      sourceName: apple.sourceName,
+    );
+    final formatted = formatHealthDataByType([apple, android]);
+    expect(
+      (formatted['cumulative'] as List).single['type'],
+      'BASAL_ENERGY_BURNED',
+    );
+    expect(
+      (formatted['instantaneous'] as List).single['type'],
+      'BASAL_METABOLIC_RATE',
+    );
+    expect(
+      (formatted['instantaneous'] as List).single['unit'],
+      'KILOCALORIE_PER_DAY',
+    );
+    expect(categoryForPoint(android), 'instantaneous');
+  });
+
+  test('duration retains fractional minutes and labels the computed unit', () {
+    final original = _point(
+      HealthDataType.SLEEP_LIGHT,
+      NumericHealthValue(numericValue: 1),
+    );
+    original.dateTo = original.dateFrom.add(
+      const Duration(seconds: 90, milliseconds: 250),
+    );
+    final formatted =
+        (formatHealthDataByType([original])['duration'] as List).single;
+    expect(formatted['value'], closeTo(90.25 / 60, 1e-12));
+    expect(formatted['durationMinutes'], closeTo(90.25 / 60, 1e-12));
+    expect(formatted['unit'], 'MINUTE');
+  });
+
   test(
     'all categories preserve instants, endpoints and microseconds across DST and travel',
     () {

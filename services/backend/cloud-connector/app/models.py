@@ -38,7 +38,7 @@ class DurationMeasurement(BaseModel):
     unit: str
     startTime: datetime
     endTime: datetime
-    durationMinutes: int
+    durationMinutes: float
 
 
 class WaveformMeasurement(BaseModel):

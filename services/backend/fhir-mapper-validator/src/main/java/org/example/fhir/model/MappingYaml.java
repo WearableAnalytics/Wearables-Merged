@@ -7,6 +7,7 @@ import java.util.*;
 @Data
 public class MappingYaml  {
     private String version;
+    private String numericContract;
     private MetadataConfig metadata;
     private MeasurementConfig measurement;
 

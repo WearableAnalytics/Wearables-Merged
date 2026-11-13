@@ -109,7 +109,7 @@ public class Mapper {
         if (!parsed.isJsonObject()) {
             throw new RuntimeException("Incoming payload must be a JSON object");
         }
-        JsonObject incoming = parsed.getAsJsonObject();
+        JsonObject incoming = NumericMeasurementNormalizer.normalize(parsed.getAsJsonObject(), this.yaml);
         JsonObject metadataTemplate = buildMetadataBlock(incoming);
         MeasurementConfig measurementCfg = this.yaml.getMeasurement();
         if (measurementCfg == null || measurementCfg.getPaths() == null || measurementCfg.getPaths().isEmpty()) {
@@ -320,6 +320,7 @@ public class Mapper {
             JsonElement baseValue = getByPath(rootOfIncoming, sourcePath);
 
             if (baseValue == null || baseValue.isJsonNull()) {
+                if (field.isOptional()) return;
                 throw new IllegalArgumentException(String.format("Value for path '%s' is empty or null", sourcePath));
             }
 

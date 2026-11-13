@@ -32,7 +32,7 @@ class DurationMeasurement(BaseModel):
     unit: str
     startTime: datetime
     endTime: datetime
-    durationMinutes: int
+    durationMinutes: float
 
 class Measurements(BaseModel):
     instantaneous: List[InstantaneousMeasurement] = Field(default_factory=list)
