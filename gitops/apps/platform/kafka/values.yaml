@@ -45,7 +45,7 @@ brokerName: k-broker
 topics:
   - name: dlq
     partitions: 1 
-    replicas: 1
+    replicas: 3
     retentionMs: 7200000 #2 hours, should be tweaked as needed
     segmentBytes: 1073741824 # 1 GiB
   - name: wearables-lp
