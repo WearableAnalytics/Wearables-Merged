@@ -3,7 +3,7 @@ import { logger } from '../logger.js';
 
 type Sender = { name: string; email: string };
 
-const shouldLogOnly = !config.isProduction || !config.brevoApiKey;
+const shouldLogOnly = !config.emailDeliveryEnabled;
 
 function getBackendUrl(): string {
   return config.backendUrl;

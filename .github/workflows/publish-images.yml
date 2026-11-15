@@ -20,6 +20,10 @@ on:
       - "services/backend/fhir-mapper-validator/**"
       - "services/backend/grafana-proxy/**"
       - "services/web/**"
+      - "gitops/apps/services/importservice/**"
+      - "gitops/apps/services/mapper-validator/**"
+      - "gitops/apps/services/wearables-bff/**"
+      - "gitops/apps/platform/kafka/**"
       - ".github/workflows/publish-images.yml"
   pull_request:
     paths:
@@ -31,6 +35,10 @@ on:
       - "services/backend/fhir-mapper-validator/**"
       - "services/backend/grafana-proxy/**"
       - "services/web/**"
+      - "gitops/apps/services/importservice/**"
+      - "gitops/apps/services/mapper-validator/**"
+      - "gitops/apps/services/wearables-bff/**"
+      - "gitops/apps/platform/kafka/**"
       - ".github/workflows/publish-images.yml"
   workflow_dispatch:
 
@@ -39,6 +47,53 @@ permissions:
   packages: write
 
 jobs:
+  ingestion-deployment:
+    name: Ingestion deployment checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: ingestion_test
+          POSTGRES_USER: ingestion
+          POSTGRES_PASSWORD: ingestion-test-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ingestion -d ingestion_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      INGEST_TEST_DATABASE_URL: postgresql://ingestion:ingestion-test-only@127.0.0.1:5432/ingestion_test
+    defaults:
+      run:
+        working-directory: services/backend/importservice
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.22.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/backend/wearables-bff/package-lock.json
+      - name: Install BFF check dependencies
+        working-directory: services/backend/wearables-bff
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify BFF types and disabled-email behavior
+        working-directory: services/backend/wearables-bff
+        run: |
+          npm run typecheck
+          npm test
+      - name: Install check dependencies
+        run: python -m pip install -r requirements.txt pytest pytest-asyncio ruff pyyaml
+      - name: Lint and verify deployment contracts with PostgreSQL
+        run: |
+          ruff check app tests
+          pytest -q --ignore=tests/test_connected.py --ignore=tests/test_deployment_connected.py
+
   build:
     runs-on: ubuntu-latest
     strategy:

@@ -203,6 +203,10 @@ router.post(
       return;
     }
     if (!(await admit(req, res, 'login', email))) return;
+    if (!config.devAuthBypass && !config.emailDeliveryEnabled) {
+      res.status(503).json({ error: 'Email sign-in is temporarily unavailable.' });
+      return;
+    }
     clearAllCookies(req, res);
     const user = await getUserByEmail(email);
     if (user?.status === 'approved') {

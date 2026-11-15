@@ -62,7 +62,9 @@ A later login/startup cannot restore a denied account or removed admin authority
 Email proofs use 32 random bytes and a SHA-256 digest. They expire within one hour (the demo uses ten minutes).
 Reissue invalidates the previous proof. Consumption checks current approval and account version under row locks.
 Consumed, expired and stale proofs cannot create another session. Proofs and full login URLs are not logged.
-Development does not send email. Production refuses to start without the configured sender, provider key and HTTPS URLs.
+Development does not send email. Production requires HTTPS URLs and secure cookies.
+During rollout, an absent or `disabled` provider key leaves the BFF running but makes new email-login requests return 503 before account lookup or proof creation.
+There is no login-link logging or authentication shortcut. Configured production delivery still requires a valid sender.
 Provider delivery failure is logged with a fixed message; this is not a durable email-delivery queue.
 
 Database-backed limits use HMAC subject keys, not raw email/IP strings: 100 client attempts,

@@ -1,5 +1,4 @@
--- Apply before starting the importer. Grant the runtime role DML, not schema ownership.
-BEGIN;
+-- Applied transactionally by app.migrate before starting the importer.
 CREATE SCHEMA IF NOT EXISTS ingestion;
 CREATE TABLE ingestion.uploads (
     id uuid PRIMARY KEY,
@@ -70,4 +69,3 @@ CREATE TABLE ingestion.events (
     mapper_version text,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
-COMMIT;

@@ -1,8 +1,7 @@
 replicaCount: 1
 
 image:
-  # Built by .github/workflows/publish-images.yml. Pin a commit SHA tag at
-  # deploy time (--set image.tag=<sha>) instead of relying on latest.
+  # Preserve the current production Argo CD image policy.
   repository: ghcr.io/wearableanalytics/wearables-bff
   pullPolicy: Always
   tag: "latest"
@@ -35,6 +34,8 @@ env:
   MAGIC_LINK_EXPIRY_SECONDS: "900"
   CASE_TOKEN_EXPIRY_SECONDS: "94608000"
   TOKEN_ISSUER: "wearables-bff"
+  # The new account authority requires verified HTTPS in production. Override
+  # this legacy address with the operator's actual TLS endpoint before cutover.
   DATABASE_API_URL: "http://db-lord.db-lord.svc.cluster.local:8080"
   DATABASE_API_TIMEOUT: "30000"
   # Serves the extraction API (with Swagger UI) at /api/extraction for researchers/admins.
@@ -43,11 +44,11 @@ env:
   LOG_LEVEL: "info"
   MAILER_FROM_NAME: "Wearables Platform"
   MAILER_FROM_EMAIL: "noreply@wearables.charite.de"
-  COOKIE_SECURE: "false"
+  COOKIE_SECURE: "true"
 
-# Existing secret with JWT_SECRET and BREVO_API_KEY (needed when NODE_ENV is
-# production). Created out of band (production: scripts/bootstrap-runtime-secrets.sh,
-# locally: gitops/local/setup-local.sh), so real values never come from git.
+# Operator-managed Secret: JWT_SECRET, CONTROL_WRITE_TOKEN,
+# API_TOKEN_SERVICE_TOKEN and DATABASE_OPERATOR_TOKEN. BREVO_API_KEY is optional:
+# missing/disabled leaves email login unavailable, without logging login links.
 secret:
   enabled: true
   create: false

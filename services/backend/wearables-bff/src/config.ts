@@ -86,29 +86,12 @@ const requiredEnvVars = [
   'JWT_SECRET',
 ] as const;
 
-const productionOnlyRequiredEnvVars = [
-  'MAILER_FROM_NAME',
-  'MAILER_FROM_EMAIL',
-] as const;
-
-const nodeEnvRaw = optionalEnv('NODE_ENV');
 const missingRequiredEnvVars = requiredEnvVars.filter(
   (name) => optionalEnv(name) === undefined,
 );
-const missingProductionOnlyEnvVars =
-  nodeEnvRaw === 'production'
-    ? productionOnlyRequiredEnvVars.filter(
-        (name) => optionalEnv(name) === undefined,
-      )
-    : [];
-
-const allMissingRequiredEnvVars = [
-  ...missingRequiredEnvVars,
-  ...missingProductionOnlyEnvVars,
-];
-if (allMissingRequiredEnvVars.length > 0) {
+if (missingRequiredEnvVars.length > 0) {
   throw new Error(
-    `Invalid configuration: missing required environment variables: ${allMissingRequiredEnvVars.join(
+    `Invalid configuration: missing required environment variables: ${missingRequiredEnvVars.join(
       ', ',
     )}.`,
   );
@@ -220,28 +203,30 @@ const mailerFromEmail = optionalEnv('MAILER_FROM_EMAIL');
 const brevoApiKeyRaw = optionalEnv('BREVO_API_KEY');
 const brevoApiKey =
   brevoApiKeyRaw && brevoApiKeyRaw !== 'disabled' ? brevoApiKeyRaw : undefined;
+const emailDeliveryEnabled = isProduction && Boolean(brevoApiKey);
 
-if (isProduction && !mailerFromName) {
+if (emailDeliveryEnabled && !mailerFromName) {
   throw new Error(
     'Invalid configuration: MAILER_FROM_NAME is required when NODE_ENV=production.',
   );
 }
 
-if (isProduction && !mailerFromEmail) {
+if (emailDeliveryEnabled && !mailerFromEmail) {
   throw new Error(
     'Invalid configuration: MAILER_FROM_EMAIL is required when NODE_ENV=production.',
   );
 }
 
-if (isProduction && mailerFromEmail && !mailerFromEmail.includes('@')) {
+if (emailDeliveryEnabled && mailerFromEmail && !mailerFromEmail.includes('@')) {
   throw new Error(
     'Invalid configuration: MAILER_FROM_EMAIL must be a valid email when NODE_ENV=production.',
   );
 }
 
-// Never expose login links in operational logs. Production must have email delivery.
-if (isProduction && !brevoApiKey)
-  throw new Error('Production email login requires BREVO_API_KEY.');
+// Email may be temporarily disabled during rollout. Keep the service available,
+// but do not issue login proofs, bypass authentication or expose links in logs.
+if (isProduction && !emailDeliveryEnabled)
+  console.warn('Email sign-in is unavailable: email delivery is disabled.');
 
 if (
   isProduction &&
@@ -301,6 +286,7 @@ export const config = {
   mailerFromName,
   mailerFromEmail,
   brevoApiKey,
+  emailDeliveryEnabled,
   frontendOrigins,
   frontendRedirectUrl,
   backendUrl,

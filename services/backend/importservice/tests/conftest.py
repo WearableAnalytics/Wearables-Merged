@@ -1,15 +1,17 @@
 import base64
 import json
 import os
-from pathlib import Path
+import secrets
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from psycopg import AsyncConnection
+from psycopg import AsyncConnection, sql
+from psycopg.conninfo import make_conninfo
 
 from app.config import Settings
 from app.crypto import ArchiveCipher
+from app.migrate import migrate
 from app.repository import Repository
 
 
@@ -58,18 +60,25 @@ def batch():
 async def repository(settings):
     if not os.getenv("INGEST_TEST_DATABASE_URL"):
         pytest.skip("Set INGEST_TEST_DATABASE_URL to the isolated ingestion_test database")
-    async with await AsyncConnection.connect(settings.database_url, autocommit=True) as conn:
+    migration_url = settings.database_url
+    role, password = "ingestion_runtime_" + uuid4().hex, secrets.token_urlsafe(24)
+    async with await AsyncConnection.connect(migration_url, autocommit=True) as conn:
         database = await (await conn.execute("SELECT current_database()")).fetchone()
         if database[0] != "ingestion_test":
             raise RuntimeError("Refusing to reset any database except ingestion_test")
         await conn.execute("DROP SCHEMA IF EXISTS ingestion CASCADE")
-        await conn.execute((Path(__file__).parents[1] / "migrations/001_ingestion.sql").read_text())
+        await conn.execute(sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(sql.Identifier(role), sql.Literal(password)))
+    await migrate(migration_url, role)
+    settings.database_url = make_conninfo(migration_url, user=role, password=password)
     repo = Repository(settings, ArchiveCipher(settings))
     await repo.open()
     try:
         yield repo
     finally:
         await repo.close()
+        async with await AsyncConnection.connect(migration_url, autocommit=True) as conn:
+            await conn.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(role)))
+            await conn.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(role)))
 
 
 def encoded(batch):

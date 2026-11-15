@@ -110,8 +110,7 @@ def create_app(settings=None):
     @application.get("/ready")
     async def ready(repository=Depends(get_repository)):
         try:
-            async with repository.pool.connection() as connection:
-                await connection.execute("SELECT 1")
+            await repository.check_ready()
         except Exception as exc:
             raise HTTPException(503, "Upload archive is unavailable") from exc
         return {"status": "ok", "acceptanceGuarantee": "postgres-archive"}

@@ -35,6 +35,17 @@ async def result_for(repo, record_id, line=None, error=None):
     return body
 
 
+async def test_concurrent_owner_retries_advance_a_rejected_record_only_once(repository, batch, claims):
+    upload_id, _ = await accept(repository, batch, claims)
+    job = await repository.claim()
+    await repository.apply_result(await result_for(repository, job["record_id"], error="synthetic_rejection"))
+    results = await asyncio.gather(repository.retry(upload_id, claims), repository.retry(upload_id, claims))
+    assert sorted(results) == [0, 1]
+    async with repository.pool.connection() as conn:
+        row = await (await conn.execute("SELECT generation,outcome FROM ingestion.records")).fetchone()
+        assert row == {"generation": 2, "outcome": "pending"}
+
+
 async def test_committed_archive_survives_repository_reopen(repository, batch, claims):
     raw = json.dumps(batch, indent=2).encode()
     upload_id, _ = await repository.accept(parse_upload(raw, claims, None, repository.settings))
