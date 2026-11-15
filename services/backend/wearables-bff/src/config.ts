@@ -21,7 +21,10 @@ const requireEnv = (name: string): string => {
   return value;
 };
 
-const requireOneOfEnv = <T extends string>(name: string, allowedValues: readonly T[]): T => {
+const requireOneOfEnv = <T extends string>(
+  name: string,
+  allowedValues: readonly T[],
+): T => {
   const value = requireEnv(name);
   if (!allowedValues.includes(value as T)) {
     throw new Error(
@@ -34,7 +37,9 @@ const requireOneOfEnv = <T extends string>(name: string, allowedValues: readonly
 const parseBooleanStrict = (value: string, name: string): boolean => {
   if (value === 'true') return true;
   if (value === 'false') return false;
-  throw new Error(`Invalid configuration: ${name} must be exactly "true" or "false".`);
+  throw new Error(
+    `Invalid configuration: ${name} must be exactly "true" or "false".`,
+  );
 };
 
 const requireBooleanEnv = (name: string): boolean => {
@@ -46,7 +51,9 @@ const requireUrlEnv = (name: string): string => {
   try {
     new URL(value);
   } catch {
-    throw new Error(`Invalid configuration: ${name} must be a valid absolute URL.`);
+    throw new Error(
+      `Invalid configuration: ${name} must be a valid absolute URL.`,
+    );
   }
   return value;
 };
@@ -55,7 +62,9 @@ const requirePositiveIntEnv = (name: string): number => {
   const value = requireEnv(name);
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`Invalid configuration: ${name} must be a positive integer.`);
+    throw new Error(
+      `Invalid configuration: ${name} must be a positive integer.`,
+    );
   }
   return parsed;
 };
@@ -83,13 +92,20 @@ const productionOnlyRequiredEnvVars = [
 ] as const;
 
 const nodeEnvRaw = optionalEnv('NODE_ENV');
-const missingRequiredEnvVars = requiredEnvVars.filter((name) => optionalEnv(name) === undefined);
+const missingRequiredEnvVars = requiredEnvVars.filter(
+  (name) => optionalEnv(name) === undefined,
+);
 const missingProductionOnlyEnvVars =
   nodeEnvRaw === 'production'
-    ? productionOnlyRequiredEnvVars.filter((name) => optionalEnv(name) === undefined)
+    ? productionOnlyRequiredEnvVars.filter(
+        (name) => optionalEnv(name) === undefined,
+      )
     : [];
 
-const allMissingRequiredEnvVars = [...missingRequiredEnvVars, ...missingProductionOnlyEnvVars];
+const allMissingRequiredEnvVars = [
+  ...missingRequiredEnvVars,
+  ...missingProductionOnlyEnvVars,
+];
 if (allMissingRequiredEnvVars.length > 0) {
   throw new Error(
     `Invalid configuration: missing required environment variables: ${allMissingRequiredEnvVars.join(
@@ -98,7 +114,10 @@ if (allMissingRequiredEnvVars.length > 0) {
   );
 }
 
-const nodeEnv = requireOneOfEnv<NodeEnv>('NODE_ENV', ['development', 'production']);
+const nodeEnv = requireOneOfEnv<NodeEnv>('NODE_ENV', [
+  'development',
+  'production',
+]);
 const isProduction = nodeEnv === 'production';
 const useMockData = requireBooleanEnv('USE_MOCK_DATA');
 const logLevel = requireOneOfEnv<LogLevel>('LOG_LEVEL', [
@@ -129,14 +148,22 @@ if (extractionApiUrlRaw) {
   try {
     new URL(extractionApiUrlRaw);
   } catch {
-    throw new Error('Invalid configuration: EXTRACTION_API_URL must be a valid absolute URL.');
+    throw new Error(
+      'Invalid configuration: EXTRACTION_API_URL must be a valid absolute URL.',
+    );
   }
 }
 const extractionApiUrl = extractionApiUrlRaw?.replace(/\/$/, '');
 
 // Strict env-driven auth/token configuration.
-const authSessionExpirySeconds = requirePositiveIntEnv('AUTH_SESSION_EXPIRY_SECONDS');
-const magicLinkExpirySeconds = requirePositiveIntEnv('MAGIC_LINK_EXPIRY_SECONDS');
+const authSessionExpirySeconds = requirePositiveIntEnv(
+  'AUTH_SESSION_EXPIRY_SECONDS',
+);
+const magicLinkExpirySeconds = requirePositiveIntEnv(
+  'MAGIC_LINK_EXPIRY_SECONDS',
+);
+if (magicLinkExpirySeconds > 3600)
+  throw new Error('MAGIC_LINK_EXPIRY_SECONDS must not exceed 3600.');
 // Case tokens are what phones upload with, so they stay valid for 3 years by default.
 const DEFAULT_CASE_TOKEN_EXPIRY_SECONDS = 3 * 365 * 24 * 60 * 60;
 const caseTokenExpirySeconds =
@@ -146,9 +173,18 @@ const caseTokenExpirySeconds =
 const tokenIssuer = requireEnv('TOKEN_ISSUER');
 
 const jwtSecret = requireEnv('JWT_SECRET');
-// if (isProduction && jwtSecret === 'dev-secret') {
-//   throw new Error('Invalid configuration: JWT_SECRET cannot be "dev-secret" in production.');
-// }
+if (jwtSecret.length < 32)
+  throw new Error('JWT_SECRET must contain at least 32 characters.');
+const controlWriteToken = requireEnv('CONTROL_WRITE_TOKEN');
+const apiTokenServiceToken = requireEnv('API_TOKEN_SERVICE_TOKEN');
+if (controlWriteToken === apiTokenServiceToken)
+  throw new Error('Workload credentials must be distinct.');
+const devAuthBypass = optionalEnv('ALLOW_DEV_AUTH_BYPASS') === 'true';
+if (isProduction && (devAuthBypass || cookieSecureIsFalse()))
+  throw new Error('Production requires verified login and secure cookies.');
+function cookieSecureIsFalse() {
+  return optionalEnv('COOKIE_SECURE') === 'false';
+}
 
 const parseCsv = (value: string): string[] =>
   value
@@ -158,13 +194,17 @@ const parseCsv = (value: string): string[] =>
 
 const frontendOrigins = parseCsv(requireEnv('FRONTEND_ORIGINS'));
 if (frontendOrigins.length === 0) {
-  throw new Error('Invalid configuration: FRONTEND_ORIGINS must contain at least one origin.');
+  throw new Error(
+    'Invalid configuration: FRONTEND_ORIGINS must contain at least one origin.',
+  );
 }
 for (const origin of frontendOrigins) {
   try {
     new URL(origin);
   } catch {
-    throw new Error(`Invalid configuration: FRONTEND_ORIGINS contains invalid URL: ${origin}`);
+    throw new Error(
+      `Invalid configuration: FRONTEND_ORIGINS contains invalid URL: ${origin}`,
+    );
   }
 }
 
@@ -199,16 +239,60 @@ if (isProduction && mailerFromEmail && !mailerFromEmail.includes('@')) {
   );
 }
 
-// BREVO_API_KEY is optional: without it (or with the value `disabled`) no
-// emails are sent and magic links are written to the log instead (see
-// services/mailer.ts), e.g. for deployments only reachable via port-forward.
-if (isProduction && !brevoApiKey) {
-  console.warn(
-    'BREVO_API_KEY is not set: emails are disabled and magic links are logged instead.',
-  );
-}
+// Never expose login links in operational logs. Production must have email delivery.
+if (isProduction && !brevoApiKey)
+  throw new Error('Production email login requires BREVO_API_KEY.');
 
+if (
+  isProduction &&
+  [backendUrl, frontendRedirectUrl, ...frontendOrigins].some(
+    (value) => new URL(value).protocol !== 'https:',
+  )
+)
+  throw new Error('Production browser and email-link URLs must use HTTPS.');
+
+const databaseOperatorToken = requireEnv('DATABASE_OPERATOR_TOKEN');
+if (
+  databaseOperatorToken.length < 32 ||
+  databaseOperatorToken === controlWriteToken ||
+  databaseOperatorToken === apiTokenServiceToken
+)
+  throw new Error(
+    'Set a distinct DATABASE_OPERATOR_TOKEN of at least 32 characters.',
+  );
+if (isProduction && new URL(databaseApiUrl).protocol !== 'https:')
+  throw new Error('Production account authority must use HTTPS.');
+const trustedProxyCidrs = parseCsv(optionalEnv('TRUSTED_PROXY_CIDRS') ?? '');
+if (
+  trustedProxyCidrs.some(
+    (value) => !/^[0-9a-fA-F.:]+(?:\/\d{1,3})?$/.test(value),
+  )
+)
+  throw new Error(
+    'TRUSTED_PROXY_CIDRS must contain only explicit IP addresses/CIDRs.',
+  );
+
+if (magicLinkExpirySeconds > 3600)
+  throw new Error('Email links must expire within 3600 seconds.');
+if (
+  devAuthBypass &&
+  [backendUrl, frontendRedirectUrl, databaseApiUrl, ...frontendOrigins].some(
+    (value) =>
+      !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(value).hostname),
+  )
+)
+  throw new Error(
+    'ALLOW_DEV_AUTH_BYPASS requires loopback-only development URLs.',
+  );
 export const config = {
+  databaseOperatorToken,
+  trustedProxyCidrs,
+  controlWriteToken,
+  apiTokenServiceToken,
+  devAuthBypass,
+  controlMaxInflightRequests: 16,
+  controlTimeoutSeconds: 5,
+  httpMaxInflightRequests: 64,
   port,
   nodeEnv,
   isProduction,

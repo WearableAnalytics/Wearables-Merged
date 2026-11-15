@@ -34,11 +34,7 @@ function formatMagicLinkValidity(seconds: number): string {
   return `${seconds} second${seconds === 1 ? '' : 's'}`;
 }
 
-async function sendEmail(
-  to: string,
-  subject: string,
-  htmlContent: string,
-) {
+async function sendEmail(to: string, subject: string, htmlContent: string) {
   if (shouldLogOnly || to.includes('@example.com')) {
     return;
   }
@@ -50,6 +46,7 @@ async function sendEmail(
 
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
+    signal: AbortSignal.timeout(5000),
     headers: {
       'Content-Type': 'application/json',
       accept: 'application/json',
@@ -75,17 +72,16 @@ export async function sendMagicLinkEmail(
   options: { isRegistration?: boolean; redirect?: string } = {},
 ) {
   const magicLink = buildMagicLink(token, options.redirect);
-  const magicLinkValidity = formatMagicLinkValidity(config.magicLinkExpirySeconds);
+  const magicLinkValidity = formatMagicLinkValidity(
+    config.magicLinkExpirySeconds,
+  );
   const isNewUser = Boolean(options.isRegistration);
   const subject = isNewUser
     ? 'Complete your Wearables registration'
     : 'Your Wearables login link';
 
   if (shouldLogOnly) {
-    logger.info('Magic link email suppressed (log-only mode)', {
-      email,
-      magicLink,
-    });
+    logger.info('mail.magic_link.suppressed');
     return;
   }
 
@@ -95,9 +91,11 @@ export async function sendMagicLinkEmail(
         ${isNewUser ? 'Welcome to Wearables' : 'Secure login'}
       </h2>
       <p style="color:#105067;margin:0 0 18px 0;font-size:15px;line-height:1.6;">
-        ${isNewUser
-          ? 'Click the button below to complete your registration.'
-          : 'Click the button below to securely access your account.'}
+        ${
+          isNewUser
+            ? 'Click the button below to complete your registration.'
+            : 'Click the button below to securely access your account.'
+        }
       </p>
       <div style="text-align:center;margin:24px 0;">
         <a href="${magicLink}"
@@ -124,10 +122,7 @@ export async function sendApprovalEmail(email: string) {
   const subject = 'Your Wearables account is approved';
 
   if (shouldLogOnly) {
-    logger.info('Approval email suppressed (log-only mode)', {
-      email,
-      loginUrl,
-    });
+    logger.info('mail.approval.suppressed');
     return;
   }
 
@@ -151,7 +146,11 @@ export async function sendApprovalEmail(email: string) {
     </div>
   `;
 
-  await sendEmail(email, subject, getEmailTemplate('Access approved', contentHtml));
+  await sendEmail(
+    email,
+    subject,
+    getEmailTemplate('Access approved', contentHtml),
+  );
 }
 
 function getEmailTemplate(title: string, contentHtml: string): string {

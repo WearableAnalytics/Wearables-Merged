@@ -15,6 +15,7 @@ type JwtProxyConfig = {
   grafanaOrgId: string;
   grafanaJwtIatSkewSeconds: number;
   appJwtSecret: string;
+  authApiUrl: string;
 };
 
 type HeaderValue = string | string[] | number | undefined;
@@ -33,9 +34,14 @@ type SessionUser = {
   name?: string;
   role?: string;
 };
-type SessionConfig = Pick<JwtProxyConfig, 'appJwtSecret'>;
+type SessionConfig = Pick<JwtProxyConfig, 'appJwtSecret' | 'authApiUrl'>;
+const currentUsers = new WeakMap<IncomingMessage, SessionUser>();
+let pendingChecks = 0;
 
-const stripHeader = (headers: Record<string, string | string[] | undefined>, headerName: string): void => {
+const stripHeader = (
+  headers: Record<string, string | string[] | undefined>,
+  headerName: string,
+): void => {
   for (const key of Object.keys(headers)) {
     if (key.toLowerCase() === headerName) {
       delete headers[key];
@@ -43,16 +49,25 @@ const stripHeader = (headers: Record<string, string | string[] | undefined>, hea
   }
 };
 
-const removeFrameAncestors = (headers: Record<string, string | string[] | undefined>): void => {
-  const headerKey = Object.keys(headers).find((key) => key.toLowerCase() === 'content-security-policy');
+const removeFrameAncestors = (
+  headers: Record<string, string | string[] | undefined>,
+): void => {
+  const headerKey = Object.keys(headers).find(
+    (key) => key.toLowerCase() === 'content-security-policy',
+  );
   if (!headerKey) return;
 
   const rawValue = headers[headerKey];
   const value = Array.isArray(rawValue) ? rawValue.join('; ') : rawValue;
   if (!value) return;
 
-  const directives = value.split(';').map((part) => part.trim()).filter(Boolean);
-  const filtered = directives.filter((directive) => !directive.toLowerCase().startsWith('frame-ancestors'));
+  const directives = value
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const filtered = directives.filter(
+    (directive) => !directive.toLowerCase().startsWith('frame-ancestors'),
+  );
 
   if (filtered.length === 0) {
     delete headers[headerKey];
@@ -64,7 +79,8 @@ const removeFrameAncestors = (headers: Record<string, string | string[] | undefi
 
 const buildProxyPath = (path: string, config: JwtProxyConfig): string => {
   const prefix = config.proxyPrefix || '';
-  const stripped = prefix && path.startsWith(prefix) ? path.slice(prefix.length) : path;
+  const stripped =
+    prefix && path.startsWith(prefix) ? path.slice(prefix.length) : path;
   const normalized = stripped.startsWith('/') ? stripped : `/${stripped}`;
   const base = config.grafanaPathPrefix || '';
   const combined = `${base}${normalized}`;
@@ -83,9 +99,13 @@ const sanitizeHeaders = (
   extraRedactions: string[],
 ): Record<string, string | string[]> => {
   const redactions = new Set(
-    ['authorization', 'proxy-authorization', 'cookie', 'set-cookie', ...extraRedactions].map((value) =>
-      value.toLowerCase(),
-    ),
+    [
+      'authorization',
+      'proxy-authorization',
+      'cookie',
+      'set-cookie',
+      ...extraRedactions,
+    ].map((value) => value.toLowerCase()),
   );
   const sanitized: Record<string, string | string[]> = {};
   for (const [key, value] of Object.entries(headers)) {
@@ -120,7 +140,10 @@ const resolveTargetOrigin = (baseUrl: string): string | null => {
 };
 
 const getRequestPath = (req: IncomingMessage): string => {
-  const request = req as IncomingMessage & { originalUrl?: string; url?: string };
+  const request = req as IncomingMessage & {
+    originalUrl?: string;
+    url?: string;
+  };
   return request.originalUrl ?? request.url ?? '/';
 };
 
@@ -149,50 +172,70 @@ const rewriteOriginHeaders = (
 const parseCookies = (cookieHeader?: string): Record<string, string> => {
   if (!cookieHeader) return {};
 
-  return cookieHeader.split(';').reduce<Record<string, string>>((acc, cookiePart) => {
-    const [rawName, ...rest] = cookiePart.split('=');
-    if (!rawName || rest.length === 0) return acc;
-    const name = rawName.trim();
-    if (!name) return acc;
-    const value = rest.join('=');
-    try {
-      acc[name] = decodeURIComponent(value);
-    } catch {
-      // Keep parsing other cookies when one value is malformed.
-      acc[name] = value;
-    }
-    return acc;
-  }, {});
+  return cookieHeader
+    .split(';')
+    .reduce<Record<string, string>>((acc, cookiePart) => {
+      const [rawName, ...rest] = cookiePart.split('=');
+      if (!rawName || rest.length === 0) return acc;
+      const name = rawName.trim();
+      if (!name) return acc;
+      const value = rest.join('=');
+      try {
+        acc[name] = decodeURIComponent(value);
+      } catch {
+        // Keep parsing other cookies when one value is malformed.
+        acc[name] = value;
+      }
+      return acc;
+    }, {});
 };
 
-const parseSessionUser = (cookieHeader: string | undefined, config: SessionConfig): SessionUser | null => {
-  if (!config.appJwtSecret) return null;
-
-  const cookies = parseCookies(cookieHeader);
-  const token = cookies.jwt;
-  if (!token) return null;
-
+export const authorizeSession = async (
+  req: IncomingMessage,
+  config: SessionConfig,
+): Promise<SessionUser | null> => {
+  currentUsers.delete(req);
+  if (!req.headers.cookie || !config.authApiUrl || pendingChecks >= 32)
+    return null;
+  pendingChecks++;
   try {
-    const decoded = jwt.verify(token, config.appJwtSecret, { algorithms: ['HS256'] }) as SessionJwtPayload;
-    if (decoded.status && decoded.status !== 'approved') {
+    const response = await fetch(config.authApiUrl, {
+      headers: { Cookie: req.headers.cookie },
+      signal: AbortSignal.timeout(5000),
+      redirect: 'error',
+    });
+    if (
+      !response.ok ||
+      Number(response.headers.get('content-length') ?? 0) > 16384
+    )
       return null;
-    }
-    if (!decoded.email && !decoded.userId) {
+    const data = await response.json();
+    const user = data?.user;
+    if (
+      data?.success !== true ||
+      user?.status !== 'approved' ||
+      typeof user.id !== 'string' ||
+      typeof user.email !== 'string' ||
+      !(
+        user.isAdmin === true ||
+        (Array.isArray(user.roles) && user.roles.includes('practitioner'))
+      )
+    )
       return null;
-    }
-    const derivedRole = decoded.role ?? (decoded.isAdmin ? 'admin' : decoded.roles?.[0]);
-    return {
-      userId: decoded.userId,
-      email: decoded.email,
-      name: decoded.name,
-      role: derivedRole,
+    const sessionUser = {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.isAdmin ? 'admin' : 'viewer',
     };
+    currentUsers.set(req, sessionUser);
+    return sessionUser;
   } catch {
     return null;
+  } finally {
+    pendingChecks--;
   }
 };
-
-export const getSessionUserFromCookie = parseSessionUser;
 
 const toGrafanaRole = (role?: string): string | undefined => {
   if (!role) return undefined;
@@ -213,7 +256,10 @@ const toGrafanaRole = (role?: string): string | undefined => {
   }
 };
 
-const buildJwtPayload = (config: JwtProxyConfig, sessionUser: SessionUser): jwt.JwtPayload => {
+const buildJwtPayload = (
+  config: JwtProxyConfig,
+  sessionUser: SessionUser,
+): jwt.JwtPayload => {
   const nowSeconds = Math.floor(Date.now() / 1000);
   const skewSeconds = config.grafanaJwtIatSkewSeconds || 0;
   const subject = sessionUser.email || sessionUser.userId;
@@ -251,17 +297,20 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
   return createProxyMiddleware({
     target: config.grafanaBaseUrl,
     changeOrigin: true,
-    ws: true,
+    ws: false, // Upgrades are authorized explicitly by the server.
     secure: !config.grafanaTlsSkipVerify,
     pathRewrite: (path) => buildProxyPath(path, config),
     on: {
       proxyReq: (proxyReq, req) => {
-        const sessionUser = parseSessionUser(req.headers.cookie, config);
+        const sessionUser = currentUsers.get(req);
         if (!sessionUser) {
           throw new Error('Missing or invalid session cookie');
         }
         const token = signJwt(config, sessionUser);
-        const jwtHeaderValue = formatJwtHeaderValue(token, config.grafanaJwtHeader);
+        const jwtHeaderValue = formatJwtHeaderValue(
+          token,
+          config.grafanaJwtHeader,
+        );
         proxyReq.removeHeader('authorization');
         proxyReq.removeHeader('cookie');
         proxyReq.setHeader(config.grafanaJwtHeader, jwtHeaderValue);
@@ -271,7 +320,9 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
         if (config.grafanaOrgId) {
           proxyReq.setHeader('X-Grafana-Org-Id', config.grafanaOrgId);
         }
-        const targetPath = (proxyReq as { path?: string }).path ?? buildProxyPath(getRequestPath(req), config);
+        const targetPath =
+          (proxyReq as { path?: string }).path ??
+          buildProxyPath(getRequestPath(req), config);
         const targetUrl = resolveTargetUrl(targetPath, config.grafanaBaseUrl);
         rewriteOriginHeaders(proxyReq, targetUrl, config.grafanaBaseUrl);
         const headers = sanitizeHeaders(
@@ -281,17 +332,17 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
         const bodyBytes = proxyReq.getHeader('content-length');
         const bodyInfo = bodyBytes ? ` bodyBytes=${bodyBytes}` : '';
         // eslint-disable-next-line no-console
-        console.log(
-          `[Grafana proxy] OUT ${req.method} ${targetUrl}${bodyInfo} authSource=session-cookie headers=${JSON.stringify(headers)}`,
-        );
       },
       proxyReqWs: (proxyReq, req) => {
-        const sessionUser = parseSessionUser(req.headers.cookie, config);
+        const sessionUser = currentUsers.get(req);
         if (!sessionUser) {
           throw new Error('Missing or invalid session cookie');
         }
         const token = signJwt(config, sessionUser);
-        const jwtHeaderValue = formatJwtHeaderValue(token, config.grafanaJwtHeader);
+        const jwtHeaderValue = formatJwtHeaderValue(
+          token,
+          config.grafanaJwtHeader,
+        );
         proxyReq.removeHeader('authorization');
         proxyReq.removeHeader('cookie');
         proxyReq.setHeader(config.grafanaJwtHeader, jwtHeaderValue);
@@ -301,7 +352,9 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
         if (config.grafanaOrgId) {
           proxyReq.setHeader('X-Grafana-Org-Id', config.grafanaOrgId);
         }
-        const targetPath = (proxyReq as { path?: string }).path ?? buildProxyPath(getRequestPath(req), config);
+        const targetPath =
+          (proxyReq as { path?: string }).path ??
+          buildProxyPath(getRequestPath(req), config);
         const targetUrl = resolveTargetUrl(targetPath, config.grafanaBaseUrl);
         rewriteOriginHeaders(proxyReq, targetUrl, config.grafanaBaseUrl);
         const headers = sanitizeHeaders(
@@ -309,13 +362,15 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
           [config.grafanaJwtHeader, 'x-grafana-org-id'],
         );
         // eslint-disable-next-line no-console
-        console.log(
-          `[Grafana proxy] OUT-WS ${req.method} ${targetUrl} authSource=session-cookie headers=${JSON.stringify(headers)}`,
-        );
       },
       proxyRes: (proxyRes, req) => {
-        stripHeader(proxyRes.headers as Record<string, string | string[] | undefined>, 'x-frame-options');
-        removeFrameAncestors(proxyRes.headers as Record<string, string | string[] | undefined>);
+        stripHeader(
+          proxyRes.headers as Record<string, string | string[] | undefined>,
+          'x-frame-options',
+        );
+        removeFrameAncestors(
+          proxyRes.headers as Record<string, string | string[] | undefined>,
+        );
         const targetPath = buildProxyPath(getRequestPath(req), config);
         const targetUrl = resolveTargetUrl(targetPath, config.grafanaBaseUrl);
         const headers = sanitizeHeaders(
@@ -323,11 +378,6 @@ export const createJwtProxy = (config: JwtProxyConfig): RequestHandler => {
           ['set-cookie'],
         );
         // eslint-disable-next-line no-console
-        console.log(
-          `[Grafana proxy] IN ${req.method} ${targetUrl} status=${proxyRes.statusCode} headers=${JSON.stringify(
-            headers,
-          )}`,
-        );
       },
     },
   });

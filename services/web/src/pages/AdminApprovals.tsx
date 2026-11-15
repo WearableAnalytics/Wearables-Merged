@@ -30,7 +30,9 @@ const toAccessProfile = (entry: AdminUser): AccessProfile => {
   return 'practitioner';
 };
 
-const toProfilePayload = (profile: AccessProfile): { isAdmin: boolean; roles: NonAdminRole[] } => {
+const toProfilePayload = (
+  profile: AccessProfile,
+): { isAdmin: boolean; roles: NonAdminRole[] } => {
   switch (profile) {
     case 'admin':
       return { isAdmin: true, roles: [] };
@@ -49,14 +51,19 @@ export function AdminApprovalsPage() {
   const [approvedUsers, setApprovedUsers] = useState<AdminUser[]>([]);
   const [pendingUsers, setPendingUsers] = useState<AdminUser[]>([]);
   const [deniedUsers, setDeniedUsers] = useState<AdminUser[]>([]);
-  const [pendingAccessRequests, setPendingAccessRequests] = useState<AdminUser[]>([]);
+  const [pendingAccessRequests, setPendingAccessRequests] = useState<
+    AdminUser[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('requests');
   const [search, setSearch] = useState('');
   const [draftEdits, setDraftEdits] = useState<UserDraftEdits>({});
-  const permissionMessage = user && !isAdminUser(user) ? 'You do not have permission to view this page.' : null;
+  const permissionMessage =
+    user && !isAdminUser(user)
+      ? 'You do not have permission to view this page.'
+      : null;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -72,13 +79,17 @@ export function AdminApprovalsPage() {
       const nextPendingUsers = (pending as { users?: AdminUser[] }).users ?? [];
       setPendingUsers(nextPendingUsers);
       setDeniedUsers((denied as { users?: AdminUser[] }).users ?? []);
-      const nextPendingAccessRequests = (accessRequests as { users?: AdminUser[] }).users ?? [];
+      const nextPendingAccessRequests =
+        (accessRequests as { users?: AdminUser[] }).users ?? [];
       setPendingAccessRequests(nextPendingAccessRequests);
       dispatchAdminApprovalsUpdatedEvent({
-        openRequestsCount: nextPendingUsers.length + nextPendingAccessRequests.length,
+        openRequestsCount:
+          nextPendingUsers.length + nextPendingAccessRequests.length,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load admin data.');
+      setError(
+        err instanceof Error ? err.message : 'Unable to load admin data.',
+      );
     } finally {
       setLoading(false);
     }
@@ -95,15 +106,30 @@ export function AdminApprovalsPage() {
         const query = search.trim().toLowerCase();
         const email = entry.email ?? '';
         const name = entry.name ?? '';
-        return email.toLowerCase().includes(query) || name.toLowerCase().includes(query);
+        return (
+          email.toLowerCase().includes(query) ||
+          name.toLowerCase().includes(query)
+        );
       }),
     [search],
   );
 
-  const filteredApprovedUsers = useMemo(() => filterUsers(approvedUsers), [approvedUsers, filterUsers]);
-  const filteredPendingUsers = useMemo(() => filterUsers(pendingUsers), [pendingUsers, filterUsers]);
-  const filteredDeniedUsers = useMemo(() => filterUsers(deniedUsers), [deniedUsers, filterUsers]);
-  const filteredAccessRequests = useMemo(() => filterUsers(pendingAccessRequests), [pendingAccessRequests, filterUsers]);
+  const filteredApprovedUsers = useMemo(
+    () => filterUsers(approvedUsers),
+    [approvedUsers, filterUsers],
+  );
+  const filteredPendingUsers = useMemo(
+    () => filterUsers(pendingUsers),
+    [pendingUsers, filterUsers],
+  );
+  const filteredDeniedUsers = useMemo(
+    () => filterUsers(deniedUsers),
+    [deniedUsers, filterUsers],
+  );
+  const filteredAccessRequests = useMemo(
+    () => filterUsers(pendingAccessRequests),
+    [pendingAccessRequests, filterUsers],
+  );
 
   const updateDraft = (entry: AdminUser, updates: Partial<UserDraft>) => {
     setDraftEdits((current) => {
@@ -127,18 +153,35 @@ export function AdminApprovalsPage() {
     });
   };
 
-  const handleDecision = async (userId: string, decision: 'approve' | 'deny') => {
+  const revisionOf = (id: string) => {
+    const entry = [
+      ...approvedUsers,
+      ...pendingUsers,
+      ...deniedUsers,
+      ...pendingAccessRequests,
+    ].find((user) => user.id === id);
+    if (!entry || !Number.isSafeInteger(entry.revision))
+      throw new Error('Reload the account before changing it.');
+    return entry.revision;
+  };
+
+  const handleDecision = async (
+    userId: string,
+    decision: 'approve' | 'deny',
+  ) => {
     setActionUserId(userId);
     setError(null);
     try {
       if (decision === 'approve') {
-        await defaultApi.approveUser(userId);
+        await defaultApi.approveUser(userId, revisionOf(userId));
       } else {
-        await defaultApi.denyUser(userId);
+        await defaultApi.denyUser(userId, revisionOf(userId));
       }
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to update user status.');
+      setError(
+        err instanceof Error ? err.message : 'Unable to update user status.',
+      );
     } finally {
       setActionUserId(null);
     }
@@ -148,7 +191,7 @@ export function AdminApprovalsPage() {
     setActionUserId(userId);
     setError(null);
     try {
-      await defaultApi.unblockUser(userId);
+      await defaultApi.unblockUser(userId, revisionOf(userId));
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to unblock user.');
@@ -169,10 +212,13 @@ export function AdminApprovalsPage() {
         userId,
         requestType,
         decision === 'approve' ? 'approved' : 'denied',
+        revisionOf(userId),
       );
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to update access request.');
+      setError(
+        err instanceof Error ? err.message : 'Unable to update access request.',
+      );
     } finally {
       setActionUserId(null);
     }
@@ -181,7 +227,10 @@ export function AdminApprovalsPage() {
   const handleUpdateUser = async (entry: AdminUser) => {
     const currentAccessProfile = toAccessProfile(entry);
     const currentStatus = (entry.status ?? 'approved') as UserStatus;
-    const draft = draftEdits[entry.id] ?? { accessProfile: currentAccessProfile, status: currentStatus };
+    const draft = draftEdits[entry.id] ?? {
+      accessProfile: currentAccessProfile,
+      status: currentStatus,
+    };
 
     const profilePayload = toProfilePayload(draft.accessProfile);
     const currentProfilePayload = toProfilePayload(currentAccessProfile);
@@ -199,6 +248,7 @@ export function AdminApprovalsPage() {
     setError(null);
     try {
       await defaultApi.updateUser(entry.id, {
+        expectedRevision: entry.revision,
         isAdmin: profilePayload.isAdmin,
         roles: profilePayload.roles,
         status: statusDirty ? draft.status : undefined,
@@ -221,7 +271,11 @@ export function AdminApprovalsPage() {
           description="Admin access is required to manage access requests."
         />
         {permissionMessage ? (
-          <StatusCallout tone="warning" message={permissionMessage} className="mt-6" />
+          <StatusCallout
+            tone="warning"
+            message={permissionMessage}
+            className="mt-6"
+          />
         ) : (
           <div className="mt-6" />
         )}
@@ -238,7 +292,9 @@ export function AdminApprovalsPage() {
       />
 
       <section className="surface-card mt-6 p-4 md:p-5">
-        {error ? <StatusCallout tone="error" message={error} className="mb-4" /> : null}
+        {error ? (
+          <StatusCallout tone="error" message={error} className="mb-4" />
+        ) : null}
 
         <AdminApprovalsViewControls
           loading={loading}
@@ -252,7 +308,9 @@ export function AdminApprovalsPage() {
         <div className="mt-4" />
 
         {loading ? (
-          <div className="surface-subtle mt-4 px-3 py-3 font-semibold text-foreground">Loading data…</div>
+          <div className="surface-subtle mt-4 px-3 py-3 font-semibold text-foreground">
+            Loading data…
+          </div>
         ) : view === 'users' ? (
           <AdminApprovalsUsersTable
             users={filteredApprovedUsers}

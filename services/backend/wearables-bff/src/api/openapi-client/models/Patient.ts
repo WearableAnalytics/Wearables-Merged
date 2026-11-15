@@ -38,11 +38,11 @@ export interface Patient {
      */
     lastName: string;
     /**
-     * Patient date of birth
+     * Patient date of birth, or null when unknown
      * @type {Date}
      * @memberof Patient
      */
-    birthDate: Date;
+    birthDate: Date | null;
 }
 
 /**
@@ -69,7 +69,7 @@ export function PatientFromJSONTyped(json: any, ignoreDiscriminator: boolean): P
         'patientId': json['patientId'],
         'firstName': json['firstName'],
         'lastName': json['lastName'],
-        'birthDate': (new Date(json['birthDate'])),
+        'birthDate': (json['birthDate'] == null ? null : new Date(json['birthDate'])),
     };
 }
 
@@ -87,7 +87,7 @@ export function PatientToJSONTyped(value?: Patient | null, ignoreDiscriminator: 
         'patientId': value['patientId'],
         'firstName': value['firstName'],
         'lastName': value['lastName'],
-        'birthDate': ((value['birthDate']).toISOString().substring(0,10)),
+        'birthDate': value['birthDate'] == null ? value['birthDate'] : value['birthDate'].toISOString().substring(0,10),
     };
 }
 

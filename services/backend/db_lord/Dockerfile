@@ -20,4 +20,4 @@ RUN uv sync --locked --no-dev --no-install-project
 COPY --chown=appuser:appuser . .
 RUN uv sync --locked --no-dev --no-editable
 
-CMD ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

@@ -87,8 +87,9 @@
           },
           "birthDate": {
             "type": "string",
+            "nullable": true,
             "format": "date",
-            "description": "Patient date of birth",
+            "description": "Patient date of birth, or null when unknown",
             "example": "1980-01-01"
           }
         },

@@ -3,16 +3,24 @@ import type { CookieOptions, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import config from '../../config.js';
-import { auth, parseCookies } from '../../middleware.js';
-import { sendApprovalEmail, sendMagicLinkEmail } from '../../services/mailer.js';
+import {
+  controlRequest,
+  asyncRoute,
+  sendControlError,
+  ControlApiError,
+} from '../../clients/controlApi.js';
+import { auth, getUserFromRequest } from '../../middleware.js';
+import {
+  sendApprovalEmail,
+  sendMagicLinkEmail,
+} from '../../services/mailer.js';
 import { logger } from '../../logger.js';
 import {
   countActiveAdmins,
+  revokeUserSessions,
   createUser,
-  ensureAdminUser,
   getUserByEmail,
   getUserById,
-  isAdminEmail,
   listAccessRequests,
   listUsersByStatus,
   normalizeUserEmail,
@@ -23,17 +31,14 @@ import {
   setUserStatus,
   type AccessRequestType,
   type NonAdminRole,
+  fromDto,
+  type UserDto,
   type UserRecord,
   type UserStatus,
 } from '../../services/userStore.js';
-
 const router = express.Router();
-const requestCookies = (req: Request) =>
-  (req as Request & { cookies?: Record<string, string> }).cookies ?? parseCookies(req.headers.cookie);
-
 const isLocalHost = (hostname: string) =>
   hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-
 const parseHostname = (value: string): string | undefined => {
   try {
     return new URL(value).hostname;
@@ -41,30 +46,24 @@ const parseHostname = (value: string): string | undefined => {
     return undefined;
   }
 };
-
 const isLocalCookieContext = () => {
   const contextUrls = [
     ...config.frontendOrigins,
     config.frontendRedirectUrl,
     config.backendUrl,
   ].filter(Boolean);
-
   const hostnames = contextUrls
     .map((url) => parseHostname(url))
     .filter((value): value is string => Boolean(value));
-
   return hostnames.some((hostname) => isLocalHost(hostname));
 };
-
 const resolveSecureCookies = () => {
   if (config.cookieSecure !== undefined) return config.cookieSecure;
+  if (config.isProduction) return true;
   if (config.nodeEnv === 'development') return false;
   if (isLocalCookieContext()) return false;
   return true;
 };
-
-// In-memory store for temporary EMAILAUTH tokens
-const tokenStore = new Map<string, { email: string; expiresAt: Date }>();
 const useSecureCookies = resolveSecureCookies();
 const sameSite: CookieOptions['sameSite'] = useSecureCookies ? 'strict' : 'lax';
 const baseCookieOptions: CookieOptions = {
@@ -73,24 +72,23 @@ const baseCookieOptions: CookieOptions = {
   sameSite,
   path: '/',
 };
-
 const nonAdminRoles: readonly NonAdminRole[] = ['practitioner', 'researcher'];
 const nonAdminRoleSet = new Set<NonAdminRole>(nonAdminRoles);
-const accessRequestTypeSet = new Set<AccessRequestType>(['admin', ...nonAdminRoles]);
-
+const accessRequestTypeSet = new Set<AccessRequestType>([
+  'admin',
+  ...nonAdminRoles,
+]);
 const isNonAdminRole = (value: string): value is NonAdminRole =>
   nonAdminRoleSet.has(value as NonAdminRole);
-
 const isAccessRequestType = (value: string): value is AccessRequestType =>
   accessRequestTypeSet.has(value as AccessRequestType);
-
 const defaultRoleRequestStatuses = () => ({
   practitioner: 'none' as const,
   researcher: 'none' as const,
 });
-
 const serializeUser = (user: UserRecord) => ({
   id: user.id,
+  revision: user.revision,
   email: user.email,
   name: user.name,
   isAdmin: user.isAdmin,
@@ -99,33 +97,29 @@ const serializeUser = (user: UserRecord) => ({
   adminRequestStatus: user.adminRequestStatus,
   roleRequestStatuses: user.roleRequestStatuses,
 });
-
 // Helper function to clear all cookies
-const clearAllCookies = (req: Request, res: Response) => {
-  const cookies = requestCookies(req);
-  for (const cookie in cookies) {
-    res.clearCookie(cookie, baseCookieOptions);
-  }
+const clearAllCookies = (_req: Request, res: Response) => {
+  res.clearCookie('jwt', baseCookieOptions);
 };
-
 // Helper function to create JWT token
-const createJwtToken = (user: UserRecord) => {
-  return jwt.sign(
+const createJwtToken = (user: UserRecord, method = 'email-link-v1') =>
+  jwt.sign(
     {
+      type: 'web-session',
+      auth_method: method,
       userId: user.id,
       email: user.email,
-      name: user.name,
-      isAdmin: user.isAdmin,
-      roles: user.roles,
-      status: user.status,
-      adminRequestStatus: user.adminRequestStatus,
-      roleRequestStatuses: user.roleRequestStatuses,
+      sessionVersion: user.authVersion,
     },
     config.jwtSecret,
-    { expiresIn: config.authSessionExpirySeconds },
+    {
+      algorithm: 'HS256',
+      expiresIn: config.authSessionExpirySeconds,
+      issuer: config.tokenIssuer,
+      audience: 'wearables-web',
+      subject: user.id,
+    },
   );
-};
-
 // Helper function to set auth cookie
 const setAuthCookie = (res: Response, token: string) => {
   res.cookie('jwt', token, {
@@ -133,345 +127,308 @@ const setAuthCookie = (res: Response, token: string) => {
     maxAge: config.authSessionExpirySeconds * 1000,
   });
 };
-
-// Helper function to cleanup expired tokens
-const cleanupExpiredTokens = () => {
-  for (const [storedToken, data] of tokenStore.entries()) {
-    if (data.expiresAt < new Date()) {
-      tokenStore.delete(storedToken);
-    }
-  }
-};
-
-// Helper function to create magic link token
-const createMagicLinkToken = (email: string) => {
+// Login proofs are one-use database records, shared across BFF instances.
+const tokenHash = (token: string) =>
+  crypto.createHash('sha256').update(token).digest('hex');
+export const createMagicLinkToken = async (email: string) => {
+  const user = await getUserByEmail(email);
+  if (!user || user.status !== 'approved') throw new Error('Login not allowed');
   const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + config.magicLinkExpirySeconds * 1000);
-  tokenStore.set(token, { email, expiresAt });
-  cleanupExpiredTokens();
+  const result = await controlRequest<{ issued: boolean }>(
+    '/login-challenges',
+    'POST',
+    {
+      token_hash: tokenHash(token),
+      user_id: user.id,
+      auth_version: user.authVersion,
+      ttl_seconds: config.magicLinkExpirySeconds,
+    },
+  );
+  if (result?.issued !== true) throw new Error('Login proof unavailable');
   return token;
 };
-
-const isMagicLinkBypass = () => !config.isProduction;
-
-// POST /login
-router.post('/login', async (req: Request, res: Response) => {
-  const { email } = req.body;
-  if (!email) {
-    res.status(400).json({ error: 'Email required' });
-    return;
+const authMessage =
+  'If this account is approved, a sign-in link will be sent. Otherwise, register or contact an administrator.';
+const registrationMessage =
+  'Your registration has been received. Eligible new accounts require administrator approval; existing accounts can use sign-in.';
+const validEmail = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length <= 320 &&
+  /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.trim());
+const keyHash = (value: string) =>
+  crypto
+    .createHmac('sha256', config.jwtSecret)
+    .update('auth-limit:' + value)
+    .digest('hex');
+const admit = async (
+  req: Request,
+  res: Response,
+  kind: 'login' | 'register' | 'verify',
+  email?: string,
+) => {
+  const keys = [
+    {
+      kind: kind === 'verify' ? 'verify' : 'client',
+      key_hash: keyHash('client:' + req.ip),
+    },
+    ...(email
+      ? [{ kind, key_hash: keyHash('email:' + normalizeUserEmail(email)) }]
+      : []),
+  ];
+  for (const key of keys) {
+    const result = await controlRequest<{
+      allowed: boolean;
+      retry_after: number;
+    }>('/auth-attempts', 'POST', key);
+    if (
+      typeof result.allowed !== 'boolean' ||
+      !Number.isInteger(result.retry_after)
+    )
+      throw new ControlApiError(503);
+    if (!result.allowed) {
+      res.setHeader('Retry-After', String(result.retry_after));
+      res.status(429).json({ error: 'Too many attempts. Try again later.' });
+      return false;
+    }
   }
-  try {
-    const normalizedEmail = normalizeUserEmail(email);
-    let existingUser = getUserByEmail(normalizedEmail);
-    if (isAdminEmail(normalizedEmail)) {
-      existingUser = ensureAdminUser(normalizedEmail);
+  return true;
+};
+
+router.post(
+  '/login',
+  asyncRoute(async (req: Request, res: Response) => {
+    const { email } = req.body ?? {};
+    if (!validEmail(email)) {
+      res.status(400).json({ error: 'Enter a valid email.' });
+      return;
     }
+    if (!(await admit(req, res, 'login', email))) return;
     clearAllCookies(req, res);
-    if (!existingUser) {
-      res.status(404).json({
-        error: 'User not found',
-        redirectToSignup: true,
-        message: 'This email is not registered. Please sign up first.',
-      });
+    const user = await getUserByEmail(email);
+    if (user?.status === 'approved') {
+      if (config.devAuthBypass) {
+        setAuthCookie(res, createJwtToken(user, 'dev-email-v1'));
+        res.json({ authenticated: true, userId: user.id });
+        return;
+      }
+      const token = await createMagicLinkToken(user.email);
+      try {
+        await sendMagicLinkEmail(user.email, token);
+      } catch {
+        logger.error('mail.magic_link.delivery_failed');
+      }
+    }
+    res.json({ message: authMessage });
+  }),
+);
+
+router.post(
+  '/register',
+  asyncRoute(async (req: Request, res: Response) => {
+    const { email, role } = req.body ?? {};
+    if (!validEmail(email) || !isNonAdminRole(role)) {
+      res
+        .status(400)
+        .json({ error: 'A valid email and staff role are required.' });
       return;
     }
+    if (!(await admit(req, res, 'register', email))) return;
+    clearAllCookies(req, res);
+    // Insert-only: public registration cannot choose approval or admin authority.
+    await createUser(email, { roles: [role] });
+    res.status(202).json({ message: registrationMessage, status: 'pending' });
+  }),
+);
 
-    if (existingUser.status === 'pending') {
-      res.status(403).json({
-        error: 'Account pending approval',
-        message: 'Your account is awaiting admin approval.',
-        code: 'PENDING_APPROVAL',
-      });
+router.get(
+  '/verify-magiclink',
+  asyncRoute(async (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (!(await admit(req, res, 'verify'))) return;
+    const token = req.query.token;
+    if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)) {
+      res.redirect(config.frontendRedirectUrl + '/error-magic_link');
       return;
     }
+    try {
+      const user = fromDto(
+        await controlRequest<UserDto>('/login-challenges/consume', 'POST', {
+          token_hash: tokenHash(token),
+        }),
+      );
+      if (user.status !== 'approved') throw new Error('Invalid login proof');
+      clearAllCookies(req, res);
+      setAuthCookie(res, createJwtToken(user));
+      res.redirect(
+        config.frontendRedirectUrl +
+          (user.isAdmin || user.roles.includes('practitioner')
+            ? '/overview'
+            : '/account'),
+      );
+    } catch (error) {
+      if (error instanceof ControlApiError && error.status >= 500) {
+        sendControlError(res, error);
+        return;
+      }
+      res.redirect(config.frontendRedirectUrl + '/error-magic_link');
+    }
+  }),
+);
 
-    if (existingUser.status === 'denied') {
-      res.status(403).json({
-        error: 'Account denied',
-        message: 'Your access request was denied. Please contact an administrator.',
-        code: 'ACCOUNT_DENIED',
-      });
+router.get(
+  '/me',
+  auth.required,
+  asyncRoute((req: Request, res: Response) => {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
       return;
     }
-
-    if (isMagicLinkBypass()) {
-      const jwtToken = createJwtToken(existingUser);
-      setAuthCookie(res, jwtToken);
+    const isAdmin = Boolean(req.user.isAdmin);
+    const roles = req.user.roles ?? [];
+    res.json({
+      success: true,
+      user: {
+        id: req.user.userId,
+        email: req.user.email,
+        name: req.user.name,
+        isAdmin,
+        roles,
+        status: req.user.status,
+        adminRequestStatus: req.user.adminRequestStatus,
+        roleRequestStatuses:
+          req.user.roleRequestStatuses ?? defaultRoleRequestStatuses(),
+      },
+    });
+  }),
+);
+router.post(
+  '/request-admin',
+  auth.required,
+  asyncRoute(async (req: Request, res: Response) => {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+    const updated = await requestAdminAccess(
+      req.user.userId,
+      req.user.sessionVersion,
+    );
+    if (!updated) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (updated.isAdmin) {
       res.json({
-        authenticated: true,
-        message: 'Direct authentication successful',
-        userId: existingUser.id,
+        success: true,
+        message: 'You are already an admin.',
+        user: serializeUser(updated),
       });
       return;
     }
-
-    const token = createMagicLinkToken(existingUser.email);
-    await sendMagicLinkEmail(existingUser.email, token, { isRegistration: false });
-    res.json({ message: 'Magic link sent' });
-  } catch (err) {
-    logger.error('Magic link error', err as Error);
-    res.status(500).json({ error: 'Failed to process authentication request' });
-  }
-});
-
-// POST /register - Initial registration endpoint
-router.post('/register', async (req: Request, res: Response) => {
-  const { email, role } = req.body as { email?: string; role?: string };
-  if (!email) {
-    res.status(400).json({ error: 'Email required' });
-    return;
-  }
-  try {
-    const normalizedEmail = normalizeUserEmail(email);
-    const adminEmail = isAdminEmail(normalizedEmail);
-    const existingUser = getUserByEmail(normalizedEmail);
-    clearAllCookies(req, res);
-
-    if (!adminEmail && (!role || !isNonAdminRole(role))) {
+    res.json({
+      success: true,
+      message:
+        updated.adminRequestStatus === 'pending'
+          ? 'Your admin request is pending.'
+          : 'Your admin request has been submitted.',
+      user: serializeUser(updated),
+    });
+  }),
+);
+router.post(
+  '/request-role',
+  auth.required,
+  asyncRoute(async (req: Request, res: Response) => {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+    const { role } = req.body as {
+      role?: string;
+    };
+    if (!role || !isNonAdminRole(role)) {
       res.status(400).json({ error: 'A valid role is required' });
       return;
     }
-
-    if (adminEmail) {
-      const adminUser = ensureAdminUser(normalizedEmail);
-      if (isMagicLinkBypass()) {
-        const jwtToken = createJwtToken(adminUser);
-        setAuthCookie(res, jwtToken);
-        res.status(201).json({
-          authenticated: true,
-          message: 'Direct authentication successful',
-          id: adminUser.id,
-        });
-      } else {
-        const token = createMagicLinkToken(adminUser.email);
-        await sendMagicLinkEmail(adminUser.email, token, { isRegistration: false });
-        res.status(201).json({ _id: adminUser.id, message: 'Magic link sent' });
-      }
+    const updated = await requestRoleAccess(
+      req.user.userId,
+      role,
+      req.user.sessionVersion,
+    );
+    if (!updated) {
+      res.status(404).json({ error: 'User not found' });
       return;
     }
-
-    if (existingUser) {
-      if (existingUser.status === 'denied') {
-        res.status(403).json({
-          error: 'Account denied',
-          message: 'Your access request was denied. Please contact an administrator.',
-          code: 'ACCOUNT_DENIED',
-        });
-        return;
-      }
-
-      if (existingUser.status === 'pending') {
-        res.status(200).json({
-          message: 'Your account is awaiting admin approval.',
-          status: existingUser.status,
-        });
-        return;
-      }
-
-      res.status(409).json({
-        error: 'User already exists',
-        message: 'This email is already registered. Please login instead.',
-      });
-      return;
-    }
-
-    const initialRole = role as NonAdminRole;
-    const user = createUser(normalizedEmail, { status: 'pending', roles: [initialRole] });
-    res.status(201).json({
-      _id: user.id,
-      status: user.status,
-      requestedRole: initialRole,
-      message: 'Your account is awaiting admin approval.',
-    });
-  } catch (err) {
-    logger.error('Signup error', err as Error);
-    res.status(500).json({ error: 'Failed to process registration request' });
-  }
-});
-
-// POST /verify-magiclink
-router.get('/verify-magiclink', async (req: Request, res: Response) => {
-  const { token } = req.query;
-  if (!token || typeof token !== 'string') {
-    res.status(400).json({ error: 'Token required' });
-    return;
-  }
-  try {
-    clearAllCookies(req, res);
-    const data = tokenStore.get(token as string);
-    if (!data) {
-      throw new Error('Invalid or used token');
-    }
-    if (data.expiresAt < new Date()) {
-      tokenStore.delete(token as string);
-      throw new Error('Token expired');
-    }
-    const email = data.email;
-    tokenStore.delete(token as string);
-    let user = getUserByEmail(email);
-    if (isAdminEmail(email)) {
-      user = ensureAdminUser(email);
-    }
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    if (user.status !== 'approved') {
-      throw new Error('User not approved');
-    }
-
-    const jwtToken = createJwtToken(user);
-    setAuthCookie(res, jwtToken);
-
-    if (config.nodeEnv !== 'development') {
-      const frontendUrl = config.frontendRedirectUrl;
-      const redirectPath = user.isAdmin || user.roles.includes('practitioner') ? '/overview' : '/account';
-      res.redirect(frontendUrl + redirectPath);
-    } else {
+    if (updated.isAdmin || updated.roles.includes(role)) {
       res.json({
         success: true,
-        user: serializeUser(user),
+        message: `You already have ${role} access.`,
+        user: serializeUser(updated),
       });
+      return;
     }
-  } catch (_err) {
-    // Always redirect to login page with error parameter
-    const frontendUrl = config.frontendRedirectUrl;
-    res.redirect(`${frontendUrl}/error-magic_link`);
-  }
-});
-
-router.get('/me', auth.required, (req: Request, res: Response) => {
-  if (!req.user) {
-    res.status(401).json({ error: 'Not authenticated' });
-    return;
-  }
-
-  const isAdmin = Boolean(req.user.isAdmin);
-  const roles = req.user.roles ?? [];
-  res.json({
-    success: true,
-    user: {
-      id: req.user.userId,
-      email: req.user.email,
-      name: req.user.name,
-      isAdmin,
-      roles,
-      status: req.user.status,
-      adminRequestStatus: req.user.adminRequestStatus,
-      roleRequestStatuses: req.user.roleRequestStatuses ?? defaultRoleRequestStatuses(),
-    },
-  });
-});
-
-router.post('/request-admin', auth.required, (req: Request, res: Response) => {
-  if (!req.user) {
-    res.status(401).json({ error: 'Not authenticated' });
-    return;
-  }
-
-  const updated = requestAdminAccess(req.user.userId);
-  if (!updated) {
-    res.status(404).json({ error: 'User not found' });
-    return;
-  }
-
-  if (updated.isAdmin) {
     res.json({
       success: true,
-      message: 'You are already an admin.',
+      message:
+        updated.roleRequestStatuses[role] === 'pending'
+          ? `Your ${role} request is pending.`
+          : `Your ${role} request has been submitted.`,
       user: serializeUser(updated),
     });
-    return;
-  }
-
-  res.json({
-    success: true,
-    message:
-      updated.adminRequestStatus === 'pending'
-        ? 'Your admin request is pending.'
-        : 'Your admin request has been submitted.',
-    user: serializeUser(updated),
-  });
-});
-
-router.post('/request-role', auth.required, (req: Request, res: Response) => {
-  if (!req.user) {
-    res.status(401).json({ error: 'Not authenticated' });
-    return;
-  }
-
-  const { role } = req.body as { role?: string };
-  if (!role || !isNonAdminRole(role)) {
-    res.status(400).json({ error: 'A valid role is required' });
-    return;
-  }
-
-  const updated = requestRoleAccess(req.user.userId, role);
-  if (!updated) {
-    res.status(404).json({ error: 'User not found' });
-    return;
-  }
-
-  if (updated.isAdmin || updated.roles.includes(role)) {
-    res.json({
-      success: true,
-      message: `You already have ${role} access.`,
-      user: serializeUser(updated),
-    });
-    return;
-  }
-
-  res.json({
-    success: true,
-    message:
-      updated.roleRequestStatuses[role] === 'pending'
-        ? `Your ${role} request is pending.`
-        : `Your ${role} request has been submitted.`,
-    user: serializeUser(updated),
-  });
-});
-
-router.get('/admin/pending-users', ...auth.adminOnly, (_req: Request, res: Response) => {
-  const pendingUsers = listUsersByStatus('pending').map((user) => ({
-    ...serializeUser(user),
-    createdAt: user.createdAt.toISOString(),
-  }));
-
-  res.json({ users: pendingUsers });
-});
-
-router.get('/admin/approved-users', ...auth.adminOnly, (_req: Request, res: Response) => {
-  const approvedUsers = listUsersByStatus('approved').map((user) => ({
-    ...serializeUser(user),
-    createdAt: user.createdAt.toISOString(),
-  }));
-
-  res.json({ users: approvedUsers });
-});
-
-router.get('/admin/denied-users', ...auth.adminOnly, (_req: Request, res: Response) => {
-  const deniedUsers = listUsersByStatus('denied').map((user) => ({
-    ...serializeUser(user),
-    createdAt: user.createdAt.toISOString(),
-    deniedAt: user.deniedAt ? user.deniedAt.toISOString() : undefined,
-  }));
-
-  res.json({ users: deniedUsers });
-});
-
-const sendPendingAccessRequests = (_req: Request, res: Response) => {
-  const pendingRequests = listAccessRequests('pending').map((request) => ({
-    ...serializeUser(request.user),
-    requestType: request.requestType,
-    requestedAt: request.requestedAt ? request.requestedAt.toISOString() : undefined,
-  }));
-
+  }),
+);
+router.get(
+  '/admin/pending-users',
+  ...auth.adminOnly,
+  asyncRoute(async (_req: Request, res: Response) => {
+    const pendingUsers = (await listUsersByStatus('pending')).map((user) => ({
+      ...serializeUser(user),
+      createdAt: user.createdAt.toISOString(),
+    }));
+    res.json({ users: pendingUsers });
+  }),
+);
+router.get(
+  '/admin/approved-users',
+  ...auth.adminOnly,
+  asyncRoute(async (_req: Request, res: Response) => {
+    const approvedUsers = (await listUsersByStatus('approved')).map((user) => ({
+      ...serializeUser(user),
+      createdAt: user.createdAt.toISOString(),
+    }));
+    res.json({ users: approvedUsers });
+  }),
+);
+router.get(
+  '/admin/denied-users',
+  ...auth.adminOnly,
+  asyncRoute(async (_req: Request, res: Response) => {
+    const deniedUsers = (await listUsersByStatus('denied')).map((user) => ({
+      ...serializeUser(user),
+      createdAt: user.createdAt.toISOString(),
+      deniedAt: user.deniedAt ? user.deniedAt.toISOString() : undefined,
+    }));
+    res.json({ users: deniedUsers });
+  }),
+);
+const sendPendingAccessRequests = async (_req: Request, res: Response) => {
+  const pendingRequests = (await listAccessRequests('pending')).map(
+    (request) => ({
+      ...serializeUser(request.user),
+      requestType: request.requestType,
+      requestedAt: request.requestedAt
+        ? request.requestedAt.toISOString()
+        : undefined,
+    }),
+  );
   res.json({ users: pendingRequests });
 };
-
-router.get('/admin/pending-access-requests', ...auth.adminOnly, sendPendingAccessRequests);
-
+router.get(
+  '/admin/pending-access-requests',
+  ...auth.adminOnly,
+  asyncRoute(sendPendingAccessRequests),
+);
 const updateUserStatus = async (
   req: Request,
   res: Response,
@@ -482,7 +439,6 @@ const updateUserStatus = async (
     res.status(400).json({ error: 'User ID required' });
     return;
   }
-
   if (req.user?.userId === userId) {
     res.status(403).json({
       error: 'Self update forbidden',
@@ -491,15 +447,17 @@ const updateUserStatus = async (
     });
     return;
   }
-
-  const userRecord = getUserById(userId);
+  const userRecord = await getUserById(userId);
   if (!userRecord) {
     res.status(404).json({ error: 'User not found' });
     return;
   }
-
   const isActiveAdmin = userRecord.isAdmin && userRecord.status === 'approved';
-  if (status !== 'approved' && isActiveAdmin && countActiveAdmins() <= 1) {
+  if (
+    status !== 'approved' &&
+    isActiveAdmin &&
+    (await countActiveAdmins()) <= 1
+  ) {
     res.status(409).json({
       error: 'At least one admin required',
       message: 'You must keep at least one active admin account.',
@@ -507,68 +465,86 @@ const updateUserStatus = async (
     });
     return;
   }
-
-  const updated = setUserStatus(userId, status);
+  const updated = await setUserStatus(userId, status, {
+    ...req.user!,
+    expectedRevision: req.body?.expectedRevision,
+  });
   if (!updated) {
     res.status(404).json({ error: 'User not found' });
     return;
   }
-
   if (status === 'approved') {
     try {
       await sendApprovalEmail(updated.email);
     } catch (error) {
-      logger.error('Failed to send approval email', error as Error);
+      logger.error('mail.approval.failed');
     }
   }
-
   res.json({
     success: true,
     user: serializeUser(updated),
   });
 };
-
-router.post('/admin/users/:userId/approve', ...auth.adminOnly, async (req: Request, res: Response) => {
-  await updateUserStatus(req, res, 'approved');
-});
-
-router.post('/admin/users/:userId/deny', ...auth.adminOnly, async (req: Request, res: Response) => {
-  await updateUserStatus(req, res, 'denied');
-});
-
-router.post('/admin/users/:userId/unblock', ...auth.adminOnly, async (req: Request, res: Response) => {
-  await updateUserStatus(req, res, 'pending');
-});
-
-router.post('/admin/users/:userId/approve-admin', ...auth.adminOnly, (req: Request, res: Response) => {
-  const { userId } = req.params;
-  const updated = reviewAccessRequest(userId, 'admin', 'approved');
-  if (!updated) {
-    res.status(404).json({ error: 'User not found' });
-    return;
-  }
-
-  res.json({
-    success: true,
-    user: serializeUser(updated),
-  });
-});
-
-router.post('/admin/users/:userId/deny-admin', ...auth.adminOnly, (req: Request, res: Response) => {
-  const { userId } = req.params;
-  const updated = reviewAccessRequest(userId, 'admin', 'denied');
-  if (!updated) {
-    res.status(404).json({ error: 'User not found' });
-    return;
-  }
-
-  res.json({
-    success: true,
-    user: serializeUser(updated),
-  });
-});
-
-const reviewRoleRequest = (
+router.post(
+  '/admin/users/:userId/approve',
+  ...auth.adminOnly,
+  asyncRoute(async (req: Request, res: Response) => {
+    await updateUserStatus(req, res, 'approved');
+  }),
+);
+router.post(
+  '/admin/users/:userId/deny',
+  ...auth.adminOnly,
+  asyncRoute(async (req: Request, res: Response) => {
+    await updateUserStatus(req, res, 'denied');
+  }),
+);
+router.post(
+  '/admin/users/:userId/unblock',
+  ...auth.adminOnly,
+  asyncRoute(async (req: Request, res: Response) => {
+    await updateUserStatus(req, res, 'pending');
+  }),
+);
+router.post(
+  '/admin/users/:userId/approve-admin',
+  ...auth.adminOnly,
+  asyncRoute(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    const updated = await reviewAccessRequest(userId, 'admin', 'approved', {
+      ...req.user!,
+      expectedRevision: req.body?.expectedRevision,
+    });
+    if (!updated) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({
+      success: true,
+      user: serializeUser(updated),
+    });
+  }),
+);
+router.post(
+  '/admin/users/:userId/deny-admin',
+  ...auth.adminOnly,
+  asyncRoute(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    const updated = await reviewAccessRequest(userId, 'admin', 'denied', {
+      ...req.user!,
+      expectedRevision: req.body?.expectedRevision,
+    });
+    if (!updated) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({
+      success: true,
+      user: serializeUser(updated),
+    });
+  }),
+);
+const reviewRoleRequest = async (
   req: Request,
   res: Response,
   decision: 'approved' | 'denied',
@@ -578,178 +554,195 @@ const reviewRoleRequest = (
     res.status(400).json({ error: 'User ID required' });
     return;
   }
-
-  const { role } = req.body as { role?: string };
+  const { role } = req.body as {
+    role?: string;
+  };
   if (!role || !isNonAdminRole(role)) {
     res.status(400).json({ error: 'A valid role is required' });
     return;
   }
-
-  const updated = reviewAccessRequest(userId, role, decision);
+  const updated = await reviewAccessRequest(userId, role, decision, {
+    ...req.user!,
+    expectedRevision: req.body?.expectedRevision,
+  });
   if (!updated) {
     res.status(404).json({ error: 'User not found' });
     return;
   }
-
   res.json({
     success: true,
     user: serializeUser(updated),
   });
 };
-
-router.post('/admin/users/:userId/approve-role', ...auth.adminOnly, (req: Request, res: Response) => {
-  reviewRoleRequest(req, res, 'approved');
-});
-
-router.post('/admin/users/:userId/deny-role', ...auth.adminOnly, (req: Request, res: Response) => {
-  reviewRoleRequest(req, res, 'denied');
-});
-
-router.post('/admin/users/:userId/review-request', ...auth.adminOnly, (req: Request, res: Response) => {
-  const { userId } = req.params;
-  if (!userId) {
-    res.status(400).json({ error: 'User ID required' });
-    return;
-  }
-
-  const { requestType, decision } = req.body as { requestType?: string; decision?: string };
-  if (!requestType || !isAccessRequestType(requestType)) {
-    res.status(400).json({ error: 'A valid request type is required' });
-    return;
-  }
-  if (decision !== 'approved' && decision !== 'denied') {
-    res.status(400).json({ error: 'A valid decision is required' });
-    return;
-  }
-
-  const updated = reviewAccessRequest(userId, requestType, decision);
-  if (!updated) {
-    res.status(404).json({ error: 'User not found' });
-    return;
-  }
-
-  res.json({
-    success: true,
-    user: serializeUser(updated),
-  });
-});
-
-router.patch('/admin/users/:userId', ...auth.adminOnly, async (req: Request, res: Response) => {
-  const { userId } = req.params;
-  if (!userId) {
-    res.status(400).json({ error: 'User ID required' });
-    return;
-  }
-
-  if (req.user?.userId === userId) {
-    res.status(403).json({
-      error: 'Self update forbidden',
-      message: 'You cannot update your own role or access.',
-      code: 'SELF_UPDATE',
-    });
-    return;
-  }
-
-  const { roles, isAdmin, status } = req.body as {
-    roles?: string[];
-    isAdmin?: boolean;
-    status?: string;
-  };
-
-  const userRecord = getUserById(userId);
-  if (!userRecord) {
-    res.status(404).json({ error: 'User not found' });
-    return;
-  }
-
-  const requestedIsAdmin = typeof isAdmin === 'boolean' ? isAdmin : undefined;
-  const roleListFromBody = Array.isArray(roles) ? roles : undefined;
-
-  const normalizedRoleList = roleListFromBody
-    ? Array.from(new Set(roleListFromBody))
-    : undefined;
-
-  const hasInvalidRole =
-    normalizedRoleList?.some((entry) => !isNonAdminRole(entry)) ?? false;
-
-  if (hasInvalidRole) {
-    res.status(400).json({ error: 'Invalid roles' });
-    return;
-  }
-
-  const typedRoles = normalizedRoleList as NonAdminRole[] | undefined;
-  if (requestedIsAdmin && typedRoles && typedRoles.length > 0) {
-    res.status(400).json({ error: 'Admin users cannot have non-admin roles.' });
-    return;
-  }
-
-  const isValidStatus = !status || status === 'approved' || status === 'pending' || status === 'denied';
-  if (!isValidStatus) {
-    res.status(400).json({ error: 'Invalid status' });
-    return;
-  }
-
-  if (requestedIsAdmin === undefined && !typedRoles && !status) {
-    res.status(400).json({ error: 'No updates provided' });
-    return;
-  }
-
-  const nextIsAdmin = requestedIsAdmin ?? userRecord.isAdmin;
-  const nextRoles = nextIsAdmin ? [] : typedRoles ?? userRecord.roles;
-  if (!nextIsAdmin && nextRoles.length === 0) {
-    res.status(400).json({ error: 'Non-admin users must have at least one role.' });
-    return;
-  }
-
-  const nextStatus = (status as UserRecord['status'] | undefined) ?? userRecord.status;
-  const isActiveAdmin = userRecord.isAdmin && userRecord.status === 'approved';
-  const willBeActiveAdmin = nextIsAdmin && nextStatus === 'approved';
-  const activeAdmins = countActiveAdmins();
-
-  if (isActiveAdmin && !willBeActiveAdmin && activeAdmins <= 1) {
-    res.status(409).json({
-      error: 'At least one admin required',
-      message: 'You must keep at least one active admin account.',
-      code: 'LAST_ADMIN',
-    });
-    return;
-  }
-
-  const previousStatus = userRecord.status;
-  const updated = updateUserAccess(userId, {
-    isAdmin: requestedIsAdmin,
-    roles: typedRoles,
-    status: status as UserRecord['status'] | undefined,
-  });
-
-  if (!updated) {
-    res.status(404).json({ error: 'User not found' });
-    return;
-  }
-
-  if (status === 'approved' && previousStatus !== 'approved') {
-    try {
-      await sendApprovalEmail(updated.email);
-    } catch (error) {
-      logger.error('Failed to send approval email', error as Error);
+router.post(
+  '/admin/users/:userId/approve-role',
+  ...auth.adminOnly,
+  asyncRoute((req: Request, res: Response) => {
+    return reviewRoleRequest(req, res, 'approved');
+  }),
+);
+router.post(
+  '/admin/users/:userId/deny-role',
+  ...auth.adminOnly,
+  asyncRoute((req: Request, res: Response) => {
+    return reviewRoleRequest(req, res, 'denied');
+  }),
+);
+router.post(
+  '/admin/users/:userId/review-request',
+  ...auth.adminOnly,
+  asyncRoute(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    if (!userId) {
+      res.status(400).json({ error: 'User ID required' });
+      return;
     }
-  }
-
-  res.json({
-    success: true,
-    user: serializeUser(updated),
-  });
-});
-
-// Traefik ForwardAuth endpoint: access only to approved admin sessions
+    const { requestType, decision } = req.body as {
+      requestType?: string;
+      decision?: string;
+    };
+    if (!requestType || !isAccessRequestType(requestType)) {
+      res.status(400).json({ error: 'A valid request type is required' });
+      return;
+    }
+    if (decision !== 'approved' && decision !== 'denied') {
+      res.status(400).json({ error: 'A valid decision is required' });
+      return;
+    }
+    const updated = await reviewAccessRequest(userId, requestType, decision, {
+      ...req.user!,
+      expectedRevision: req.body?.expectedRevision,
+    });
+    if (!updated) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({
+      success: true,
+      user: serializeUser(updated),
+    });
+  }),
+);
+router.patch(
+  '/admin/users/:userId',
+  ...auth.adminOnly,
+  asyncRoute(async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    if (!userId) {
+      res.status(400).json({ error: 'User ID required' });
+      return;
+    }
+    if (req.user?.userId === userId) {
+      res.status(403).json({
+        error: 'Self update forbidden',
+        message: 'You cannot update your own role or access.',
+        code: 'SELF_UPDATE',
+      });
+      return;
+    }
+    const { roles, isAdmin, status } = req.body as {
+      roles?: string[];
+      isAdmin?: boolean;
+      status?: string;
+    };
+    const userRecord = await getUserById(userId);
+    if (!userRecord) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    const requestedIsAdmin = typeof isAdmin === 'boolean' ? isAdmin : undefined;
+    const roleListFromBody = Array.isArray(roles) ? roles : undefined;
+    const normalizedRoleList = roleListFromBody
+      ? Array.from(new Set(roleListFromBody))
+      : undefined;
+    const hasInvalidRole =
+      normalizedRoleList?.some((entry) => !isNonAdminRole(entry)) ?? false;
+    if (hasInvalidRole) {
+      res.status(400).json({ error: 'Invalid roles' });
+      return;
+    }
+    const typedRoles = normalizedRoleList as NonAdminRole[] | undefined;
+    if (requestedIsAdmin && typedRoles && typedRoles.length > 0) {
+      res
+        .status(400)
+        .json({ error: 'Admin users cannot have non-admin roles.' });
+      return;
+    }
+    const isValidStatus =
+      !status ||
+      status === 'approved' ||
+      status === 'pending' ||
+      status === 'denied';
+    if (!isValidStatus) {
+      res.status(400).json({ error: 'Invalid status' });
+      return;
+    }
+    if (requestedIsAdmin === undefined && !typedRoles && !status) {
+      res.status(400).json({ error: 'No updates provided' });
+      return;
+    }
+    const nextIsAdmin = requestedIsAdmin ?? userRecord.isAdmin;
+    const nextRoles = nextIsAdmin ? [] : (typedRoles ?? userRecord.roles);
+    if (!nextIsAdmin && nextRoles.length === 0) {
+      res
+        .status(400)
+        .json({ error: 'Non-admin users must have at least one role.' });
+      return;
+    }
+    const nextStatus =
+      (status as UserRecord['status'] | undefined) ?? userRecord.status;
+    const isActiveAdmin =
+      userRecord.isAdmin && userRecord.status === 'approved';
+    const willBeActiveAdmin = nextIsAdmin && nextStatus === 'approved';
+    const activeAdmins = await countActiveAdmins();
+    if (isActiveAdmin && !willBeActiveAdmin && activeAdmins <= 1) {
+      res.status(409).json({
+        error: 'At least one admin required',
+        message: 'You must keep at least one active admin account.',
+        code: 'LAST_ADMIN',
+      });
+      return;
+    }
+    const previousStatus = userRecord.status;
+    const updated = await updateUserAccess(
+      userId,
+      {
+        isAdmin: requestedIsAdmin,
+        roles: typedRoles,
+        status: status as UserRecord['status'] | undefined,
+      },
+      { ...req.user!, expectedRevision: req.body?.expectedRevision },
+    );
+    if (!updated) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (status === 'approved' && previousStatus !== 'approved') {
+      try {
+        await sendApprovalEmail(updated.email);
+      } catch (error) {
+        logger.error('mail.approval.failed');
+      }
+    }
+    res.json({
+      success: true,
+      user: serializeUser(updated),
+    });
+  }),
+);
+// Preserve the stage Traefik guard using current stored admin authority.
 router.get('/admin/forward-auth', ...auth.adminOnly, (_req: Request, res: Response) => {
   res.status(204).end();
 });
 
-router.post('/logout', (req: Request, res: Response) => {
-  clearAllCookies(req, res);
-  res.clearCookie('jwt', baseCookieOptions);
-  res.json({ success: true });
-});
-
+router.post(
+  '/logout',
+  asyncRoute(async (req: Request, res: Response) => {
+    const user = await getUserFromRequest(req);
+    if (user) await revokeUserSessions(user.userId, user.sessionVersion);
+    clearAllCookies(req, res);
+    res.clearCookie('jwt', baseCookieOptions);
+    res.json({ success: true });
+  }),
+);
 export default router;

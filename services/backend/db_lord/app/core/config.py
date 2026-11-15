@@ -56,6 +56,25 @@ class Settings(BaseSettings):
     TELEMETRY_MAX_IDS_PER_TAG: int = 5_000
     TELEMETRY_MAX_TOTAL_IDS: int = 20_000
 
+    # Staff policy. Keep workload and operator credentials distinct.
+    CONTROL_READ_TOKEN: str = ""
+    CONTROL_WRITE_TOKEN: str = ""
+    CONTROL_BOOTSTRAP_ADMIN_EMAILS: str = ""
+    LEGACY_OPERATOR_TOKEN: str = ""
+    API_TOKEN_SERVICE_TOKEN: str = ""
+
+    def legacy_capabilities_valid(self) -> bool:
+        values = [
+            self.CONTROL_READ_TOKEN,
+            self.CONTROL_WRITE_TOKEN,
+            self.LEGACY_OPERATOR_TOKEN,
+            self.API_TOKEN_SERVICE_TOKEN,
+        ]
+        configured = [v for v in values if v]
+        return len(set(configured)) == len(configured) and all(
+            v.isascii() and not any(c.isspace() for c in v) for v in configured
+        )
+
     # Misc
     ERRORS_INCLUDE_TECHNICAL_DETAILS: bool = False
     ENVIRONMENT: str = "development"

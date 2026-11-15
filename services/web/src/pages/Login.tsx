@@ -15,7 +15,9 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [signupInfoMessage, setSignupInfoMessage] = useState<string | null>(null);
+  const [signupInfoMessage, setSignupInfoMessage] = useState<string | null>(
+    null,
+  );
   useMessageToast('error', 'login-error', error);
   useLoadingToast('login-loading', isSubmitting, 'Signing you in…');
 
@@ -47,15 +49,17 @@ export function LoginPage() {
       const data = await defaultApi.login(trimmedEmail);
       if (isDirectAuthResponse(data)) {
         await refreshUser();
-        navigate('/overview', { replace: true });
         return;
       }
-      const successMessage = (data as { message?: string }).message ?? 'Check your email for the login link.';
+      const successMessage =
+        (data as { message?: string }).message ??
+        'Check your email for the login link.';
       navigate('/request-sent', {
         replace: true,
         state: {
           title: 'Check your email',
-          description: 'If your account is approved, we will send a secure login link.',
+          description:
+            'If your account is approved, we will send a secure login link.',
           message: successMessage,
           tone: 'success',
         },
@@ -65,7 +69,9 @@ export function LoginPage() {
         err instanceof Error &&
         (err as Error & { redirectToSignup?: boolean }).redirectToSignup
       ) {
-        setSignupInfoMessage(err.message || 'This email is not registered. Please sign up first.');
+        setSignupInfoMessage(
+          err.message || 'This email is not registered. Please sign up first.',
+        );
       } else {
         setError(err instanceof Error ? err.message : 'Unable to log in.');
       }
@@ -90,12 +96,17 @@ export function LoginPage() {
         <div className="w-full space-y-3">
           <p className="m-0 w-full text-center text-sm text-muted-foreground">
             Need access?{' '}
-            <Link to="/register" className="font-semibold text-foreground underline-offset-2 hover:underline">
+            <Link
+              to="/register"
+              className="font-semibold text-foreground underline-offset-2 hover:underline"
+            >
               Register here
             </Link>
             .
           </p>
-          {signupInfoMessage ? <StatusCallout tone="error" message={signupInfoMessage} /> : null}
+          {signupInfoMessage ? (
+            <StatusCallout tone="error" message={signupInfoMessage} />
+          ) : null}
         </div>
       }
     />

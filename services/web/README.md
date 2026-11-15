@@ -1,5 +1,7 @@
 # Wearables Web Frontend
 
+This feature branch keeps the existing registration, approval and email-link login flow and adds persistent staff authority. See [accounts and permissions](../../docs/accounts-and-permissions.md) for setup, scope and checks.
+
 React + Vite frontend for the Wearables platform.
 
 ## Scope

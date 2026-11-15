@@ -1,68 +1,25 @@
 # Wearables BFF
 
-Backend-for-frontend service for the Wearables web app.
+This branch keeps the existing registration, admin approval, email-link login and practitioner/researcher/admin workflows.
+Staff authority is stored in db_lord PostgreSQL, including requests, revisions, login proofs and session revocation versions.
+`USE_MOCK_DATA` changes clinical data only; it never enables in-memory staff accounts.
 
-## What It Does
+See [the branch guide](../../../docs/accounts-and-permissions.md) for the exact changes, setup, limits and verification.
 
-- Auth/session handling for web clients (cookie-based session JWT).
-- Login and registration flows (including magic-link verification).
-- User self-service endpoints (`/me`, role/admin requests).
-- Patient/case APIs used by the frontend.
-- Case-token issuance and verification.
-- Admin workflows for user/access review.
-
-## Runtime Notes
-
-- Route base is `{API_PREFIX}`.
-- Some stores are in-memory (user state, magic-link tokens, case-token metadata), so they reset on restart.
-- Patient/case data comes from mock data or external database API depending on `USE_MOCK_DATA`.
-
-## API Surface
-
-Main route groups under `{API_PREFIX}`:
-
-- Health: `/health`
-- Auth: `/login`, `/register`, `/verify-magiclink`, `/logout`
-- User: `/me`, `/request-admin`, `/request-role`
-- Patient/case: `/hospital/*`, `/patients*`, `/cases*`
-- Admin: `/admin/*`
-- Extraction: `/extraction/*`, proxied to the extraction service when `EXTRACTION_API_URL` is set
-  (Swagger UI at `/extraction/docs`). Open to researchers/admins and to their personal API tokens
-  as `Authorization: Bearer <token>`.
-- API tokens: `/researcher/api-tokens` (list, create, `/:id/revoke` own tokens) and
-  `/admin/api-tokens` (list, `/:id/revoke` any token). Only the sha256 hash is stored, in db_lord
-  (`/api-tokens`); the token is returned once when it is created.
-
-For the exact contract, use the generated OpenAPI schema in `services/packages/api-schema`.
-
-## Configuration
-
-Use `.env.example` as the source of truth for runtime variables.  
-Startup validation is enforced in `src/config.ts`.
-
-Compatibility requirement with Grafana proxy:
-
-- BFF `JWT_SECRET` must match proxy `APP_JWT_SECRET`.
-- BFF `TOKEN_ISSUER` must match proxy `APP_JWT_ISSUER`.
-
-## Local Run
-
-```bash
-npm install
-cp .env.example .env
+```sh
+npm ci
+# Configure the variables from .env.example and migrate db_lord first.
 npm run dev
 ```
 
-## Docker
+The BFF needs distinct `CONTROL_WRITE_TOKEN`, `API_TOKEN_SERVICE_TOKEN`, `DATABASE_OPERATOR_TOKEN` and a private `JWT_SECRET`.
+`DATABASE_OPERATOR_TOKEN` matches db_lord's `LEGACY_OPERATOR_TOKEN`. Production uses HTTPS browser/database URLs and a configured email sender/provider.
+The development email shortcut must be explicitly enabled and is limited to loopback URLs. Development sends no email.
 
-- Dockerfile: `services/backend/wearables-bff/Dockerfile`
+Public registration creates a pending record, never admin/approved access. `/api/login` gives a generic response unless the explicit local shortcut is active.
+Email proofs are one-use database records. Protected routes use current stored roles and approval; admin changes include the displayed record revision.
 
-## Kubernetes
+The existing case, enrollment and extraction paths remain. Fine-grained case/study policy is separate work.
+Keep extraction, database and Grafana backends private. Grafana should use this BFF's `/api/me` for current session authority.
 
-In Kubernetes, set runtime values via Helm values/Secrets for this service (not local `.env`).
-
-## Regenerate API Artifacts
-
-```bash
-npm run generate:api
-```
+Verification: `npm run typecheck`, `npm test`, and the real PostgreSQL/BFF integration test listed in the branch guide.
