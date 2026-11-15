@@ -47,6 +47,15 @@ Environment variables:
 - `DEFAULT_START`, `PATIENT_WINDOW`, `DB_LORD_TIMEOUT_SECONDS`, `FHIR_DEFAULT_MAPPING_PATH`: see `src/app/settings.py`
 
 ## Run and test
-`uv run uvicorn src.app.main:app --reload --port 8010`
+```bash
+ROOT_PATH=/api/extraction \
+EXTRACTION_INTERNAL_JWT_SECRET=dev-extraction-secret-change-me-32b \
+DB_LORD_BASE_URL=http://localhost:8000 \
+uv run uvicorn src.app.main:app --reload --port 8010
+```
+
+Then open the Swagger UI through the BFF at http://localhost:3001/api/extraction/docs, logged in as a
+researcher or admin. The secret must match the BFF's (`services/backend/wearables-bff/.env`); without
+`ROOT_PATH` the page fails with "Failed to load API definition".
 
 `uv run pytest`
