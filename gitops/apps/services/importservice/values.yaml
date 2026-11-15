@@ -1,12 +1,12 @@
 replicaCount: 1
 
 image:
-  # Built by .github/workflows/publish-images.yml. Pin a commit SHA tag at
-  # deploy time (--set image.tag=<sha>) instead of relying on latest.
+  # Keep the current Argo CD latest/Always release policy. Operators can still
+  # select a published commit SHA or digest for a coordinated pinned release.
   repository: ghcr.io/wearableanalytics/wearables-importservice
-  tag: "" # Required: published commit SHA; or set digest below.
+  tag: latest
   digest: ""
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
   type: ClusterIP

@@ -1,10 +1,9 @@
 replicaCount: 1
 
 image:
-  # Built by .github/workflows/publish-images.yml. Pin a commit SHA tag at
-  # deploy time (--set image.tag=<sha>) instead of relying on latest.
+  # Preserve the current production Argo CD image policy.
   repository: ghcr.io/wearableanalytics/wearables-bff
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   tag: "latest"
 
 service:
@@ -15,7 +14,7 @@ ingress:
   enabled: true
   host: "wearables.charite.de"
   pathPrefix: "/api"
-  httpOnly: true
+  httpOnly: false
   certificateSecretName: "wearables-tls"
 
 configMap:
@@ -27,14 +26,16 @@ env:
   API_PREFIX: "/api"
   USE_MOCK_DATA: "false"
   NODE_ENV: "production"
-  FRONTEND_ORIGINS: ""
-  FRONTEND_REDIRECT_URL: ""
-  ADMIN_EMAILS: "linus.gustafsson@tu-berlin.de,j.moehler@posteo.de,admin@lukaszsztukiewicz.com,gmsdaniilplay@gmail.com"
-  BACKEND_URL: ""
+  FRONTEND_ORIGINS: "https://wearables.charite.de"
+  FRONTEND_REDIRECT_URL: "https://wearables.charite.de/"
+  ADMIN_EMAILS: ""
+  BACKEND_URL: "https://wearables.charite.de"
   AUTH_SESSION_EXPIRY_SECONDS: "604800"
   MAGIC_LINK_EXPIRY_SECONDS: "900"
   CASE_TOKEN_EXPIRY_SECONDS: "94608000"
   TOKEN_ISSUER: "wearables-bff"
+  # The new account authority requires verified HTTPS in production. Override
+  # this legacy address with the operator's actual TLS endpoint before cutover.
   DATABASE_API_URL: "http://db-lord.db-lord.svc.cluster.local:8080"
   DATABASE_API_TIMEOUT: "30000"
   # Serves the extraction API (with Swagger UI) at /api/extraction for researchers/admins.
@@ -42,13 +43,14 @@ env:
   EXTRACTION_API_URL: "http://extraction-service.extraction-service.svc.cluster.local:8010"
   LOG_LEVEL: "info"
   MAILER_FROM_NAME: "Wearables Platform"
-  MAILER_FROM_EMAIL: "jmm123@posteo.de"
-  COOKIE_SECURE: "false"
+  MAILER_FROM_EMAIL: "noreply@wearables.charite.de"
+  COOKIE_SECURE: "true"
 
+# Operator-managed Secret: JWT_SECRET, CONTROL_WRITE_TOKEN,
+# API_TOKEN_SERVICE_TOKEN and DATABASE_OPERATOR_TOKEN. BREVO_API_KEY is optional:
+# missing/disabled leaves email login unavailable, without logging login links.
 secret:
   enabled: true
-  create: true
-  name: ""
-  data:
-    JWT_SECRET: "dev-secret"
-    BREVO_API_KEY: "key"
+  create: false
+  name: "wearables-bff-secrets"
+  data: {}

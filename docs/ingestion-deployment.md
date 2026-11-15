@@ -39,8 +39,15 @@ It does not change clinical metrics, mobile collection or the account workflow.
   retain their cluster-specific capacity, durability, TLS and ACL settings.
 - Images: build/test/publish the mapper through the existing image workflow.
   Build and runtime use Java 17; `JAVA_TOOL_OPTIONS` controls its heap with the
-  existing 3500 MiB default. Both service charts require an explicit image tag or
-  digest, rather than silently selecting the old mapper or a floating default.
+  existing 3500 MiB default. Importer, mapper and BFF keep the current production
+  `latest`/`Always` policy. Importer and mapper still accept explicit commit tags
+  or digests for a coordinated pinned release; an empty selector is rejected.
+- BFF rollout compatibility: missing/`disabled` Brevo configuration no longer
+  stops the service. New email-login requests return the same 503 for every valid
+  email before account lookup or proof creation. There is no log-link fallback
+  or production authentication bypass. Existing sessions and already-issued
+  proofs still use current database authority. Enabling delivery requires a
+  real provider key and sender, then a controlled restart.
 - Verification: add rendered Helm contract checks and real PostgreSQL migration,
   recovery and permission tests. PostgreSQL-backed regression and connected
   pipeline tests now use an unprivileged runtime login.
@@ -57,6 +64,21 @@ names, not credentials.
 | Importer | `importservice-ingestion` | `INGEST_DATABASE_URL`, `INGEST_ARCHIVE_KEY`, `INFLUXDB_TOKEN`; optional `INGEST_ARCHIVE_OLD_KEYS` |
 | Importer migration Job only | `importservice-migration` | `INGEST_DATABASE_URL` for the migration authority |
 | Importer and mapper, in each release namespace | `ingestion-signing` | `INGEST_SIGNING_KEY`, with the same value in both namespaces |
+| BFF | `wearables-bff-secrets` | `JWT_SECRET`, `CONTROL_WRITE_TOKEN`, `API_TOKEN_SERVICE_TOKEN`, `DATABASE_OPERATOR_TOKEN`; optional `BREVO_API_KEY` |
+
+The BFF chart references this existing Secret by default and creates no embedded
+credentials. Match `CONTROL_WRITE_TOKEN` and `API_TOKEN_SERVICE_TOKEN` to the
+database authority; `DATABASE_OPERATOR_TOKEN` matches its `LEGACY_OPERATOR_TOKEN`.
+Use distinct strong credentials. The JWT issuer/key must also match the importer
+and the intended session consumers. Configure the permitted bootstrap admins
+explicitly; no personal email allowlist is shipped as the BFF chart default.
+
+The inherited BFF requires verified HTTPS for its private account-authority API.
+Operators must override the legacy plaintext `env.DATABASE_API_URL` with their
+actual TLS endpoint and valid trust before account cutover. This endpoint is
+not provisioned or guessed here. `COOKIE_SECURE=true`, HTTPS browser URLs and
+the existing credential/permission checks remain required. Missing credentials
+or plaintext authority still fail closed; disabling email does not relax them.
 
 The archive and signing keys must be distinct base64-encoded 32-byte keys.
 Only the importer receives the archive key. `INFLUXDB_TOKEN` must have READ
@@ -88,17 +110,25 @@ migration authority unavailable to the normal importer Pod.
 
 1. Review the parent account and reliable-ingestion changes. Provision the
    database roles, database/TLS access, matching signing Secrets, archive keys,
-   bucket read token and Kafka topic/ACL configuration.
+   bucket read token, BFF workload credentials/private HTTPS authority and Kafka
+   topic/ACL configuration. Carl/Tom manage the cluster-side inputs. Coordinate
+   Argo CD auto-sync before any merge/cutover: creating Secrets after a merge is
+   safe only while the affected workloads remain held inactive. This PR does
+   not install Secrets, disable auto-sync, merge or deploy.
 2. Integrate the intended mapper binary and mapping changes into one release.
    [#114](https://github.com/WearableAnalytics/Wearables-Merged/pull/114) adds
    `normalizeTimestamp`; use its updated binary and all matching YAML changes
    together. Do not mount that transformation into an older mapper. Carl's
    [#112](https://github.com/WearableAnalytics/Wearables-Merged/pull/112) currently
    includes that mobile work. This branch does not duplicate their mobile commits.
-3. Build the release images through `Publish service images`. Choose the
-   published commit SHA tag or image digest explicitly in both charts. Render
-   the charts from the same release source. PR checks build images without
-   publishing them; the workflow publishes only on `main` or an explicit run.
+3. Build the matching release images through `Publish service images`. The
+   default charts use `latest` with `Always`, matching current main. Wait for
+   the matching importer/mapper images and mapping before controlled sync and
+   restart. A mutable tag alone does not restart an existing Pod; `Always`
+   applies when a container starts. Operators can instead select published SHA
+   tags or digests. Render from the same release source. PR checks build without
+   publishing; only main or an explicit workflow run publishes. This PR does
+   not trigger an image publication or production rollout.
 4. Complete the schema/grant Job before the receipt-backed pipeline is enabled.
    The Helm importer hook blocks its install/upgrade until the Job succeeds.
    For the first cross-service cutover, run that Job as a separate controlled
@@ -110,7 +140,14 @@ migration authority unavailable to the normal importer Pod.
    release the updated mobile app. A client-generated receipt or legacy HTTP 200
    does not prove server-side archival.
 
-For rendering only, substitute a built release tag:
+For rendering only, the defaults now work without image overrides:
+
+```sh
+helm template importservice gitops/apps/services/importservice --namespace importservice
+helm template mapper-validator gitops/apps/services/mapper-validator --namespace kafka
+```
+
+To review a pinned release instead, substitute a built release tag:
 
 ```sh
 helm template importservice gitops/apps/services/importservice --namespace importservice --set image.tag=RELEASE_SHA
@@ -186,3 +223,25 @@ test, Kubernetes rollout verification, load testing or operator approval.
 
 No production deployment is part of this branch. Operator secrets, TLS/ACL
 settings and the clinical mapping work in #115–#118 remain separate inputs/work.
+
+## Review follow-up on 2026-11-15
+
+Addressed [Carl's PR #119 comment](https://github.com/WearableAnalytics/Wearables-Merged/pull/119#issuecomment-6896724181):
+
+1. Restored current main's `latest`/`Always` defaults for importer, migration,
+   mapper and BFF while retaining importer/mapper tag/digest overrides.
+2. Allowed production startup with email disabled. New login requests receive
+   503 without account lookup, proof creation, session issuance or secret logs.
+   Verified configured delivery with a mocked provider, and retained production
+   HTTPS/cookie/credential rules.
+3. Aligned the BFF chart's public HTTPS settings and existing-Secret references,
+   removed old placeholder credentials/default personal admins, and documented
+   the remaining operator Secret, database TLS and cutover inputs above.
+4. Added CI execution of BFF types/tests plus a rendered-BFF-to-runtime check.
+
+Local verification: 21 BFF tests and TypeScript checks passed; 44 importer/Helm
+checks passed. The 26 PostgreSQL-dependent checks were skipped locally and run
+in the existing CI database job. No archive, Java processing or database SQL
+changed in this follow-up. Helm lint, Ruff, actionlint and whitespace checks
+passed. All local HTTP servers used by the tests closed after completion.
+This is configuration/code verification, not a cluster rollout test.

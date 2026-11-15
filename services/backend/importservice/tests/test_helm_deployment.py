@@ -1,6 +1,7 @@
 """Rendered deployment contracts across importer, mapper and Kafka charts."""
 
 import base64
+import json
 import os
 import shutil
 import subprocess
@@ -116,11 +117,66 @@ def test_deployed_mapping_preserves_separate_participant_and_collector():
 
 
 @pytest.mark.parametrize("chart", ["services/importservice", "services/mapper-validator"])
-def test_images_require_explicit_release_and_support_digest(chart):
-    assert "Set image.tag" in render(chart, image=False, success=False)
+def test_default_images_preserve_argocd_latest_always_policy(chart):
+    documents = render(chart, image=False)
+    runtime = container(resource(documents, "Deployment"))
+    assert runtime["image"].endswith(":latest")
+    assert runtime["imagePullPolicy"] == "Always"
+    if "importservice" in chart:
+        assert container(resource(documents, "Job"))["image"] == runtime["image"]
+        assert container(resource(documents, "Job"))["imagePullPolicy"] == "Always"
+
+
+@pytest.mark.parametrize("chart", ["services/importservice", "services/mapper-validator"])
+def test_images_still_support_pinned_tags_digests_and_reject_empty_selectors(chart):
+    pinned = container(resource(render(chart), "Deployment"))
+    assert pinned["image"].endswith(":review-commit")
+    assert "Set image.tag" in render(chart, "--set", "image.tag=", image=False, success=False)
     digest = "sha256:" + "a" * 64
     documents = render(chart, "--set", "image.digest=" + digest, image=False)
     assert container(resource(documents, "Deployment"))["image"].endswith("@" + digest)
+
+
+def test_bff_uses_existing_secret_without_embedded_credentials_and_keeps_browser_security():
+    documents = render("services/wearables-bff", image=False)
+    assert not any(d["kind"] == "Secret" for d in documents)
+    runtime = container(resource(documents, "Deployment"))
+    assert runtime["image"].endswith(":latest")
+    assert runtime["imagePullPolicy"] == "Always"
+    assert {"secretRef": {"name": "wearables-bff-secrets"}} in runtime["envFrom"]
+    config = resource(documents, "ConfigMap")["data"]
+    assert config["COOKIE_SECURE"] == "true"
+    for key in ("BACKEND_URL", "FRONTEND_REDIRECT_URL", "FRONTEND_ORIGINS"):
+        assert config[key].startswith("https://")
+    for key in ("JWT_SECRET", "CONTROL_WRITE_TOKEN", "API_TOKEN_SERVICE_TOKEN", "DATABASE_OPERATOR_TOKEN", "BREVO_API_KEY"):
+        assert key not in config
+
+
+def test_operator_configured_bff_chart_starts_in_production_with_email_disabled():
+    documents = render(
+        "services/wearables-bff", "--set", "env.DATABASE_API_URL=https://authority.example.test", image=False
+    )
+    bff = ROOT / "services/backend/wearables-bff"
+    environment = {
+        **os.environ, **resource(documents, "ConfigMap")["data"],
+        "BREVO_API_KEY": "disabled",
+        "JWT_SECRET": "synthetic-rendered-production-jwt-at-least-32",
+        "CONTROL_WRITE_TOKEN": "synthetic-rendered-control-writer",
+        "API_TOKEN_SERVICE_TOKEN": "synthetic-rendered-api-token-service",
+        "DATABASE_OPERATOR_TOKEN": "synthetic-rendered-database-operator-32",
+        "ALLOW_DEV_AUTH_BYPASS": "false",
+    }
+    script = (
+        "const {config}=await import('./src/config.ts');"
+        "console.log(JSON.stringify({production:config.isProduction,"
+        "email:config.emailDeliveryEnabled,secureCookie:config.cookieSecure,bypass:config.devAuthBypass}));"
+    )
+    result = subprocess.run(
+        ["node", "--import", "tsx", "--input-type=module", "-e", script],
+        cwd=bff, env=environment, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {"production": True, "email": False, "secureCookie": True, "bypass": False}
 
 
 @pytest.mark.parametrize("chart", ["services/importservice", "services/mapper-validator"])

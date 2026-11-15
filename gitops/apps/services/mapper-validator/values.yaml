@@ -20,9 +20,10 @@ envs:
 
 image:
   repository: ghcr.io/wearableanalytics/wearables-mapper-validator
-  tag: "" # Required: same built release as the mounted mapping configuration.
+  # Match the current Argo CD policy; release the matching binary and YAML together.
+  tag: latest
   digest: ""
-  imagePullPolicy: IfNotPresent
+  imagePullPolicy: Always
 
 signingSecret:
   name: ingestion-signing # Same signing value as importer; never its archive key.
