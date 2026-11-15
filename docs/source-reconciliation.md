@@ -120,3 +120,26 @@ automation, credentials and release orchestration are outside this change.
 References:
 - https://developer.android.com/health-and-fitness/health-connect/aggregate-data
 - https://developer.apple.com/documentation/healthkit/hkstatistics
+
+## Grafana review follow-up on 15 November 2026
+
+The mapper's `source-device-id` identifies the uploader. The FHIR
+`device-id-reference=Patient/<id>` identifies the participant. The existing
+production/local Telegraf processor derives a participant-only `device-id`
+compatibility tag, so dashboards must not substitute the uploader tag.
+
+Both patient dashboards now explicitly execute their raw InfluxQL queries.
+Previously their stored query text included source filters/grouping, but
+`rawQuery=false` made Grafana use older builder fields instead. The six-minute
+builder also had reference-tag filters without the required `Patient/` prefix.
+The builder's retained identity field now matches the compatibility tag; the
+visible variable is labeled Participant ID. Existing panel layouts remain.
+
+Verification: all 52 panel queries are checked for participant/source filters
+and source grouping. An isolated Docker test runs the actual rendered Helm
+Starlark processor and executes each dashboard's heart-rate/variable queries
+against InfluxDB 2.7. It checks two participants using the same uploader,
+separate sources, historical participant tags and historical records without
+source keys. Both tests passed locally. A dedicated build-only workflow runs
+these checks on PRs and shared stage/main changes. No real health data or
+production Grafana configuration was read or changed.

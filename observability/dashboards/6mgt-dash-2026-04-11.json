@@ -117,7 +117,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT sum(\"value\") FROM \"steps\" WHERE \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ AND time >= now() - 1d GROUP BY \"source-key\"",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -136,7 +136,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -222,7 +222,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT sum(\"value\") FROM \"steps\" WHERE \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ AND time >= now() - 1d GROUP BY \"source-key\"",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -377,7 +377,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT mean(\"value\") FROM \"heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -396,7 +396,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -545,7 +545,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT mean(\"value\") FROM \"heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -564,7 +564,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -681,7 +681,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT mean(\"value\") FROM \"heart-rate-variability\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -700,7 +700,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -797,7 +797,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT last(\"value\") FROM \"resting-heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\"",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -816,7 +816,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -913,7 +913,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT last(\"value\") FROM \"heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\"",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -932,7 +932,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -1052,7 +1052,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT mean(\"value\") FROM \"blood-oxygen\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -1182,7 +1182,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT mean(\"value\") FROM \"respiratory-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -1201,7 +1201,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -1318,7 +1318,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT mean(\"value\") FROM \"walking-heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -1337,7 +1337,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -1477,7 +1477,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT sum(\"value\")\nFROM \"steps\"\nWHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/\nGROUP BY \"source-key\", time(1d) fill(0)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -1496,7 +1496,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -1590,7 +1590,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT sum(\"value\") FROM \"steps\" WHERE \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ AND time >= now() - 1d GROUP BY \"source-key\"",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -1609,7 +1609,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -1799,7 +1799,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT sum(\"value\") / 1000 FROM \"distance-walking-running\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -1818,7 +1818,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -1848,7 +1848,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT sum(\"value\") / 1000 FROM \"distance-cycling\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series",
           "select": [
@@ -1979,7 +1979,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT sum(\"value\") / 60 FROM \"exercise-time\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -1998,7 +1998,7 @@
           ],
           "tags": [
             {
-              "key": "device-id-reference::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -2160,7 +2160,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT sum(\"value\") FROM \"basal-energy-burned\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series",
           "select": [
@@ -2203,7 +2203,7 @@
           "orderByTime": "ASC",
           "policy": "default",
           "query": "SELECT sum(\"value\") FROM \"active-energy-burned\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
-          "rawQuery": false,
+          "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series",
           "select": [
@@ -2222,7 +2222,7 @@
           ],
           "tags": [
             {
-              "key": "device-id::tag",
+              "key": "device-id",
               "operator": "=~",
               "value": "/^$deviceId$/"
             }
@@ -2409,7 +2409,7 @@
         },
         "definition": "SHOW TAG VALUES FROM \"heart-rate\" WITH KEY = \"device-id\"",
         "includeAll": true,
-        "label": "Device / User ID",
+        "label": "Participant ID",
         "multi": true,
         "name": "deviceId",
         "options": [],
@@ -2417,7 +2417,8 @@
         "refresh": 2,
         "regex": "",
         "sort": 1,
-        "type": "query"
+        "type": "query",
+        "description": "Participant identifier. The pipeline retains device-id as a compatibility alias for Patient/<id>; source-device-id identifies the uploader, not the participant."
       },
       {
         "name": "sourceKey",
