@@ -13,7 +13,7 @@ not deploy a staging environment or change the production Argo CD revision.
 | ingestion-deployment | 88d3751 | Runtime/migration wiring, latest/Always, explicit internal HTTP and temporary operator login delivery |
 | ingestion-source-contract | b5297e9 | Native source metadata and fractional duration compatibility |
 | measurement-mapping | a372662 | Numeric meaning, units, periods, validation and synchronized mappings |
-| source-reconciliation | 9bece23 | Native provenance, separate/select/priority policies and source-aware views/exports |
+| source-reconciliation | 6554d68 | Native provenance, separate/select/priority policies and source-aware views/exports |
 
 All six heads remain in the integration history. The feature branches are not
 rewritten or deleted. Other members' unmerged feature branches are not included.
@@ -51,6 +51,11 @@ rewritten or deleted. Other members' unmerged feature branches are not included.
   uses the restricted service-DNS exception above. Compose publishes only on
   host loopback. Secure browser cookies and authority checks remain required.
 
+- Patient dashboards now execute their raw InfluxQL queries, including the
+  participant alias and source filters/grouping. A separate check runs the
+  actual Helm Starlark processor and dashboard queries against isolated InfluxDB,
+  covering shared uploaders, separate patients/sources and legacy points.
+
 ## Verification on 15 November 2026
 
 - Flutter 3.47.9 with the committed lockfile: 42 tests passed.
@@ -63,6 +68,7 @@ rewritten or deleted. Other members' unmerged feature branches are not included.
 - Mapper: 23 Java tests and packaging passed. Web production build passed.
 - Ingestion contracts, migrations and real Kafka/Java/Telegraf/InfluxDB checks
   passed. The connected test retains native IDs and fractional sleep intervals.
+- Two Grafana query/identity tests passed with rendered Telegraf and real InfluxDB.
 - All eight application images built locally. The complete core Compose stack
   started with its setup/migration jobs and synthetic data only.
 - The running-stack smoke check verified UI delivery, approved sign-in, case
