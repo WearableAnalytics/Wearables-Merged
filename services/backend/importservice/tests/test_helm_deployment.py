@@ -153,9 +153,7 @@ def test_bff_uses_existing_secret_without_embedded_credentials_and_keeps_browser
 
 
 def test_operator_configured_bff_chart_starts_in_production_with_email_disabled():
-    documents = render(
-        "services/wearables-bff", "--set", "env.DATABASE_API_URL=https://authority.example.test", image=False
-    )
+    documents = render("services/wearables-bff", image=False)
     bff = ROOT / "services/backend/wearables-bff"
     environment = {
         **os.environ, **resource(documents, "ConfigMap")["data"],
@@ -169,14 +167,16 @@ def test_operator_configured_bff_chart_starts_in_production_with_email_disabled(
     script = (
         "const {config}=await import('./src/config.ts');"
         "console.log(JSON.stringify({production:config.isProduction,"
-        "email:config.emailDeliveryEnabled,secureCookie:config.cookieSecure,bypass:config.devAuthBypass}));"
+        "email:config.emailDeliveryEnabled,secureCookie:config.cookieSecure,bypass:config.devAuthBypass,"
+        "operatorLog:config.operatorMagicLinkLogging,proofTtl:config.magicLinkExpirySeconds}));"
     )
     result = subprocess.run(
         ["node", "--import", "tsx", "--input-type=module", "-e", script],
         cwd=bff, env=environment, capture_output=True, text=True, check=False,
     )
     assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout) == {"production": True, "email": False, "secureCookie": True, "bypass": False}
+    assert json.loads(result.stdout) == {"production": True, "email": False, "secureCookie": True, "bypass": False,
+                                         "operatorLog": True, "proofTtl": 300}
 
 
 @pytest.mark.parametrize("chart", ["services/importservice", "services/mapper-validator"])
@@ -198,3 +198,10 @@ def test_kafka_transport_credentials_are_secret_references(chart, key):
     deploy = resource(render(chart, "--set", "kafkaSecuritySecret.name=kafka-transport"), "Deployment")
     entry = next(e for e in container(deploy)["env"] if e["name"] == key)
     assert entry["valueFrom"]["secretKeyRef"] == {"name": "kafka-transport", "key": key}
+
+
+def test_grafana_proxy_wires_current_authority_over_explicit_private_http():
+    documents = render("monitoring/grafana-proxy", image=False)
+    config = resource(documents, "ConfigMap")["data"]
+    assert config["AUTH_API_URL"] == "http://wearables-bff.wearables-bff.svc.cluster.local:3001/api/me"
+    assert config["ALLOW_PRIVATE_AUTHORITY_HTTP"] == "true"

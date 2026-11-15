@@ -149,3 +149,17 @@ test('Grafana WebSocket upgrades require current authority and close after revoc
     await Promise.all([new Promise<void>(resolve => auth.close(() => resolve())), new Promise<void>(resolve => upstream.close(() => resolve()))]);
   }
 });
+
+test('production authority HTTP requires an explicit flag and a Kubernetes service name', async () => {
+  const {spawnSync}=await import('node:child_process');
+  for(const [url,flag,accepted] of [
+    ['http://wearables-bff.wearables-bff.svc.cluster.local:3001/api/me','true',true],
+    ['http://wearables-bff.wearables-bff.svc.cluster.local:3001/api/me','false',false],
+    ['http://public.example.test/api/me','true',false],
+    ['http://wearables-bff.wearables-bff.svc.cluster.local.attacker.test/api/me','true',false],
+  ]) {
+    const result=spawnSync(process.execPath,['--import','tsx','--input-type=module','-e',"await import('./src/config.ts')"],
+      {env:{...process.env,NODE_ENV:'production',AUTH_API_URL:String(url),ALLOW_PRIVATE_AUTHORITY_HTTP:String(flag)},encoding:'utf8'});
+    assert.equal(result.status===0,accepted,String(url));
+  }
+});

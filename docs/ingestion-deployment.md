@@ -42,12 +42,20 @@ It does not change clinical metrics, mobile collection or the account workflow.
   existing 3500 MiB default. Importer, mapper and BFF keep the current production
   `latest`/`Always` policy. Importer and mapper still accept explicit commit tags
   or digests for a coordinated pinned release; an empty selector is rejected.
-- BFF rollout compatibility: missing/`disabled` Brevo configuration no longer
-  stops the service. New email-login requests return the same 503 for every valid
-  email before account lookup or proof creation. There is no log-link fallback
-  or production authentication bypass. Existing sessions and already-issued
-  proofs still use current database authority. Enabling delivery requires a
-  real provider key and sender, then a controlled restart.
+- BFF rollout compatibility: missing/`disabled` Brevo no longer stops the service.
+  The chart explicitly enables temporary operator log-link delivery to retain
+  the cluster's current login workflow. Links remain approval-gated, random,
+  database-backed, hash-stored and single-use, with a maximum five-minute TTL.
+  No session is issued until a valid proof is consumed. Normal origin checks,
+  attempt limits, current account authority and session revocation still apply.
+  A configured Brevo key automatically replaces log-link delivery with email.
+  Without either delivery mode, new logins receive a uniform 503 before lookup.
+- Internal authority transport: preserve existing Kubernetes service HTTP with
+  explicit `ALLOW_PRIVATE_AUTHORITY_HTTP=true` in BFF and Grafana proxy charts.
+  The exception accepts only service/namespace `.svc[.cluster.local]` names;
+  public HTTP addresses and embedded URL credentials are rejected. The Grafana
+  proxy checks current authority through the BFF's private `/api/me` endpoint.
+  This does not provision an internal CA or encrypt these private connections.
 - Verification: add rendered Helm contract checks and real PostgreSQL migration,
   recovery and permission tests. PostgreSQL-backed regression and connected
   pipeline tests now use an unprivileged runtime login.
@@ -73,12 +81,24 @@ Use distinct strong credentials. The JWT issuer/key must also match the importer
 and the intended session consumers. Configure the permitted bootstrap admins
 explicitly; no personal email allowlist is shipped as the BFF chart default.
 
-The inherited BFF requires verified HTTPS for its private account-authority API.
-Operators must override the legacy plaintext `env.DATABASE_API_URL` with their
-actual TLS endpoint and valid trust before account cutover. This endpoint is
-not provisioned or guessed here. `COOKIE_SECURE=true`, HTTPS browser URLs and
-the existing credential/permission checks remain required. Missing credentials
-or plaintext authority still fail closed; disabling email does not relax them.
+The current cluster's db-lord serves HTTP. The BFF chart keeps
+`http://db-lord.db-lord.svc.cluster.local:8080` and explicitly enables private
+service HTTP. Grafana uses the BFF service in the same way. This assumes a trusted
+cluster network; an internal observer could see workload credentials and data.
+Keep these services internal and restrict network access. Operators can use an
+actual HTTPS endpoint with valid trust and turn off the flag when that transport
+is available; no internal CA change is required by this PR. Public browser and
+login-link URLs remain HTTPS and cookies remain secure.
+
+`ALLOW_OPERATOR_MAGIC_LINK_LOGGING=true` in this chart is temporary compatibility,
+not verified email ownership. Anyone who can read an unused log link can sign in
+as that approved account. Restrict BFF log and log-archive access accordingly.
+The structured `mail.magic_link.operator` entry contains the URL and expiry, not
+the recipient email; it is emitted even at `LOG_LEVEL=error`. Registration still
+requires admin approval. The underlying proof expires within five minutes, can
+be consumed once and is invalidated by authority changes. Disable the flag after
+Brevo is restored and remove expired credential log entries under the operators'
+log-retention policy. Code defaults both compatibility flags to false.
 
 The archive and signing keys must be distinct base64-encoded 32-byte keys.
 Only the importer receives the archive key. `INFLUXDB_TOKEN` must have READ
@@ -110,7 +130,7 @@ migration authority unavailable to the normal importer Pod.
 
 1. Review the parent account and reliable-ingestion changes. Provision the
    database roles, database/TLS access, matching signing Secrets, archive keys,
-   bucket read token, BFF workload credentials/private HTTPS authority and Kafka
+   bucket read token, BFF workload credentials/private service authority and Kafka
    topic/ACL configuration. Carl/Tom manage the cluster-side inputs. Coordinate
    Argo CD auto-sync before any merge/cutover: creating Secrets after a merge is
    safe only while the affected workloads remain held inactive. This PR does
@@ -224,7 +244,7 @@ test, Kubernetes rollout verification, load testing or operator approval.
 No production deployment is part of this branch. Operator secrets, TLS/ACL
 settings and the clinical mapping work in #115–#118 remain separate inputs/work.
 
-## Review follow-up on 2026-11-15
+## Initial review follow-up on 2026-11-15 (superseded below)
 
 Addressed [Carl's PR #119 comment](https://github.com/WearableAnalytics/Wearables-Merged/pull/119#issuecomment-6896724181):
 
@@ -245,3 +265,21 @@ in the existing CI database job. No archive, Java processing or database SQL
 changed in this follow-up. Helm lint, Ruff, actionlint and whitespace checks
 passed. All local HTTP servers used by the tests closed after completion.
 This is configuration/code verification, not a cluster rollout test.
+
+## Cluster compatibility follow-up on 2026-11-15
+
+Addressed [Carl's next review](https://github.com/WearableAnalytics/Wearables-Merged/pull/119#issuecomment-6898216362).
+The initial 503-only/mandatory private HTTPS configuration above is superseded
+by the explicit private-HTTP and operator log-link modes described in Changes
+and Required operator inputs. Existing `latest`/`Always` defaults remain.
+
+Local checks: 24 BFF tests plus typecheck, eight Grafana proxy tests plus
+TypeScript checks, and 15 rendered Helm checks passed. Regression checks include
+flag defaults, public HTTP rejection, actual default chart configuration loading,
+proof hash/authority binding, five-minute TTL, approval and admission checks,
+no link in the public response, configured email precedence and current Grafana
+authority/WebSocket revocation. Provider calls are mocked; no real email or
+production login proof was created. Full PostgreSQL checks run in CI.
+
+No cluster resources, certificate authority, production images or main branch
+were changed. Carl/Tom still provide credentials, migrations and rollout control.

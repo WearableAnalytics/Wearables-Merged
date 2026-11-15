@@ -15,10 +15,12 @@ on:
       - "services/backend/extraction-service/**"
       - "services/backend/importservice/**"
       - "services/backend/fhir-mapper-validator/**"
+      - "services/backend/grafana-proxy/**"
       - "services/web/**"
       - "gitops/apps/services/importservice/**"
       - "gitops/apps/services/mapper-validator/**"
       - "gitops/apps/services/wearables-bff/**"
+      - "gitops/apps/monitoring/grafana-proxy/**"
       - "gitops/apps/platform/kafka/**"
       - ".github/workflows/publish-images.yml"
   pull_request:
@@ -28,10 +30,12 @@ on:
       - "services/backend/extraction-service/**"
       - "services/backend/importservice/**"
       - "services/backend/fhir-mapper-validator/**"
+      - "services/backend/grafana-proxy/**"
       - "services/web/**"
       - "gitops/apps/services/importservice/**"
       - "gitops/apps/services/mapper-validator/**"
       - "gitops/apps/services/wearables-bff/**"
+      - "gitops/apps/monitoring/grafana-proxy/**"
       - "gitops/apps/platform/kafka/**"
       - ".github/workflows/publish-images.yml"
   workflow_dispatch:
@@ -76,10 +80,16 @@ jobs:
       - name: Install BFF check dependencies
         working-directory: services/backend/wearables-bff
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Verify BFF types and disabled-email behavior
+      - name: Verify BFF authority and login delivery modes
         working-directory: services/backend/wearables-bff
         run: |
           npm run typecheck
+          npm test
+      - name: Verify Grafana current-authority configuration
+        working-directory: services/backend/grafana-proxy
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install tsc --noEmit
           npm test
       - name: Install check dependencies
         run: python -m pip install -r requirements.txt pytest pytest-asyncio ruff pyyaml
@@ -104,6 +114,8 @@ jobs:
             context: services/backend/importservice
           - image: wearables-mapper-validator
             context: services/backend/fhir-mapper-validator
+          - image: wearables-grafana-proxy
+            context: services/backend/grafana-proxy
           - image: wearables-web
             context: services/web
     steps:

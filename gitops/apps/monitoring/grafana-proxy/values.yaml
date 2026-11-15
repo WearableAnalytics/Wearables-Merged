@@ -32,6 +32,9 @@ ingress:
   certificateSecretName: "wearables-tls"
 
 session:
+  # Current authority is checked through the BFF on every protected request.
+  authApiUrl: "http://wearables-bff.wearables-bff.svc.cluster.local:3001/api/me"
+  allowPrivateAuthorityHttp: true
   # Expected issuer of wearables-bff case tokens used as /embed deviceId
   jwtIssuer: "wearables-bff"
 

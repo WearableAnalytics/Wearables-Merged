@@ -142,10 +142,10 @@ const extractionApiUrl = extractionApiUrlRaw?.replace(/\/$/, '');
 const authSessionExpirySeconds = requirePositiveIntEnv(
   'AUTH_SESSION_EXPIRY_SECONDS',
 );
-const magicLinkExpirySeconds = requirePositiveIntEnv(
+const requestedMagicLinkExpirySeconds = requirePositiveIntEnv(
   'MAGIC_LINK_EXPIRY_SECONDS',
 );
-if (magicLinkExpirySeconds > 3600)
+if (requestedMagicLinkExpirySeconds > 3600)
   throw new Error('MAGIC_LINK_EXPIRY_SECONDS must not exceed 3600.');
 // Case tokens are what phones upload with, so they stay valid for 3 years by default.
 const DEFAULT_CASE_TOKEN_EXPIRY_SECONDS = 3 * 365 * 24 * 60 * 60;
@@ -204,6 +204,11 @@ const brevoApiKeyRaw = optionalEnv('BREVO_API_KEY');
 const brevoApiKey =
   brevoApiKeyRaw && brevoApiKeyRaw !== 'disabled' ? brevoApiKeyRaw : undefined;
 const emailDeliveryEnabled = isProduction && Boolean(brevoApiKey);
+const operatorMagicLinkLogging = isProduction && !emailDeliveryEnabled &&
+  parseBooleanStrict(optionalEnv('ALLOW_OPERATOR_MAGIC_LINK_LOGGING') ?? 'false', 'ALLOW_OPERATOR_MAGIC_LINK_LOGGING');
+// Log readers can use an unused link. Bound this temporary delivery mode to five minutes.
+const magicLinkExpirySeconds = operatorMagicLinkLogging
+  ? Math.min(requestedMagicLinkExpirySeconds, 300) : requestedMagicLinkExpirySeconds;
 
 if (emailDeliveryEnabled && !mailerFromName) {
   throw new Error(
@@ -223,9 +228,9 @@ if (emailDeliveryEnabled && mailerFromEmail && !mailerFromEmail.includes('@')) {
   );
 }
 
-// Email may be temporarily disabled during rollout. Keep the service available,
-// but do not issue login proofs, bypass authentication or expose links in logs.
-if (isProduction && !emailDeliveryEnabled)
+if (operatorMagicLinkLogging)
+  console.warn('Temporary operator login-link logging is enabled. Restrict access to these credential logs.');
+else if (isProduction && !emailDeliveryEnabled)
   console.warn('Email sign-in is unavailable: email delivery is disabled.');
 
 if (
@@ -245,8 +250,14 @@ if (
   throw new Error(
     'Set a distinct DATABASE_OPERATOR_TOKEN of at least 32 characters.',
   );
-if (isProduction && new URL(databaseApiUrl).protocol !== 'https:')
-  throw new Error('Production account authority must use HTTPS.');
+const allowPrivateAuthorityHttp = parseBooleanStrict(
+  optionalEnv('ALLOW_PRIVATE_AUTHORITY_HTTP') ?? 'false', 'ALLOW_PRIVATE_AUTHORITY_HTTP');
+const authorityUrl = new URL(databaseApiUrl);
+const isClusterService = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.svc(?:\.cluster\.local)?$/.test(authorityUrl.hostname);
+if (authorityUrl.username || authorityUrl.password ||
+    (isProduction && authorityUrl.protocol !== 'https:' &&
+      !(allowPrivateAuthorityHttp && authorityUrl.protocol === 'http:' && isClusterService)))
+  throw new Error('Production account authority must use HTTPS or explicitly enabled Kubernetes service HTTP.');
 const trustedProxyCidrs = parseCsv(optionalEnv('TRUSTED_PROXY_CIDRS') ?? '');
 if (
   trustedProxyCidrs.some(
@@ -257,7 +268,7 @@ if (
     'TRUSTED_PROXY_CIDRS must contain only explicit IP addresses/CIDRs.',
   );
 
-if (magicLinkExpirySeconds > 3600)
+if (requestedMagicLinkExpirySeconds > 3600)
   throw new Error('Email links must expire within 3600 seconds.');
 if (
   devAuthBypass &&
@@ -287,6 +298,8 @@ export const config = {
   mailerFromEmail,
   brevoApiKey,
   emailDeliveryEnabled,
+  operatorMagicLinkLogging,
+  allowPrivateAuthorityHttp,
   frontendOrigins,
   frontendRedirectUrl,
   backendUrl,
