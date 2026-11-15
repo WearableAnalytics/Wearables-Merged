@@ -154,7 +154,7 @@ final class NumericMeasurementNormalizer {
         if (input.equals(target)) return value;
         return switch (target) {
             case "/min" -> switch (unit) {
-                case "BEATS_PER_MINUTE", "COUNT_PER_MINUTE", "BREATHS_PER_MINUTE", "BPM", "BREATHS/MIN" -> value;
+                case "BEATS_PER_MINUTE", "COUNT_PER_MINUTE", "BREATHS_PER_MINUTE", "RESPIRATIONS_PER_MINUTE", "BPM", "BREATHS/MIN" -> value;
                 default -> incompatible(input, target);
             };
             case "1" -> switch (unit) {
@@ -162,7 +162,7 @@ final class NumericMeasurementNormalizer {
                 default -> incompatible(input, target);
             };
             case "ms" -> switch (unit) {
-                case "MILLISECOND" -> value;
+                case "MILLISECOND", "MILLISECONDS" -> value;
                 case "SECOND", "S" -> value * 1000;
                 default -> incompatible(input, target);
             };

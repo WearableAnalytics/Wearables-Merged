@@ -72,3 +72,15 @@ References:
 - https://loinc.org/93830-8/
 - https://hl7.org/fhir/R4/observation-vitalsigns.html
 - https://hl7.org/fhir/R4/observation.html
+
+## Review follow-up on 15 November 2026
+
+Accepted Garmin's existing `RESPIRATIONS_PER_MINUTE` and `MILLISECONDS` unit
+names in the numeric mapper. Output remains canonical `/min` and `ms`, with no
+value scaling for these aliases. The original input unit remains in line
+protocol. Garmin's publisher and the canonical metric codes are unchanged.
+A regression maps both actual provider spellings, validates the FHIR output,
+checks retained input units, and rejects use of either unit for the other metric.
+All 13 Java tests and mapper packaging passed. The only conflict with current
+main was the UUID string format; retained main's equivalent interpolation form.
+No main/production merge or provider-device test was performed.

@@ -80,6 +80,34 @@ class MeasurementContractTest {
                 () -> mapper.mapFhir(input("cumulative", "STEPS", -1, "COUNT").toString()));
     }
 
+    @Test void acceptsGarminRespirationAndHrvUnitsWithoutChangingValues() {
+        Validator.initiliazeFhirValidator(0);
+        for (String[] example : List.of(
+                new String[]{"RESPIRATORY_RATE", "RESPIRATIONS_PER_MINUTE", "/min", "76528-9"},
+                new String[]{"HEART_RATE_VARIABILITY_RMSSD", "MILLISECONDS", "ms", "hrv-rmssd"})) {
+            double value = example[0].equals("RESPIRATORY_RATE") ? 15.5 : 42.25;
+            JsonObject source = input("instantaneous", example[0], value, example[1]);
+            source.getAsJsonObject("deviceInfo").addProperty("platform", "garmin");
+            var mapped = mapper.mapFhir(source.toString());
+            var fhir = mapped.getValue1();
+            assertEquals(value, fhir.getAsJsonObject("valueQuantity").get("value").getAsDouble());
+            assertEquals(example[2], fhir.getAsJsonObject("valueQuantity").get("code").getAsString());
+            assertEquals(example[3], fhir.getAsJsonObject("code").getAsJsonArray("coding")
+                    .get(0).getAsJsonObject().get("code").getAsString());
+            Validator.validateAlways(fhir);
+            DependencyGraph graph = new DependencyGraph(config);
+            graph.createGraphBase();
+            graph.enrichGraphWithFhir();
+            String line = new LineProtocolParser(config).parse(mapped.getValue0(), fhir,
+                    graph.build().get(mapped.getValue0()));
+            assertTrue(line.contains("input_unit=\"" + example[1] + "\""), line);
+        }
+        assertThrows(IllegalArgumentException.class, () -> mapper.mapFhir(
+                input("instantaneous", "RESPIRATORY_RATE", 15, "MILLISECONDS").toString()));
+        assertThrows(IllegalArgumentException.class, () -> mapper.mapFhir(
+                input("instantaneous", "HEART_RATE_VARIABILITY_RMSSD", 42, "RESPIRATIONS_PER_MINUTE").toString()));
+    }
+
     @Test void preservesAndroidRateAndAppleEnergy() {
         JsonObject android = input("cumulative", "BASAL_ENERGY_BURNED", 1800, "KILOCALORIE");
         android.getAsJsonObject("deviceInfo").addProperty("platform", "android");
