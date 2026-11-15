@@ -40,8 +40,35 @@ def test_preserves_original_hash_binds_person_and_retains_sender(batch, claims, 
     assert data["participantId"] == claims["patientId"]
     assert data["caseId"] == claims["caseId"]
     assert data["deviceInfo"]["deviceId"] == "phone-installation-9"
+    assert data["sourceId"] == batch["sourceId"]
     assert "authorizationToken" not in data["deviceInfo"]
     assert data["measurements"]["instantaneous"][0]["value"] == 72.12345678901234
+
+
+def test_preserves_fractional_intervals_and_native_measuring_device(batch, claims, settings):
+    batch["measurements"]["duration"] = [{
+        "sourceRecordId": "sleep-1", "sourceDeviceId": "watch-1", "type": "SLEEP_LIGHT",
+        "value": 1.5041666666666667, "unit": "MINUTE",
+        "startTime": "2026-10-30T10:15:00Z", "endTime": "2026-10-30T10:16:30.250000Z",
+        "durationMinutes": 1.5041666666666667,
+    }]
+    upload = parse_upload(json.dumps(batch).encode(), claims, None, settings)
+    data = json.loads(upload["records"][1]["payload"])
+    reading = data["measurements"]["duration"][0]
+    assert reading["sourceDeviceId"] == "watch-1"
+    assert reading["durationMinutes"] == 1.5041666666666667
+    assert data["sourceId"] == batch["sourceId"]
+
+
+def test_whole_duration_keeps_the_historical_record_fingerprint(batch, claims, settings):
+    from app.crypto import canonical
+    reading = {
+        "sourceRecordId": "duration-old", "type": "SLEEP_DEEP", "value": 1.0, "unit": "MINUTE",
+        "startTime": "2026-10-30T10:15:00Z", "endTime": "2026-10-30T10:16:00Z", "durationMinutes": 1,
+    }
+    batch["measurements"]["duration"] = [reading]
+    upload = parse_upload(json.dumps(batch).encode(), claims, None, settings)
+    assert upload["records"][1]["input_sha256"] == digest(canonical(["duration", reading]))
 
 
 def test_source_identity_survives_a_new_upload_time_and_sender(batch, claims, settings):

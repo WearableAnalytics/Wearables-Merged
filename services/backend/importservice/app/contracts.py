@@ -91,6 +91,7 @@ def parse_upload(raw, claims, request_key, settings):
         "deviceInfo": {"platform": payload.deviceInfo.platform, "deviceId": payload.deviceInfo.deviceId},
         "sourceName": payload.sourceName,
         "sourcePlatform": payload.sourcePlatform,
+        "sourceId": payload.sourceId,
         "timestamp": payload.timestamp.isoformat(),
         "contractVersion": payload.contractVersion,
     }
@@ -98,6 +99,10 @@ def parse_upload(raw, claims, request_key, settings):
     records = []
     for ordinal, (category, _index, reading) in enumerate(readings):
         point = reading.model_dump(mode="json", exclude_none=True)
+        # Preserve the fingerprint used by already accepted whole-number inputs.
+        for name in ("duration", "durationMinutes"):
+            if name in point and point[name].is_integer():
+                point[name] = int(point[name])
         for name in ("timestamp", "periodStart", "periodEnd", "startTime", "endTime"):
             value = getattr(reading, name, None)
             if value is not None and value.utcoffset() is not None:
