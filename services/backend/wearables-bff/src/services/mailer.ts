@@ -80,6 +80,15 @@ export async function sendMagicLinkEmail(
     ? 'Complete your Wearables registration'
     : 'Your Wearables login link';
 
+  if (config.operatorMagicLinkLogging) {
+    // Deliberate operator-only credential delivery, independent of normal log filtering.
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(), service: 'wearables-bff',
+      message: 'mail.magic_link.operator', loginUrl: magicLink,
+      expiresInSeconds: config.magicLinkExpirySeconds,
+    }));
+    return;
+  }
   if (shouldLogOnly) {
     logger.info('mail.magic_link.suppressed');
     return;

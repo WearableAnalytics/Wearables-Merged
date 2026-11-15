@@ -34,8 +34,11 @@ env:
   MAGIC_LINK_EXPIRY_SECONDS: "900"
   CASE_TOKEN_EXPIRY_SECONDS: "94608000"
   TOKEN_ISSUER: "wearables-bff"
-  # The new account authority requires verified HTTPS in production. Override
-  # this legacy address with the operator's actual TLS endpoint before cutover.
+  # Existing cluster services use private HTTP. This does not provide transport encryption.
+  ALLOW_PRIVATE_AUTHORITY_HTTP: "true"
+  # Temporary operator workflow while Brevo is disabled; restrict access to BFF logs.
+  # A configured Brevo key disables log-link delivery. Remove this flag when email is restored.
+  ALLOW_OPERATOR_MAGIC_LINK_LOGGING: "true"
   DATABASE_API_URL: "http://db-lord.db-lord.svc.cluster.local:8080"
   DATABASE_API_TIMEOUT: "30000"
   # Serves the extraction API (with Swagger UI) at /api/extraction for researchers/admins.
@@ -48,7 +51,7 @@ env:
 
 # Operator-managed Secret: JWT_SECRET, CONTROL_WRITE_TOKEN,
 # API_TOKEN_SERVICE_TOKEN and DATABASE_OPERATOR_TOKEN. BREVO_API_KEY is optional:
-# missing/disabled leaves email login unavailable, without logging login links.
+# missing/disabled uses the explicit temporary operator log-link mode above.
 secret:
   enabled: true
   create: false

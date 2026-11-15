@@ -27,22 +27,25 @@ const readPrivateKey = (): string | null => {
 
 const grafanaPrivateKey = readPrivateKey();
 
+const allowPrivateAuthorityHttp = process.env.ALLOW_PRIVATE_AUTHORITY_HTTP === 'true';
 const authApiUrl = process.env.AUTH_API_URL ?? '';
 const listenHost = process.env.LISTEN_HOST ?? (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 if (!isIP(listenHost)) throw new Error('LISTEN_HOST must be an IP address.');
 if (authApiUrl) {
   const url = new URL(authApiUrl);
+  const isClusterService = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.svc(?:\.cluster\.local)?$/.test(url.hostname);
   if (
     url.username ||
     url.password ||
     (url.protocol !== 'https:' &&
       !(
         url.protocol === 'http:' &&
-        (['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || process.env.NODE_ENV === 'development')
+        (['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
+          process.env.NODE_ENV === 'development' || (allowPrivateAuthorityHttp && isClusterService))
       ))
   )
     throw new Error(
-      'AUTH_API_URL must be HTTPS or a loopback development endpoint.',
+      'AUTH_API_URL must use HTTPS, loopback HTTP or explicitly enabled Kubernetes service HTTP.',
     );
 }
 export const config = {

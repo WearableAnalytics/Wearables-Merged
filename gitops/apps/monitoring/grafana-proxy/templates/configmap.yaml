@@ -9,8 +9,9 @@ metadata:
 data:
   PORT: {{ .Values.proxy.port | quote }}
   PROXY_PREFIX: {{ .Values.proxy.prefix | quote }}
-  APP_JWT_ISSUER: {{ .Values.session.jwtIssuer | quote }}
   AUTH_API_URL: {{ .Values.session.authApiUrl | quote }}
+  ALLOW_PRIVATE_AUTHORITY_HTTP: {{ .Values.session.allowPrivateAuthorityHttp | quote }}
+  APP_JWT_ISSUER: {{ .Values.session.jwtIssuer | quote }}
   GRAFANA_BASE_URL: {{ .Values.grafana.baseUrl | quote }}
   GRAFANA_PATH_PREFIX: {{ .Values.grafana.pathPrefix | quote }}
   GRAFANA_TLS_SKIP_VERIFY: {{ .Values.grafana.tlsSkipVerify | quote }}

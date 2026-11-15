@@ -55,15 +55,24 @@ This is also the chart default. It creates no Secret or placeholder credential.
 The existing Secret must supply distinct `JWT_SECRET`, `CONTROL_WRITE_TOKEN`,
 `API_TOKEN_SERVICE_TOKEN` and `DATABASE_OPERATOR_TOKEN`. Match the corresponding
 database credentials; `DATABASE_OPERATOR_TOKEN` maps to `LEGACY_OPERATOR_TOKEN`.
-`BREVO_API_KEY` may be missing or `disabled`. This keeps the service running but
-new email-login requests return 503. No usable links are written to logs.
-Real email delivery requires the provider key and sender configuration, then a
-controlled restart. Existing sessions remain subject to current authority.
+`BREVO_API_KEY` may be missing or `disabled`. The chart explicitly enables
+`ALLOW_OPERATOR_MAGIC_LINK_LOGGING=true` for the current temporary workflow.
+After a login request for an approved account, a structured operator log entry
+contains a one-use link that expires within five minutes. Anyone with access to
+an unused link can sign in; restrict access to BFF logs and log archives. This
+mode does not verify email ownership and is not the development login bypass.
+Normal account, origin, rate-limit and session checks remain active. Configuring
+Brevo automatically switches back to email; disable the temporary flag then.
+With neither delivery mode, new login requests return a uniform 503.
 
-Before account cutover, override the legacy `env.DATABASE_API_URL` with the
-actual private HTTPS authority endpoint and its valid TLS trust. The application
-rejects the old plaintext address. This PR does not guess or provision that
-endpoint. Keep `COOKIE_SECURE=true`; production cannot use the development bypass.
+The cluster currently serves db-lord over internal HTTP. The chart explicitly
+sets `ALLOW_PRIVATE_AUTHORITY_HTTP=true` for its Kubernetes service address.
+This preserves compatibility without an internal CA, but does not encrypt the
+private connection. Keep workload credentials and services inside a trusted,
+restricted cluster network. Public HTTP authority addresses are rejected.
+An operator-provided HTTPS endpoint with valid trust works without this flag.
+Keep `COOKIE_SECURE=true`; production cannot use the development bypass.
+See `docs/ingestion-deployment.md` for the exact boundaries and operator inputs.
 
 When using Grafana proxy session-derived identity/case-token compatibility:
 
@@ -74,8 +83,8 @@ When using Grafana proxy session-derived identity/case-token compatibility:
 
 1. Edit non-sensitive runtime env in `values.yaml` (`env.*`).
 2. Ensure `values.yaml` explicitly sets required runtime envs (`FRONTEND_ORIGINS`, `FRONTEND_REDIRECT_URL`, `BACKEND_URL`, `AUTH_SESSION_EXPIRY_SECONDS`, `MAGIC_LINK_EXPIRY_SECONDS`, `CASE_TOKEN_EXPIRY_SECONDS`, `TOKEN_ISSUER`).
-3. Have the operators provision all credentials listed above and the private HTTPS database-authority endpoint.
-4. Coordinate images, migrations and auto-sync before deployment. Email can stay disabled; new login then remains unavailable.
+3. Have the operators provision all credentials listed above and verify the private database-authority address.
+4. Coordinate images, migrations and auto-sync before deployment. Email can stay disabled with the explicit temporary operator login mode.
 
 If you deploy BFF together with Grafana proxy/frontend, use `docs/deploy-runtime-config.md` for the end-to-end sequence.
 
