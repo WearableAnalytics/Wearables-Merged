@@ -13,7 +13,7 @@ not deploy a staging environment or change the production Argo CD revision.
 | ingestion-deployment | 88d3751 | Runtime/migration wiring, latest/Always, explicit internal HTTP and temporary operator login delivery |
 | ingestion-source-contract | b5297e9 | Native source metadata and fractional duration compatibility |
 | measurement-mapping | a372662 | Numeric meaning, units, periods, validation and synchronized mappings |
-| source-reconciliation | 6554d68 | Native provenance, separate/select/priority policies and source-aware views/exports |
+| source-reconciliation | 7272a1e | Native provenance, separate/select/priority policies and source-aware views/exports |
 
 All six heads remain in the integration history. The feature branches are not
 rewritten or deleted. Other members' unmerged feature branches are not included.
@@ -55,6 +55,7 @@ rewritten or deleted. Other members' unmerged feature branches are not included.
   participant alias and source filters/grouping. A separate check runs the
   actual Helm Starlark processor and dashboard queries against isolated InfluxDB,
   covering shared uploaders, separate patients/sources and legacy points.
+  The isolated processor runs as the test-file owner for Linux filesystem access.
 
 ## Verification on 15 November 2026
 

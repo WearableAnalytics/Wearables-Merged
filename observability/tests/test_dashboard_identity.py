@@ -51,7 +51,9 @@ def test_rendered_telegraf_keeps_new_and_legacy_patients_visible_in_grafana(tmp_
     import httpx
 
     def docker(*arguments):
-        return subprocess.run(["docker", *arguments], check=True, capture_output=True, text=True).stdout.strip()
+        result = subprocess.run(["docker", *arguments], capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        return result.stdout.strip()
 
     endpoint = docker("context", "inspect", "--format", "{{.Endpoints.docker.Host}}")
     assert endpoint.startswith("unix://"), "Refuse a remote Docker engine"
@@ -76,7 +78,8 @@ def test_rendered_telegraf_keeps_new_and_legacy_patients_visible_in_grafana(tmp_
 [[processors.starlark]]
   source = \x27\x27\x27
 ''' + processor + "\n'''\n")
-    output = docker("run", "--rm", "--network", "none", "-v", f"{tmp_path}:/identity:ro", "telegraf:1.36",
+    # Match the owner of pytest's private directory on Linux. No root access is needed.
+    output = docker("run", "--rm", "--network", "none", "--user", f"{os.getuid()}:{os.getgid()}", "-v", f"{tmp_path}:/identity:ro", "telegraf:1.36",
                     "telegraf", "--config", "/identity/telegraf.conf", "--test")
     stored = [line.removeprefix("> ") for line in output.splitlines()
               if line.startswith(("heart-rate,", "> heart-rate,"))]
