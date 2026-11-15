@@ -35,7 +35,8 @@ export const PatientSchema = registry.register(
       lastName: z.string().describe('Patient last name').openapi({ example: 'Mustermann' }),
       birthDate: z
         .string()
-        .describe('Patient date of birth')
+        .nullable()
+        .describe('Patient date of birth, or null when unknown')
         .openapi({ format: 'date', example: '1980-01-01' }),
     })
     .describe('Internal patient')

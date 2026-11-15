@@ -4,31 +4,52 @@ import config from './config.js';
 import authRouter from './api/routes/auth.js';
 import extractionRouter from './api/routes/extraction.js';
 import apiTokensRouter from './api/routes/apiTokens.js';
-import { auth, requestLogger } from './middleware.js';
+import {
+  auth,
+  requestLogger,
+  admitHttpRequest,
+  requireCommandOrigin,
+} from './middleware.js';
 import { logger } from './logger.js';
-import { patientService, caseService, hospitalCaseService } from './services/index.js';
+import { initializeUsers } from './services/userStore.js';
+import {
+  patientService,
+  caseService,
+  hospitalCaseService,
+} from './services/index.js';
 import type {
   CasesFromHospitalCasePostRequest,
   CasesVerifyTokenPostRequest,
 } from './api/openapi-client/models/index.js';
 
 const app = express();
+if (config.trustedProxyCidrs.length)
+  app.set('trust proxy', config.trustedProxyCidrs);
 
 app.use(cors({ origin: config.frontendOrigins, credentials: true }));
-app.use(express.json());
+app.use(admitHttpRequest);
+app.use(express.json({ limit: '32kb' }));
 app.use(requestLogger);
+app.use(config.apiPrefix, (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+app.use(config.apiPrefix, requireCommandOrigin);
 app.use(config.apiPrefix, authRouter);
 
 const route = (path: string) => `${config.apiPrefix}${path}`;
 
-function sendError(res: Response, status: number, message: string, code?: string) {
+function sendError(
+  res: Response,
+  status: number,
+  message: string,
+  code?: string,
+) {
   return res.status(status).json({ message, code });
 }
 
-type CasesFromHospitalCaseBody =
-  CasesFromHospitalCasePostRequest;
-type CasesVerifyTokenBody =
-  CasesVerifyTokenPostRequest;
+type CasesFromHospitalCaseBody = CasesFromHospitalCasePostRequest;
+type CasesVerifyTokenBody = CasesVerifyTokenPostRequest;
 
 app.get(route('/health'), (_req, res) => {
   res.json({ status: 'ok' });
@@ -46,7 +67,9 @@ app.use(config.apiPrefix, auth.practitionerOrAdmin);
 
 app.get(route('/hospital/cases/:hospitalCaseId'), async (req, res) => {
   try {
-    const hospitalCase = await hospitalCaseService.findHospitalCase(req.params.hospitalCaseId);
+    const hospitalCase = await hospitalCaseService.findHospitalCase(
+      req.params.hospitalCaseId,
+    );
     if (!hospitalCase) {
       return sendError(res, 404, 'Hospital case not found', 'NOT_FOUND');
     }
@@ -121,31 +144,35 @@ app.get(route('/cases/:caseId'), async (req, res) => {
   }
 });
 
-app.post(route('/cases/from-hospital-case'), async (req: Request, res: Response) => {
-  const { hospitalCaseId } = (req.body ?? {}) as CasesFromHospitalCaseBody;
-  if (typeof hospitalCaseId !== 'string' || !hospitalCaseId) {
-    return sendError(res, 400, 'hospitalCaseId is required');
-  }
-
-  try {
-    const creationResult = await caseService.createCaseFromHospital(hospitalCaseId);
-    if (!creationResult) {
-      return sendError(res, 404, 'Hospital case not found', 'NOT_FOUND');
+app.post(
+  route('/cases/from-hospital-case'),
+  async (req: Request, res: Response) => {
+    const { hospitalCaseId } = (req.body ?? {}) as CasesFromHospitalCaseBody;
+    if (typeof hospitalCaseId !== 'string' || !hospitalCaseId) {
+      return sendError(res, 400, 'hospitalCaseId is required');
     }
 
-    const { created, caseRecord } = creationResult;
-    const payload = {
-      patientId: caseRecord.patientId,
-      caseId: caseRecord.caseId,
-      caseToken: caseRecord.caseToken ?? 'case-token-not-set',
-    };
+    try {
+      const creationResult =
+        await caseService.createCaseFromHospital(hospitalCaseId);
+      if (!creationResult) {
+        return sendError(res, 404, 'Hospital case not found', 'NOT_FOUND');
+      }
 
-    return res.status(created ? 201 : 200).json(payload);
-  } catch (error) {
-    logger.error('Error creating case from Hospital', error as Error);
-    return sendError(res, 500, 'Internal server error');
-  }
-});
+      const { created, caseRecord } = creationResult;
+      const payload = {
+        patientId: caseRecord.patientId,
+        caseId: caseRecord.caseId,
+        caseToken: caseRecord.caseToken ?? 'case-token-not-set',
+      };
+
+      return res.status(created ? 201 : 200).json(payload);
+    } catch (error) {
+      logger.error('Error creating case from Hospital', error as Error);
+      return sendError(res, 500, 'Internal server error');
+    }
+  },
+);
 
 app.post(route('/cases/verify-token'), async (req: Request, res: Response) => {
   const { caseToken } = (req.body ?? {}) as CasesVerifyTokenBody;
@@ -175,8 +202,11 @@ app.use((_req, res) => {
   return sendError(res, 404, 'Route not found', 'NOT_FOUND');
 });
 
-app.listen(config.port, () => {
-  logger.info(`Wearables BFF listening on http://localhost:${config.port}${config.apiPrefix}`);
+await initializeUsers();
+app.listen(config.port, config.listenHost, () => {
+  logger.info(
+    `Wearables BFF listening on http://localhost:${config.port}${config.apiPrefix}`,
+  );
   logger.info(`Using ${config.useMockData ? 'MOCK' : 'REAL'} data`);
   if (!config.useMockData) {
     logger.debug(`Database API URL: ${config.databaseApi.baseUrl}`);

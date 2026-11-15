@@ -31,14 +31,14 @@ class TelemetryPoint(BaseModel):
         The ingestion pipeline stores the patient as the `device-id` tag and as
         `device-id-reference=Patient/<id>`; older points only carry one of the two.
         """
+        if self.tags.get("patient-id"):
+            return self.tags["patient-id"]
         if self.tags.get("patient_id"):
             return self.tags["patient_id"]
-        if self.tags.get("device-id"):
-            return self.tags["device-id"]
         ref = self.tags.get("device-id-reference", "")
         if ref.startswith(PATIENT_REFERENCE_PREFIX):
             return ref[len(PATIENT_REFERENCE_PREFIX) :]
-        return None
+        return self.tags.get("device-id") or None
 
     @property
     def mapping_id(self) -> str | None:

@@ -7,7 +7,7 @@ import type { Case, Patient } from '@/api/openapi-client';
 import { useMessageToast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 
-const formatBirthDate = (birthDate: Date | undefined) => {
+const formatBirthDate = (birthDate: Date | null | undefined) => {
   if (!(birthDate instanceof Date) || Number.isNaN(birthDate.getTime())) {
     return 'Unknown';
   }

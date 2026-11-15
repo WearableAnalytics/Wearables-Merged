@@ -19,7 +19,10 @@ def patient_tag_filters(patient_id: str) -> list[dict[str, str]]:
 
     Points carry `device-id`, `device-id-reference`, or both, so both are queried and merged.
     """
-    return [{"device-id": patient_id}, {"device-id-reference": f"{PATIENT_REFERENCE_PREFIX}{patient_id}"}]
+    return [
+        {"patient-id": patient_id}, {"patient_id": patient_id},
+        {"device-id": patient_id}, {"device-id-reference": f"{PATIENT_REFERENCE_PREFIX}{patient_id}"},
+    ]
 
 
 def reading_key(point: TelemetryPoint) -> tuple:
@@ -29,7 +32,14 @@ def reading_key(point: TelemetryPoint) -> tuple:
     (different `host` tag and `t_ingested`), so those are left out of the key.
     """
     fields = {k: v for k, v in point.fields.items() if k not in INGESTION_FIELDS}
-    return (point.measurement, point.patient_id, json.dumps(fields, sort_keys=True, default=str))
+    record = fields.get("source_record_id")
+    source = point.tags.get("source-key", "legacy")
+    if record and source != "legacy":
+        identity = json.dumps([source, record, point.fields.get("value"), point.tags.get("valueUnit"),
+                               point.fields.get("period_start"), point.fields.get("period_end")], default=str)
+        return (point.measurement, point.patient_id, identity)
+    source = (source, fields.get("source_platform"), fields.get("source_id"), fields.get("source_device_id"))
+    return (point.measurement, point.patient_id, source, json.dumps(fields, sort_keys=True, default=str))
 
 
 async def dedupe(points: AsyncIterator[TelemetryPoint]) -> AsyncIterator[TelemetryPoint]:
@@ -95,6 +105,7 @@ async def iter_readings(
     start: datetime,
     end: datetime | None,
     patient_id: str | None,
+    source_key: str | None = None,
 ) -> AsyncIterator[TelemetryPoint]:
     """All matching readings, newest first, without duplicates."""
     if patient_id:
@@ -104,6 +115,10 @@ async def iter_readings(
 
     async with aclosing(points), aclosing(dedupe(points)) as readings:
         async for point in readings:
+            if patient_id and point.patient_id != patient_id:
+                continue
+            if source_key is not None and point.tags.get("source-key", "legacy") != source_key:
+                continue
             yield point
 
 

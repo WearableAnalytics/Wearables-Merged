@@ -1,0 +1,138 @@
+name: Stage foundation checks
+
+on:
+  pull_request:
+    branches: [stage/ws2627]
+  push:
+    branches: [stage/ws2627]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  accounts:
+    name: Persistent accounts and shared sessions
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.14"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/backend/wearables-bff/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.28"
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: services/backend/wearables-bff
+      - run: uv sync --frozen --group dev
+        working-directory: services/backend/db_lord
+      - name: Unit, startup and real PostgreSQL/two-BFF checks
+        run: uv run --frozen --group dev pytest -q tests/unit tests/smoke tests/integration/test_account_flow_postgres.py
+        working-directory: services/backend/db_lord
+
+  applications:
+    name: Web, Grafana authority, exports and provider contracts
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.28"
+      - name: Build web
+        working-directory: services/web
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+      - name: Check Grafana proxy
+        working-directory: services/backend/grafana-proxy
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx tsc --noEmit
+          npm test
+      - name: Check extraction and source policies
+        working-directory: services/backend/extraction-service
+        run: |
+          uv sync --frozen --group dev
+          uv run --frozen --group dev pytest -q
+      - name: Check provider contracts
+        working-directory: services/backend/cloud-connector
+        run: |
+          uv venv --python 3.12
+          uv pip install -r requirements.txt pytest
+          .venv/bin/python -m pytest -q
+      - name: Check canonical mapping copies
+        run: python3 scripts/sync-measurement-mapping.py --check
+
+  mobile:
+    name: Flutter collection and delivery contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.9"
+          channel: stable
+          cache: true
+      - name: Resolve the committed dependency lock and run tests
+        working-directory: services/mobile/mobile_app
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter test --no-pub
+
+  connected-ingestion:
+    name: Archived upload through real Kafka and InfluxDB
+    runs-on: ubuntu-latest
+    env:
+      INGEST_TEST_DB_PASSWORD: stage-ci-postgres-only
+      INGEST_TEST_INFLUX_PASSWORD: stage-ci-influx-only
+      INGEST_TEST_INFLUX_TOKEN: synthetic-stage-influx-token-not-a-secret
+      INGEST_TEST_DATABASE_URL: postgresql://ingestion:stage-ci-postgres-only@127.0.0.1:55459/ingestion_test
+      INGEST_TEST_STACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: services/backend/fhir-mapper-validator/pom.xml
+      - name: Package and test mapper
+        working-directory: services/backend/fhir-mapper-validator
+        run: mvn -B package
+      - name: Install ingestion test dependencies
+        working-directory: services/backend/importservice
+        run: python -m pip install -r requirements.txt pytest pytest-asyncio
+      - name: Start isolated synthetic dependencies
+        working-directory: services/backend/importservice
+        run: |
+          mkdir -p "$RUNNER_TEMP/stage-ingestion-logs"
+          echo "INGEST_TEST_LOG_DIR=$RUNNER_TEMP/stage-ingestion-logs" >> "$GITHUB_ENV"
+          docker compose -p wearables-stage-ci -f tests/compose.yaml up -d --wait --wait-timeout 120
+      - name: Verify native identity, retries, rejection and precise intervals through storage
+        working-directory: services/backend/importservice
+        run: pytest -q tests/test_connected.py
+      - name: Remove isolated dependencies and data
+        if: always()
+        working-directory: services/backend/importservice
+        run: docker compose -p wearables-stage-ci -f tests/compose.yaml down --volumes --remove-orphans
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: synthetic-ingestion-diagnostics
+          path: ${{ runner.temp }}/stage-ingestion-logs

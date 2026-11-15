@@ -23,7 +23,11 @@ export function AdminApprovalsViewControls({
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-section-title">Admin console</h2>
-          <p className="m-0 text-muted-foreground">{loading ? 'Loading data…' : `${approvedUsersCount} users`}</p>
+          <p className="m-0 text-muted-foreground">
+            {loading
+              ? 'Loading data…'
+              : `${approvedUsersCount} ${approvedUsersCount === 1 ? 'user' : 'users'}`}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -33,7 +37,11 @@ export function AdminApprovalsViewControls({
           >
             Requests
           </Button>
-          <Button size="sm" variant={view === 'users' ? 'default' : 'outline'} onClick={() => onViewChange('users')}>
+          <Button
+            size="sm"
+            variant={view === 'users' ? 'default' : 'outline'}
+            onClick={() => onViewChange('users')}
+          >
             Current users
           </Button>
           <Button

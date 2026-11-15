@@ -34,6 +34,11 @@ services:
     ports:
       - "8000:8000"
     environment:
+      CONTROL_WRITE_TOKEN: ${CONTROL_WRITE_TOKEN:?set a distinct account workload secret}
+      CONTROL_READ_TOKEN: ${CONTROL_READ_TOKEN:-}
+      CONTROL_BOOTSTRAP_ADMIN_EMAILS: ${CONTROL_BOOTSTRAP_ADMIN_EMAILS:-admin@example.test}
+      LEGACY_OPERATOR_TOKEN: ${LEGACY_OPERATOR_TOKEN:?set a distinct operator secret}
+      API_TOKEN_SERVICE_TOKEN: ${API_TOKEN_SERVICE_TOKEN:?set a distinct API-token workload secret}
       POSTGRES_SERVER: db
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
@@ -54,7 +59,7 @@ services:
     command: >
       sh -c "uv sync --locked &&
              uv run alembic upgrade head &&
-             uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+             uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --no-access-log"
 
 volumes:
   postgres_data:

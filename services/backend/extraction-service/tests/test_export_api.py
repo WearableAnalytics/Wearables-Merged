@@ -150,7 +150,7 @@ def test_fhir_export_uses_default_mapping(client):
     assert bundle["resourceType"] == "Bundle"
     observations = [e["resource"] for e in bundle["entry"]]
     assert len(observations) == 5
-    heart_rate = next(o for o in observations if o["id"] == "heart-rate")
+    heart_rate = next(o for o in observations if o["code"]["coding"][0]["code"] == "8867-4")
     assert heart_rate["resourceType"] == "Observation"
     assert heart_rate["subject"] == {"reference": f"Patient/{PATIENT}"}
     assert heart_rate["valueQuantity"]["value"] == 72

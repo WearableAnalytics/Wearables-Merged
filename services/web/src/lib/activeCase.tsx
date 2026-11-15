@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { createContext, useContext, useMemo, useState, useCallback } from 'react';
+import { createContext, useContext, useMemo, useState, useCallback, useEffect } from 'react';
+import { AUTH_SESSION_EXPIRED_EVENT, AUTH_USER_CHANGED_EVENT } from './authSession';
 import type { Case, Patient } from '@/api/openapi-client';
 
 type ActiveCaseContextValue = {
@@ -15,15 +16,27 @@ export function ActiveCaseProvider({ children }: { children: ReactNode }) {
   const [activeCase, setActiveCaseState] = useState<Case | null>(null);
   const [patient, setPatient] = useState<Patient | null>(null);
 
-  const setActiveCase = useCallback(({ caseData, patient }: { caseData: Case; patient: Patient }) => {
-    setActiveCaseState(caseData);
-    setPatient(patient);
-  }, []);
+  const setActiveCase = useCallback(
+    ({ caseData, patient }: { caseData: Case; patient: Patient }) => {
+      setActiveCaseState(caseData);
+      setPatient(patient);
+    },
+    [],
+  );
 
   const clearActiveCase = useCallback(() => {
     setActiveCaseState(null);
     setPatient(null);
   }, []);
+
+  useEffect(() => {
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, clearActiveCase);
+    window.addEventListener(AUTH_USER_CHANGED_EVENT, clearActiveCase);
+    return () => {
+      window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, clearActiveCase);
+      window.removeEventListener(AUTH_USER_CHANGED_EVENT, clearActiveCase);
+    };
+  }, [clearActiveCase]);
 
   const value = useMemo(
     () => ({
