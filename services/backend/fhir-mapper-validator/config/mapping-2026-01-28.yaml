@@ -8,9 +8,9 @@ metadata:
       type: string
       lineProtocol:
         type: tag
-        name: device-id
+        name: source-device-id
     - name: deviceReference
-      rawSource: deviceInfo.deviceId
+      rawSource: participantId
       target: subject.reference
       transform:
         - type: prepend
