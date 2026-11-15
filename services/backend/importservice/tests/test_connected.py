@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -43,6 +44,8 @@ async def until_receipt(client, upload_id, predicate):
 
 
 async def test_real_pipeline_preserves_value_time_identity_and_partial_failure(repository, batch, claims, monkeypatch):
+    batch["measurements"]["instantaneous"][0]["sourceRecordId"] = "00123"
+    batch["measurements"]["instantaneous"][0]["sourceDeviceId"] = "native-watch-7"
     settings = repository.settings
     settings.kafka_bootstrap_servers = "127.0.0.1:59092"
     settings.influxdb_url = "http://127.0.0.1:18199"
@@ -57,7 +60,7 @@ async def test_real_pipeline_preserves_value_time_identity_and_partial_failure(r
     env = dict(
         os.environ,
         INGEST_SIGNING_KEY=settings.signing_key_b64,
-        MAPPING_YAML_PATH=os.getenv("INGEST_TEST_MAPPER_CONFIG", str(mapper / "config/mapping-2026-01-28.yaml")),
+        MAPPING_YAML_PATH=str(mapper / "config/mapping-2026-01-28.yaml"),
         KAFKA_BROKER_ENV_VAR=settings.kafka_bootstrap_servers,
         APP_ID="reliable-ingestion-test-" + str(uuid4()),
         VALIDATION_FREQUENCY="0",
@@ -134,6 +137,11 @@ async def test_real_pipeline_preserves_value_time_identity_and_partial_failure(r
                     assert points[0]["device-id"] == claims["patientId"]
                     assert points[0]["source-device-id"] == "phone-installation-9"
                     assert points[0]["ingestion_raw_sha256"] == first["rawSha256"]
+                    assert points[0]["source_record_id"] == "00123"
+                    assert points[0]["source_device_id"] == "native-watch-7"
+                    assert points[0]["source_id"] == "provider-account-7"
+                    assert points[0]["source_platform"] == "test-provider"
+                    assert len(points[0]["source-key"]) == 64
 
                 batch["measurements"]["instantaneous"] = [
                     {
@@ -159,6 +167,34 @@ async def test_real_pipeline_preserves_value_time_identity_and_partial_failure(r
                     lambda r: r["storedConfirmedCount"] == 1 and r["rejectedCount"] == 1,
                 )
                 assert receipt["recordCount"] == 2 and receipt["normalizedCount"] == 1
+
+                batch["measurements"] = {"instantaneous": [], "cumulative": [], "duration": [{
+                    "sourceRecordId": "precise-sleep-light", "sourceDeviceId": "native-watch-7",
+                    "type": "SLEEP_LIGHT", "value": 90.25 / 60, "durationMinutes": 90.25 / 60,
+                    "unit": "MINUTE", "startTime": "2026-10-30T10:20:00Z",
+                    "endTime": "2026-10-30T10:21:30.250000Z",
+                }]}
+                duration_response = await client.post("/ingest", json=batch)
+                assert duration_response.status_code == 202
+                duration_receipt = await until_receipt(
+                    client, duration_response.json()["acceptanceId"], lambda r: r["storedConfirmedCount"] == 1)
+                async with repository.pool.connection() as conn:
+                    stored = await (await conn.execute(
+                        "SELECT r.id FROM ingestion.records r JOIN ingestion.upload_records u ON u.record_id=r.id WHERE u.upload_id=%s",
+                        (duration_receipt["acceptanceId"],))).fetchone()
+                query = query.replace(record_id, str(stored["id"]))
+                async with httpx.AsyncClient() as influx:
+                    result = await influx.post(
+                        settings.influxdb_url + "/api/v2/query", params={"org": settings.influxdb_org},
+                        headers={"Authorization": "Token " + settings.influxdb_token, "Accept": "application/csv"},
+                        json={"query": query})
+                    assert result.status_code == 200
+                    duration_points = list(csv.DictReader(line for line in io.StringIO(result.text) if not line.startswith("#")))
+                    assert len(duration_points) == 1
+                    point = duration_points[0]
+                    assert abs(float(point["value"]) - 90.25 / 60) < 1e-12
+                    assert datetime.fromisoformat(point["period_end"].replace("Z", "+00:00")) == datetime.fromisoformat("2026-10-30T10:21:30.250000+00:00")
+                    assert point["source_record_id"] == "precise-sleep-light"
         finally:
             if task:
                 worker.stop.set()

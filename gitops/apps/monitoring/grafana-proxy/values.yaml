@@ -34,6 +34,9 @@ ingress:
 session:
   # Expected issuer of wearables-bff case tokens used as /embed deviceId
   jwtIssuer: "wearables-bff"
+  # Set the trusted HTTPS BFF /api/me endpoint before account cutover.
+  # An empty value denies protected proxy requests; JWT claims are not a fallback.
+  authApiUrl: ""
 
 grafana:
   # In-cluster Grafana URL (adjust release/namespace as needed)

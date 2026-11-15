@@ -179,6 +179,13 @@ def test_operator_configured_bff_chart_starts_in_production_with_email_disabled(
     assert json.loads(result.stdout) == {"production": True, "email": False, "secureCookie": True, "bypass": False}
 
 
+def test_grafana_chart_can_wire_current_account_authority():
+    documents = render(
+        "monitoring/grafana-proxy", "--set", "session.authApiUrl=https://authority.example.test/api/me", image=False
+    )
+    assert resource(documents, "ConfigMap")["data"]["AUTH_API_URL"] == "https://authority.example.test/api/me"
+
+
 @pytest.mark.parametrize("chart", ["services/importservice", "services/mapper-validator"])
 def test_configuration_changes_trigger_rollout(chart):
     first = resource(render(chart), "Deployment")["spec"]["template"]["metadata"]["annotations"]

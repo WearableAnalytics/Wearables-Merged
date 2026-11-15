@@ -252,7 +252,7 @@ if (
 
 const server = app.listen(
   port,
-  process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1',
+  config.listenHost,
   () => {
     // eslint-disable-next-line no-console
     console.log(`Grafana proxy listening on http://localhost:${port}`);

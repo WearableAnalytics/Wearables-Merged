@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { isIP } from 'node:net';
 import { readFileSync } from 'fs';
 
 const normalizePrefix = (value: string): string => {
@@ -27,6 +28,8 @@ const readPrivateKey = (): string | null => {
 const grafanaPrivateKey = readPrivateKey();
 
 const authApiUrl = process.env.AUTH_API_URL ?? '';
+const listenHost = process.env.LISTEN_HOST ?? (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+if (!isIP(listenHost)) throw new Error('LISTEN_HOST must be an IP address.');
 if (authApiUrl) {
   const url = new URL(authApiUrl);
   if (
@@ -35,7 +38,7 @@ if (authApiUrl) {
     (url.protocol !== 'https:' &&
       !(
         url.protocol === 'http:' &&
-        ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)
+        (['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || process.env.NODE_ENV === 'development')
       ))
   )
     throw new Error(
@@ -43,6 +46,7 @@ if (authApiUrl) {
     );
 }
 export const config = {
+  listenHost,
   authApiUrl,
   port: Number(process.env.PORT) || 3002,
   proxyPrefix: normalizePrefix(process.env.PROXY_PREFIX ?? '/grafana-proxy'),

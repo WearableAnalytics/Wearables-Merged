@@ -1,7 +1,7 @@
 # Local stack for the Wearables platform (no Kubernetes needed).
 #
 #   cd deploy/local
-#   cp .env.example .env            # optional, defaults work out of the box
+#   python3 init_env.py             # private keys and credentials, retained across restarts
 #   docker compose up -d --build              # core platform
 #   docker compose --profile ml up -d --build # + Spark / LakeFS / SeaweedFS / MLflow / Feast
 #
@@ -14,7 +14,7 @@
 name: wearables
 
 x-jwt-env: &jwt-env
-  JWT_SECRET: ${JWT_SECRET:-dev-secret}
+  JWT_SECRET: ${JWT_SECRET:?Run python3 init_env.py first}
 
 x-influx-env: &influx-env
   INFLUX_URL: http://influxdb:8086
@@ -67,8 +67,8 @@ services:
       - --api.dashboard=true
       - --entrypoints.traefik.address=:8080
     ports:
-      - "80:80"
-      - "8088:8080" # Traefik dashboard
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:8088:8080" # Traefik dashboard
     volumes:
       - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
 
@@ -91,7 +91,7 @@ services:
       KAFKA_NUM_PARTITIONS: 8
     # No volume: Kafka is only a buffer here, measurements persist in InfluxDB.
     ports:
-      - "29092:29092" # for kafka clients on the host
+      - "127.0.0.1:29092:29092" # for kafka clients on the host
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
       interval: 5s
@@ -107,25 +107,69 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        for t in wearables-raw wearables-lp dlq; do
+        set -eu
+        for t in wearables-raw wearables-ingestion-results wearables-lp dlq; do
           /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
             --create --if-not-exists --topic "$$t" --partitions 8 --replication-factor 1
         done
     restart: "no"
 
   # ---------------------------------------------------------------- ingestion
+  ingestion-db-setup:
+    image: postgres:18
+    environment:
+      PGHOST: postgres
+      PGUSER: postgres
+      PGDATABASE: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Run python3 init_env.py first}
+      INGEST_RUNTIME_PASSWORD: ${INGEST_RUNTIME_PASSWORD:?Run python3 init_env.py first}
+      INGEST_MIGRATION_PASSWORD: ${INGEST_MIGRATION_PASSWORD:?Run python3 init_env.py first}
+    entrypoint: ["/bin/sh", "/bootstrap/ingestion.sh"]
+    volumes:
+      - ./postgres/ingestion.sh:/bootstrap/ingestion.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  ingestion-migrate:
+    image: ${COMPOSE_PROJECT_NAME:-wearables}-importservice:local
+    build: ../../services/backend/importservice
+    environment:
+      INGEST_DATABASE_URL: ${INGEST_MIGRATION_DATABASE_URL:?Run python3 init_env.py first}
+      INGEST_RUNTIME_ROLE: wearables_ingest
+    command: ["python", "-m", "app.migrate"]
+    depends_on:
+      ingestion-db-setup:
+        condition: service_completed_successfully
+    restart: "no"
+
   importservice:
+    image: ${COMPOSE_PROJECT_NAME:-wearables}-importservice:local
     build: ../../services/backend/importservice
     environment:
       <<: *jwt-env
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: wearables-raw
+      KAFKA_RESULTS_TOPIC: wearables-ingestion-results
+      KAFKA_OUTPUT_TOPIC: wearables-lp
+      INGEST_DATABASE_URL: ${INGEST_DATABASE_URL:?Run python3 init_env.py first}
+      INGEST_ARCHIVE_KEY: ${INGEST_ARCHIVE_KEY:?Run python3 init_env.py first}
+      INGEST_SIGNING_KEY: ${INGEST_SIGNING_KEY:?Run python3 init_env.py first}
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_ORG: ${INFLUX_ORG:-wearables-project}
+      INFLUXDB_BUCKET: ${INFLUX_BUCKET:-measurements}
+      INFLUXDB_TOKEN: ${INFLUX_READ_TOKEN:-${INFLUX_TOKEN:?Run python3 init_env.py first}}
       # Case tokens are issued by wearables-bff, so the issuer must match TOKEN_ISSUER there.
       JWT_ISSUER: wearables-bff
       UVICORN_WORKERS: 2
     depends_on:
       kafka-init:
         condition: service_completed_successfully
+      ingestion-migrate:
+        condition: service_completed_successfully
+      influxdb:
+        condition: service_healthy
 
   cloud-connector:
     build: ../../services/backend/cloud-connector
@@ -149,12 +193,16 @@ services:
       KAFKA_BROKER_ENV_VAR: kafka:9092
       INPUT_TOPIC: wearables-raw
       OUTPUT_TOPIC: wearables-lp
+      RESULTS_TOPIC: wearables-ingestion-results
+      INGEST_SIGNING_KEY: ${INGEST_SIGNING_KEY:?Run python3 init_env.py first}
       DLQ_TOPIC: dlq
       PARTITIONS: 8
       NUM_STREAM_THREADS: 2
       MAPPING_YAML_PATH: /config/mapping.yaml
     depends_on:
       kafka-init:
+        condition: service_completed_successfully
+      ingestion-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 
@@ -182,7 +230,7 @@ services:
       DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET:-measurements}
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN:-dev-influx-token}
     ports:
-      - "8086:8086"
+      - "127.0.0.1:8086:8086"
     volumes:
       - influxdb_data:/var/lib/influxdb2
     healthcheck:
@@ -199,7 +247,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: db_lord
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -220,21 +268,31 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       WEB_CONCURRENCY: 2
+      CONTROL_WRITE_TOKEN: ${CONTROL_WRITE_TOKEN:?Run python3 init_env.py first}
+      API_TOKEN_SERVICE_TOKEN: ${API_TOKEN_SERVICE_TOKEN:?Run python3 init_env.py first}
+      LEGACY_OPERATOR_TOKEN: ${DATABASE_OPERATOR_TOKEN:?Run python3 init_env.py first}
+      CONTROL_BOOTSTRAP_ADMIN_EMAILS: ${ADMIN_EMAILS:-admin@example.test}
     command: >
       sh -c "/app/.venv/bin/alembic upgrade head &&
-             exec /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000"
+             exec /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log"
     ports:
-      - "8000:8000" # REST + GraphQL docs at http://localhost:8000/docs
+      - "127.0.0.1:8000:8000" # REST + GraphQL docs at http://localhost:8000/docs
     depends_on:
       postgres:
         condition: service_healthy
       influxdb:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/livez', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
 
   extraction-service:
     build: ../../services/backend/extraction-service
     environment:
       DB_LORD_BASE_URL: http://db-lord:8000
+      DB_LORD_OPERATOR_TOKEN: ${DATABASE_OPERATOR_TOKEN:?Run python3 init_env.py first}
       # Served through the BFF at /api/extraction (Swagger at /api/extraction/docs).
       ROOT_PATH: /api/extraction
     depends_on:
@@ -245,6 +303,7 @@ services:
     environment:
       <<: *jwt-env
       PORT: 3001
+      LISTEN_HOST: 0.0.0.0
       NODE_ENV: development
       API_PREFIX: /api
       FRONTEND_ORIGINS: http://localhost
@@ -254,19 +313,33 @@ services:
       MAGIC_LINK_EXPIRY_SECONDS: 900
       CASE_TOKEN_EXPIRY_SECONDS: 691200
       TOKEN_ISSUER: wearables-bff
-      ADMIN_EMAILS: ${ADMIN_EMAILS:-admin@example.com}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-admin@example.test}
+      CONTROL_WRITE_TOKEN: ${CONTROL_WRITE_TOKEN:?Run python3 init_env.py first}
+      API_TOKEN_SERVICE_TOKEN: ${API_TOKEN_SERVICE_TOKEN:?Run python3 init_env.py first}
+      DATABASE_OPERATOR_TOKEN: ${DATABASE_OPERATOR_TOKEN:?Run python3 init_env.py first}
+      ALLOW_DEV_AUTH_BYPASS: "false"
+      COOKIE_SECURE: "false"
+      BREVO_API_KEY: disabled
       DATABASE_API_URL: http://db-lord:8000
       DATABASE_API_TIMEOUT: 30000
       EXTRACTION_API_URL: http://extraction-service:8010
       USE_MOCK_DATA: "false"
       LOG_LEVEL: debug
-      # NODE_ENV=development -> no mail is sent, magic links are logged:
-      #   docker compose logs -f wearables-bff | grep -i magic
+      # Development sends no email. Use login_link.py for a one-use local link.
       MAILER_FROM_NAME: Wearables Platform
       MAILER_FROM_EMAIL: dev@example.com
     depends_on:
-      - db-lord
-      - extraction-service
+      db-lord:
+        condition: service_healthy
+      extraction-service:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3001:3001" # local login-link helper, not a public deployment endpoint
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
 
   # ---------------------------------------------------------------- frontend
   web:
@@ -295,7 +368,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ../../observability/dashboards:/var/lib/grafana-dashboards:ro
     ports:
-      - "13003:3000" # direct admin access: http://localhost:3003/proxy/ (admin / admin)
+      - "127.0.0.1:13003:3000" # direct admin access: http://localhost:3003/proxy/ (admin / admin)
     depends_on:
       influxdb:
         condition: service_healthy
@@ -322,6 +395,9 @@ services:
     build: ../../services/backend/grafana-proxy
     environment:
       PORT: 3002
+      LISTEN_HOST: 0.0.0.0
+      NODE_ENV: development
+      AUTH_API_URL: http://wearables-bff:3001/api/me
       PROXY_PREFIX: /proxy
       GRAFANA_BASE_URL: http://grafana:3000
       GRAFANA_PATH_PREFIX: /proxy
@@ -332,7 +408,7 @@ services:
       GRAFANA_ORG_ID: 1
       GRAFANA_ALLOWED_DASHBOARD_IDS: wearables-health-real,wearables-six-min,adgf864
       GRAFANA_DASHBOARD_DATASOURCE: dfa4opgnfgg00e # uid of the provisioned InfluxDB datasource
-      APP_JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      APP_JWT_SECRET: ${JWT_SECRET:?Run python3 init_env.py first}
       APP_JWT_ISSUER: wearables-bff
     volumes:
       - grafana_proxy_keys:/keys:ro
@@ -341,6 +417,8 @@ services:
         condition: service_completed_successfully
       grafana:
         condition: service_started
+      wearables-bff:
+        condition: service_healthy
 
   # ================================================================ ML pipeline (profile "ml")
   seaweedfs:
@@ -352,7 +430,7 @@ services:
       server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
       -master.volumeSizeLimitMB=256 -volume.max=100
     ports:
-      - "8333:8333" # S3 API
+      - "127.0.0.1:8333:8333" # S3 API
     volumes:
       - seaweedfs_data:/data
       - ./seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
@@ -391,7 +469,7 @@ services:
       LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-wearables}
       LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-wearables-secret}
     ports:
-      - "8001:8000" # LakeFS UI
+      - "127.0.0.1:8001:8000" # LakeFS UI
     depends_on:
       postgres:
         condition: service_healthy
@@ -455,7 +533,7 @@ services:
       - --default-artifact-root=s3://models/
       - --no-serve-artifacts
     ports:
-      - "5001:5000" # MLflow UI + model registry (5000 is taken by AirPlay on macOS)
+      - "127.0.0.1:5001:5000" # MLflow UI + model registry (5000 is taken by AirPlay on macOS)
     depends_on:
       postgres:
         condition: service_healthy
@@ -479,7 +557,7 @@ services:
         envsubst < /config/feature_store.yaml > feature_store.yaml
         feast apply && exec feast serve --host 0.0.0.0 --port 6566
     ports:
-      - "6566:6566"
+      - "127.0.0.1:6566:6566"
     volumes:
       - ./ml/feature_store.yaml:/config/feature_store.yaml:ro
     depends_on:

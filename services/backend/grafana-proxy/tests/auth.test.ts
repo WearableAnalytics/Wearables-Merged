@@ -1,8 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { spawnSync } from 'node:child_process';
 import { authorizeSession } from '../src/jwtProxy.js';
 import type { IncomingMessage } from 'node:http';
 const originalFetch = globalThis.fetch;
+test('private HTTP authority is limited to explicit development mode', () => {
+  for (const [environment, allowed] of [['development', true], ['production', false], ['', false]] as const) {
+    const result = spawnSync(globalThis.process.execPath,
+      ['--import', 'tsx', '-e', "import('./src/config.ts')"],
+      { env: { ...globalThis.process.env, NODE_ENV: environment, AUTH_API_URL: 'http://wearables-bff:3001/api/me' }, encoding: 'utf8' });
+    assert.equal(result.status === 0, allowed);
+    if (!allowed) assert.match(result.stderr, /AUTH_API_URL/);
+  }
+});
 const config = {
   appJwtSecret: 'synthetic-cookie-key',
   authApiUrl: 'http://127.0.0.1:5198/api/me',

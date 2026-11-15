@@ -203,7 +203,7 @@ app.use((_req, res) => {
 });
 
 await initializeUsers();
-app.listen(config.port, config.isProduction ? '0.0.0.0' : '127.0.0.1', () => {
+app.listen(config.port, config.listenHost, () => {
   logger.info(
     `Wearables BFF listening on http://localhost:${config.port}${config.apiPrefix}`,
   );

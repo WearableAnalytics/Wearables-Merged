@@ -4,6 +4,7 @@
  */
 
 import 'dotenv/config';
+import { isIP } from 'node:net';
 
 type NodeEnv = 'development' | 'production';
 type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
@@ -163,8 +164,12 @@ const apiTokenServiceToken = requireEnv('API_TOKEN_SERVICE_TOKEN');
 if (controlWriteToken === apiTokenServiceToken)
   throw new Error('Workload credentials must be distinct.');
 const devAuthBypass = optionalEnv('ALLOW_DEV_AUTH_BYPASS') === 'true';
+const listenHost = optionalEnv('LISTEN_HOST') ?? (isProduction ? '0.0.0.0' : '127.0.0.1');
+if (!isIP(listenHost)) throw new Error('LISTEN_HOST must be an IP address.');
 if (isProduction && (devAuthBypass || cookieSecureIsFalse()))
   throw new Error('Production requires verified login and secure cookies.');
+if (devAuthBypass && !['127.0.0.1', '::1'].includes(listenHost))
+  throw new Error('ALLOW_DEV_AUTH_BYPASS requires a loopback listen address.');
 function cookieSecureIsFalse() {
   return optionalEnv('COOKIE_SECURE') === 'false';
 }
@@ -270,6 +275,7 @@ if (
     'ALLOW_DEV_AUTH_BYPASS requires loopback-only development URLs.',
   );
 export const config = {
+  listenHost,
   databaseOperatorToken,
   trustedProxyCidrs,
   controlWriteToken,

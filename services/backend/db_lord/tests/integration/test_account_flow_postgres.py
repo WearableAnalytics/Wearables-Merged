@@ -266,6 +266,7 @@ async def test_real_bff_registration_approval_shared_sessions_and_existing_case_
                     assert replay.status_code == 302 and replay.headers["location"].endswith("/error-magic_link")
 
                 assert (await staff.get("/patients")).status_code == 401
+                assert (await staff.get("/admin/forward-auth")).status_code == 401
                 assert (
                     await staff.post(
                         "/register",
@@ -283,6 +284,7 @@ async def test_real_bff_registration_approval_shared_sessions_and_existing_case_
                 unknown = await staff.post("/login", json={"email": "unknown@example.test"})
                 assert pending.json() == unknown.json() and "jwt" not in staff.cookies
                 await sign_in(admin, ADMIN_EMAIL)
+                assert (await admin.get("/admin/forward-auth")).status_code == 204
                 response = await admin.post(
                     "/admin/users/" + row["id"] + "/approve", json={"expectedRevision": row["revision"]}
                 )
@@ -295,6 +297,7 @@ async def test_real_bff_registration_approval_shared_sessions_and_existing_case_
                 assert (await staff.get("/patients")).status_code == 200
                 assert (await staff.get("/cases/" + str(case))).status_code == 200
                 assert (await staff.get("/admin/pending-users")).status_code == 403
+                assert (await staff.get("/admin/forward-auth")).status_code == 403
                 assert (await staff.get("/extraction/test")).status_code == 403
                 assert (
                     await staff.post("/cases/from-hospital-case", json={"hospitalCaseId": "C-123456"})
@@ -311,6 +314,7 @@ async def test_real_bff_registration_approval_shared_sessions_and_existing_case_
                     await admin.post("/admin/users/" + row["id"] + "/deny", json={"expectedRevision": row["revision"]})
                 ).status_code == 200
                 assert (await staff.get("/me")).status_code == 401
+                assert (await staff.get("/admin/forward-auth")).status_code == 401
                 assert (await authority.get("/cases")).status_code == 401
                 assert (
                     await authority.get("/cases/", headers={"X-Legacy-Operator-Token": common["LEGACY_OPERATOR_TOKEN"]})

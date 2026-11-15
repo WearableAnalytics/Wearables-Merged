@@ -2,9 +2,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from src.app.main import app, get_db_lord_api
 from src.app.schemas import TelemetryPoint
+from src.app.settings import settings
 
 START = datetime(2026, 11, 12, 9, tzinfo=UTC)
 END = START + timedelta(hours=1)
@@ -41,7 +43,8 @@ class FakeApi:
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    monkeypatch.setattr(settings, "db_lord_operator_token", SecretStr("synthetic-source-policy-operator"))
     api = FakeApi([reading(), reading(PHONE, value=90)])
     app.dependency_overrides[get_db_lord_api] = lambda: api
     with TestClient(app) as client:

@@ -206,6 +206,15 @@ test('development email bypass is rejected for a non-loopback origin', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /ALLOW_DEV_AUTH_BYPASS|loopback/);
 });
+test('the local email shortcut cannot listen on a container or network interface', () => {
+  for (const listenHost of ['0.0.0.0', '::', '127.0.0.1']) {
+    const result = spawnSync(process.execPath,
+      ['--import', 'tsx', '-e', "import('./src/config.ts')"],
+      { env: { ...process.env, ALLOW_DEV_AUTH_BYPASS: 'true', LISTEN_HOST: listenHost }, encoding: 'utf8' });
+    assert.equal(result.status === 0, listenHost === '127.0.0.1');
+    if (listenHost !== '127.0.0.1') assert.match(result.stderr, /loopback listen/);
+  }
+});
 test('production rejects plaintext account-authority transport', () => {
   const result = spawnSync(
     process.execPath,
@@ -258,6 +267,43 @@ test('public login uses the shared admission check before any account lookup', a
     assert.equal(response.status, 429);
     assert.equal(response.headers.get('retry-after'), '42');
     assert.equal(requests, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test('stage Grafana forward auth uses current admin authority and rejects revoked sessions', async () => {
+  const { default: express } = await import('express');
+  const { default: router } = await import('../src/api/routes/auth.js');
+  const app = express();
+  app.use(router);
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  let stored = { ...user };
+  let unavailable = false;
+  globalThis.fetch = async () => {
+    if (unavailable) throw new Error('Synthetic authority outage');
+    return Response.json(stored);
+  };
+  const check = (token?: string) => originalFetch(
+    `http://127.0.0.1:${address.port}/admin/forward-auth`,
+    { headers: token ? { Cookie: `jwt=${token}` } : {} },
+  );
+  try {
+    assert.equal((await check()).status, 401);
+    assert.equal((await check(cookie({ isAdmin: true }))).status, 403);
+    stored = { ...user, is_admin: true };
+    assert.equal((await check(cookie())).status, 204);
+    stored = { ...stored, status: 'denied' };
+    assert.equal((await check(cookie())).status, 403);
+    stored = { ...user, is_admin: true, auth_version: 3 };
+    assert.equal((await check(cookie())).status, 401);
+    unavailable = true;
+    assert.equal((await check(cookie())).status, 503);
   } finally {
     globalThis.fetch = originalFetch;
     server.closeAllConnections();

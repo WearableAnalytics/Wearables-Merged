@@ -1,15 +1,15 @@
 name: Continuous Delivery & GitOps Verification
 
-# Validates and lints Helm charts on pull requests to main, deploys updated charts to the de.NBI cluster upon push to main
+# Main and stage charts are validated. Only main can use the production deployment job.
 
 on:
   push:
-    branches: [main]
+    branches: [main, stage/ws2627]
     paths:
       - "gitops/**"
       - ".github/workflows/cd.yml"
   pull_request:
-    branches: [main]
+    branches: [main, stage/ws2627]
     paths:
       - "gitops/**"
       - ".github/workflows/cd.yml"
@@ -53,7 +53,7 @@ jobs:
   deploy:
     name: Deploy to de.NBI Cluster
     needs: lint-charts
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
