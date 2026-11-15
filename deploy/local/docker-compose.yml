@@ -130,6 +130,8 @@ services:
   cloud-connector:
     build: ../../services/backend/cloud-connector
     environment:
+      <<: *jwt-env
+      JWT_ISSUER: wearables-bff
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: wearables-raw
       GARMIN_CLIENT_ID: ${GARMIN_CLIENT_ID:-}

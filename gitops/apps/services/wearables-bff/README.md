@@ -48,7 +48,7 @@ chmod +x scripts/bootstrap-runtime-secrets.sh
 ./scripts/bootstrap-runtime-secrets.sh
 ```
 
-Common setup is:
+The chart defaults (`values.yaml`) expect this existing secret; Argo CD deploys the chart with them:
 
 - `secret.enabled: true`
 - `secret.create: false`

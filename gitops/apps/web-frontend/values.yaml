@@ -1,5 +1,6 @@
 image:
-  repository: wearables42/wearables-web-frontend
+  # Built by .github/workflows/publish-images.yml
+  repository: ghcr.io/wearableanalytics/wearables-web
   tag: "latest"
   pullPolicy: Always
 

@@ -21,6 +21,7 @@ resources: {}
 
 
 image:
-  repository: wearables42/mapper-validator
-  tag: 0.3.1
+  # Built by .github/workflows/publish-images.yml
+  repository: ghcr.io/wearableanalytics/wearables-mapper-validator
+  tag: latest
   imagePullPolicy: Always

@@ -8,12 +8,11 @@ spec:
   routes:
     - match: "Host(`{{ .Values.ingress.host }}`){{ if .Values.ingress.httpOnly }} && PathPrefix(`{{ .Values.ingress.prefix }}`){{ end }}"
       kind: Rule
-{{- if not .Values.ingress.httpOnly }}
       middlewares:
+{{- if not .Values.ingress.httpOnly }}
       - name: redirect-to-https
         namespace: ingress
 {{- end }}
-      middlewares:
       - name: grafana-forward-headers
       services:
         - name: {{ .Release.Name }}

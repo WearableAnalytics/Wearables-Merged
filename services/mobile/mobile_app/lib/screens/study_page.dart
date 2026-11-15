@@ -3,13 +3,15 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../app_config.dart';
+import '../services/cloud_connector_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatting.dart';
 import '../widgets/study_code_entry.dart';
 import '../widgets/study_info_link.dart';
+import '../widgets/sync_mode_dialog.dart';
 
-/// Third tab: the linked study code, sharing options and app information.
+/// Third tab: the linked study code, sharing options, data sources and app information.
 class StudyPage extends StatefulWidget {
   const StudyPage({super.key, required this.state});
 
@@ -19,8 +21,9 @@ class StudyPage extends StatefulWidget {
   State<StudyPage> createState() => _StudyPageState();
 }
 
-class _StudyPageState extends State<StudyPage> {
+class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
   bool _showCode = false;
+  String? _awaitingAuthProvider;
   String _version = '';
 
   AppState get state => widget.state;
@@ -28,11 +31,181 @@ class _StudyPageState extends State<StudyPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    state.oauthCallbackCount.addListener(_onAuthReturned);
     PackageInfo.fromPlatform().then((info) {
       if (mounted) {
         setState(() => _version = '${info.version} (${info.buildNumber})');
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant StudyPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state != widget.state) {
+      oldWidget.state.oauthCallbackCount.removeListener(_onAuthReturned);
+      widget.state.oauthCallbackCount.addListener(_onAuthReturned);
+    }
+  }
+
+  @override
+  void dispose() {
+    state.oauthCallbackCount.removeListener(_onAuthReturned);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
+    if (lifecycleState == AppLifecycleState.resumed) {
+      _onAuthReturned();
+    }
+  }
+
+  void _onAuthReturned() {
+    final providerId = _awaitingAuthProvider;
+    if (providerId == null) return;
+    _awaitingAuthProvider = null;
+    _checkCloudAfterAuth(CloudProvider.find(providerId));
+  }
+
+  Future<void> _checkCloudAfterAuth(CloudProvider provider) async {
+    try {
+      final wasConnected = state.isCloudConnected(provider.id);
+      CloudConnectionStatus? lastStatus;
+
+      // Poll with brief retries
+      const retryDelays = [
+        Duration(milliseconds: 400),
+        Duration(milliseconds: 800),
+        Duration(milliseconds: 1200),
+      ];
+
+      for (final delay in retryDelays) {
+        await Future.delayed(delay);
+        if (!mounted) return;
+        lastStatus = await state.refreshCloudStatus(provider.id);
+        if (lastStatus.connected) {
+          break;
+        }
+      }
+
+      if (!mounted) return;
+      if (lastStatus != null && lastStatus.connected) {
+        if (!wasConnected) {
+          _toast('${provider.name} Cloud connected.');
+          await _promptSyncModeAfterConnect(provider);
+        } else {
+          _toast('${provider.name} Cloud connection is active.');
+        }
+      } else {
+        _toast('${provider.name} Cloud is not connected yet.');
+      }
+      await state.load();
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) {
+        _toast('Could not verify ${provider.name} connection: $e');
+      }
+    }
+  }
+
+  Future<void> _promptSyncModeAfterConnect(CloudProvider provider) async {
+    if (!mounted) return;
+    await promptSyncModeAfterConnect(context, state, provider);
+  }
+
+  Future<void> _connectCloud(CloudProvider provider) async {
+    if (!state.isLinked) {
+      _toast('Please link your personal QR code first.');
+      return;
+    }
+    _awaitingAuthProvider = provider.id;
+    final launched = await state.startCloudConnect(provider.id);
+    if (!mounted) return;
+    if (!launched) {
+      _awaitingAuthProvider = null;
+      _toast('Could not open ${provider.name} login page.');
+    }
+  }
+
+  Future<void> _refreshCloudStatus(CloudProvider provider) async {
+    try {
+      final wasConnected = state.isCloudConnected(provider.id);
+      final status = await state.refreshCloudStatus(provider.id);
+      if (!mounted) return;
+      if (status.connected) {
+        if (!wasConnected) {
+          await _promptSyncModeAfterConnect(provider);
+        } else {
+          _toast('${provider.name} Cloud is connected.');
+        }
+      } else {
+        _toast('${provider.name} Cloud is not connected yet.');
+      }
+      await state.load();
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) {
+        _toast('Failed to check ${provider.name} Cloud status.');
+      }
+    }
+  }
+
+  Future<void> _confirmDisconnectCloud(CloudProvider provider) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remove ${provider.name} Cloud connection?'),
+        content: Text(
+          'This will deregister your ${provider.name} account on the server and stop '
+          'direct cloud synchronization.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 44),
+              backgroundColor: AppColors.coral,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await state.disconnectCloud(provider.id);
+      if (!mounted) return;
+      _toast('${provider.name} Cloud connection removed from server.');
+    } catch (e) {
+      if (!mounted) return;
+      _toast('Could not remove ${provider.name} Cloud connection: $e');
+    }
+  }
+
+  Future<void> _toggleLocalSync(bool enabled) async {
+    await state.setLocalHealthSyncEnabled(enabled);
+    if (!mounted) return;
+    final cloudName = state.primaryCloudProvider?.name ?? 'Cloud';
+    if (!enabled && state.hasAnyCloudConnection) {
+      _toast('$cloudName Cloud-only mode active. Local phone uploads paused.');
+    } else if (!enabled && !state.hasAnyCloudConnection) {
+      _toast(
+        'Local ${AppConfig.healthStore} uploads paused. Connect a Cloud wearable below for cloud sync.',
+      );
+    } else if (enabled && state.hasAnyCloudConnection) {
+      _toast(
+        'Parallel sync active (${AppConfig.healthStore} + $cloudName Cloud).',
+      );
+    } else {
+      _toast('${AppConfig.healthStore} synchronization enabled.');
+    }
   }
 
   Future<void> _changeCode({required bool scan}) async {
@@ -248,6 +421,43 @@ class _StudyPageState extends State<StudyPage> {
               ),
             ),
             const SizedBox(height: 24),
+            _SectionLabel('Data sources'),
+            Card(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    secondary: const Icon(Symbols.favorite_sharp),
+                    title: Text(AppConfig.healthStore),
+                    subtitle: Text(
+                      state.localHealthSyncEnabled &&
+                              state.hasAnyCloudConnection
+                          ? 'Syncing local phone data in parallel with ${state.primaryCloudProvider?.name ?? "Cloud"} Cloud.'
+                          : state.localHealthSyncEnabled
+                          ? 'Syncs health data stored on this ${AppConfig.deviceName}.'
+                          : state.hasAnyCloudConnection
+                          ? 'Paused - using ${state.primaryCloudProvider?.name ?? "Cloud"} Cloud only (no phone upload needed).'
+                          : 'Paused - enable or connect a Cloud wearable below.',
+                    ),
+                    value: state.localHealthSyncEnabled,
+                    activeThumbColor: AppColors.blue,
+                    onChanged: _toggleLocalSync,
+                  ),
+                  for (final provider in CloudProvider.activeProviders) ...[
+                    const Divider(indent: 20, endIndent: 20),
+                    _CloudProviderTile(
+                      provider: provider,
+                      connected: state.isCloudConnected(provider.id),
+                      busy: state.isCloudBusy(provider.id),
+                      userId: state.cloudUserId(provider.id),
+                      onRefresh: () => _refreshCloudStatus(provider),
+                      onConnect: () => _connectCloud(provider),
+                      onDisconnect: () => _confirmDisconnectCloud(provider),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
             _SectionLabel('About'),
             Card(
               child: Column(
@@ -321,6 +531,82 @@ class _Pill extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+}
+
+class _CloudProviderTile extends StatelessWidget {
+  const _CloudProviderTile({
+    required this.provider,
+    required this.connected,
+    required this.busy,
+    this.userId,
+    required this.onRefresh,
+    required this.onConnect,
+    required this.onDisconnect,
+  });
+
+  final CloudProvider provider;
+  final bool connected;
+  final bool busy;
+  final String? userId;
+  final VoidCallback onRefresh;
+  final VoidCallback onConnect;
+  final VoidCallback onDisconnect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!connected) {
+      return ListTile(
+        leading: Icon(provider.icon ?? Symbols.watch_sharp),
+        title: Text('Connect ${provider.name} Cloud'),
+        subtitle: Text(provider.description),
+        trailing: busy
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Symbols.open_in_new_sharp, size: 20),
+        onTap: busy ? null : onConnect,
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListTile(
+          leading: Icon(
+            provider.icon ?? Symbols.watch_sharp,
+            color: AppColors.success,
+          ),
+          title: Text('${provider.displayName} (Cloud)'),
+          subtitle: Text(
+            userId != null
+                ? 'Connected ($userId) - direct cloud sync active.'
+                : 'Connected — direct cloud sync active.',
+          ),
+          trailing: busy
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : IconButton(
+                  tooltip: 'Check ${provider.name} connection status',
+                  icon: const Icon(Symbols.refresh_sharp),
+                  onPressed: onRefresh,
+                ),
+        ),
+        ListTile(
+          leading: const Icon(Symbols.link_off_sharp, color: AppColors.coral),
+          title: Text(
+            'Remove ${provider.name} Cloud connection',
+            style: const TextStyle(color: AppColors.coral),
+          ),
+          onTap: busy ? null : onDisconnect,
+        ),
+      ],
     );
   }
 }

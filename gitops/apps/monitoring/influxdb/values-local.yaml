@@ -1,7 +1,7 @@
 # Local minikube: small volume, automatic first-start setup.
 persistence:
-  size: 2Gi                  # Prod: 10Gi
-  storageClass: standard     # Prod: local-path
+  size: 2Gi                  # Prod: 100Gi
+  storageClass: standard     # Prod: cinder-csi
 
 initSetup:
   enabled: true

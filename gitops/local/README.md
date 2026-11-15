@@ -16,7 +16,7 @@ Then open http://wearables.localhost and log in with `admin@example.com`.
 
 `setup-local.sh` runs the steps below in order and can be run again at any time: Helm upgrades the releases, and secrets are only created when they are missing. Use `--skip-build` to keep the current images. Every `kubectl` and `helm` call in the script is pinned to the `minikube` context. The sections below explain each step and how to check it.
 
-With `--argocd`, Argo CD deploys five of the services from GitHub instead of Helm, as in production (step 16).
+With `--argocd`, Argo CD deploys the applications from GitHub instead of Helm, as in production (step 16).
 
 ## Prerequisites
 
@@ -71,7 +71,7 @@ kubectl get pods -n kafka
 kubectl get kafkatopics -n kafka   # dlq, wearables-lp, wearables-raw: READY True
 ```
 
-The `kafka-mosquitto-source` KafkaConnector stays without status: the chart has no Kafka Connect cluster for it to run on. It is harmless locally.
+Locally the chart does not create the `kafka-mosquitto-source` KafkaConnector (`sourceConnector.enabled: false`): there is no Kafka Connect cluster for it to run on, and Argo CD would report the kafka application as Degraded.
 
 ## 4. FHIR mapper
 
@@ -148,6 +148,10 @@ To open the InfluxDB UI: `kubectl port-forward -n influx svc/influxdb-service 80
 Needs InfluxDB from step 5 and the image from step 2 (`./gitops/local/build-local-images.sh db-lord`).
 
 ```bash
+kubectl create namespace prod-postgres
+kubectl create secret generic prod-postgres-secret -n prod-postgres \
+  --from-literal=POSTGRES_PASSWORD=postgres
+
 helm upgrade --install prod-postgres gitops/apps/platform/prod-postgres \
   -f gitops/apps/platform/prod-postgres/values.yaml \
   -f gitops/apps/platform/prod-postgres/values-local.yaml \
@@ -155,27 +159,30 @@ helm upgrade --install prod-postgres gitops/apps/platform/prod-postgres \
 kubectl rollout status statefulset/prod-postgres -n prod-postgres
 ```
 
-Locally Postgres gets a 2 Gi volume, smaller resources and local-only passwords (`postgres` for the admin, `dblord` for the db_lord user). Only the `dblord` database is created; production also creates `lakefs` for the ML pipeline.
+Locally Postgres gets a 2 Gi volume, smaller resources and local-only passwords (`postgres` for the admin, `dblord` for the db_lord user). As in production, the chart does not create the secret with the admin password, `prod-postgres-secret`. Only the `dblord` database is created; production also creates `lakefs` for the ML pipeline.
 
-db_lord is installed in **two steps** on the first install:
+As in production, the chart does not create its secret `db-lord-secrets`; it has to exist before the install, because the migration job (a `pre-install` hook) reads it. Create it with the credentials of the local Postgres and InfluxDB, then install db_lord:
 
 ```bash
-# 1. Create the secret and the deployment, skip the migration hook
-helm install db-lord gitops/apps/services/db-lord \
-  -f gitops/apps/services/db-lord/values.yaml \
-  -f gitops/apps/services/db-lord/values-local.yaml \
-  --namespace db-lord --create-namespace --no-hooks
+kubectl create namespace db-lord
+kubectl create secret generic db-lord-secrets -n db-lord \
+  --from-literal=POSTGRES_SERVER=prod-postgres.prod-postgres.svc.cluster.local \
+  --from-literal=POSTGRES_PORT=5432 \
+  --from-literal=POSTGRES_DB=dblord \
+  --from-literal=POSTGRES_USER=dblord \
+  --from-literal=POSTGRES_PASSWORD=dblord \
+  --from-literal=INFLUX_URL=http://influxdb-service.influx.svc.cluster.local:8086 \
+  --from-literal=INFLUX_ORG=wearables-project \
+  --from-literal=INFLUX_BUCKET=measurements \
+  --from-literal=INFLUX_TOKEN=dev-influx-token
 
-# 2. Upgrade: the migration job now runs with the secret in place
-helm upgrade db-lord gitops/apps/services/db-lord \
+helm upgrade --install db-lord gitops/apps/services/db-lord \
   -f gitops/apps/services/db-lord/values.yaml \
   -f gitops/apps/services/db-lord/values-local.yaml \
   --namespace db-lord --wait --timeout 5m
 ```
 
-Why: the migration job is a `pre-install` hook, so Helm runs it before it creates the `db-lord-secrets` secret it reads, and a plain first install hangs with `secret "db-lord-secrets" not found`. Later upgrades need only step 2.
-
-The secret is created once and then kept on purpose. After changing `env` in `values-local.yaml`, delete it (`kubectl delete secret db-lord-secrets -n db-lord`) and run both steps again.
+`setup-local.sh` creates the secret only when it is missing. To change a value, delete it (`kubectl delete secret db-lord-secrets -n db-lord`), run the script again and restart db_lord (`kubectl rollout restart deployment/db-lord -n db-lord`).
 
 Check that db_lord reaches Postgres and InfluxDB:
 
@@ -274,6 +281,11 @@ kubectl exec -n kafka kafka-dual-role-0 -- \
 Needs db_lord (step 6), Traefik with a running `minikube tunnel` (step 7) and the image from step 2 (`./gitops/local/build-local-images.sh wearables-bff`).
 
 ```bash
+kubectl create namespace wearables-bff
+kubectl create secret generic wearables-bff-secrets -n wearables-bff \
+  --from-literal=JWT_SECRET=dev-secret \
+  --from-literal=BREVO_API_KEY=disabled
+
 helm upgrade --install wearables-bff gitops/apps/services/wearables-bff \
   -f gitops/apps/services/wearables-bff/values.yaml \
   -f gitops/apps/services/wearables-bff/values-local.yaml \
@@ -285,7 +297,7 @@ Local differences:
 - `NODE_ENV: development`: login works with the email address alone, no magic-link mail and no Brevo key.
 - Admin login: `admin@example.com` (`ADMIN_EMAILS`).
 - URLs point to `http://wearables.localhost`; the API is served at `http://wearables.localhost/api`.
-- The chart creates its own secret with `JWT_SECRET: dev-secret`, the same value as the importservice secret in step 8, so case tokens issued by the BFF are accepted by the importservice.
+- As in production, the chart does not create its secret `wearables-bff-secrets`. Its `JWT_SECRET` is `dev-secret`, the same value as the importservice secret in step 8, so case tokens issued by the BFF are accepted by the importservice. `BREVO_API_KEY` is not used in development mode.
 
 Check login and the connection to db_lord:
 
@@ -380,7 +392,7 @@ The proxy needs a secret with two values: `APP_JWT_SECRET` checks the BFF sessio
 ```bash
 kubectl create namespace monitoring
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/grafana-jwt.pem
-kubectl create secret generic grafana-proxy-secrets -n monitoring \
+kubectl create secret generic grafana-auth-secrets -n monitoring \
   --from-file=GRAFANA_JWT_PRIVATE_KEY=/tmp/grafana-jwt.pem \
   --from-literal=APP_JWT_SECRET=dev-secret
 rm /tmp/grafana-jwt.pem
@@ -503,13 +515,22 @@ print('wearables-raw' in md.topics)"   # True
 
 ## 16. Argo CD mode (optional)
 
-Production deploys cloud-connector, importservice, mapper-validator, wearables-bff and the web frontend with Argo CD (`gitops/setup/argocd/`). To try the same locally:
+Production deploys the applications with Argo CD (`gitops/setup/argocd/`): Postgres, InfluxDB, Kafka, db_lord, extraction-service, cloud-connector, importservice, mapper-validator, wearables-bff, the web frontend, Grafana and grafana-proxy. To try the same locally:
 
 ```bash
 ./gitops/local/setup-local.sh --argocd --revision feat/my-branch   # default revision: main
 ```
 
-The script then installs Argo CD (pinned to v3.5.7) and applies `gitops/local/argocd/root-app.yaml`. This root application deploys the same chart as production, `gitops/setup/argocd/apps`, with its `values-local.yaml`. The chart creates the five applications: the same as in production, but they pass `values.yaml` plus `values-local.yaml` to the service charts, and deleting one also deletes its resources. The release names are the same as in Helm mode and production (the web frontend's release is `web`). Everything else (Kafka, Postgres, Traefik, Grafana, the secrets, ...) is still installed by Helm.
+The script then installs Argo CD (pinned to v3.5.7) and applies `gitops/local/argocd/root-app.yaml`. This root application deploys the same chart as production, `gitops/setup/argocd/apps`, with its `values-local.yaml`. The chart creates the same applications as in production, but they pass `values.yaml` plus `values-local.yaml` to the charts, and deleting one also deletes its resources. The release names are the same as in Helm mode and production (the web frontend's release is `web`).
+
+Like the production setup script, the script itself only installs what the applications need beforehand, then waits until all applications are synced and healthy:
+
+- the Strimzi operator and Traefik (with its CRDs),
+- the secrets `importservice-secrets`, `prod-postgres-secret`, `db-lord-secrets`, `wearables-bff-secrets` and `grafana-auth-secrets`, and the ConfigMap `grafana-patient-dashboards`. As in production, the charts do not create these secrets.
+
+Afterwards it installs Telegraf, Prometheus and db-stats-exporter with Helm, which are not managed by Argo CD in production either.
+
+The applications sync in parallel, so some fail or restart at first until Kafka and Postgres are up (e.g. the db_lord migration). Argo CD retries a failed sync up to five times (`retry` in `gitops/setup/argocd/apps/templates/applications.yaml`), so the first run takes a few minutes longer than in Helm mode.
 
 Use Helm mode (without `--argocd`) for day-to-day development: a change is in the cluster with one `helm upgrade`. Argo CD mode is slower, but behaves like production (automatic sync, self-heal, prune).
 
@@ -529,7 +550,7 @@ kubectl rollout restart deployment/importservice -n importservice
 
 ```bash
 kubectl get applications -n argocd   # all SYNCED and HEALTHY, including wearables-local-root
-helm list -A                         # the five services are not listed: Argo CD renders the charts itself
+helm list -A                         # only strimzi, traefik, telegraf, prometheus and db-stats-exporter: Argo CD renders the other charts itself
 ```
 
 Argo CD UI:
@@ -541,13 +562,13 @@ kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.pas
 
 ### Working in Argo CD mode
 
-There are no Helm releases for the five services, so `helm uninstall` reports `release not found`. Deleting things by hand has these effects:
+There are no Helm releases for the applications, so `helm uninstall` reports `release not found`. Deleting things by hand has these effects:
 
 | Deleted | Result |
 |---|---|
 | A resource, e.g. `kubectl delete deployment importservice -n importservice` | Argo CD creates it again within seconds (self-heal). |
 | An application, e.g. `kubectl delete application importservice -n argocd` | Its finalizer deletes its resources too, but the root application creates the application again, which then redeploys everything. |
-| The root application `wearables-local-root` | All five applications and their resources are removed and stay removed. |
+| The root application `wearables-local-root` | All applications and their resources are removed and stay removed. |
 | A namespace | Argo CD recreates the namespace and its resources, but not the secrets created by the script (e.g. `importservice-secrets`); run `setup-local.sh` again. |
 
 Manual changes to a deployment are reverted the same way. To remove an application for good, delete it from `gitops/setup/argocd/apps/values.yaml` and push (prune removes it; this also removes it in production once it is on main). To change things by hand for a while, turn off automated sync for that application in the Argo CD UI first.
@@ -556,10 +577,10 @@ Manual changes to a deployment are reverted the same way. To remove an applicati
 
 The script switches in both directions:
 
-- `--argocd` uninstalls existing Helm releases of the five services, then Argo CD creates them again.
-- A run without `--argocd` deletes the root application, waits until the five applications and their resources are gone, and installs the charts with Helm.
+- `--argocd` uninstalls existing Helm releases of the applications, then Argo CD creates them again.
+- A run without `--argocd` deletes the root application, waits until the applications and their resources are gone, and installs the charts with Helm.
 
-Both cause a short downtime of these services, and the cloud-connector volume (`connections.json`) is created anew. Argo CD itself stays installed in Helm mode, without applications.
+Both cause a downtime of the whole platform, and the volumes are created anew: the data of Postgres, InfluxDB, Kafka and Grafana and the cloud-connector volume (`connections.json`) are lost. Argo CD itself stays installed in Helm mode, without applications.
 
 ## Stopping and resetting
 

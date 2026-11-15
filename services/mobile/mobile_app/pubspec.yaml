@@ -16,7 +16,7 @@ dependencies:
   background_fetch: ^1.7.0
   shared_preferences: ^2.2.2
   flutter_local_notifications: ^17.1.2
-  mobile_scanner: ^5.1.1
+  mobile_scanner: ^7.2.1
   url_launcher: ^6.3.3
   package_info_plus: ^10.2.2
   flutter_svg: ^2.3.0

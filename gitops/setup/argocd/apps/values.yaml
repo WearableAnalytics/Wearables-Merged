@@ -9,6 +9,27 @@ valueFiles:
 deleteResources: false
 
 apps:
+  # Platform & Data Stores (prune: false protects persistent volumes & state)
+  - name: prod-postgres
+    path: gitops/apps/platform/prod-postgres
+    namespace: prod-postgres
+    prune: false
+  - name: influxdb
+    path: gitops/apps/monitoring/influxdb
+    namespace: influx
+    prune: false
+  - name: kafka
+    path: gitops/apps/platform/kafka
+    namespace: kafka
+    prune: false
+
+  # Application Services
+  - name: db-lord
+    path: gitops/apps/services/db-lord
+    namespace: db-lord
+  - name: extraction-service
+    path: gitops/apps/services/extraction-service
+    namespace: extraction-service
   - name: cloud-connector
     path: gitops/apps/services/cloud-connector
     namespace: cloud-connector
@@ -25,3 +46,11 @@ apps:
     path: gitops/apps/web-frontend
     namespace: web
     releaseName: web          # as in setup-script.sh
+
+  # Monitoring & Visualization
+  - name: grafana
+    path: gitops/apps/monitoring/grafana
+    namespace: grafana
+  - name: grafana-proxy
+    path: gitops/apps/monitoring/grafana-proxy
+    namespace: monitoring

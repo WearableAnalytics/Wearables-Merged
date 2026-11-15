@@ -174,12 +174,16 @@ class ConnectionStore:
                 return None
             return self.delete_connection(provider, conn["patient_id"])
 
-    def list_connections(self, provider: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_connections(
+        self, provider: Optional[str] = None, patient_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         provider_lower = provider.lower() if provider else None
         results = []
         with self._lock:
             for conn in self._connections.values():
                 if provider_lower and conn.get("provider") != provider_lower:
+                    continue
+                if patient_id is not None and conn.get("patient_id") != patient_id:
                     continue
                 results.append(
                     {

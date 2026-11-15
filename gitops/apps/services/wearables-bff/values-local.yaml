@@ -14,4 +14,4 @@ env:
   FRONTEND_REDIRECT_URL: "http://wearables.localhost/"
   BACKEND_URL: "http://wearables.localhost"
   ADMIN_EMAILS: "admin@example.com" # local admin login
-# secret.data.JWT_SECRET keeps the chart default "dev-secret", matching importservice
+# wearables-bff-secrets is created by gitops/local/setup-local.sh (JWT_SECRET: dev-secret, matching importservice)

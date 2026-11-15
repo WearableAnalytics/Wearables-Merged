@@ -12,6 +12,7 @@ import '../utils/formatting.dart';
 import '../widgets/brand_header.dart';
 import '../widgets/study_code_entry.dart';
 import '../widgets/study_info_link.dart';
+import '../widgets/sync_mode_dialog.dart';
 
 /// First tab: welcome flow until a study code is linked, then the
 /// connection status with a manual "share now" action.
@@ -46,13 +47,29 @@ class _WelcomeView extends StatelessWidget {
   final AppState state;
 
   Future<void> _link(BuildContext context, {required bool scan}) async {
+    final rootContext = Navigator.of(context, rootNavigator: true).context;
     final code = scan
         ? await scanStudyCode(context)
         : await enterStudyCodeManually(context);
     if (code == null) return;
     // A newly linked participant always starts from the chosen period.
     await state.linkStudyCode(code, resetLastSync: true);
-    await state.syncNow();
+
+    // Auto-detect previously connected cloud providers on the server
+    final restored = await state.restoreCloudConnections();
+    if (!rootContext.mounted) return;
+
+    if (restored.isNotEmpty) {
+      for (final provider in restored) {
+        if (!rootContext.mounted) break;
+        await promptSyncModeAfterConnect(rootContext, state, provider);
+      }
+      if (state.localHealthSyncEnabled) {
+        await state.syncNow();
+      }
+    } else {
+      await state.syncNow();
+    }
   }
 
   @override
@@ -167,6 +184,44 @@ class _ConnectedView extends StatelessWidget {
   final AppState state;
 
   Future<void> _syncNow(BuildContext context) async {
+    if (!state.localHealthSyncEnabled) {
+      if (state.hasAnyCloudConnection) {
+        try {
+          final provider = state.primaryCloudProvider;
+          final status = await state.refreshCloudStatus(
+            provider?.id ?? 'garmin',
+          );
+          if (!context.mounted) return;
+          final name = provider?.name ?? 'Garmin';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                status.connected
+                    ? '$name Cloud connection is active. Data syncs directly via cloud.'
+                    : '$name Cloud is no longer connected. Check Account settings.',
+              ),
+            ),
+          );
+        } catch (_) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not reach Cloud Connector server.'),
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Enable ${AppConfig.healthStore} or connect Garmin Cloud in Account settings.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     final result = await state.syncNow();
     if (!context.mounted || result == null) return;
     final message = switch (result.status) {
@@ -196,10 +251,26 @@ class _ConnectedView extends StatelessWidget {
 
   /// Links the newly scanned code and continues where sharing stopped.
   Future<void> _rescan(BuildContext context) async {
+    final rootContext = Navigator.of(context, rootNavigator: true).context;
     final code = await scanStudyCode(context);
     if (code == null) return;
     await state.linkStudyCode(code, resetLastSync: false);
-    if (context.mounted) await _syncNow(context);
+
+    final restored = await state.restoreCloudConnections();
+    if (!rootContext.mounted) return;
+
+    if (restored.isNotEmpty) {
+      for (final provider in restored) {
+        if (!rootContext.mounted) break;
+        await promptSyncModeAfterConnect(rootContext, state, provider);
+      }
+      if (state.localHealthSyncEnabled) {
+        if (!rootContext.mounted) return;
+        await _syncNow(rootContext);
+      }
+    } else {
+      await _syncNow(rootContext);
+    }
   }
 
   /// Short server or network reason, e.g. "Status 422".
@@ -218,8 +289,11 @@ class _ConnectedView extends StatelessWidget {
     final failed =
         expired ||
         rejected ||
-        (!state.isSyncing && state.lastOutcome == SyncOutcome.failure);
+        (state.localHealthSyncEnabled &&
+            !state.isSyncing &&
+            state.lastOutcome == SyncOutcome.failure);
     final incomplete =
+        state.localHealthSyncEnabled &&
         !state.isSyncing &&
         !failed &&
         (state.lastOutcome == SyncOutcome.incomplete || state.isBehind);
@@ -244,7 +318,7 @@ class _ConnectedView extends StatelessWidget {
                     const SizedBox(height: 40),
                     Center(
                       child: _StatusBadge(
-                        syncing: state.isSyncing,
+                        syncing: state.isSyncing || state.isAnyCloudBusy,
                         progress: state.progress,
                         failed: failed,
                         incomplete: incomplete,
@@ -285,6 +359,12 @@ class _ConnectedView extends StatelessWidget {
                           : failed
                           ? 'Your data will be sent again automatically. You can also '
                                 'try it now.'
+                          : state.isCloudOnlyMode
+                          ? 'Your ${state.primaryCloudProvider?.name ?? "Garmin"} wearable data is synchronized directly via '
+                                '${state.primaryCloudProvider?.name ?? "Garmin"} Cloud. No phone upload is needed.'
+                          : state.isParallelSyncMode
+                          ? 'Your ${AppConfig.healthStore} data and ${state.primaryCloudProvider?.name ?? "Garmin"} Cloud are '
+                                'shared securely with the Charité Wearables platform.'
                           : 'Your ${AppConfig.healthStore} data is shared securely with the '
                                 'Charité Wearables platform.',
                       style: textTheme.bodyLarge?.copyWith(
@@ -378,7 +458,9 @@ class _ConnectedView extends StatelessWidget {
                           child: _InfoTile(
                             icon: Symbols.schedule_sharp,
                             label: 'Shared up to',
-                            value: state.lastSendTime == null
+                            value: state.isCloudOnlyMode
+                                ? 'Direct cloud'
+                                : state.lastSendTime == null
                                 ? 'Not yet'
                                 : formatRelative(state.lastSendTime!),
                           ),
@@ -388,7 +470,13 @@ class _ConnectedView extends StatelessWidget {
                           child: _InfoTile(
                             icon: Symbols.autorenew_sharp,
                             label: 'Automatic sharing',
-                            value: (expired || rejected) ? 'Paused' : 'On',
+                            value: (expired || rejected)
+                                ? 'Paused'
+                                : state.isCloudOnlyMode
+                                ? '${state.primaryCloudProvider?.name ?? "Garmin"} Cloud'
+                                : !state.localHealthSyncEnabled
+                                ? 'Paused'
+                                : 'On',
                           ),
                         ),
                       ],
@@ -402,15 +490,27 @@ class _ConnectedView extends StatelessWidget {
                       )
                     else
                       FilledButton.icon(
-                        onPressed: state.isSyncing
+                        onPressed: (state.isSyncing || state.isAnyCloudBusy)
                             ? null
                             : () => _syncNow(context),
-                        icon: const Icon(Symbols.sync_sharp),
-                        label: Text(state.isSyncing ? 'Sharing…' : 'Share now'),
+                        icon: Icon(
+                          state.isCloudOnlyMode
+                              ? Symbols.cloud_done_sharp
+                              : Symbols.sync_sharp,
+                        ),
+                        label: Text(
+                          state.isSyncing
+                              ? 'Sharing…'
+                              : state.isCloudOnlyMode
+                              ? 'Check ${state.primaryCloudProvider?.name ?? "Garmin"} status'
+                              : 'Share now',
+                        ),
                       ),
                     const SizedBox(height: 12),
                     Text(
-                      state.lastSendTime == null
+                      state.isCloudOnlyMode
+                          ? '${state.primaryCloudProvider?.name ?? "Garmin"} pushes new data directly to the server.'
+                          : state.lastSendTime == null
                           ? 'The first upload covers everything since '
                                 '${formatDate(state.initialSyncStart)}.'
                           : 'Only data recorded since the last upload is shared.',

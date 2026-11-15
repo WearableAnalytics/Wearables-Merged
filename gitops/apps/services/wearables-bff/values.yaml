@@ -4,7 +4,7 @@ image:
   # Built by .github/workflows/publish-images.yml. Pin a commit SHA tag at
   # deploy time (--set image.tag=<sha>) instead of relying on latest.
   repository: ghcr.io/wearableanalytics/wearables-bff
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   tag: "latest"
 
 service:
@@ -45,10 +45,11 @@ env:
   MAILER_FROM_EMAIL: "noreply@wearables.charite.de"
   COOKIE_SECURE: "false"
 
+# Existing secret with JWT_SECRET and BREVO_API_KEY (needed when NODE_ENV is
+# production). Created out of band (production: scripts/bootstrap-runtime-secrets.sh,
+# locally: gitops/local/setup-local.sh), so real values never come from git.
 secret:
   enabled: true
-  create: true
-  name: ""
-  data:
-    JWT_SECRET: "dev-secret"
-    BREVO_API_KEY: "disabled"
+  create: false
+  name: "wearables-bff-secrets"
+  data: {}

@@ -10,6 +10,7 @@ persistence:
 ingress:
   host: wearables.localhost  # Prod: wearables.charite.de
   httpOnly: true
+  authMiddleware: ""
 
 server:
   subPath: /proxy            # Prod: the ingress prefix /grafana

@@ -1,0 +1,12 @@
+{{- if and .Values.ingress.authMiddleware .Values.ingress.forwardAuthUrl }}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ .Values.ingress.authMiddleware }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  forwardAuth:
+    address: {{ .Values.ingress.forwardAuthUrl | quote }}
+    authRequestHeaders:
+      - Cookie
+{{- end }}

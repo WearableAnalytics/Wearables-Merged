@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 Future<String?> scanStudyCode(BuildContext context) async {
   final value = await Navigator.of(
     context,
+    rootNavigator: true,
   ).push<String>(MaterialPageRoute(builder: (_) => const QrScanPage()));
   if (!context.mounted || value == null) return null;
   return _validated(context, value);
@@ -16,10 +17,13 @@ Future<String?> scanStudyCode(BuildContext context) async {
 /// Asks for the study code as text and returns it if valid, or null.
 Future<String?> enterStudyCodeManually(BuildContext context) async {
   final controller = TextEditingController();
+  final nav = Navigator.of(context, rootNavigator: true);
   final value = await showModalBottomSheet<String>(
-    context: context,
+    context: nav.context,
+    useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
+    sheetAnimationStyle: const AnimationStyle(reverseDuration: Duration.zero),
     backgroundColor: AppColors.surface,
     builder: (ctx) => Padding(
       padding: EdgeInsets.fromLTRB(
@@ -68,8 +72,8 @@ Future<String?> enterStudyCodeManually(BuildContext context) async {
     ),
   );
   WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
-  if (!context.mounted || value == null) return null;
-  return _validated(context, value);
+  if (!nav.context.mounted || value == null) return null;
+  return _validated(nav.context, value);
 }
 
 String? _validated(BuildContext context, String raw) {
