@@ -64,7 +64,7 @@ class CloudKafkaPublisher:
             # Send single JSON object as expected by fhir-mapper-validator
             payload_bytes = json.dumps(normalized, default=str).encode('utf-8')
             
-            patient_id = payload.get("deviceInfo", {}).get("deviceId", "unknown")
+            patient_id = payload.get("participantId") or payload.get("deviceInfo", {}).get("deviceId", "unknown")
             key = patient_id.encode('utf-8')
 
             self.producer.produce(

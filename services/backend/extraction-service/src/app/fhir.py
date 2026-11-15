@@ -88,6 +88,15 @@ def build_observation(parser: FhirParser, point: TelemetryPoint) -> dict:
             "start": point.fields.get("period_start", timestamp),
             "end": point.fields["period_end"],
         }
+    source = point.tags.get("source-key")
+    record_id = point.fields.get("source_record_id")
+    if source and source != "legacy" and record_id:
+        observation["identifier"] = [{"system": f"urn:wearables:source:{source}", "value": str(record_id)}]
+    for extension in observation.get("extension", []):
+        if extension is not None and set(extension) == {"url"}:
+            extension["extension"] = [{
+                "url": "http://hl7.org/fhir/StructureDefinition/data-absent-reason", "valueCode": "unknown",
+            }]
     return observation
 
 

@@ -158,7 +158,7 @@
           "measurement": "heart-rate",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT mean(\"value\") FROM \"heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -274,7 +274,7 @@
           "measurement": "heart-rate",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT last(\"value\") FROM \"heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/",
+          "query": "SELECT last(\"value\") FROM \"heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\"",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -390,7 +390,7 @@
           "measurement": "resting-heart-rate",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT last(\"value\") FROM \"resting-heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/",
+          "query": "SELECT last(\"value\") FROM \"resting-heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\"",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -526,7 +526,7 @@
           "measurement": "heart-rate-variability-sdnn",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT mean(\"value\") FROM \"heart-rate-variability\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"heart-rate-variability\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -665,7 +665,7 @@
           "measurement": "blood-oxygen",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT mean(\"value\") FROM \"blood-oxygen\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"blood-oxygen\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -795,7 +795,7 @@
           "measurement": "respiratory-rate",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT mean(\"value\") FROM \"respiratory-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"respiratory-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -931,7 +931,7 @@
           "measurement": "walking-heart-rate",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT mean(\"value\") FROM \"walking-heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time($__interval) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"walking-heart-rate\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -1090,7 +1090,7 @@
           "measurement": "steps",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT sum(\"value\")\nFROM \"steps\"\nWHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/\nGROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\")\nFROM \"steps\"\nWHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/\nGROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -1203,7 +1203,7 @@
           "measurement": "steps",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT sum(\"value\") FROM \"steps\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") FROM \"steps\" WHERE \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ AND time >= now() - 1d GROUP BY \"source-key\"",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -1298,7 +1298,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") FROM \"flights-climbed\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") FROM \"flights-climbed\" WHERE \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ AND time >= now() - 1d GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "A"
         }
@@ -1412,7 +1412,7 @@
           "measurement": "distance-walking-running",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT sum(\"value\") / 1000 FROM \"distance-walking-running\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 1000 FROM \"distance-walking-running\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -1461,7 +1461,7 @@
           "measurement": "distance-cycling",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT sum(\"value\") / 1000 FROM \"distance-cycling\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 1000 FROM \"distance-cycling\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": false,
           "refId": "B",
           "resultFormat": "time_series",
@@ -1592,7 +1592,7 @@
           "measurement": "exercise-time",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT sum(\"value\") / 60 FROM \"exercise-time\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 60 FROM \"exercise-time\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -1773,7 +1773,7 @@
           "measurement": "basal-energy-burned",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT sum(\"value\") FROM \"basal-energy-burned\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") FROM \"basal-energy-burned\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": false,
           "refId": "B",
           "resultFormat": "time_series",
@@ -1816,7 +1816,7 @@
           "measurement": "active-energy-burned",
           "orderByTime": "ASC",
           "policy": "default",
-          "query": "SELECT sum(\"value\") FROM \"active-energy-burned\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") FROM \"active-energy-burned\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": false,
           "refId": "A",
           "resultFormat": "time_series",
@@ -1911,7 +1911,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") FROM \"active-energy-burned\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") FROM \"active-energy-burned\" WHERE \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ AND time >= now() - 1d GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "A"
         }
@@ -1976,7 +1976,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") FROM \"basal-energy-burned\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") FROM \"basal-energy-burned\" WHERE \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ AND time >= now() - 1d GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2148,7 +2148,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-deep\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 60 FROM \"sleep-deep\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": true,
           "refId": "A"
         },
@@ -2158,7 +2158,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-rem\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 60 FROM \"sleep-rem\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": true,
           "refId": "B"
         },
@@ -2168,7 +2168,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-asleep-core\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 60 FROM /^sleep-(light|asleep-core)$/ WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": true,
           "refId": "C"
         },
@@ -2178,7 +2178,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-awake\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 60 FROM \"sleep-awake\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": true,
           "refId": "D"
         }
@@ -2251,7 +2251,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-asleep\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") / 60 FROM \"sleep-asleep\" WHERE \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ AND time >= now() - 1d GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2316,7 +2316,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 3600 FROM \"sleep-in-bed\" WHERE \"device-id\" =~ /^$deviceId$/ AND time >= now() - 1d",
+          "query": "SELECT sum(\"value\") / 60 FROM \"sleep-in-bed\" WHERE \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ AND time >= now() - 1d GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2495,7 +2495,7 @@
             "uid": "${DS_INFLUXDB}"
           },
           "hide": false,
-          "query": "SELECT \"value\" *0+4 AS \"Awake\" FROM \"sleep-awake\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ ",
+          "query": "SELECT \"value\" *0+4 AS \"Awake\" FROM \"sleep-awake\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/  GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "D",
           "resultFormat": "time_series"
@@ -2507,7 +2507,7 @@
             "uid": "${DS_INFLUXDB}"
           },
           "hide": false,
-          "query": "SELECT \"value\" *0+3 AS \"REM Sleep\" FROM \"sleep-asleep-rem\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ ",
+          "query": "SELECT \"value\" *0+3 AS \"REM Sleep\" FROM \"sleep-asleep-rem\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/  GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "C",
           "resultFormat": "time_series"
@@ -2519,7 +2519,7 @@
             "uid": "${DS_INFLUXDB}"
           },
           "hide": false,
-          "query": "SELECT \"value\" *0+2  AS \"Core Sleep\" FROM \"sleep-asleep-core\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ ",
+          "query": "SELECT \"value\" *0+2  AS \"Core Sleep\" FROM /^sleep-(light|asleep-core)$/ WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/  GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "B",
           "resultFormat": "time_series"
@@ -2531,7 +2531,7 @@
             "uid": "${DS_INFLUXDB}"
           },
           "hide": false,
-          "query": "SELECT \"value\" *0+1 AS \"Deep Sleep\" FROM \"sleep-asleep-deep\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ ",
+          "query": "SELECT \"value\" *0+1 AS \"Deep Sleep\" FROM \"sleep-asleep-deep\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/  GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"
@@ -2646,7 +2646,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"weight\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"weight\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(null)",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2711,7 +2711,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT last(\"value\") FROM \"weight\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/",
+          "query": "SELECT last(\"value\") FROM \"weight\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2809,7 +2809,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"body-mass-index\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"body-mass-index\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(null)",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2907,7 +2907,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT mean(\"value\") FROM \"body-fat-percentage\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ GROUP BY time(1d) fill(null)",
+          "query": "SELECT mean(\"value\") FROM \"body-fat-percentage\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(null)",
           "rawQuery": true,
           "refId": "A"
         }
@@ -2974,7 +2974,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT * FROM \"workout\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ ORDER BY time DESC LIMIT 20",
+          "query": "SELECT * FROM \"workout\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ ORDER BY time DESC LIMIT 20 GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "A"
         }
@@ -3032,6 +3032,29 @@
         "regex": "",
         "sort": 1,
         "type": "query"
+      },
+      {
+        "name": "sourceKey",
+        "label": "Source",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "${DS_INFLUXDB}"
+        },
+        "query": "SHOW TAG VALUES WITH KEY = \"source-key\" WHERE \"device-id\" =~ /^$deviceId$/",
+        "definition": "SHOW TAG VALUES WITH KEY = \"source-key\" WHERE \"device-id\" =~ /^$deviceId$/",
+        "refresh": 1,
+        "sort": 1,
+        "multi": false,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "description": "Compare separate source series, or choose one source key. Legacy points have no verified source."
       }
     ]
   },

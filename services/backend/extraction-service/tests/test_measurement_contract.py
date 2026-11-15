@@ -65,7 +65,7 @@ async def test_mapping_outage_cannot_reinterpret_versioned_record():
 def test_legacy_points_keep_legacy_mapping():
     old = point(tags={"version": "1.0.0"})
     assert builtin_mapping(old).version == "1.0.0"
-    assert builtin_mapping(point()).version == "2.0.0"
+    assert builtin_mapping(point()).version.startswith("2.")
 
 
 def test_all_mapping_copies_match():

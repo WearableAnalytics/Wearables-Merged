@@ -221,7 +221,7 @@ class GarminProvider(BaseCloudProvider):
                 IngestPayload(
                     deviceInfo=DeviceInfo(
                         platform="Garmin",
-                        deviceId=patient_id,
+                        deviceId="cloud-connector:garmin",
                         authorizationToken="cloud-connector-garmin",
                     ),
                     batchInfo=BatchInfo(
@@ -236,7 +236,9 @@ class GarminProvider(BaseCloudProvider):
                         waveforms=wav,
                     ),
                     sourceName="Garmin Health Cloud",
-                    sourcePlatform="Garmin Connect",
+                    sourcePlatform="garmin-connect",
+                    sourceId="garmin-connect",
+                    participantId=patient_id,
                     totalStepsToday=steps if steps > 0 else None,
                     timestamp=now,
                 )
@@ -322,7 +324,7 @@ class GarminProvider(BaseCloudProvider):
         return IngestPayload(
             deviceInfo=DeviceInfo(
                 platform="Garmin",
-                deviceId=patient_id,
+                deviceId="cloud-connector:garmin",
                 authorizationToken="cloud-connector-garmin",
             ),
             batchInfo=BatchInfo(
@@ -337,7 +339,9 @@ class GarminProvider(BaseCloudProvider):
                 waveforms=waveform_list,
             ),
             sourceName="Garmin Health Cloud",
-            sourcePlatform="Garmin Connect",
+            sourcePlatform="garmin-connect",
+                    sourceId="garmin-connect",
+                    participantId=patient_id,
             totalStepsToday=total_steps if total_steps > 0 else None,
             timestamp=now,
         )

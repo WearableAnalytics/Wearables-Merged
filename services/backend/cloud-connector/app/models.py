@@ -15,7 +15,12 @@ class BatchInfo(BaseModel):
     lastSendTime: Optional[datetime] = None
 
 
-class InstantaneousMeasurement(BaseModel):
+class SourceRecord(BaseModel):
+    sourceRecordId: Optional[str] = Field(default=None, min_length=1, max_length=512)
+    sourceDeviceId: Optional[str] = Field(default=None, min_length=1, max_length=512)
+
+
+class InstantaneousMeasurement(SourceRecord):
     type: str
     value: float
     unit: str
@@ -23,7 +28,7 @@ class InstantaneousMeasurement(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-class CumulativeMeasurement(BaseModel):
+class CumulativeMeasurement(SourceRecord):
     type: str
     value: float
     unit: str
@@ -32,7 +37,7 @@ class CumulativeMeasurement(BaseModel):
     duration: int
 
 
-class DurationMeasurement(BaseModel):
+class DurationMeasurement(SourceRecord):
     type: str
     value: float
     unit: str
@@ -68,6 +73,8 @@ class IngestPayload(BaseModel):
     measurements: Measurements
     sourceName: str
     sourcePlatform: Optional[str] = None
+    sourceId: Optional[str] = None
+    participantId: Optional[str] = None
     totalStepsToday: Optional[int] = None
     timestamp: datetime
 

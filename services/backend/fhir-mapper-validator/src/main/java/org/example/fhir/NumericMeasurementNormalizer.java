@@ -8,6 +8,10 @@ import org.example.fhir.model.MeasurementPathConfig;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 /** Normalizes only the numeric measurements declared by the active mapping. */
 final class NumericMeasurementNormalizer {
@@ -21,6 +25,9 @@ final class NumericMeasurementNormalizer {
             throw new IllegalArgumentException("Unsupported numeric mapping contract");
         }
         JsonObject input = original.deepCopy();
+        if (!input.has("participantId") || input.get("participantId").isJsonNull()) {
+            input.add("participantId", input.getAsJsonObject("deviceInfo").get("deviceId"));
+        }
         JsonObject measurements = input.getAsJsonObject("measurements");
         normalizeLegacyAndroidBmr(input, measurements);
         for (MeasurementPathConfig path : mapping.getMeasurement().getPaths()) {
@@ -30,9 +37,49 @@ final class NumericMeasurementNormalizer {
             for (var element : readings) {
                 JsonObject reading = element.getAsJsonObject();
                 normalizeReading(reading, path, category);
+                preserveSource(input, reading);
             }
         }
         return input;
+    }
+
+    private static void preserveSource(JsonObject input, JsonObject reading) {
+        String platform = text(input, "sourcePlatform");
+        String writer = text(input, "sourceId");
+        String measuringDevice = text(reading, "sourceDeviceId");
+        putText(reading, "sourcePlatform", platform);
+        putText(reading, "sourceId", writer);
+        putText(reading, "sourceName", text(input, "sourceName"));
+        putText(reading, "collectorId", text(input.getAsJsonObject("deviceInfo"), "deviceId"));
+        putText(reading, "sourceDeviceId", measuringDevice);
+        putText(reading, "sourceRecordId", text(reading, "sourceRecordId"));
+        // Missing native writer IDs remain an explicit legacy source. Never use
+        // the collector installation as a substitute for a writing application.
+        com.google.gson.JsonArray identity = new com.google.gson.JsonArray();
+        identity.add(platform);
+        identity.add(writer);
+        identity.add(measuringDevice);
+        try {
+            String key = writer.isEmpty() ? "legacy" : HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(identity.toString().getBytes(StandardCharsets.UTF_8)));
+            reading.addProperty("sourceKey", key);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    private static void putText(JsonObject object, String name, String value) {
+        if (value.isEmpty()) object.remove(name);
+        else object.addProperty(name, value);
+    }
+
+    private static String text(JsonObject object, String key) {
+        if (object == null || !object.has(key) || object.get(key).isJsonNull()) return "";
+        String value = object.get(key).getAsString();
+        if (value.length() > 512 || value.chars().anyMatch(c -> c < 32)) {
+            throw new IllegalArgumentException("Invalid source metadata");
+        }
+        return value;
     }
 
     private static void normalizeLegacyAndroidBmr(JsonObject input, JsonObject measurements) {

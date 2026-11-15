@@ -142,6 +142,7 @@ public class Mapper {
                 boolean res1 = applyFields(outgoingMeasurementTemplate, this.yaml.getMetadata(), null, incoming, measurementElement, 0);
                 boolean res2 = applyFields(outgoingMeasurementTemplate, pathConfig, incoming, measurementElement, 0);
                 if (!outgoingMeasurementTemplate.isEmpty() && res1 && res2) {
+                    markMissingExtensions(outgoingMeasurementTemplate);
                     return new Pair<>(pathConfig.getPath(), outgoingMeasurementTemplate);
                 } else {
                     throw new RuntimeException(String.format("Invalid FHIR created through mapping%s", ""));
@@ -153,6 +154,22 @@ public class Mapper {
         }
 
         throw new RuntimeException(String.format("No measurement was contained in the flattened payload%s", ""));
+    }
+
+    private static void markMissingExtensions(JsonObject resource) {
+        if (!resource.has("extension")) return;
+        for (var element : resource.getAsJsonArray("extension")) {
+            if (!element.isJsonObject()) continue;
+            JsonObject extension = element.getAsJsonObject();
+            if (extension.size() == 1 && extension.has("url")) {
+                JsonObject absent = new JsonObject();
+                absent.addProperty("url", "http://hl7.org/fhir/StructureDefinition/data-absent-reason");
+                absent.addProperty("valueCode", "unknown");
+                JsonArray nested = new JsonArray();
+                nested.add(absent);
+                extension.add("extension", nested);
+            }
+        }
     }
 
     public List<String> flatMapJson(String value) {
