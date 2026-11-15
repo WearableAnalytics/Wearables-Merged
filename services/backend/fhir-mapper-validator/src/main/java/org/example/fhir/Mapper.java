@@ -114,7 +114,7 @@ public class Mapper {
         if (!parsed.isJsonObject()) {
             throw new RuntimeException("Incoming payload must be a JSON object");
         }
-        JsonObject incoming = parsed.getAsJsonObject();
+        JsonObject incoming = NumericMeasurementNormalizer.normalize(parsed.getAsJsonObject(), this.yaml);
         // Historical Kafka records used deviceId for the participant. New uploads
         // bind participantId explicitly and retain the sender/device information.
         if (!incoming.has("participantId") && incoming.has("deviceInfo")) {
@@ -330,6 +330,7 @@ public class Mapper {
             JsonElement baseValue = getByPath(rootOfIncoming, sourcePath);
 
             if (baseValue == null || baseValue.isJsonNull()) {
+                if (field.isOptional()) return;
                 throw new IllegalArgumentException(String.format("Value for path '%s' is empty or null", sourcePath));
             }
 

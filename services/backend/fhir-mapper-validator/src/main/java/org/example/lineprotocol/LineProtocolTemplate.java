@@ -86,6 +86,7 @@ public class LineProtocolTemplate {
                 .forEach(
                         x -> {
                             JsonElement value = getByPath(this.json, x.getTarget());
+                            if ((value == null || value.isJsonNull()) && x.isOptional()) return;
                             if (!(value instanceof JsonPrimitive)) {
                                 throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", x.getTarget(), value.toString()));
                             }

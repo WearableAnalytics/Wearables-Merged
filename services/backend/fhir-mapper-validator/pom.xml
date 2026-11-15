@@ -135,6 +135,12 @@
             <artifactId>jgrapht-io</artifactId>
             <version>${graphing-version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.junit.vintage</groupId>
+            <artifactId>junit-vintage-engine</artifactId>
+            <version>5.11.4</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -156,7 +162,6 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <createDependencyReducedPom>true</createDependencyReducedPom>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <shadedClassifierName>shaded</shadedClassifierName>

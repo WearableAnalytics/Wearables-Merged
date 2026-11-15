@@ -46,28 +46,11 @@ class CloudKafkaPublisher:
 
     @staticmethod
     def _normalize_for_fhir_mapper(obj: Any) -> Any:
-        """
-        Normalizes payload for fhir-mapper-validator compatibility:
-        1. Strips trailing 'Z' or '+00:00' from ISO-8601 timestamps
-        2. Maps provider-specific type aliases (e.g. SLEEP_LIGHT -> SLEEP_ASLEEP_CORE)
-        """
+        """Keep provider metric identity and timestamp offsets unchanged."""
         if isinstance(obj, dict):
-            out = {}
-            for k, v in obj.items():
-                if k == "type" and isinstance(v, str):
-                    if v == "SLEEP_LIGHT":
-                        v = "SLEEP_ASLEEP_CORE"
-                    elif v == "HEART_RATE_VARIABILITY_RMSSD":
-                        v = "HEART_RATE_VARIABILITY_SDNN"
-                out[k] = CloudKafkaPublisher._normalize_for_fhir_mapper(v)
-            return out
+            return {key: CloudKafkaPublisher._normalize_for_fhir_mapper(value) for key, value in obj.items()}
         if isinstance(obj, list):
-            return [CloudKafkaPublisher._normalize_for_fhir_mapper(item) for item in obj]
-        if isinstance(obj, str) and len(obj) >= 19 and obj[4:5] == "-" and obj[7:8] == "-" and obj[10:11] == "T":
-            if obj.endswith("Z"):
-                return obj[:-1]
-            if obj.endswith("+00:00"):
-                return obj[:-6]
+            return [CloudKafkaPublisher._normalize_for_fhir_mapper(value) for value in obj]
         return obj
 
     def publish_payload(self, payload: Dict[str, Any]) -> bool:

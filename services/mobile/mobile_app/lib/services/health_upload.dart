@@ -178,7 +178,7 @@ List<HealthUpload> prepareHealthUploads({
   }
   for (final point in groups.values.expand((group) => group)) {
     final formatted = formatHealthDataByType([point]);
-    final category = categorizeHealthDataType(point.type);
+    final category = categoryForPoint(point);
     final readings = formatted[category] as List;
     if (readings.isEmpty) continue;
     final reading = readings.single as Map<String, dynamic>;

@@ -102,8 +102,9 @@ public class DependencyGraph {
                     .map(Node::getField)
                     .collect(Collectors.toSet());
 
-            Set<FieldConfig> mandatoryFields = m.getFields().stream()
-                    .filter(x -> x.getLineProtocol().isMandatory())
+            Set<FieldConfig> mandatoryFields = java.util.stream.Stream.concat(
+                    m.getFields().stream(), this.yaml.getMetadata().getFields().stream())
+                    .filter(x -> x.getLineProtocol() != null && x.getLineProtocol().isMandatory())
                     .collect(Collectors.toSet());
 
             log.debug("Found node set");
