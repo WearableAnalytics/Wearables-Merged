@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../app_config.dart';
 import '../services/cloud_connector_service.dart';
+import '../services/notification_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatting.dart';
@@ -479,6 +480,12 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
                           ? AppConfig.institution
                           : '${AppConfig.institution}\nVersion $_version',
                     ),
+                    onTap: AppConfig.enableNotificationSimulation
+                        ? () {
+                            NotificationService.showTestNotification();
+                            _toast('Test notification sent!');
+                          }
+                        : null,
                   ),
                 ],
               ),

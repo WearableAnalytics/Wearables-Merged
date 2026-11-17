@@ -194,6 +194,25 @@ class NotificationService {
     } catch (_) {}
   }
 
+  /// Sends an test notification
+  static Future<void> showTestNotification({
+    String? title,
+    String? message,
+  }) async {
+    try {
+      await ensureInitializedForBackground();
+      await _requestPermissions();
+      await _plugin.show(
+        8888,
+        title ?? _title,
+        message ?? 'Test notification: Health data sharing is active',
+        _notificationDetails,
+      );
+    } catch (e) {
+      debugPrint('NotificationService.showTestNotification failed: $e');
+    }
+  }
+
   /// Shown only when sharing needs the user, never for routine uploads.
   /// iOS wakes the app for every new batch of health data, so the same
   /// problem is reported once when it appears and then at most daily.

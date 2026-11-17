@@ -19,4 +19,7 @@ class AppConfig {
   /// Project page on the medinfo website. Empty hides the link.
   static const studyInfoUrl =
       'https://medinfo.charite.de/en/research/data_analytics_research_group/wearables/';
+
+  /// Set to true to test notification (usable with tipping on version in app)
+  static const bool enableNotificationSimulation = false;
 }
