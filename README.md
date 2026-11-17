@@ -17,7 +17,7 @@ This repository is part of a research project at Charité – Universitätsmediz
 
 The platform is designed to support clinical research workflows in which wearable sensor data (e.g., heart rate variability and related metrics) is collected, processed, and made available for analysis alongside clinical outcome measures, in compliance with applicable data protection requirements.
 
-**Preprint:** Coming soon — [.](#)
+**Preprint:** [here on arXiv](https://arxiv.org/abs/2608.11402) (accepted for IEEE BigData 2026
 
 **Contact:** Dr.-Ing. Elias Grünewald — elias.gruenewald@charite.de
 </p>
