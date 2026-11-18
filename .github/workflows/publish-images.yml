@@ -167,6 +167,9 @@ jobs:
               REV_COUNT=0
             fi
             TAG="${BASE_VER}.${REV_COUNT}"
+            if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+              TAG="${TAG}-stage"
+            fi
             echo "Calculated service tag: ${TAG}"
             echo "service_tag=${TAG}" >> "$GITHUB_OUTPUT"
             echo "has_version=true" >> "$GITHUB_OUTPUT"
