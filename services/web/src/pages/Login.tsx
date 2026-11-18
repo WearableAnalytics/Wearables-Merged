@@ -9,7 +9,7 @@ import { getTrimmedOrNull } from '@/lib/input';
 import { getDefaultAuthenticatedPath } from '@/lib/userAccess';
 import { useLoadingToast, useMessageToast } from '@/lib/toast';
 
-export function LoginPage() {
+export function LoginPage() { // Test change
   const navigate = useNavigate();
   const { user, loading: authLoading, refreshUser } = useAuth();
   const [email, setEmail] = useState('');
