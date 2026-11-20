@@ -1,0 +1,389 @@
+# Device ownership, wear, signal quality and per-model measurement policies.
+#
+# Emission modes (devices/emit.py):
+#   samples      point samples; renewal process with a lognormal mixture per context
+#                [[weight, median_seconds, log_sigma], ...] or an exact clock grid
+#   chunks       cumulative quantity split into intervals; value = integral of truth rate
+#   mean_chunks  interval records whose value is the time-weighted mean of a truth signal
+#   sync_chunks  cumulative quantity written as deltas between companion-app syncs
+#   minute_grid  one record per clock minute that satisfies a condition (exercise time)
+#   stand        Apple stand hours and 5-minute stand time
+#   hrv          SDNN/RMSSD from simulated beat-to-beat windows
+#   daily        derived from the device's own samples (resting HR, walking HR average)
+#   nightly      one value per main sleep (wrist temperature, breathing disturbances)
+#   sleep        classified stage intervals, optional in-bed record
+#   workout      workout records, per-workout metrics (VO2max, HR recovery)
+#   bout         gait metrics per walking bout (phone)
+# Contexts: workout (recorded), sleep, still (awake sedentary), moving (other awake).
+
+[meta]
+version = "2026.11.1"
+
+[ownership]
+source = "assumption: wearable ownership falls with age; platform split roughly EU/US mix"
+wearable_by_age = [[18, 0.62], [35, 0.55], [55, 0.42], [75, 0.28], [90, 0.18]]
+archetype_multiplier = { sedentary = 0.6, weekend_warrior = 1.1, regular_exerciser = 1.3, athlete = 1.6, older_daily_walker = 1.0 }
+ios_share = 0.55
+ios_wearables = { apple_watch = 0.68, garmin = 0.20, oura = 0.08, withings_watch = 0.04 }
+android_wearables = { samsung_watch = 0.42, pixel_watch = 0.13, fitbit = 0.25, garmin_android = 0.20 }
+second_wearable_probability = 0.06
+second_wearable = { ios = "oura", android = "oura_android" }
+phone_motion_disabled_probability = 0.05
+upgrade_rate_per_year = 0.22
+abandonment_rate_per_year = 0.12
+platform_switch_rate_per_year = 0.015
+acquire_rate_per_year = 0.10          # phone-only personas who buy a wearable mid-timeline
+
+[wear]
+source = "assumption: missingness depends on the person (adherence trait) and state (illness, mood, low activity)"
+adherence_beta = [4.0, 1.2]            # persona daily wear probability ~ Beta(a, b); LifeSnaps median wear 0.75 is reminder-inflated
+offwrist_episode_days = [2.0, 0.9]     # median, log sigma of multi-day gaps
+night_wear_beta = [3.0, 1.0]           # probability of wearing at night ~ Beta(a, b)
+short_removal_per_day = 0.6
+short_removal_minutes = [15.0, 0.6]
+low_activity_penalty = 0.15            # extra off-wrist hazard for low activity personas
+
+[signal]
+source = "assumption: fit tendency plus motion, cold and tattoo penalties; acceptance is logistic in quality. Error scales set from published validations (see docs/PARAMETER_REVIEW in the project): HR, HRV, SpO2, energy, steps; not measured on the exports"
+fit_mean = 0.86
+fit_sigma = 0.07
+day_sigma = 0.05
+motion_penalty = 0.42
+cold_penalty = 0.05
+tattoo_share = 0.03
+tattoo_penalty = 0.35
+accept_midpoint = 0.42
+accept_scale = 0.07
+noise_multiplier = 3.0                 # noise sd *= 1 + noise_multiplier * (1 - q)
+hrv_min_quality = 0.72
+cadence_lock_quality = 0.62
+cadence_lock_probability = 0.15
+hr_motion_error_fraction = 0.06        # extra HR error sd as a fraction of HR, scaled by arm motion
+hr_outlier_probability = 0.01          # sporadic large misreads, more likely at low quality
+hr_outlier_sigma = 12.0                # bpm
+spo2_bias = 0.5                        # percentage points, device minus truth (devices tend to overestimate)
+spo2_error_sigma = 2.5                 # percentage points
+hrv_bias = 0.0                         # log-scale bias of reported HRV
+hrv_error_sigma = 0.10                 # log-scale spread of reported HRV
+energy_bias_mean = 1.0                 # per-device multiplicative bias of active energy
+energy_bias_sigma = 0.15
+energy_noise_sigma = 0.08              # per-record log-normal error of active energy
+step_day_sigma = 0.05                  # day-to-day multiplicative step error of a device
+
+[delivery_defaults]
+source = "assumption"
+companion_sync_per_day = 4.0
+
+# --------------------------------------------------------------------------------------
+[models.apple_watch]
+source = "calibrated: aggregate timings and type inventory profiled from the Person B export (native Apple Watch, model Watch7). Values are medians/quantiles only"
+kind = "watch"
+platform = "healthkit"
+archetype = "native"
+source_name = "Apple Watch"
+hardware = "Watch7,1"
+available_from = "2023-09-22"
+features = ["wrist_temperature", "breathing_disturbances", "running_dynamics", "physical_effort", "effort_score", "daylight", "afib_history", "stairs", "ecg"]
+features_since = { breathing_disturbances = "2024-09-16", physical_effort = "2023-09-18", effort_score = "2024-09-16", daylight = "2023-09-18" }
+writes_rmssd = false
+charging_every_days = 1.0
+charge_minutes = [55.0, 0.4]
+charge_hour = [7.5, 2.5]               # mean, sd local hour
+auto_detect_workouts = true
+step_bias = [0.97, 0.05]               # per-device multiplicative bias, mean and sd (assumption: Apple Watch free-living MAPE ~6%, mild underestimate)
+
+[models.apple_watch.signal]
+source = "assumption: Apple Watch HR is more accurate than the shared defaults (published wrist-sensor validations); not measured on the exports, which have no reference ECG"
+noise_multiplier = 1.5
+motion_penalty = 0.30
+cadence_lock_probability = 0.03
+hr_motion_error_fraction = 0.03
+hr_outlier_probability = 0.004
+hr_outlier_sigma = 8.0
+spo2_bias = 0.0
+spo2_error_sigma = 2.0                 # Apple Watch 7 SpO2 MAE ~2.2 in a mixed clinical sample
+hrv_bias = -0.12                       # Apple SDNN reads ~8 ms low vs Polar H10 (O'Grady et al. 2024, https://doi.org/10.3390/s24196220)
+hrv_error_sigma = 0.30                 # MAPE ~29% in the same study
+
+[models.apple_watch.metrics]
+source = "calibrated: Person B export inter-sample and duration quantiles; HR cadence = 2-component lognormal mixtures fitted per context on the fit window before 2026-07-01 (aggregate timing only)"
+heart_rate = { mode = "samples", cadence = { workout = [[0.795, 4.99, 0.41], [0.205, 5.82, 2.2]], sleep = [[0.72, 213.0, 0.55], [0.28, 12.0, 1.33]], still = [[0.578, 220.0, 0.65], [0.422, 5.0, 0.82]], moving = [[0.698, 5.0, 0.41], [0.302, 13.5, 2.25]] }, quality = true }
+steps = { mode = "chunks", chunk_all = [300.0, 1.6, 600.0], bridge_seconds = 240.0, active_only = true }
+distance_walking_running = { mode = "chunks", chunk = { workout = [5.0, 0.5, 15.0], moving = [90.0, 1.4, 600.0], still = [60.0, 1.4, 600.0], sleep = [60.0, 1.0, 600.0] }, active_only = true, bridge_seconds = 120.0 }
+distance_cycling = { mode = "chunks", chunk = { workout = [1.0, 0.05, 2.0] }, active_only = true, workout_types = ["cycle"] }
+active_energy = { mode = "chunks", chunk = { workout = [6.0, 0.5, 20.0], moving = [40.0, 1.0, 300.0], still = [150.0, 1.2, 600.0], sleep = [600.0, 0.6, 900.0] }, active_only = true, bridge_seconds = 60.0 }
+basal_energy = { mode = "chunks", chunk = { workout = [6.0, 0.4, 15.0], moving = [60.0, 1.0, 900.0], still = [300.0, 1.2, 900.0], sleep = [600.0, 0.6, 900.0] }, bridge_seconds = 60.0 }
+physical_effort = { mode = "mean_chunks", signal = "met", chunk = { workout = [10.0, 0.3, 20.0], moving = [20.0, 0.6, 120.0], still = [120.0, 1.0, 640.0] }, feature = "physical_effort" }
+flights_climbed = { mode = "chunks", chunk = { moving = [4.0, 0.8, 400.0] }, active_only = true }
+exercise_time = { mode = "minute_grid", min_met = 3.0 }
+stand = { mode = "stand", min_upright_minutes = 1.0 }
+hrv = { mode = "hrv", cadence = { sleep = [[1.0, 900.0, 0.12]], still = [[1.0, 1000.0, 0.3]] } }
+respiratory_rate = { mode = "samples", cadence = { sleep = [[1.0, 603.0, 0.3]] }, quality = true, precision = 0.5 }
+oxygen_saturation = { mode = "samples", cadence = { sleep = [[1.0, 1950.0, 0.15]], still = [[1.0, 9000.0, 0.7]] }, quality = true, precision = 1.0 }
+environmental_audio = { mode = "mean_chunks", signal = "audio", chunk = { still = [1800.0, 0.05, 1800.0], moving = [1800.0, 0.05, 1800.0], workout = [1800.0, 0.05, 1800.0] } }
+daylight = { mode = "mean_chunks", signal = "daylight", grid_seconds = 300.0, active_only = true, feature = "daylight" }
+sleep = { mode = "sleep", in_bed = false, unspecified_probability = 0.012, merge_awake_under_minutes = 0.5, relabel_minutes = 14.0 }
+resting_heart_rate = { mode = "daily", method = "awake_still_low_quantile" }
+walking_heart_rate_average = { mode = "daily", method = "walking_mean" }
+wrist_temperature = { mode = "nightly", feature = "wrist_temperature" }
+breathing_disturbances = { mode = "nightly", feature = "breathing_disturbances" }
+workout = { mode = "workout", vo2max = true, heart_rate_recovery = true, running_dynamics = true, route_seconds = 1.0 }
+stair_ascent_speed = { mode = "stairs", feature = "stairs" }
+stair_descent_speed = { mode = "stairs", feature = "stairs" }
+audio_exposure_event = { mode = "audio_events", threshold_db = 80.0 }
+electrocardiogram = { mode = "ecg", sampling_hz = 512.0, seconds = 30.0, feature = "ecg" }
+
+[models.apple_watch.sleep_confusion]
+source = "assumption: epoch sensitivities set from PSG studies (Schyvens et al. 2025, https://doi.org/10.1093/sleepadvances/zpaf021; Lee et al. 2023, https://doi.org/10.2196/50983; Robbins et al. 2024, https://doi.org/10.3390/s24206532): Apple Watch 8 wake ~50%, light high, deep ~41-51%, REM ~43-69%; rows are the true stage, columns the device label"
+labels = ["awake", "light", "deep", "rem"]
+matrix = [
+  [0.50, 0.40, 0.01, 0.09],
+  [0.05, 0.84, 0.05, 0.06],
+  [0.01, 0.50, 0.48, 0.01],
+  [0.04, 0.34, 0.01, 0.61],
+]
+
+[models.apple_watch_legacy]
+source = "assumption: older native watch without wrist temperature or breathing disturbances"
+extends = "apple_watch"
+hardware = "Watch6,1"
+available_from = "2021-10-15"
+features = ["running_dynamics", "physical_effort", "effort_score", "daylight", "stairs", "ecg"]
+
+[models.apple_watch_s12]
+source = "spec: Series 12 (announced 2026-09-09, in stores 2026-09-18) samples HR every 5 s all day and measures HRV up to 24x more often, as often as every 5 minutes (Apple newsroom 2026-09-09; Momentum 2026)"
+extends = "apple_watch"
+hardware = "Watch8,1"
+available_from = "2026-09-18"
+
+[models.apple_watch_s12.metrics]
+source = "spec: background HR every five seconds; HRV cadence scaled from the observed previous generation (assumption)"
+heart_rate = { mode = "samples", cadence = { workout = [[1.0, 5.0, 0.2]], sleep = [[1.0, 5.0, 0.15]], still = [[1.0, 5.0, 0.15]], moving = [[1.0, 5.0, 0.15]] }, quality = true }
+hrv = { mode = "hrv", cadence = { sleep = [[1.0, 75.0, 0.2]], still = [[1.0, 450.0, 0.6]] } }
+
+# --------------------------------------------------------------------------------------
+[models.garmin]
+source = "calibrated: aggregate timings and type inventory profiled from the Person A export (Garmin via Garmin Connect)"
+kind = "watch"
+platform = "healthkit"
+archetype = "companion"
+source_name = "Connect"
+hardware = "Garmin"
+available_from = "2015-01-01"
+features = []
+writes_rmssd = false
+charging_every_days = 6.0
+charge_minutes = [70.0, 0.4]
+charge_hour = [19.0, 3.0]
+auto_detect_workouts = true
+step_bias = [0.97, 0.05]
+
+[models.garmin.signal]
+source = "assumption: Garmin SpO2 errors are larger than Apple's (MAE up to ~5.8 in a Duke clinical sample) and nocturnal HRV agreed less well than Oura's (Physiol Rep 2025)"
+spo2_bias = 2.0
+spo2_error_sigma = 3.5
+hrv_error_sigma = 0.18
+
+[models.garmin.metrics]
+source = "calibrated: HR on an exact 120 s grid, steps in 15-minute buckets, energy/distance as sync deltas, daily resting HR"
+heart_rate = { mode = "samples", grid_seconds = 120.0, quality = true }
+steps = { mode = "chunks", grid_seconds = 900.0, end_offset_seconds = -1.0, active_only = true }
+active_energy = { mode = "sync_chunks" }
+basal_energy = { mode = "sync_chunks" }
+distance_walking_running = { mode = "sync_chunks", active_only = true }
+flights_climbed = { mode = "sync_chunks", daily = true }
+distance_cycling = { mode = "workout_total", workout_types = ["cycle"] }
+sleep = { mode = "sleep", in_bed = true, unspecified_probability = 0.012, merge_awake_under_minutes = 1.0, epoch_seconds = 60.0, relabel_minutes = 30.0, naps = true, min_nap_minutes = 20.0 }
+resting_heart_rate = { mode = "daily", method = "lowest_30min_mean" }
+workout = { mode = "workout", vo2max = false, heart_rate_recovery = false, running_dynamics = false, route_seconds = 1.0 }
+
+[models.garmin.sleep_confusion]
+source = "assumption: Garmin Vivosmart 4 deep ~48% and REM ~33% against PSG (Schyvens et al. 2025, https://doi.org/10.1093/sleepadvances/zpaf021); wake detection ~45%"
+labels = ["awake", "light", "deep", "rem"]
+matrix = [
+  [0.45, 0.45, 0.02, 0.08],
+  [0.07, 0.78, 0.08, 0.07],
+  [0.01, 0.50, 0.48, 0.01],
+  [0.06, 0.50, 0.04, 0.40],
+]
+
+[models.garmin_android]
+source = "assumption: Garmin Connect writing to Health Connect mirrors the iOS companion pattern"
+extends = "garmin"
+platform = "health_connect"
+writes_rmssd = true
+
+[models.garmin_android.metrics]
+source = "assumption: Health Connect receives HRV RMSSD nightly from Garmin"
+hrv = { mode = "hrv", nightly_only = true, cadence = { sleep = [[1.0, 1800.0, 0.2]] } }
+
+# --------------------------------------------------------------------------------------
+[models.oura]
+source = "assumption: ring via companion app; night-focused HR, no steps grid observed"
+kind = "ring"
+platform = "healthkit"
+archetype = "companion"
+source_name = "Oura"
+hardware = "Oura Ring"
+available_from = "2021-10-01"
+features = []
+writes_rmssd = false
+charging_every_days = 5.0
+charge_minutes = [60.0, 0.4]
+charge_hour = [9.0, 3.0]
+auto_detect_workouts = false
+step_bias = [0.95, 0.06]
+
+[models.oura.signal]
+source = "assumption: nocturnal RMSSD MAPE ~6-7% against ECG (Oura Gen 3/4, Physiol Rep 2025)"
+hrv_error_sigma = 0.08
+
+[models.oura.metrics]
+source = "assumption"
+heart_rate = { mode = "samples", cadence = { sleep = [[1.0, 300.0, 0.1]], still = [[1.0, 900.0, 0.5]] }, quality = true }
+sleep = { mode = "sleep", in_bed = true, unspecified_probability = 0.0, merge_awake_under_minutes = 1.0, epoch_seconds = 300.0, naps = true, min_nap_minutes = 15.0 }
+active_energy = { mode = "sync_chunks" }
+steps = { mode = "sync_chunks", active_only = true }
+resting_heart_rate = { mode = "daily", method = "lowest_30min_mean" }
+
+[models.oura.sleep_confusion]
+source = "assumption: Oura Gen 3 stage sensitivities ~76-80% against PSG (Robbins et al. 2024, https://doi.org/10.3390/s24206532)"
+labels = ["awake", "light", "deep", "rem"]
+matrix = [
+  [0.68, 0.25, 0.01, 0.06],
+  [0.05, 0.80, 0.08, 0.07],
+  [0.01, 0.21, 0.77, 0.01],
+  [0.04, 0.20, 0.01, 0.75],
+]
+
+[models.oura_android]
+source = "assumption"
+extends = "oura"
+platform = "health_connect"
+writes_rmssd = true
+
+[models.oura_android.metrics]
+source = "assumption"
+hrv = { mode = "hrv", nightly_only = true, cadence = { sleep = [[1.0, 300.0, 0.1]] } }
+
+[models.withings_watch]
+source = "assumption: hybrid watch via companion app"
+extends = "garmin"
+source_name = "Health Mate"
+hardware = "Withings ScanWatch"
+charging_every_days = 25.0
+
+[models.withings_watch.signal]
+source = "assumption: ScanWatch is a validated reflective pulse oximeter, so it does not inherit Garmin's SpO2 error"
+spo2_bias = 0.0
+spo2_error_sigma = 2.0
+
+[models.samsung_watch]
+source = "assumption: Android watch writing to Health Connect through Samsung Health; no real Health Connect data available"
+kind = "watch"
+platform = "health_connect"
+archetype = "companion"
+source_name = "Samsung Health"
+hardware = "Galaxy Watch"
+available_from = "2022-08-26"
+features = ["wrist_temperature"]
+writes_rmssd = true
+charging_every_days = 1.5
+charge_minutes = [50.0, 0.4]
+charge_hour = [8.0, 3.0]
+auto_detect_workouts = true
+step_bias = [0.98, 0.08]
+
+[models.samsung_watch.metrics]
+source = "assumption: 10-minute background HR, dense during exercise"
+heart_rate = { mode = "samples", cadence = { workout = [[1.0, 1.0, 0.1]], sleep = [[1.0, 600.0, 0.2]], still = [[1.0, 600.0, 0.2]], moving = [[1.0, 600.0, 0.3]] }, quality = true }
+steps = { mode = "chunks", chunk = { workout = [60.0, 0.1, 60.0], moving = [60.0, 0.1, 60.0], still = [60.0, 0.1, 60.0] }, active_only = true }
+active_energy = { mode = "sync_chunks" }
+distance_walking_running = { mode = "sync_chunks", active_only = true }
+hrv = { mode = "hrv", nightly_only = true, cadence = { sleep = [[1.0, 1800.0, 0.2]] } }
+oxygen_saturation = { mode = "samples", cadence = { sleep = [[1.0, 60.0, 0.05]] }, quality = true, precision = 1.0 }
+respiratory_rate = { mode = "samples", cadence = { sleep = [[1.0, 1800.0, 0.2]] }, quality = true, precision = 0.1 }
+sleep = { mode = "sleep", in_bed = false, unspecified_probability = 0.0, merge_awake_under_minutes = 1.0, epoch_seconds = 30.0, naps = true, min_nap_minutes = 20.0 }
+resting_heart_rate = { mode = "daily", method = "lowest_30min_mean" }
+wrist_temperature = { mode = "nightly", feature = "wrist_temperature" }
+workout = { mode = "workout", vo2max = true, heart_rate_recovery = false, running_dynamics = false }
+
+[models.samsung_watch.sleep_confusion]
+source = "assumption: Fitbit Sense 2 deep ~51-67% and REM ~61-68% against PSG (Schyvens et al. 2025, https://doi.org/10.1093/sleepadvances/zpaf021; Lee et al. 2023, https://doi.org/10.2196/50983); Samsung and Pixel are extrapolated from it"
+labels = ["awake", "light", "deep", "rem"]
+matrix = [
+  [0.55, 0.37, 0.01, 0.07],
+  [0.06, 0.80, 0.07, 0.07],
+  [0.01, 0.40, 0.58, 0.01],
+  [0.05, 0.30, 0.01, 0.64],
+]
+
+[models.pixel_watch]
+source = "assumption: Fitbit-based watch writing to Health Connect"
+extends = "samsung_watch"
+source_name = "Fitbit"
+hardware = "Pixel Watch"
+available_from = "2022-10-13"
+features = []
+
+[models.fitbit]
+source = "assumption: Fitbit trackers write to Health Connect on Android only (no Apple Health integration)"
+extends = "samsung_watch"
+kind = "tracker"
+source_name = "Fitbit"
+hardware = "Fitbit Charge"
+available_from = "2020-01-01"
+features = []
+charging_every_days = 5.0
+charge_minutes = [90.0, 0.4]
+
+# --------------------------------------------------------------------------------------
+[models.iphone]
+source = "calibrated: iPhone records in both exports (steps/distance chunks up to 10 min, gait metrics per walking bout, flights, headphone audio)"
+kind = "phone"
+platform = "healthkit"
+archetype = "phone"
+source_name = "iPhone"
+hardware = "iPhone14,2"
+available_from = "2014-09-19"
+features = []
+writes_rmssd = false
+step_bias = [0.95, 0.12]               # phone step apps: free-living MAPE ~30% in one study (assumption)
+
+[models.iphone.metrics]
+source = "calibrated: Person A and B iPhone duration quantiles"
+steps = { mode = "chunks", chunk_all = [120.0, 1.8, 600.0], bridge_seconds = 120.0, active_only = true, carried = true }
+distance_walking_running = { mode = "chunks", chunk_all = [120.0, 1.8, 600.0], bridge_seconds = 120.0, active_only = true, carried = true }
+flights_climbed = { mode = "chunks", chunk = { moving = [4.0, 0.8, 500.0] }, active_only = true, carried = true }
+walking_speed = { mode = "bout", min_bout_seconds = 20.0, chunk = [27.0, 1.2, 300.0] }
+walking_step_length = { mode = "bout", min_bout_seconds = 20.0, chunk = [27.0, 1.2, 300.0] }
+walking_double_support = { mode = "bout", min_bout_seconds = 20.0, chunk = [33.0, 1.1, 300.0] }
+walking_asymmetry = { mode = "bout", min_bout_seconds = 30.0, chunk = [88.0, 0.9, 300.0] }
+headphone_audio = { mode = "mean_chunks", signal = "headphones", chunk = { moving = [36.0, 1.6, 1800.0], still = [60.0, 1.6, 1800.0], workout = [120.0, 1.2, 1800.0] }, active_only = true }
+active_energy = { mode = "chunks", chunk = { moving = [395.0, 0.7, 600.0] }, active_only = true, carried = true, without_watch = true }
+basal_energy = { mode = "chunks", chunk = { moving = [855.0, 0.5, 3600.0], still = [855.0, 0.5, 3600.0], sleep = [855.0, 0.5, 3600.0] }, without_watch = true }
+afib_burden = { mode = "afib_weekly" }
+walking_steadiness = { mode = "weekly_gait", min_walking_minutes = 90.0 }
+six_minute_walk_distance = { mode = "weekly_gait", min_walking_minutes = 90.0 }
+
+[models.android_phone]
+source = "assumption: Android phone step counting into Health Connect"
+kind = "phone"
+platform = "health_connect"
+archetype = "phone"
+source_name = "Google Fit"
+hardware = "Android Phone"
+available_from = "2022-01-01"
+features = []
+writes_rmssd = false
+step_bias = [0.93, 0.15]
+
+[models.android_phone.metrics]
+source = "assumption"
+steps = { mode = "chunks", chunk = { moving = [600.0, 0.6, 900.0], workout = [600.0, 0.6, 900.0] }, active_only = true, carried = true }
+distance_walking_running = { mode = "chunks", chunk = { moving = [600.0, 0.6, 900.0], workout = [600.0, 0.6, 900.0] }, active_only = true, carried = true }
+
+[phone]
+source = "assumption: phone carried more when out walking than at home"
+carry_probability = { sedentary = 0.25, light = 0.35, walk = 0.75, workout = 0.55, commute = 0.95 }
+carry_propensity_sigma = 0.15

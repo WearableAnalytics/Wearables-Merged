@@ -1,0 +1,174 @@
+# Conditions and medications. Used by the fallback clinical sampler and to interpret
+# Synthea CSV rosters (matched on DESCRIPTION by case-insensitive regular expression).
+
+[meta]
+version = "2026.11.1"
+
+[sampler]
+source = "assumption: incident diagnoses per year relative to age-specific prevalence"
+incidence_fraction_per_year = 0.05
+medication_start_lag_days = [14.0, 0.6]
+medication_stop_rate_per_year = 0.08
+# Effect-recovery scenarios: with this probability a persona starts a new course of the
+# class mid-window (labelled source "scenario"). Off by default; tests and studies enable it.
+scenario_medication = "beta_blocker"
+scenario_probability = 0.0
+
+# prevalence_by_age: piecewise-linear prevalence at ages; odds ratios apply on top.
+[conditions.hypertension]
+source = "calibrated: Synthea roster (2,499 adults alive on 2026-01-01), condition active on that date, band midpoints (python -m persona_gen.calibration.synthea_prevalence), 10-year bands, 712 cases. This is diagnosed hypertension and sits well below survey-measured prevalence (CDC NCHS Data Brief 511, Aug 2021-Aug 2023: 27.2% at 18-39, 56.7% at 40-59, 73.7% at 60+); effects assumption"
+prevalence_by_age = [[24, 0.017], [35, 0.081], [45, 0.203], [55, 0.325], [65, 0.476], [75, 0.503], [85, 0.478]]
+odds_ratio = { bmi_per_unit = 1.07, male = 1.2 }
+pattern = "hypertension"
+medications = { ace_inhibitor = 0.55, beta_blocker = 0.2, calcium_channel_blocker = 0.25 }
+effects = { rhr = 2.0, systolic = 18.0, diastolic = 9.0 }
+
+[conditions.coronary_heart_disease]
+source = "assumption: ~1% at 40 rising to ~16% at 80, not derived from a source table. For scale, CDC NHIS reports diagnosed heart disease (all types) in 6.3% of adults in 2020 and 17.5-21.6% at 65+ in 2024. The Synthea roster has far more (39% at 60-70, 85% at 80+) and is not used; effects assumption"
+prevalence_by_age = [[40, 0.01], [60, 0.06], [80, 0.16]]
+odds_ratio = { male = 1.8, bmi_per_unit = 1.03 }
+pattern = "coronary heart|coronary artery disease|ischemic heart|myocardial infarction|coronary artery bypass"
+medications = { beta_blocker = 0.7, statin = 0.8, anticoagulant = 0.3 }
+effects = { vo2max_fraction = -0.10, activity = 0.85 }
+
+[conditions.atrial_fibrillation]
+source = "calibrated: Synthea roster (2,499 adults alive on 2026-01-01), condition active on that date, band midpoints (python -m persona_gen.calibration.synthea_prevalence), coarse bands (18-50, 50-65, 65-80, 80+), 39 cases; effects assumption"
+prevalence_by_age = [[34, 0.0], [57.5, 0.004], [72.5, 0.022], [85, 0.074]]
+odds_ratio = { male = 1.5 }
+pattern = "atrial fibrillation"
+medications = { beta_blocker = 0.6, anticoagulant = 0.8 }
+effects = { hr_noise = 2.0, ln_rmssd = 0.6, afib_burden = 0.15 }
+
+[conditions.heart_failure]
+source = "calibrated: Synthea roster (2,499 adults alive on 2026-01-01), condition active on that date, band midpoints (python -m persona_gen.calibration.synthea_prevalence), coarse bands, 18 cases; effects assumption"
+prevalence_by_age = [[34, 0.0], [57.5, 0.002], [72.5, 0.015], [85, 0.027]]
+odds_ratio = { male = 1.3, bmi_per_unit = 1.05 }
+pattern = "heart failure"
+medications = { beta_blocker = 0.8, ace_inhibitor = 0.6 }
+effects = { vo2max_fraction = -0.25, activity = 0.6, rhr = 5.0 }
+
+[conditions.type2_diabetes]
+source = "calibrated: Synthea roster (2,499 adults alive on 2026-01-01), condition active on that date, band midpoints (python -m persona_gen.calibration.synthea_prevalence), 10-year bands, 456 cases (patients matching the generator's diabetes pattern, which includes complication codes); effects assumption"
+prevalence_by_age = [[24, 0.007], [35, 0.039], [45, 0.073], [55, 0.201], [65, 0.309], [75, 0.323], [85, 0.382]]
+odds_ratio = { bmi_per_unit = 1.10 }
+pattern = "diabetes mellitus|type 2 diabetes|type ii diabetes"
+medications = { metformin = 0.8 }
+effects = { ln_rmssd = -0.15, rhr = 2.0 }
+
+[conditions.copd]
+source = "calibrated: Synthea roster (2,499 adults alive on 2026-01-01), condition active on that date, band midpoints (python -m persona_gen.calibration.synthea_prevalence), coarse bands, 53 cases; effects assumption"
+prevalence_by_age = [[34, 0.009], [57.5, 0.029], [72.5, 0.035], [85, 0.030]]
+odds_ratio = {}
+pattern = "chronic obstructive|emphysema"
+medications = { inhaler = 0.8 }
+effects = { spo2 = -2.5, respiratory_rate = 2.0, activity = 0.75 }
+
+[conditions.sleep_apnea]
+source = "assumption: Peppard et al. 2013 (https://doi.org/10.1093/aje/kws342; Am J Epidemiol 177:1006, Wisconsin Sleep Cohort, moderate-to-severe sleep-disordered breathing 2007-2010): about 10-17% of men and 3-9% of women at 30-49 and 50-70. The table is a sex-neutral blend with the male odds ratio on top; all four abstract figures checked (men 10% and 17%, women 3% and 9%). Synthea diagnoses peak at 13% at 60-70 and then fall, so it is not used; effects assumption"
+prevalence_by_age = [[30, 0.04], [60, 0.13]]
+odds_ratio = { bmi_per_unit = 1.12, male = 2.0 }
+pattern = "sleep apnea"
+medications = {}
+effects = { spo2_sleep = -2.0, awakenings = 2.0, breathing_disturbances = 12.0 }
+
+[conditions.depression]
+source = "assumption: NIMH reports 8.3% of US adults with a major depressive episode in 2021 (10.3% women, 6.2% men); CDC NHANES 2021-2023 (PHQ-9, past 2 weeks) shows depression falling with age (8.7% at 60+). The age shape is an assumption. The Synthea roster has 9 cases and is not used; effects assumption"
+prevalence_by_age = [[18, 0.10], [40, 0.07], [70, 0.05]]
+odds_ratio = { female = 1.7 }
+pattern = "depress"
+medications = { ssri = 0.6 }
+effects = { activity = 0.85, wear = 0.85, regularity = 1.4, episodic = 1.0 }
+
+[conditions.anxiety]
+source = "assumption: NIMH (NCS-R 2001-03) past-year any anxiety disorder 19.1% and generalized anxiety disorder 2.7% (2.0% at 18-29, 3.5% at 30-44, 3.4% at 45-59, 1.5% at 60+); the table sits between the two. The Synthea roster only has a 'severe anxiety (panic) (finding)' code and is not used; effects assumption"
+prevalence_by_age = [[18, 0.08], [50, 0.06], [80, 0.04]]
+odds_ratio = { female = 1.6 }
+pattern = "anxiety"
+medications = { ssri = 0.4 }
+effects = { rhr = 3.0, ln_rmssd = -0.10 }
+
+[conditions.adhd]
+source = "assumption: Song et al. 2021 (https://doi.org/10.7189/jogh.11.04009; J Glob Health 11:04009, global meta-analysis): persistent adult ADHD 2.6% overall, falling from 5.1% at 18-24 to 0.8% at 60+ (symptomatic 6.8%). The table follows the persistent series loosely. The Synthea roster rises with age (2% at 18-30, 6.7% at 60-70), the opposite of the meta-analysis, and is not used; effects assumption"
+prevalence_by_age = [[18, 0.05], [30, 0.04], [50, 0.02], [70, 0.01]]
+odds_ratio = { male = 1.5 }
+pattern = "attention deficit|adhd"
+medications = { stimulant = 0.6 }
+effects = { regularity = 1.4 }
+
+[conditions.bipolar]
+source = "assumption: NIMH (NCS-R 2001-03) past-year 2.8%, lifetime 4.4%; Merikangas et al. 2007 (https://doi.org/10.1001/archpsyc.64.5.543) puts bipolar I and II at about 1% each and subthreshold at 2.4%. The table is at the low end of that range. The Synthea roster has no bipolar cases; effects assumption"
+prevalence_by_age = [[18, 0.015], [60, 0.01]]
+odds_ratio = {}
+pattern = "bipolar"
+medications = {}
+effects = { episodic = 1.0, regularity = 1.6 }
+
+# Medication classes. hr effects are bpm on daytime and resting HR, scaled by each
+# persona's medication_response. onset_days ramps the effect in after a start.
+[medications.beta_blocker]
+source = "assumption: Cochrane reviews of beta-blockers in hypertension (Wong et al., beta-1: https://doi.org/10.1002/14651858.CD007451.pub2, non-selective: https://doi.org/10.1002/14651858.CD007452.pub2): beta-1 selective lower heart rate by 10.9 bpm (95% CI 10.4-11.5) against placebo, non-selective by 12 bpm (10-13). The per-person rhr_delta range, hrmax and exercise multipliers are assumptions"
+pattern = "metoprolol|atenolol|bisoprolol|propranolol|carvedilol|nebivolol"
+rhr_delta = [-14.0, -6.0]
+hrmax_multiplier = 0.85
+exercise_gain_multiplier = 0.85
+ln_rmssd_delta = 0.05
+onset_days = 7.0
+
+[medications.stimulant]
+source = "assumption: conservative population default; Mick, McManus & Goldberg 2013 (https://doi.org/10.1016/j.euroneuro.2012.06.011) (Eur Neuropsychopharmacol 23:534, adult ADHD stimulant trials) reports resting HR +5.7 bpm (95% CI 3.6-7.8) against placebo"
+pattern = "methylphenidate|amphetamine|lisdexamfetamine|dexmethylphenidate|dextroamphetamine"
+dosing = "daily"
+dose_after_wake_hours = [0.5, 0.4]     # median, log sigma
+tmax_hours = [2.5, 5.0]                # persona range (IR to XR)
+half_life_hours = [5.0, 10.0]
+awake_hr_delta = [3.0, 9.0]            # bpm at peak concentration
+exercise_hr_delta_fraction = 0.6
+sleep_latency_minutes = 15.0
+skip_probability = { weekday = 0.06, weekend = 0.35 }
+rhr_delta = [0.0, 0.0]
+onset_days = 0.0
+
+[medications.ssri]
+source = "assumption: small HR/HRV effects; onset over weeks"
+pattern = "sertraline|fluoxetine|escitalopram|citalopram|paroxetine|venlafaxine|duloxetine"
+rhr_delta = [0.0, 2.0]
+ln_rmssd_delta = -0.05
+onset_days = 21.0
+
+[medications.ace_inhibitor]
+source = "assumption: blood-pressure lowering without HR effect (ACE inhibitors and ARBs)"
+pattern = "lisinopril|ramipril|enalapril|captopril|losartan|valsartan|candesartan"
+rhr_delta = [0.0, 0.0]
+systolic_delta = -10.0
+onset_days = 14.0
+
+[medications.calcium_channel_blocker]
+source = "assumption: rate-limiting CCBs lower HR modestly; dihydropyridines do not"
+pattern = "amlodipine|diltiazem|verapamil|nifedipine"
+rhr_delta = [-4.0, 0.0]
+systolic_delta = -8.0
+onset_days = 7.0
+
+[medications.statin]
+source = "assumption: no wearable effect"
+pattern = "statin|atorvastatin|simvastatin|rosuvastatin"
+rhr_delta = [0.0, 0.0]
+onset_days = 0.0
+
+[medications.metformin]
+source = "assumption: no wearable effect"
+pattern = "metformin"
+rhr_delta = [0.0, 0.0]
+onset_days = 0.0
+
+[medications.anticoagulant]
+source = "assumption: no wearable effect"
+pattern = "warfarin|apixaban|rivaroxaban|dabigatran"
+rhr_delta = [0.0, 0.0]
+onset_days = 0.0
+
+[medications.inhaler]
+source = "assumption: no wearable effect"
+pattern = "albuterol|salbutamol|tiotropium|fluticasone|budesonide|inhaler"
+rhr_delta = [0.0, 0.0]
+onset_days = 0.0

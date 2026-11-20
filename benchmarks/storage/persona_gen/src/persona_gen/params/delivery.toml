@@ -1,0 +1,48 @@
+# When records reach the platform store (HealthKit creationDate / Health Connect
+# insertion) and when the app could read them. Upload scheduling itself stays in the
+# replay workload; it uses created_at, the enrollment date and the sync sessions table.
+
+[meta]
+version = "2026.11.1"
+
+[native]
+source = "calibrated: Person B export creationDate minus endDate quantiles (HR p50 5 s, p75 ~230 s; sleep stages and respiratory rate written after waking)"
+# lognormal mixture of write delay seconds after a record's end
+lag = [[0.72, 3.0, 0.8], [0.28, 240.0, 0.5]]
+after_wake = ["sleep", "respiratory_rate", "wrist_temperature", "breathing_disturbances"]
+after_wake_lag = [[1.0, 600.0, 1.2]]
+daily_lag = [[0.7, 200.0, 1.0], [0.3, 20000.0, 0.8]]
+offline_batch_probability = 0.01       # watch out of phone range: records arrive in a batch later
+# Per-metric write delay where the export shows batching (cumulative records are written
+# when their accumulation window closes).
+metric_lag = { steps = [[0.3, 8.0, 1.0], [0.7, 300.0, 0.9]], distance_walking_running = [[0.7, 3.0, 0.6], [0.3, 200.0, 1.0]], active_energy = [[0.7, 6.0, 0.8], [0.3, 200.0, 1.0]], physical_effort = [[0.7, 15.0, 0.6], [0.3, 100.0, 0.9]], hrv_sdnn = [[0.9, 1.0, 0.4], [0.1, 10.0, 1.0]], oxygen_saturation = [[1.0, 0.5, 0.5]] }
+
+[companion]
+source = "calibrated: Person A export (Garmin Connect) creationDate lag p50 ~25 h for HR, ~1.5 days for sleep, up to a week"
+device_to_app_syncs_per_day = [1.3, 0.5]    # watch -> companion app syncs per day (chunk boundaries)
+app_to_store_writes_per_day = [0.7, 0.5]    # companion app -> HealthKit write sessions per day
+# Summaries (energy, distance, flights) reach HealthKit days later than samples.
+metric_extra_lag = { active_energy = [[1.0, 400000.0, 0.5]], basal_energy = [[1.0, 400000.0, 0.5]], distance_walking_running = [[1.0, 400000.0, 0.5]], flights_climbed = [[1.0, 400000.0, 0.5]], sleep = [[1.0, 20000.0, 0.6]], resting_heart_rate = [[1.0, 20000.0, 0.5]] }
+app_open_probability_per_day = 0.55
+background_sync = 0.5                        # share of personas whose companion app syncs in background
+write_after_sync_seconds = [[1.0, 30.0, 1.0]]
+max_backlog_days = 8.0
+
+[phone]
+source = "calibrated: iPhone step/distance lag p50 ~300 s; gait metrics p50 ~1200 s"
+lag = [[1.0, 300.0, 1.0]]
+gait_lag = [[1.0, 1300.0, 1.1]]
+
+[manual]
+source = "assumption: manual and third-party logging (scales, nutrition) arrives minutes to hours later; Person B nutrition logs lag p50 ~12 h"
+lag = [[0.5, 60.0, 1.0], [0.5, 40000.0, 0.8]]
+
+[app]
+source = "assumption: our app's enrollment and sync behaviour"
+enrolled_before_window_probability = 0.5
+enrollment_window_fraction = 0.6        # enrollment dates fall in the first share of the window
+sync_style = { background = 0.55, daily_open = 0.30, occasional = 0.15 }
+background_syncs_per_day = [6.0, 0.4]
+occasional_open_every_days = [4.0, 0.6]
+reinstall_rate_per_year = 0.2
+resend_probability = 0.002              # duplicate write of an already written record

@@ -1,0 +1,101 @@
+# Hard platform rules: OS releases, type availability, identifiers, history limits.
+
+[meta]
+version = "2026.11.1"
+
+[ios]
+source = "platform: Apple release dates; iOS 27 released 2026-09-14 (MacRumors, 2026-09-09 announcement)"
+releases = [["17", "2023-09-18"], ["18", "2024-09-16"], ["26", "2025-09-15"], ["27", "2026-09-14"]]
+adoption_lag_days = [12.0, 1.1]        # median, log sigma (assumption)
+
+[android]
+source = "assumption: Health Connect is a platform module; Android 14+ bundles it"
+releases = [["14", "2023-10-04"], ["15", "2024-10-15"], ["16", "2025-06-10"]]
+adoption_lag_days = [60.0, 1.0]
+
+[history]
+source = "platform: Health Connect apps read data up to 30 days before the first permission grant unless they hold the history permission; HealthKit exposes full history"
+healthkit_days = -1
+health_connect_days = 30
+health_connect_history_permission_share = 0.3   # assumption
+
+[dedup]
+source = "platform: neither platform removes duplicates from raw reads; HealthKit statistics queries and Health Connect aggregates (Activity, Sleep) merge by source priority"
+raw_reads_deduplicated = false
+
+# Metric registry: canonical unit, value kind, and platform identifiers. A missing
+# identifier means the type does not exist on that platform and is never emitted there.
+# requires = minimum OS major version on that platform.
+[metrics]
+source = "platform: HealthKit HKQuantityTypeIdentifier/HKCategoryTypeIdentifier names and Health Connect record types"
+heart_rate = { unit = "count/min", kind = "quantity", healthkit = "HKQuantityTypeIdentifierHeartRate", health_connect = "HeartRateRecord" }
+resting_heart_rate = { unit = "count/min", kind = "quantity", healthkit = "HKQuantityTypeIdentifierRestingHeartRate", health_connect = "RestingHeartRateRecord" }
+walking_heart_rate_average = { unit = "count/min", kind = "quantity", healthkit = "HKQuantityTypeIdentifierWalkingHeartRateAverage" }
+heart_rate_recovery = { unit = "count/min", kind = "quantity", healthkit = "HKQuantityTypeIdentifierHeartRateRecoveryOneMinute", requires_ios = 16 }
+hrv_sdnn = { unit = "ms", kind = "quantity", healthkit = "HKQuantityTypeIdentifierHeartRateVariabilitySDNN" }
+hrv_rmssd = { unit = "ms", kind = "quantity", healthkit = "HKQuantityTypeIdentifierHeartRateVariabilityRMSSD", requires_ios = 27, health_connect = "HeartRateVariabilityRmssdRecord" }
+respiratory_rate = { unit = "count/min", kind = "quantity", healthkit = "HKQuantityTypeIdentifierRespiratoryRate", health_connect = "RespiratoryRateRecord" }
+oxygen_saturation = { unit = "%", kind = "quantity", healthkit = "HKQuantityTypeIdentifierOxygenSaturation", health_connect = "OxygenSaturationRecord" }
+wrist_temperature = { unit = "degC", kind = "quantity", healthkit = "HKQuantityTypeIdentifierAppleSleepingWristTemperature", requires_ios = 16, health_connect = "SkinTemperatureRecord" }
+breathing_disturbances = { unit = "count", kind = "quantity", healthkit = "HKQuantityTypeIdentifierAppleSleepingBreathingDisturbances", requires_ios = 18 }
+vo2max = { unit = "ml/kg/min", kind = "quantity", healthkit = "HKQuantityTypeIdentifierVO2Max", health_connect = "Vo2MaxRecord" }
+steps = { unit = "count", kind = "quantity", healthkit = "HKQuantityTypeIdentifierStepCount", health_connect = "StepsRecord" }
+distance_walking_running = { unit = "m", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDistanceWalkingRunning", health_connect = "DistanceRecord" }
+distance_cycling = { unit = "m", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDistanceCycling", health_connect = "DistanceRecord" }
+active_energy = { unit = "kcal", kind = "quantity", healthkit = "HKQuantityTypeIdentifierActiveEnergyBurned", health_connect = "ActiveCaloriesBurnedRecord" }
+basal_energy = { unit = "kcal", kind = "quantity", healthkit = "HKQuantityTypeIdentifierBasalEnergyBurned", health_connect = "BasalMetabolicRateRecord" }
+physical_effort = { unit = "kcal/hr/kg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierPhysicalEffort", requires_ios = 17 }
+flights_climbed = { unit = "count", kind = "quantity", healthkit = "HKQuantityTypeIdentifierFlightsClimbed", health_connect = "FloorsClimbedRecord" }
+exercise_time = { unit = "min", kind = "quantity", healthkit = "HKQuantityTypeIdentifierAppleExerciseTime" }
+stand_time = { unit = "min", kind = "quantity", healthkit = "HKQuantityTypeIdentifierAppleStandTime" }
+stand_hour = { unit = "", kind = "category", healthkit = "HKCategoryTypeIdentifierAppleStandHour" }
+time_in_daylight = { unit = "min", kind = "quantity", healthkit = "HKQuantityTypeIdentifierTimeInDaylight", requires_ios = 17 }
+environmental_audio = { unit = "dBASPL", kind = "quantity", healthkit = "HKQuantityTypeIdentifierEnvironmentalAudioExposure" }
+headphone_audio = { unit = "dBASPL", kind = "quantity", healthkit = "HKQuantityTypeIdentifierHeadphoneAudioExposure" }
+walking_speed = { unit = "m/s", kind = "quantity", healthkit = "HKQuantityTypeIdentifierWalkingSpeed", health_connect = "SpeedRecord" }
+walking_step_length = { unit = "m", kind = "quantity", healthkit = "HKQuantityTypeIdentifierWalkingStepLength" }
+walking_double_support = { unit = "%", kind = "quantity", healthkit = "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage" }
+walking_asymmetry = { unit = "%", kind = "quantity", healthkit = "HKQuantityTypeIdentifierWalkingAsymmetryPercentage" }
+running_speed = { unit = "m/s", kind = "quantity", healthkit = "HKQuantityTypeIdentifierRunningSpeed", requires_ios = 16, health_connect = "SpeedRecord" }
+running_power = { unit = "W", kind = "quantity", healthkit = "HKQuantityTypeIdentifierRunningPower", requires_ios = 16, health_connect = "PowerRecord" }
+running_stride_length = { unit = "m", kind = "quantity", healthkit = "HKQuantityTypeIdentifierRunningStrideLength", requires_ios = 16 }
+running_ground_contact_time = { unit = "ms", kind = "quantity", healthkit = "HKQuantityTypeIdentifierRunningGroundContactTime", requires_ios = 16 }
+running_vertical_oscillation = { unit = "cm", kind = "quantity", healthkit = "HKQuantityTypeIdentifierRunningVerticalOscillation", requires_ios = 16 }
+sleep = { unit = "", kind = "category", healthkit = "HKCategoryTypeIdentifierSleepAnalysis", health_connect = "SleepSessionRecord" }
+workout = { unit = "", kind = "workout", healthkit = "HKWorkoutTypeIdentifier", health_connect = "ExerciseSessionRecord" }
+workout_effort = { unit = "appleEffortScore", kind = "quantity", healthkit = "HKQuantityTypeIdentifierWorkoutEffortScore", requires_ios = 18 }
+afib_burden = { unit = "%", kind = "quantity", healthkit = "HKQuantityTypeIdentifierAtrialFibrillationBurden", requires_ios = 16 }
+body_mass = { unit = "kg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierBodyMass", health_connect = "WeightRecord" }
+body_mass_index = { unit = "count", kind = "quantity", healthkit = "HKQuantityTypeIdentifierBodyMassIndex" }
+body_fat = { unit = "%", kind = "quantity", healthkit = "HKQuantityTypeIdentifierBodyFatPercentage", health_connect = "BodyFatRecord" }
+height = { unit = "cm", kind = "quantity", healthkit = "HKQuantityTypeIdentifierHeight", health_connect = "HeightRecord" }
+blood_pressure_systolic = { unit = "mmHg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierBloodPressureSystolic", health_connect = "BloodPressureRecord" }
+blood_pressure_diastolic = { unit = "mmHg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierBloodPressureDiastolic", health_connect = "BloodPressureRecord" }
+dietary_energy = { unit = "kcal", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryEnergyConsumed", health_connect = "NutritionRecord" }
+dietary_protein = { unit = "g", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryProtein", health_connect = "NutritionRecord" }
+dietary_carbohydrates = { unit = "g", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryCarbohydrates", health_connect = "NutritionRecord" }
+dietary_fat = { unit = "g", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryFatTotal", health_connect = "NutritionRecord" }
+dietary_water = { unit = "mL", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryWater", health_connect = "HydrationRecord" }
+dietary_caffeine = { unit = "mg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryCaffeine", health_connect = "NutritionRecord" }
+dietary_fiber = { unit = "g", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryFiber", health_connect = "NutritionRecord" }
+dietary_sugar = { unit = "g", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietarySugar", health_connect = "NutritionRecord" }
+dietary_fat_saturated = { unit = "g", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryFatSaturated", health_connect = "NutritionRecord" }
+dietary_cholesterol = { unit = "mg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryCholesterol", health_connect = "NutritionRecord" }
+dietary_sodium = { unit = "mg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietarySodium", health_connect = "NutritionRecord" }
+dietary_potassium = { unit = "mg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryPotassium", health_connect = "NutritionRecord" }
+dietary_calcium = { unit = "mg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryCalcium", health_connect = "NutritionRecord" }
+dietary_iron = { unit = "mg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryIron", health_connect = "NutritionRecord" }
+dietary_magnesium = { unit = "mg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryMagnesium", health_connect = "NutritionRecord" }
+dietary_zinc = { unit = "mg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryZinc", health_connect = "NutritionRecord" }
+dietary_vitamin_c = { unit = "mg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryVitaminC", health_connect = "NutritionRecord" }
+dietary_vitamin_d = { unit = "mcg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryVitaminD", health_connect = "NutritionRecord" }
+dietary_vitamin_b12 = { unit = "mcg", kind = "quantity", healthkit = "HKQuantityTypeIdentifierDietaryVitaminB12", health_connect = "NutritionRecord" }
+alcoholic_beverages = { unit = "count", kind = "quantity", healthkit = "HKQuantityTypeIdentifierNumberOfAlcoholicBeverages", requires_ios = 15 }
+walking_steadiness = { unit = "%", kind = "quantity", healthkit = "HKQuantityTypeIdentifierAppleWalkingSteadiness", requires_ios = 15 }
+six_minute_walk_distance = { unit = "m", kind = "quantity", healthkit = "HKQuantityTypeIdentifierSixMinuteWalkTestDistance" }
+stair_ascent_speed = { unit = "m/s", kind = "quantity", healthkit = "HKQuantityTypeIdentifierStairAscentSpeed" }
+stair_descent_speed = { unit = "m/s", kind = "quantity", healthkit = "HKQuantityTypeIdentifierStairDescentSpeed" }
+audio_exposure_event = { unit = "", kind = "category", healthkit = "HKCategoryTypeIdentifierEnvironmentalAudioExposureEvent" }
+estimated_workout_effort = { unit = "appleEffortScore", kind = "quantity", healthkit = "HKQuantityTypeIdentifierEstimatedWorkoutEffortScore", requires_ios = 18 }
+workout_route = { unit = "", kind = "series", healthkit = "HKWorkoutRoute", health_connect = "ExerciseRoute" }
+electrocardiogram = { unit = "", kind = "series", healthkit = "HKElectrocardiogramType" }

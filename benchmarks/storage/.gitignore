@@ -1,0 +1,4 @@
+/.local/
+
+# Local notebook session outputs can contain source data.
+/persona_gen/notebooks/__marimo__/

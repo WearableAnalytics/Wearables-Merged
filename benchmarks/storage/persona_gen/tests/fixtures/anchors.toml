@@ -1,0 +1,29 @@
+# Synthetic test anchors: one Garmin companion and one native Apple Watch, so tests can
+# exercise both device families as exact twins (personas 0 and 1). Not real people.
+
+[meta]
+target = "cohorts"
+version = "test"
+replace = ["anchors.profiles"]
+
+[anchors.profiles.garmin_walker]
+source = "spec: test anchor, older daily walker with a Garmin via Garmin Connect"
+age = 63
+sex = "F"
+archetype = "older_daily_walker"
+wearable = "garmin"
+phone = "iphone"
+conditions = []
+medications = []
+traits = {}
+
+[anchors.profiles.watch_athlete]
+source = "spec: test anchor, active adult with an Apple Watch who logs nutrition and short workouts"
+age = 31
+sex = "F"
+archetype = "athlete"
+wearable = "apple_watch"
+phone = "iphone"
+conditions = []
+medications = []
+traits = { micro_workouts = 1.0, nutrition_logger = 1.0 }

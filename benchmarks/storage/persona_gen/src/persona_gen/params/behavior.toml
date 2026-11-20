@@ -1,0 +1,296 @@
+# Behaviour timeline: awake states (semi-Markov), work regimes, sleep architecture,
+# structured workouts, recording behaviour and acute events. Durations are lognormal
+# (median minutes, log sigma) and truncated below at min_minutes, so impossible flicker
+# (for example sprint/stand every two seconds) cannot occur by construction.
+
+[meta]
+version = "2026.11.1"
+
+[states]
+source = "assumption: MET values near the 2011 Compendium (Ainsworth et al. 2011, https://doi.org/10.1249/MSS.0b013e31821ece12: sitting/lying 1.2-1.3, slow walking 2.8-3.0 at 3.2-4.2 km/h); the light state and the cadences are modelling choices"
+names = ["sedentary", "light", "walk"]
+met = [1.3, 2.3, 3.4]
+cadence_spm = [0.4, 18.0, 104.0]      # mean steps per minute while in the state
+cadence_sigma = [0.5, 0.25, 0.06]     # relative spread per bout
+hr_intensity = [0.06, 0.16, 0.30]     # fraction of heart-rate reserve above resting
+arm_motion = [0.05, 0.35, 0.3]
+upright = [false, true, true]
+outdoor_probability = [0.03, 0.15, 0.65]
+min_minutes = [2.0, 1.0, 2.0]
+
+# Each regime: duration median/log-sigma per state and a transition matrix
+# (rows: from state, columns: to state; diagonal must be 0).
+[regimes.free_morning]
+source = "assumption: tuned so median daily steps land near the LifeSnaps between-person median"
+median_minutes = [22.0, 9.0, 4.5]
+log_sigma = [0.8, 0.7, 0.7]
+transitions = [[0.0, 0.85, 0.15], [0.82, 0.0, 0.18], [0.55, 0.45, 0.0]]
+
+[regimes.free_afternoon]
+source = "assumption"
+median_minutes = [30.0, 9.0, 5.0]
+log_sigma = [0.85, 0.7, 0.7]
+transitions = [[0.0, 0.84, 0.16], [0.82, 0.0, 0.18], [0.55, 0.45, 0.0]]
+
+[regimes.free_evening]
+source = "assumption"
+median_minutes = [45.0, 7.0, 4.0]
+log_sigma = [0.8, 0.7, 0.6]
+transitions = [[0.0, 0.85, 0.15], [0.85, 0.0, 0.15], [0.7, 0.3, 0.0]]
+
+[regimes.work_office]
+source = "assumption"
+median_minutes = [42.0, 4.0, 3.0]
+log_sigma = [0.7, 0.6, 0.6]
+transitions = [[0.0, 0.8, 0.2], [0.85, 0.0, 0.15], [0.8, 0.2, 0.0]]
+
+[regimes.work_manual]
+source = "assumption"
+median_minutes = [12.0, 22.0, 6.0]
+log_sigma = [0.7, 0.7, 0.6]
+transitions = [[0.0, 0.85, 0.15], [0.6, 0.0, 0.4], [0.3, 0.7, 0.0]]
+
+[regimes.work_student]
+source = "assumption"
+median_minutes = [48.0, 6.0, 7.0]
+log_sigma = [0.6, 0.6, 0.6]
+transitions = [[0.0, 0.6, 0.4], [0.7, 0.0, 0.3], [0.7, 0.3, 0.0]]
+
+[commute]
+source = "assumption"
+# mode: [MET, cadence spm, speed m/s, hr_intensity, arm_motion]
+walk = [3.5, 110.0, 1.4, 0.32, 0.3]
+cycle = [6.5, 0.0, 5.0, 0.45, 0.15]
+transit = [1.6, 10.0, 0.0, 0.08, 0.1]
+car = [1.3, 0.0, 0.0, 0.05, 0.1]
+transit_walk_fraction = 0.3           # share of a transit commute spent walking to stops
+
+[sleep]
+source = "assumption: cycle ~90 min with deep sleep front-loaded and REM back-loaded (Carskadon & Dement, Normal Human Sleep: An Overview, https://typeset.io/pdf/chapter-2-normal-human-sleep-an-overview-2dvtwzg15h.pdf : NREM-REM period ~90 min, slow-wave sleep concentrated early, REM episodes lengthening across the night); awakenings rise with age (Ohayon et al. 2004 meta-analysis, https://doi.org/10.1093/sleep/27.7.1255,: wake after sleep onset increases with age, sleep efficiency falls after 60). Exact values are assumptions"
+latency_minutes = [12.0, 0.6]          # median, log sigma
+in_bed_before_minutes = [10.0, 0.9]
+in_bed_after_minutes = [6.0, 0.9]
+cycle_minutes = [92.0, 10.0]           # mean, sd
+deep_first_cycle_fraction = [0.30, 0.18, 0.08, 0.03, 0.02]
+rem_fraction_by_cycle = [0.12, 0.20, 0.26, 0.30, 0.33]
+awakenings_per_hour_by_age = [[18, 0.5], [40, 0.8], [65, 1.3], [90, 1.8]]
+awakening_minutes = [2.0, 0.7]
+min_stage_minutes = 1.0
+workday_alarm = true
+alarm_bedtime_advance = 0.6
+duration_sigma_hours = 0.9             # night-to-night sleep variation; LifeSnaps within-person sd ~75 min            # share of alarm-shortened sleep recovered by going to bed earlier
+prep_minutes_before_commute = [45.0, 0.3]
+sleep_debt_repayment = 0.35            # share of accumulated debt repaid per free night
+max_sleep_hours = 11.5
+nap_minutes = [25.0, 0.4]
+
+[workouts]
+source = "assumption: template shapes follow common training structures"
+# Template intensities are fractions of HR reserve; MET and gait per segment kind.
+fatigue_hard_next_day_multiplier = 0.55
+illness_multiplier = 0.15
+min_gap_minutes = 30.0
+
+[workouts.types.walk]
+source = "assumption"
+template = "steady"
+intensity = [0.35, 0.05]
+met = 4.0
+cadence_spm = 116.0
+speed = 1.5
+arm_motion = 0.25
+outdoor_probability = 0.9
+auto_detectable = true
+min_minutes = 8.0
+
+[workouts.types.run]
+source = "assumption"
+template = "steady"
+warmup_minutes = 5.0
+cooldown_minutes = 3.0
+intensity = [0.72, 0.06]
+met = 9.5
+cadence_spm = 166.0
+speed = 3.1
+arm_motion = 0.55
+outdoor_probability = 0.8
+auto_detectable = true
+min_minutes = 10.0
+
+[workouts.types.intervals]
+source = "assumption"
+template = "intervals"
+activity = "run"
+warmup_minutes = 10.0
+cooldown_minutes = 8.0
+work_minutes = [3.0, 4.0]
+rest_minutes = [1.5, 2.5]
+repetitions = [5, 8]
+intensity = [0.9, 0.04]
+rest_intensity = 0.55
+met = 11.0
+rest_met = 5.0
+cadence_spm = 175.0
+rest_cadence_spm = 140.0
+speed = 3.9
+rest_speed = 2.2
+arm_motion = 0.6
+outdoor_probability = 0.7
+auto_detectable = false
+min_minutes = 25.0
+
+[workouts.types.cycle]
+source = "assumption"
+template = "steady"
+intensity = [0.62, 0.08]
+met = 7.0
+cadence_spm = 0.0
+speed = 6.5
+arm_motion = 0.12
+outdoor_probability = 0.75
+auto_detectable = true
+min_minutes = 10.0
+
+[workouts.types.strength]
+source = "assumption"
+template = "sets"
+work_minutes = [0.6, 1.2]
+rest_minutes = [1.2, 2.5]
+repetitions = [8, 18]
+intensity = [0.5, 0.06]
+rest_intensity = 0.32
+met = 5.0
+rest_met = 2.0
+cadence_spm = 4.0
+rest_cadence_spm = 8.0
+speed = 0.0
+rest_speed = 0.0
+arm_motion = 0.95
+outdoor_probability = 0.05
+auto_detectable = false
+min_minutes = 12.0
+
+[workouts.types.micro_strength]
+source = "spec: Person B logs single sets (~2 min); kept rare via habits.micro_workout_share"
+template = "steady"
+activity = "strength"
+intensity = [0.55, 0.08]
+met = 5.0
+cadence_spm = 2.0
+speed = 0.0
+arm_motion = 0.95
+outdoor_probability = 0.0
+auto_detectable = false
+min_minutes = 1.0
+
+[workouts.types.hiit]
+source = "assumption"
+template = "intervals"
+warmup_minutes = 4.0
+cooldown_minutes = 3.0
+work_minutes = [0.5, 0.75]
+rest_minutes = [0.25, 0.5]
+repetitions = [12, 24]
+intensity = [0.85, 0.05]
+rest_intensity = 0.6
+met = 8.5
+rest_met = 4.0
+cadence_spm = 60.0
+rest_cadence_spm = 30.0
+speed = 0.0
+rest_speed = 0.0
+arm_motion = 0.85
+outdoor_probability = 0.1
+auto_detectable = false
+min_minutes = 12.0
+
+[workouts.types.yoga]
+source = "assumption"
+template = "steady"
+intensity = [0.22, 0.05]
+met = 2.8
+cadence_spm = 2.0
+speed = 0.0
+arm_motion = 0.35
+outdoor_probability = 0.05
+auto_detectable = false
+min_minutes = 15.0
+
+[workouts.types.swim]
+source = "assumption"
+template = "steady"
+intensity = [0.6, 0.07]
+met = 7.0
+cadence_spm = 0.0
+speed = 0.7
+arm_motion = 1.0
+outdoor_probability = 0.2
+auto_detectable = false
+min_minutes = 15.0
+
+[workouts.types.hike]
+source = "assumption"
+template = "steady"
+intensity = [0.5, 0.06]
+met = 6.0
+cadence_spm = 98.0
+speed = 1.2
+arm_motion = 0.3
+outdoor_probability = 1.0
+auto_detectable = true
+min_minutes = 30.0
+
+[recording]
+source = "assumption: watches start late, are left running, or auto-detect after a delay"
+start_delay_seconds = [40.0, 0.9]       # median, log sigma
+end_overrun_probability = 0.08
+end_overrun_minutes = [6.0, 0.8]
+early_stop_probability = 0.05
+auto_detect_probability = 0.5
+auto_detect_delay_minutes = [9.0, 0.3]
+pause_probability = 0.15
+
+[events.illness]
+source = "assumption: ~2.5 colds per adult per year (CDC: adults average 2-3 a year, https://www.cdc.gov/common-cold/index.html). Mishra et al. 2020 (https://doi.org/10.1038/s41551-020-00640-6; Nat Biomed Eng, COVID-19, 32 cases) and Radin et al. 2020 (https://doi.org/10.1016/S2589-7500(19)30222-5; Lancet Digit Health, Fitbit resting HR and influenza-like illness) show the direction of the HR effect, not these effect sizes"
+rate_per_year = 2.5
+duration_days = [5.0, 0.4]
+rhr_delta = [3.0, 8.0]
+ln_rmssd_delta = -0.15
+temperature_delta = [0.2, 0.9]
+activity_multiplier = 0.5
+sleep_extra_hours = 0.8
+wear_multiplier = 0.85
+
+[events.travel]
+source = "assumption"
+rate_per_year = 2.0
+duration_days = [6.0, 0.5]
+vacation_probability = 0.7
+zones = ["Europe/Berlin", "Europe/Lisbon", "America/New_York", "Asia/Bangkok", "Asia/Tokyo", "America/Los_Angeles", "Europe/Athens"]
+jetlag_hours_per_day = 1.0
+vacation_activity_multiplier = 1.25
+offline_probability = 0.25             # phone offline (no sync) during part of the trip
+
+[events.injury]
+source = "assumption"
+rate_per_year = 0.25
+duration_days = [25.0, 0.5]
+activity_multiplier = 0.7
+blocks = ["run", "intervals", "hiit", "hike"]
+gait_asymmetry_delta = 4.0
+
+[events.mood_episode]
+source = "assumption: depressive episodes shift sleep and activity for weeks; only for episodic trajectories"
+rate_per_year = 1.2
+duration_days = [28.0, 0.4]
+activity_multiplier = 0.6
+workout_multiplier = 0.3
+sleep_delta_hours = [-1.0, 1.5]
+wear_multiplier = 0.7
+
+[events.hospitalization]
+source = "assumption: perioperative pattern = baseline, device-off gap, recovery curve"
+device_off_days = [3.0, 0.4]
+recovery_tau_days = 21.0
+rhr_delta = 8.0
+activity_floor = 0.2

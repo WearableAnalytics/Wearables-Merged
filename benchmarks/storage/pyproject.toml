@@ -1,0 +1,34 @@
+[tool.uv.workspace]
+members = ["persona_gen"]
+
+[tool.ty.src]
+exclude = [".local", "Sample_Health_data"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.6",
+    "ty>=0.0.107",
+]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = [".local", "Sample_Health_data"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "SIM",  # simplify
+    "NPY",  # numpy-specific
+    "RUF",  # ruff-specific
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["persona_gen"]
+
+[tool.ruff.format]
+line-ending = "lf"

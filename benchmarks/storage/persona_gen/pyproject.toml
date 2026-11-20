@@ -1,0 +1,41 @@
+[project]
+name = "persona-gen"
+version = "0.1.0"
+description = "Synthetic wearable persona generator: personas, behaviour, physiology, devices and delivery to Parquet."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "duckdb>=2.0.0",
+    "numpy>=2.5.5",
+    "pyarrow>=26.0.1",
+    "tomli-w>=1.2.0",
+]
+
+[project.optional-dependencies]
+plots = [
+    "matplotlib>=3.11.2",
+]
+notebook = [
+    "marimo>=0.25.2",
+    "pandas>=3.1.1",
+    "plotly>=7.1.0",
+    "scipy>=1.18.1",
+]
+
+[project.scripts]
+persona-gen = "persona_gen.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9,<0.14"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+extend = "../pyproject.toml"

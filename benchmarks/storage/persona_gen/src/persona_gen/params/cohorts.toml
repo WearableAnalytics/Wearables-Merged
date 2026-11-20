@@ -1,0 +1,46 @@
+# Clinical cohort weights are normalized. Anchors are an opt-in local comparison.
+
+[meta]
+version = "2026.11.1"
+
+[[cohorts]]
+source = "spec: general population with representative variation"
+name = "general"
+share = 0.90
+age = [18, 90]
+require_any = []
+
+[[cohorts]]
+source = "spec: psychiatric outpatients 18-45"
+name = "psychiatric_outpatients"
+share = 0.06
+age = [18, 45]
+require_any = ["depression", "anxiety", "adhd", "bipolar"]
+trajectory_weights = [0.35, 0.05, 0.05, 0.55, 0.0]
+
+[[cohorts]]
+source = "spec: adults 60+ with coronary heart disease"
+name = "cardiac"
+share = 0.04
+age = [60, 88]
+require_any = ["coronary_heart_disease"]
+trajectory_weights = [0.0, 0.0, 0.0, 0.0, 1.0]
+
+[anchors]
+source = "spec: anchor variants off by default; twins and nonzero share are opt-in comparisons"
+share = 0.0
+variant_age_sigma = 4.0
+variant_scale_sigma = 0.08        # relative spread of numeric anchor traits
+# Device staging labels some true sleep as awake and trims the edges, so a twin's true
+# sleep must exceed the export's device-measured median by about this much (assumption,
+# measured on synthetic twins).
+twin_sleep_device_bias_hours = 0.7
+twin_steps_device_ratio = { native = 0.9, companion = 1.0 }   # observed wearable steps / true steps
+
+# The anchor set itself is not in this file:
+# - default: real LifeSnaps participants, params/defaults/anchors-lifesnaps.toml (public, CC BY 4.0)
+# - private: an overlay with meta.replace = ["anchors.profiles"], e.g. the owner's set under
+#   .local/calibration/ (persona-gen generate --overlay .local/calibration)
+# Each profile needs age, sex, archetype, wearable, phone, conditions, medications and
+# traits; optional: timezone, latitude, longitude, occupation, trajectory, upgrades, dose_log.
+[anchors.profiles]

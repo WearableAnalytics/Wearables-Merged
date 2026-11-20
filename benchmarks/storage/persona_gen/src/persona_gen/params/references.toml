@@ -1,0 +1,42 @@
+# Plausibility bands and population spread used by validation. Each table's `source` says what was derived from
+# which data and what is only a literature or assumption value.
+# The spread and dynamics tables at the end are generated from the LifeSnaps daily CSV by calibration/lifesnaps.py. The
+# bands in the other tables are not: LifeSnaps is young, selected Fitbit users, so it is shown there as a comparison only.
+# Values are generated for now and havent been verified!!!
+[meta]
+version = "2026.11.1"
+
+[steps]
+source = "assumption: plausibility band for the median of a general-adult synthetic population under 65. Tudor-Locke et al. 2011 (IJBNPA 8:79, doi 10.1186/1479-5868-8-79) report that healthy adults typically take 4,000-18,000 steps/day, which is where the lower end comes from. LifeSnaps (young, selected Fitbit users) has median 7,232 and p10-p90 4,993-12,375 (spread table below) and is not used for this band. older_median_range is also an assumption, informed by Tudor-Locke et al. 2011 (IJBNPA 8:80, doi 10.1186/1479-5868-8-80), healthy older adults average 2,000-9,000 steps/day"
+median_range = [4000.0, 11000.0]
+older_median_range = [2000.0, 9000.0]
+
+[resting_heart_rate]
+source = "assumption: plausibility band for the median resting HR of a general-adult population. Quer et al. 2020 (https://doi.org/10.1371/journal.pone.0227709; PLoS ONE, 92,457 wearable users) reports a mean of 65 bpm; LifeSnaps per-person medians have median 65.9 and p10-p90 58.2-74.4 (spread table below). female_minus_male is an assumption; LifeSnaps per-person medians differ by +1.2 bpm (25 women, 41 men)"
+median_range = [56.0, 74.0]
+female_minus_male = [0.0, 5.0]
+
+[hrv_sdnn]
+source = "assumption: plausible bands for the median SDNN of consumer-wearable users, not derived from LifeSnaps (it reports RMSSD, not SDNN). Nunan et al. 2010 (PACE 33:1407, https://doi.org/10.1111/j.1540-8159.2010.02841.x) and Shaffer & Ginsberg 2017 (Front Public Health 5:258, https://doi.org/10.3389/fpubh.2017.00258) are norms reviews; the bands were not taken from them. A secondary source quotes a Nunan mean short-term SDNN of ~50 ms, which sits inside the young band"
+young_median_range = [35.0, 80.0]
+older_median_range = [18.0, 45.0]
+
+[sleep]
+source = "assumption: plausibility band for the median sleep time of wearable users. LifeSnaps (young, selected Fitbit users) has median 396 min and p10-p90 304-450 (spread table below) and is not used for this band"
+median_minutes_range = [340.0, 450.0]
+
+[spread]
+source = "calibrated: LifeSnaps daily CSV (71 people, CC BY 4.0), p10/p90 of per-person medians, missing days excluded"
+steps_p10_p90 = [4993.0, 12375.0]
+sleep_minutes_p10_p90 = [304.0, 450.0]
+resting_hr_p10_p90 = [58.2, 74.4]
+
+[dynamics]
+source = "calibrated: LifeSnaps daily CSV within-person dynamics as [p10, median, p90] across people; wear is inflated by study reminders and workouts include Fitbit auto-recognized activity"
+wear_fraction = [0.234, 0.754, 0.971]
+steps_cv = [0.348, 0.543, 0.724]
+steps_lag1 = [-0.117, 0.119, 0.401]
+weekend_weekday_steps = [0.686, 1.119, 1.953]
+sleep_sd_minutes = [50.1, 74.6, 93.6]
+workout_day_share = [0.2, 0.463, 0.775]
+steps_on_tired_or_sad_days_ratio = [0.911, 1.054, 1.181]

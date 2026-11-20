@@ -1,0 +1,240 @@
+# Demographics, body baselines, routines and activity archetypes.
+# Values are sampled jointly by persona/sampler.py: age -> sex -> BMI -> archetype ->
+# fitness -> resting HR / HRV -> routine -> device ownership.
+
+[meta]
+version = "2026.11.1"
+
+[demographics]
+source = "assumption: broad adult app population; cohort files override age ranges"
+female_share = 0.51
+# ln(BMI) mean at ages (piecewise linear), roughly BMI 23.5 at 18 to 27 at 60.
+bmi_log_mean_by_age = [[18, 3.16], [40, 3.25], [60, 3.30], [90, 3.23]]
+bmi_log_sigma = 0.16
+bmi_range = [16.0, 50.0]
+height_mean_cm = { female = 163.0, male = 177.0 }
+height_sigma_cm = 7.0
+
+[demographics.timezones]
+source = "assumption: platform users concentrated in Central Europe, with other zones to exercise offsets and hemispheres"
+names = ["Europe/Berlin", "Europe/London", "America/New_York", "America/Los_Angeles", "Asia/Tokyo", "Australia/Sydney", "America/Sao_Paulo"]
+weights = [0.50, 0.10, 0.14, 0.10, 0.06, 0.06, 0.04]
+latitudes = [52.5, 51.5, 40.7, 34.0, 35.7, -33.9, -23.5]
+longitudes = [13.4, -0.1, -74.0, -118.2, 139.7, 151.2, -46.6]
+
+[fitness]
+source = "assumption: approximate VO2max norms by age and sex from FRIEND treadmill data (Kaminsky et al. 2015, Mayo Clin Proc 90:1515, https://doi.org/10.1016/j.mayocp.2015.07.026); checked: 50th percentile at 20-29 is 48.0 (men) and 37.6 (women), at 70-79 24.4 and 18.3; the table rounds these and the women at 80 value is a little high. The 2021 FRIEND update (Kaminsky et al., https://doi.org/10.1016/j.mayocp.2021.08.020) has treadmill values 1.5-4.6 mL/kg/min lower"
+# VO2max mean (ml/kg/min) at ages, linear interpolation.
+vo2max_mean_male = [[20, 48.0], [40, 41.5], [60, 33.0], [80, 25.0]]
+vo2max_mean_female = [[20, 38.0], [40, 32.0], [60, 25.5], [80, 20.0]]
+vo2max_sigma = 6.5
+bmi_slope = -0.55          # ml/kg/min per BMI unit above 25 (assumption)
+range = [12.0, 75.0]
+
+[baselines]
+source = "assumption: resting HR 60-80 bpm typical, lower with fitness (Ostchega et al. 2011, https://www.cdc.gov/nchs/data/nhsr/nhsr041.pdf, NHANES 1999-2008 resting pulse reference data; percentiles not re-read). HRV declines with age (Nunan, Sandercock & Brodie 2010 norms review, https://doi.org/10.1111/j.1540-8159.2010.02841.x; its numbers were not read). Nauman 2011 is a HUNT mortality study, not a reference source"
+# Resting HR = intercept + vo2_slope * (VO2max - age/sex norm) + female_delta + bmi_slope * (BMI - 25) + N(0, sigma)
+# (fitness relative to the sex-specific norm, so sex differences stay ~3 bpm as observed)
+rhr_intercept = 65.0
+rhr_vo2_slope = -0.95
+rhr_female_delta = 3.0
+rhr_bmi_slope = 0.30
+rhr_sigma = 5.0
+rhr_range = [38.0, 100.0]
+# ln(RMSSD ms) = intercept + age_slope*(age-20) + fitness_slope*(VO2max - age/sex norm) + N(0, sigma)
+ln_rmssd_intercept = 3.75
+ln_rmssd_age_slope = -0.017
+ln_rmssd_fitness_slope = 0.012
+ln_rmssd_sigma = 0.30
+# Tanaka, Monahan & Seals 2001 (https://doi.org/10.1016/s0735-1097(00)01054-8): HRmax = 208 - 0.7 * age.
+hrmax_intercept = 208.0
+hrmax_age_slope = -0.7
+hrmax_sigma = 6.0
+respiratory_rate_mean = 14.5
+respiratory_rate_sigma = 1.6
+spo2_mean = 96.8
+spo2_sigma = 0.9
+wrist_temperature_mean = 36.0
+wrist_temperature_sigma = 0.25
+
+[responsiveness]
+source = "assumption: population spread around conservative defaults; owner-measured anchor values stay with the twins"
+hr_on_tau_seconds = [25.0, 60.0]        # uniform range: time constant of HR rise
+hr_off_tau_seconds = [45.0, 130.0]      # fast recovery component after effort
+recovery_slow_fraction = [0.15, 0.35]   # share of elevation that recovers with the slow component
+recovery_slow_tau_seconds = [400.0, 1200.0]
+effort_gain = [0.85, 1.15]              # scales target HR elevation for a given intensity
+sleep_debt_rhr_per_hour = [0.2, 0.8]    # bpm per hour of accumulated sleep debt
+medication_response = [0.6, 1.4]        # multiplies medication HR effects
+regularity_minutes = [15.0, 110.0]      # log-uniform day-to-day timing jitter (sd)
+
+[routine]
+source = "assumption: chronotype later in young adults (Roenneberg et al. 2007, https://doi.org/10.1016/j.smrv.2007.07.005); spread tuned to be comparable with LifeSnaps sleep timing"
+# Mid-sleep (hours after local midnight) mean at ages.
+midsleep_by_age = [[18, 5.0], [30, 4.2], [50, 3.5], [75, 3.0]]
+midsleep_sigma = 0.85
+weekend_shift_by_age = [[18, 1.4], [30, 0.9], [50, 0.5], [75, 0.15]]
+sleep_need_hours_by_age = [[18, 8.0], [30, 7.6], [65, 7.3], [90, 7.2]]
+sleep_need_sigma = 0.55
+nap_probability_by_age = [[18, 0.06], [50, 0.05], [75, 0.20]]
+
+[occupations]
+source = "assumption: coarse labour-force mix by age"
+names = ["student", "office", "remote", "manual", "shift", "retired", "unemployed"]
+# Weight rows per age band (lower bound years).
+bands = [18, 25, 35, 55, 65, 75]
+weights = [
+  [0.55, 0.15, 0.05, 0.12, 0.06, 0.00, 0.07],
+  [0.08, 0.38, 0.17, 0.20, 0.10, 0.00, 0.07],
+  [0.01, 0.40, 0.18, 0.22, 0.11, 0.01, 0.07],
+  [0.00, 0.32, 0.15, 0.20, 0.08, 0.17, 0.08],
+  [0.00, 0.06, 0.04, 0.04, 0.01, 0.80, 0.05],
+  [0.00, 0.00, 0.00, 0.00, 0.00, 0.97, 0.03],
+]
+
+[occupation.student]
+source = "assumption"
+work_start_hour = [9.0, 1.2]     # mean, sd
+work_hours = [5.0, 1.5]
+workdays = 5
+regime = "work_student"
+commute = { walk = 0.35, cycle = 0.25, transit = 0.35, car = 0.05 }
+commute_minutes = [20.0, 0.5]    # median, log sigma
+
+[occupation.office]
+source = "assumption"
+work_start_hour = [8.5, 0.8]
+work_hours = [8.5, 0.7]
+workdays = 5
+regime = "work_office"
+commute = { walk = 0.12, cycle = 0.13, transit = 0.30, car = 0.45 }
+commute_minutes = [25.0, 0.5]
+
+[occupation.remote]
+source = "assumption"
+work_start_hour = [8.8, 1.0]
+work_hours = [8.0, 0.8]
+workdays = 5
+regime = "work_office"
+commute = { none = 1.0 }
+commute_minutes = [1.0, 0.1]
+
+[occupation.manual]
+source = "assumption"
+work_start_hour = [7.0, 0.8]
+work_hours = [8.5, 0.6]
+workdays = 5
+regime = "work_manual"
+commute = { walk = 0.08, cycle = 0.10, transit = 0.17, car = 0.65 }
+commute_minutes = [25.0, 0.5]
+
+[occupation.shift]
+source = "assumption: forward-rotating early/late/night shifts, one week each"
+work_start_hour = [6.0, 0.3]     # early shift; late and night shifts add 8 or 16 hours
+rotation = ["early", "late", "night"]
+work_hours = [8.0, 0.3]
+workdays = 5
+regime = "work_manual"
+commute = { walk = 0.05, cycle = 0.10, transit = 0.25, car = 0.60 }
+commute_minutes = [25.0, 0.5]
+rotation_days = 7
+
+[occupation.retired]
+source = "assumption"
+work_start_hour = [0.0, 0.0]
+work_hours = [0.0, 0.0]
+workdays = 0
+regime = "free"
+commute = { none = 1.0 }
+commute_minutes = [1.0, 0.1]
+
+[occupation.unemployed]
+source = "assumption"
+work_start_hour = [0.0, 0.0]
+work_hours = [0.0, 0.0]
+workdays = 0
+regime = "free"
+commute = { none = 1.0 }
+commute_minutes = [1.0, 0.1]
+
+# Activity archetypes. weights are per age band in [archetype_bands]; workouts list
+# [type, sessions per week, median minutes, minutes log-sigma, record propensity].
+[archetype_bands]
+source = "assumption: share of regular exercisers falls with age; daily walkers rise"
+bands = [18, 30, 45, 60, 75]
+names = ["sedentary", "weekend_warrior", "regular_exerciser", "athlete", "older_daily_walker"]
+weights = [
+  [0.30, 0.20, 0.35, 0.12, 0.03],
+  [0.36, 0.20, 0.33, 0.07, 0.04],
+  [0.40, 0.16, 0.30, 0.04, 0.10],
+  [0.40, 0.08, 0.22, 0.02, 0.28],
+  [0.45, 0.02, 0.10, 0.01, 0.42],
+]
+
+[archetype.sedentary]
+ln_bmi_shift = 0.05
+source = "assumption"
+vo2max_z = -0.8
+activity_level = 0.15
+light_multiplier = 0.8
+workouts = [["walk", 0.4, 25.0, 0.4, 0.15], ["strength", 0.15, 30.0, 0.3, 0.10]]
+preferred_slots = { morning = 0.2, lunch = 0.1, evening = 0.7 }
+abandonment_multiplier = 1.8
+
+[archetype.weekend_warrior]
+ln_bmi_shift = 0.0
+source = "assumption"
+vo2max_z = 0.0
+activity_level = 0.45
+light_multiplier = 0.95
+weekend_only = true
+workouts = [["run", 0.7, 45.0, 0.35, 0.7], ["cycle", 0.6, 90.0, 0.4, 0.7], ["hike", 0.3, 150.0, 0.4, 0.6], ["walk", 0.4, 40.0, 0.4, 0.3]]
+preferred_slots = { morning = 0.6, lunch = 0.2, evening = 0.2 }
+abandonment_multiplier = 1.0
+
+[archetype.regular_exerciser]
+ln_bmi_shift = -0.03
+source = "assumption"
+vo2max_z = 0.45
+activity_level = 0.6
+light_multiplier = 1.0
+workouts = [["run", 1.2, 35.0, 0.3, 0.75], ["strength", 1.2, 45.0, 0.3, 0.45], ["cycle", 0.6, 50.0, 0.4, 0.6], ["walk", 1.0, 35.0, 0.4, 0.3], ["yoga", 0.3, 45.0, 0.3, 0.4], ["hiit", 0.3, 25.0, 0.3, 0.6]]
+preferred_slots = { morning = 0.35, lunch = 0.15, evening = 0.5 }
+abandonment_multiplier = 0.7
+
+[archetype.athlete]
+ln_bmi_shift = -0.10
+source = "assumption: includes marathon-type profiles with occasional double sessions"
+vo2max_z = 1.6
+activity_level = 0.9
+light_multiplier = 1.05
+double_session_probability = 0.15
+workouts = [["run", 4.0, 55.0, 0.35, 0.95], ["cycle", 1.5, 90.0, 0.4, 0.9], ["strength", 1.5, 45.0, 0.3, 0.6], ["intervals", 1.0, 50.0, 0.25, 0.95], ["swim", 0.5, 45.0, 0.3, 0.8]]
+preferred_slots = { morning = 0.5, lunch = 0.1, evening = 0.4 }
+abandonment_multiplier = 0.4
+
+[archetype.older_daily_walker]
+ln_bmi_shift = -0.01
+source = "assumption"
+vo2max_z = 0.1
+activity_level = 0.5
+light_multiplier = 1.1
+workouts = [["walk", 3.0, 40.0, 0.35, 0.35], ["cycle", 0.4, 45.0, 0.4, 0.3], ["yoga", 0.2, 45.0, 0.3, 0.3]]
+preferred_slots = { morning = 0.55, lunch = 0.2, evening = 0.25 }
+abandonment_multiplier = 0.9
+
+[habits]
+source = "assumption: rare behaviours kept for anchor-like personas (spec: Person B quirks are not typical)"
+micro_workout_share = 0.02          # personas who log very short (~2 min) strength sets
+micro_workouts_per_day = [1.0, 4.0]
+nutrition_logger_share = 0.03
+manual_weight_logger_share = 0.12
+smart_scale_share = 0.06
+bp_cuff_share_hypertensive = 0.35
+headphone_listener_share = 0.55
+alcohol_logger_share = 0.02
+alcohol_drinks_per_day = [0.1, 1.5]   # persona mean range
+height_logger_share = 0.25           # personas with a height record (Health app profile)
+ecg_user_share = 0.04                # Apple Watch owners who take on-demand ECGs
+ecg_per_week = [0.2, 2.0]
+afib_history_share = { atrial_fibrillation = 0.6, other = 0.02 }

@@ -1,0 +1,71 @@
+# Daily latent state, long-run trajectories and continuous-time signals.
+
+[meta]
+version = "2026.11.1"
+
+[daily]
+source = "assumption: day-to-day resting HR sd ~2 bpm and HRV sd ~0.2 ln-units, AR(1) persistence. Plews et al. 2012 (https://doi.org/10.1007/s00421-012-2354-4) (daily HRV in two elite triathletes) shows day-to-day variation but the numbers are not taken from it"
+rhr_ar = 0.65
+rhr_sigma = 1.6
+ln_rmssd_ar = 0.55
+ln_rmssd_sigma = 0.18
+ln_rmssd_per_rhr = -0.025              # coupling of HRV to resting-HR deviation
+activity_ar = 0.3                      # LifeSnaps day-to-day step autocorrelation ~0.12
+activity_sigma = 0.18                  # day-to-day log multiplier on activity
+hard_workout_rhr_next_day = 1.0
+seasonal_activity_amplitude = 0.12     # log amplitude; peaks in local summer
+seasonal_rhr_amplitude = 0.8
+
+[trajectories]
+source = "assumption: spec trajectory families; weights overridden per cohort"
+names = ["stable", "improving", "declining", "episodic", "event_shaped"]
+weights = [0.58, 0.15, 0.15, 0.09, 0.03]
+improving_vo2_gain = [0.05, 0.15]          # fractional VO2max gain reached after the ramp
+improving_ramp_days = [60.0, 240.0]
+declining_vo2_per_year = [-0.10, -0.04]
+declining_activity_per_year = [-0.25, -0.08]
+
+[heart]
+source = "assumption: first-order HR kinetics with tau 20-60 s on-transient; recovery is biphasic, a fast then a slow phase (Peçanha, Forjaz & Low 2017, Front Neurosci 11:727, https://doi.org/10.3389/fnins.2017.00727), but the tau values and circadian_amplitude (2.5 bpm, a modelling choice for the resting-state component) are not taken from it"
+circadian_amplitude = 2.5
+circadian_peak_hour = 16.0
+sedentary_offset = 6.0                 # awake, sitting bpm above resting HR
+sleep_stage_offsets = { awake = 3.0, light = -3.0, deep = -6.0, rem = 0.5 }
+noise_sigma = 2.2                      # bpm, Ornstein-Uhlenbeck process
+noise_tau_seconds = 45.0
+stage_noise_multiplier = { awake = 1.2, light = 0.7, deep = 0.5, rem = 1.3 }
+drift_bpm_per_hour = 4.0               # cardiovascular drift during long efforts
+
+[hrv]
+source = "assumption: metric definitions (RMSSD, SDNN) follow the Task Force of the ESC and NASPE 1996, https://doi.org/10.1161/01.CIR.93.5.1043 standards; the RMSSD-to-SDNN ratios are assumptions"
+window_seconds = 60.0
+sleep_ln_rmssd_delta = 0.15
+awake_ln_rmssd_delta = 0.0
+lf_to_hf_ratio = [0.6, 1.8]            # persona range, drives the SDNN/RMSSD ratio
+lf_frequency_hz = 0.1
+white_fraction = 0.25
+rr_min_ms = 300.0
+rr_max_ms = 2000.0
+
+[respiration]
+source = "assumption: adult resting respiratory rate 12-20 /min (American Lung Association, https://www.lung.org/blog/respiratory-rate-vital-signs); the sleep adjustment is an assumption"
+sleep_delta = -1.3
+noise_sigma = 0.6
+illness_delta = 1.5
+
+[spo2]
+source = "assumption: healthy SpO2 ~95-100%, slightly lower during sleep (no primary source checked)"
+sleep_delta = -0.8
+noise_sigma = 0.7
+
+[temperature]
+source = "assumption: nightly wrist temperature deviation"
+night_sigma = 0.12
+ovulation_cycle = false
+
+[gait]
+source = "assumption: walking double support ~20-35%, rising with age; step length ~0.6-0.8 m. Hollman, McDade & Petersen 2011 (https://doi.org/10.1016/j.gaitpost.2011.03.024; Gait Posture 34:111, 189 adults aged 70+) gives older-adult gait norms; these figures were not checked against it"
+double_support_by_age = [[20, 26.0], [60, 29.0], [85, 33.0]]
+double_support_sigma = 1.5
+asymmetry_median = 1.0
+step_length_per_height = 0.415
