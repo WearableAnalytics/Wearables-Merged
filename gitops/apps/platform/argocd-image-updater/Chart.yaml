@@ -1,0 +1,12 @@
+apiVersion: v2
+name: argocd-image-updater-wrapper
+description: Argo CD Image Updater and the update rules for the images built by publish-images.yml
+type: application
+version: 0.1.0
+
+# Umbrella chart: installs the official chart as a sub-chart
+# https://github.com/argoproj/argo-helm/tree/main/charts/argocd-image-updater
+dependencies:
+  - name: argocd-image-updater
+    version: "1.5.0"
+    repository: https://argoproj.github.io/argo-helm

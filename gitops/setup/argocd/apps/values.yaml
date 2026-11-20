@@ -8,6 +8,9 @@ valueFiles:
 
 deleteResources: false
 
+# Apps with productionOnly: true are only rendered when this is true.
+production: true
+
 apps:
   # Platform & Data Stores (prune: false protects persistent volumes & state)
   - name: prod-postgres
@@ -54,3 +57,9 @@ apps:
   - name: grafana-proxy
     path: gitops/apps/monitoring/grafana-proxy
     namespace: monitoring
+
+  # Argo CD tooling
+  - name: argocd-image-updater
+    path: gitops/apps/platform/argocd-image-updater
+    namespace: argocd
+    productionOnly: true

@@ -1,0 +1,27 @@
+# Production only (productionOnly in gitops/setup/argocd/apps/values.yaml).
+# The updater writes the newest version as Helm parameters into the
+# Applications (write-back method "argocd"); git stays at tag "latest".
+
+# Only plain X.Y.Z tags from main. Excludes the -stage tags, the commit SHA
+# tags and "latest", which are published to the same repositories.
+allowTags: 'regexp:^[0-9]+\.[0-9]+\.[0-9]+$'
+
+# Argo CD Application name -> image built by .github/workflows/publish-images.yml.
+# All charts read the image from image.repository and image.tag.
+images:
+  - application: db-lord
+    image: ghcr.io/wearableanalytics/wearables-db-lord
+  - application: wearables-bff
+    image: ghcr.io/wearableanalytics/wearables-bff
+  - application: extraction-service
+    image: ghcr.io/wearableanalytics/wearables-extraction-service
+  - application: importservice
+    image: ghcr.io/wearableanalytics/wearables-importservice
+  - application: cloud-connector
+    image: ghcr.io/wearableanalytics/wearables-cloud-connector
+  - application: web-frontend
+    image: ghcr.io/wearableanalytics/wearables-web
+  - application: mapper-validator
+    image: ghcr.io/wearableanalytics/wearables-mapper-validator
+  - application: grafana-proxy
+    image: ghcr.io/wearableanalytics/wearables-grafana-proxy
