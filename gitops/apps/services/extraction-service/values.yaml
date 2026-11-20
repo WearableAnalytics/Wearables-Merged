@@ -11,13 +11,13 @@ service:
   type: ClusterIP
   port: 8010
 
+# Operator-managed Secret, not created by this chart: DB_LORD_OPERATOR_TOKEN,
+# the same value as db-lord's LEGACY_OPERATOR_TOKEN.
 secretRef: "extraction-service-secrets"
-
-env:
-  DB_LORD_BASE_URL: "http://db-lord.db-lord.svc.cluster.local:8080"
 
 # Non-secret settings, passed as plain env vars.
 config:
+  DB_LORD_BASE_URL: "http://db-lord.db-lord.svc.cluster.local:8080"
   # The BFF serves this API under /api/extraction (EXTRACTION_API_URL in its values);
   # the Swagger UI at /api/extraction/docs needs to know that prefix.
   ROOT_PATH: "/api/extraction"

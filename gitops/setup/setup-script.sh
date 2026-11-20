@@ -417,7 +417,7 @@ helm upgrade --install db-lord "$APPS_DIR/services/db-lord" \
 require_env EXTRACTION_SERVICE_DB_LORD_BASE_URL
 
 helm upgrade --install extraction-service "$APPS_DIR/services/extraction-service" --namespace "$EXTRACTION_SERVICE_NAMESPACE" --create-namespace \
-	--set env.DB_LORD_BASE_URL="$EXTRACTION_SERVICE_DB_LORD_BASE_URL"
+	--set config.DB_LORD_BASE_URL="$EXTRACTION_SERVICE_DB_LORD_BASE_URL"
 
 # --- bff/grafana-proxy/frontend ---
 require_file "$GRAFANA_JWT_PRIVATE_KEY_PATH"

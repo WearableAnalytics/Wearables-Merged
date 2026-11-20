@@ -22,6 +22,8 @@ CLOUD_CONNECTOR_NAMESPACE="${CLOUD_CONNECTOR_NAMESPACE:-cloud-connector}"
 CLOUD_CONNECTOR_SECRET_NAME="${CLOUD_CONNECTOR_SECRET_NAME:-cloud-connector-secrets}"
 IMPORTSERVICE_NAMESPACE="${IMPORTSERVICE_NAMESPACE:-importservice}"
 IMPORTSERVICE_SECRET_NAME="${IMPORTSERVICE_SECRET_NAME:-importservice-secrets}"
+EXTRACTION_SERVICE_NAMESPACE="${EXTRACTION_SERVICE_NAMESPACE:-extraction-service}"
+EXTRACTION_SERVICE_SECRET_NAME="${EXTRACTION_SERVICE_SECRET_NAME:-extraction-service-secrets}"
 GARMIN_CLIENT_ID="${GARMIN_CLIENT_ID:-}"
 GARMIN_CLIENT_SECRET="${GARMIN_CLIENT_SECRET:-}"
 
@@ -58,6 +60,8 @@ Environment variables:
   GARMIN_CLIENT_ID, GARMIN_CLIENT_SECRET (optional; Garmin OAuth app of cloud-connector)
   CLOUD_CONNECTOR_NAMESPACE           (default: cloud-connector)
   CLOUD_CONNECTOR_SECRET_NAME         (default: cloud-connector-secrets)
+  EXTRACTION_SERVICE_NAMESPACE        (default: extraction-service)
+  EXTRACTION_SERVICE_SECRET_NAME      (default: extraction-service-secrets)
 
 Behavior:
   - Ensures namespaces exist.
@@ -75,6 +79,11 @@ Behavior:
     Without all of a secret's variables set, an existing secret is kept.
   - Applies the Garmin keys of the cloud-connector secret when both GARMIN_*
     variables are set JWT_SECRET.
+  - Applies the operator tokens db-lord checks: CONTROL_WRITE_TOKEN,
+    API_TOKEN_SERVICE_TOKEN and LEGACY_OPERATOR_TOKEN (db-lord), the same values
+    to the BFF (LEGACY_OPERATOR_TOKEN as DATABASE_OPERATOR_TOKEN) and to the
+    extraction-service (as DB_LORD_OPERATOR_TOKEN). Existing values are reused
+    (db-lord first, then the BFF); missing ones are generated.
 EOF
 }
 
@@ -298,3 +307,36 @@ if [[ -n "${GARMIN_CLIENT_ID}" && -n "${GARMIN_CLIENT_SECRET}" ]]; then
 else
   echo "  - kept/skipped Garmin keys in ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET not set)"
 fi
+
+# operator_token <db-lord key> <BFF key>
+# Prints the existing value (db-lord first, then the BFF) or a new random one.
+operator_token() {
+  local value
+  value="$(read_secret_key "${DB_LORD_NAMESPACE}" "${DB_LORD_SECRET_NAME}" "$1")"
+  if [[ -z "${value}" ]]; then
+    value="$(read_secret_key "${BFF_NAMESPACE}" "${BFF_SECRET_NAME}" "$2")"
+  fi
+  if [[ -z "${value}" ]]; then
+    echo "Generating new $1." >&2
+    value="$(openssl rand -hex 32)"
+  fi
+  printf '%s' "${value}"
+}
+
+control_write_token="$(operator_token CONTROL_WRITE_TOKEN CONTROL_WRITE_TOKEN)"
+api_token_service_token="$(operator_token API_TOKEN_SERVICE_TOKEN API_TOKEN_SERVICE_TOKEN)"
+legacy_operator_token="$(operator_token LEGACY_OPERATOR_TOKEN DATABASE_OPERATOR_TOKEN)"
+
+upsert_secret_key "${DB_LORD_NAMESPACE}" "${DB_LORD_SECRET_NAME}" "CONTROL_WRITE_TOKEN" "${control_write_token}"
+upsert_secret_key "${DB_LORD_NAMESPACE}" "${DB_LORD_SECRET_NAME}" "API_TOKEN_SERVICE_TOKEN" "${api_token_service_token}"
+upsert_secret_key "${DB_LORD_NAMESPACE}" "${DB_LORD_SECRET_NAME}" "LEGACY_OPERATOR_TOKEN" "${legacy_operator_token}"
+upsert_secret_key "${BFF_NAMESPACE}" "${BFF_SECRET_NAME}" "CONTROL_WRITE_TOKEN" "${control_write_token}"
+upsert_secret_key "${BFF_NAMESPACE}" "${BFF_SECRET_NAME}" "API_TOKEN_SERVICE_TOKEN" "${api_token_service_token}"
+upsert_secret_key "${BFF_NAMESPACE}" "${BFF_SECRET_NAME}" "DATABASE_OPERATOR_TOKEN" "${legacy_operator_token}"
+upsert_secret_key "${EXTRACTION_SERVICE_NAMESPACE}" "${EXTRACTION_SERVICE_SECRET_NAME}" "DB_LORD_OPERATOR_TOKEN" "${legacy_operator_token}"
+# Older versions of the extraction-service chart created this secret. Detach it
+# from Argo CD and Helm, so they do not delete it now that the chart does not.
+kubectl -n "${EXTRACTION_SERVICE_NAMESPACE}" annotate secret "${EXTRACTION_SERVICE_SECRET_NAME}" \
+  helm.sh/resource-policy=keep argocd.argoproj.io/sync-options=Prune=false \
+  argocd.argoproj.io/tracking-id- --overwrite >/dev/null
+echo "  - operator tokens in ${DB_LORD_NAMESPACE}/${DB_LORD_SECRET_NAME}, ${BFF_NAMESPACE}/${BFF_SECRET_NAME}, ${EXTRACTION_SERVICE_NAMESPACE}/${EXTRACTION_SERVICE_SECRET_NAME}"
