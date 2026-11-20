@@ -1,0 +1,25 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: wearables-images
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  commonUpdateSettings:
+    # No version constraint: the highest X.Y.Z tag, including major updates.
+    updateStrategy: semver
+    allowTags: {{ .Values.allowTags | quote }}
+  writeBackConfig:
+    method: argocd
+  applicationRefs:
+    {{- range .Values.images }}
+    - namePattern: {{ .application | quote }}
+      images:
+        - alias: app
+          imageName: {{ .image | quote }}
+          manifestTargets:
+            helm:
+              name: image.repository
+              tag: image.tag
+    {{- end }}

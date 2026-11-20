@@ -5,3 +5,6 @@ valueFiles:
   - values-local.yaml
 
 deleteResources: true
+
+# Skips the productionOnly apps (argocd-image-updater; locally the images are dev builds).
+production: false

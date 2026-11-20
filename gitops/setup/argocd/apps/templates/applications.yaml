@@ -1,4 +1,5 @@
 {{- range .Values.apps }}
+{{- if or $.Values.production (not .productionOnly) }}
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -44,4 +45,5 @@ spec:
       {{- range .syncOptions }}
       - {{ . }}
       {{- end }}
+{{- end }}
 {{- end }}

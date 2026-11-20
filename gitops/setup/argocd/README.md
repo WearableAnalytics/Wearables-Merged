@@ -17,6 +17,8 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 kubectl apply -f gitops/setup/argocd/root-app.yaml
 ```
 
+The root application does not manage itself: after a change to `root-app.yaml`, apply it again with the same command.
+
 ### 3. Access Web UI
 ```bash
 # Port-forward to ArgoCD UI
@@ -33,8 +35,27 @@ Open `https://localhost:8080` (Username: `admin`).
 * `wearables-bff`: Backend-for-Frontend & Auth
 * `mapper-validator`: FHIR Mapping & Validation
 * `web-frontend`: Clinical Web UI (Helm release `web`, as in `setup-script.sh`)
+* `argocd-image-updater`: Updates the images built by `publish-images.yml` (production only, see below)
 
-`gitops/setup/argocd/apps/` is a small Helm chart: `templates/applications.yaml` creates one Argo CD application per entry in `values.yaml`. To add or remove an application, edit the `apps` list there.
+`gitops/setup/argocd/apps/` is a small Helm chart: `templates/applications.yaml` creates one Argo CD application per entry in `values.yaml`. To add or remove an application, edit the `apps` list there. Entries with `productionOnly: true` are skipped by `values-local.yaml` (`production: false`).
+
+## Image Updates (Argo CD Image Updater)
+
+`gitops/apps/platform/argocd-image-updater/` installs the [Argo CD Image Updater](https://argocd-image-updater.readthedocs.io/) into the `argocd` namespace, only in production. It checks GHCR every 2 minutes for the images that `.github/workflows/publish-images.yml` builds and deploys the newest version.
+
+* **Which tag:** strategy `semver` without a version constraint, so the highest `X.Y.Z` tag, including major updates. `allowTags` only accepts plain `X.Y.Z`, so the `-stage` tags, the commit SHA tags and `latest` are never deployed.
+* **Which images:** the `images` list in `values.yaml` of the chart (Argo CD application name and image). To add a service, add an entry there; its chart must read the image from `image.repository` and `image.tag`.
+* **How it is written:** write-back method `argocd`. The updater sets `image.repository` and `image.tag` as Helm parameters in the application; git keeps `tag: latest` as the fallback. The deployed version is therefore only visible in the cluster, not in git.
+* **Root application:** `root-app.yaml` ignores `/spec/source/helm/parameters` of the child applications (`ignoreDifferences` with `RespectIgnoreDifferences=true`). Without it, selfHeal of the root application would reset the parameters to git and the updater would set them again in a loop. Apply `root-app.yaml` before the image updater reaches `main` (see Quick Start, step 2).
+* **Same tag, new image:** a rebuild that overwrites an existing version tag is not detected, because the version does not change.
+
+Check the status and the deployed versions:
+
+```bash
+kubectl get imageupdaters -n argocd
+kubectl logs -n argocd deploy/argocd-image-updater-controller --tail=100
+kubectl get application wearables-bff -n argocd -o jsonpath='{.spec.source.helm.parameters}'; echo
+```
 
 ## Secrets
 
@@ -52,28 +73,6 @@ If it is not valid (or it is the value that used to be in `values.yaml`, which i
 
 ```bash
 kubectl exec -n prod-postgres prod-postgres-0 -- psql -U postgres -c "ALTER USER postgres PASSWORD '<new password>'"
-```
-
-**One-time migration of `wearables-bff-secrets`:** until the change to `secret.create: false`, Argo CD rendered this secret from the chart (with `JWT_SECRET: dev-secret`) and tracks it. Once the change is on `main`, prune would delete it. As long as `main` still renders the secret, Argo CD reverts any change to it, so the migration has two parts:
-
-1. Before the change reaches `main`, protect the secret from prune (Argo CD keeps annotations it does not set itself):
-
-   ```bash
-   kubectl annotate secret wearables-bff-secrets -n wearables-bff argocd.argoproj.io/sync-options=Prune=false
-   ```
-
-2. After the merge, once the `wearables-bff` application has synced the new revision, detach the secret from Argo CD and remove the protection again:
-
-   ```bash
-   kubectl annotate secret wearables-bff-secrets -n wearables-bff argocd.argoproj.io/tracking-id- argocd.argoproj.io/sync-options-
-   kubectl label secret wearables-bff-secrets -n wearables-bff app.kubernetes.io/instance-
-   ```
-
-Then check its `JWT_SECRET`. If it is `dev-secret`, replace it with a random one for the BFF and the Grafana proxy, set `JWT_SECRET` in `importservice-secrets` to the same value, and restart the three deployments. This logs out all users and invalidates issued case tokens. Only do it after step 2, otherwise Argo CD writes `dev-secret` back.
-
-```bash
-kubectl get secret wearables-bff-secrets -n wearables-bff -o jsonpath='{.data.JWT_SECRET}' | base64 -d; echo
-ROTATE_SHARED_APP_JWT_SECRET=true ./scripts/bootstrap-runtime-secrets.sh
 ```
 
 The local minikube cluster uses the same chart with `values-local.yaml` (see `gitops/local/README.md`, step 16), so both setups deploy the same applications. Check what the chart renders with:
