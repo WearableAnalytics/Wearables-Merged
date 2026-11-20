@@ -40,11 +40,13 @@ spec:
                 secretKeyRef:
                   name: {{ required "runtimeSecret.name is required" .Values.runtimeSecret.name }}
                   key: {{ .Values.runtimeSecret.databaseKey }}
+                  optional: true
             - name: INGEST_ARCHIVE_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.runtimeSecret.name }}
                   key: {{ .Values.runtimeSecret.archiveKey }}
+                  optional: true
             - name: INGEST_ARCHIVE_OLD_KEYS
               valueFrom:
                 secretKeyRef:
@@ -61,6 +63,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.runtimeSecret.name }}
                   key: {{ .Values.runtimeSecret.influxTokenKey }}
+                  optional: true
             {{- if .Values.kafkaSecuritySecret.name }}
             - name: KAFKA_SECURITY_JSON
               valueFrom:
