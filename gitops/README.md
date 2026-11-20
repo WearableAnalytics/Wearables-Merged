@@ -136,11 +136,7 @@ INFLUX_TOKEN: "token"
 
 **Install extraction service**
 
-1. Render and install the secret. Ensure that db-lord base url is set correctly.
-
-`helm template extraction-service ./apps/services/extraction-service --namespace extraction-service -s templates/extraction-service-secrets.yaml > extraction-service-secrets.yaml`
-
-`kubectl apply -f extraction-service-secrets.yaml -n extraction-service`
+1. Create the secret `extraction-service-secrets` with `DB_LORD_OPERATOR_TOKEN` (same value as db-lord's `LEGACY_OPERATOR_TOKEN`). The chart does not create it.
 
 2. Install the extraction service
 

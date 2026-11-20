@@ -73,6 +73,7 @@ names, not credentials.
 | Importer migration Job only | `importservice-migration` | `INGEST_DATABASE_URL` for the migration authority |
 | Importer and mapper, in each release namespace | `ingestion-signing` | `INGEST_SIGNING_KEY`, with the same value in both namespaces |
 | BFF | `wearables-bff-secrets` | `JWT_SECRET`, `CONTROL_WRITE_TOKEN`, `API_TOKEN_SERVICE_TOKEN`, `DATABASE_OPERATOR_TOKEN`; optional `BREVO_API_KEY` |
+| Extraction | `extraction-service-secrets` | `DB_LORD_OPERATOR_TOKEN`, matching db-lord's `LEGACY_OPERATOR_TOKEN` |
 
 The BFF chart references this existing Secret by default and creates no embedded
 credentials. Match `CONTROL_WRITE_TOKEN` and `API_TOKEN_SERVICE_TOKEN` to the
