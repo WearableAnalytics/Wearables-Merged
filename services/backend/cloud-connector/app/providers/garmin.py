@@ -185,6 +185,8 @@ class GarminProvider(BaseCloudProvider):
             "skinTemp",
             "userMetrics",
             "ecg",
+            "activities",
+            "manuallyUpdatedActivities",
         ]
 
         # Group items by resolved patient_id
@@ -298,6 +300,7 @@ class GarminProvider(BaseCloudProvider):
                 ("skinTemp", self._handle_skin_temp),
                 ("userMetrics", self._handle_user_metrics),
                 ("ecg", self._handle_ecg),
+                ("activities", self._handle_activities),
             ]
 
             async with httpx.AsyncClient(timeout=15.0) as client:
@@ -400,6 +403,13 @@ class GarminProvider(BaseCloudProvider):
         inst.extend(i)
         wav.extend(w)
         return 0
+
+    def _handle_activities(self, data, inst, cum, dur, wav) -> int:
+        i, c, d, steps = self._parse_activities(data)
+        inst.extend(i)
+        cum.extend(c)
+        dur.extend(d)
+        return steps
 
     def _parse_pulse_ox(self, data: Any) -> List[InstantaneousMeasurement]:
         results = []
@@ -929,6 +939,103 @@ class GarminProvider(BaseCloudProvider):
             )
         return inst_results, wav_results
 
+    def _parse_activities(
+        self, data: Any
+    ) -> tuple[List[InstantaneousMeasurement], List[CumulativeMeasurement], List[DurationMeasurement], int]:
+        """Parses Garmin workout and exercise activity records (Running, Cycling, Walking etc.)"""
+        inst_results: List[InstantaneousMeasurement] = []
+        cum_results: List[CumulativeMeasurement] = []
+        dur_results: List[DurationMeasurement] = []
+        activity_steps = 0
+
+        items = data if isinstance(data, list) else [data]
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            start_ts = item.get("startTimeInSeconds", 0)
+            duration_sec = int(item.get("durationInSeconds", 0))
+            if start_ts <= 0 or duration_sec <= 0:
+                continue
+
+            s_start = datetime.fromtimestamp(start_ts, tz=timezone.utc)
+            s_end = datetime.fromtimestamp(start_ts + duration_sec, tz=timezone.utc)
+            duration_min = round(duration_sec / 60.0, 2)
+
+            activity_type = str(item.get("activityType") or "OTHER").upper()
+            activity_name = str(item.get("activityName") or activity_type)
+            activity_id = str(item.get("activityId") or item.get("summaryId") or "")
+            source_rec_id = f"garmin-activity-{activity_id}" if activity_id else None
+
+            # Workout duration -> EXERCISE_TIME
+            dur_results.append(
+                DurationMeasurement(
+                    type="EXERCISE_TIME",
+                    value=duration_min,
+                    unit="MINUTES",
+                    startTime=s_start,
+                    endTime=s_end,
+                    durationMinutes=duration_min,
+                    sourceRecordId=source_rec_id,
+                )
+            )
+
+            # Distance -> DISTANCE_WALKING_RUNNING
+            distance_m = item.get("distanceInMeters")
+            if distance_m is not None and float(distance_m) > 0:
+                cum_results.append(
+                    CumulativeMeasurement(
+                        type="DISTANCE_WALKING_RUNNING",
+                        value=float(distance_m),
+                        unit="METERS",
+                        periodStart=s_start,
+                        periodEnd=s_end,
+                        duration=duration_sec,
+                        sourceRecordId=source_rec_id,
+                    )
+                )
+
+            # Active calories -> ACTIVE_ENERGY_BURNED
+            calories = item.get("activeKilocalories")
+            if calories is not None and float(calories) > 0:
+                cum_results.append(
+                    CumulativeMeasurement(
+                        type="ACTIVE_ENERGY_BURNED",
+                        value=float(calories),
+                        unit="KILOCALORIES",
+                        periodStart=s_start,
+                        periodEnd=s_end,
+                        duration=duration_sec,
+                        sourceRecordId=source_rec_id,
+                    )
+                )
+
+            # Heart rate during workout (Average & Max)
+            avg_hr = item.get("averageHeartRateInBeatsPerMinute")
+            max_hr = item.get("maxHeartRateInBeatsPerMinute")
+            if avg_hr is not None and float(avg_hr) > 0:
+                inst_results.append(
+                    InstantaneousMeasurement(
+                        type="HEART_RATE",
+                        value=float(avg_hr),
+                        unit="BEATS_PER_MINUTE",
+                        timestamp=s_start,
+                        sourceRecordId=source_rec_id,
+                        metadata={
+                            "activityType": activity_type,
+                            "activityName": activity_name,
+                            "maxHeartRate": float(max_hr) if max_hr else None,
+                            "isWorkoutAverage": True,
+                        },
+                    )
+                )
+
+            # Steps in workout
+            steps_val = item.get("steps")
+            if steps_val is not None and int(steps_val) > 0:
+                activity_steps += int(steps_val)
+
+        return inst_results, cum_results, dur_results, activity_steps
+
     def _parse_garmin_bundle(
         self, bundle: Dict[str, Any]
     ) -> tuple[
@@ -982,6 +1089,18 @@ class GarminProvider(BaseCloudProvider):
             i, w = self._parse_ecg(bundle["ecg"])
             inst.extend(i)
             wav.extend(w)
+        if "activities" in bundle:
+            i, c, d, s = self._parse_activities(bundle["activities"])
+            inst.extend(i)
+            cum.extend(c)
+            dur.extend(d)
+            steps = max(steps, s)
+        if "manuallyUpdatedActivities" in bundle:
+            i, c, d, s = self._parse_activities(bundle["manuallyUpdatedActivities"])
+            inst.extend(i)
+            cum.extend(c)
+            dur.extend(d)
+            steps = max(steps, s)
         if "steps" in bundle:
             steps = max(steps, int(bundle["steps"]))
 
