@@ -255,7 +255,7 @@ const server = app.listen(
   config.listenHost,
   () => {
     // eslint-disable-next-line no-console
-    console.log(`Grafana proxy listening on http://localhost:${port}`);
+    console.log(`Grafana proxy listening on http://${config.listenHost}:${port}`);
   },
 );
 

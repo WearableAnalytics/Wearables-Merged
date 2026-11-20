@@ -121,8 +121,8 @@ if (!apiPrefix) {
   throw new Error('Invalid configuration: API_PREFIX cannot be empty.');
 }
 
-const backendUrl = requireUrlEnv('BACKEND_URL');
-const frontendRedirectUrl = requireUrlEnv('FRONTEND_REDIRECT_URL');
+const backendUrl = requireUrlEnv('BACKEND_URL').replace(/\/+$/, '');
+const frontendRedirectUrl = requireUrlEnv('FRONTEND_REDIRECT_URL').replace(/\/+$/, '');
 const databaseApiUrl = requireUrlEnv('DATABASE_API_URL');
 const databaseApiTimeout = requirePositiveIntEnv('DATABASE_API_TIMEOUT');
 // Optional: base URL of the extraction service. When set, it is served under

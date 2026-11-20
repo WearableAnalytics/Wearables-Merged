@@ -8,6 +8,8 @@ metadata:
     app: {{ .Release.Name }}
 data:
   PORT: {{ .Values.proxy.port | quote }}
+  LISTEN_HOST: {{ .Values.proxy.listenHost | default "0.0.0.0" | quote }}
+  NODE_ENV: {{ .Values.proxy.nodeEnv | default "production" | quote }}
   PROXY_PREFIX: {{ .Values.proxy.prefix | quote }}
   AUTH_API_URL: {{ .Values.session.authApiUrl | quote }}
   ALLOW_PRIVATE_AUTHORITY_HTTP: {{ .Values.session.allowPrivateAuthorityHttp | quote }}

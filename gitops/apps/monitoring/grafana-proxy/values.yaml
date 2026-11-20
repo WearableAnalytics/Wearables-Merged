@@ -20,6 +20,8 @@ secret:
 proxy:
   # Internal proxy HTTP port
   port: 3002
+  listenHost: "0.0.0.0"
+  nodeEnv: "production"
   # Public path prefix where the proxy is exposed
   # Keep this aligned with frontend runtimeConfig.grafanaProxyUrl and your external route
   prefix: "/proxy"

@@ -29,7 +29,7 @@ const grafanaPrivateKey = readPrivateKey();
 
 const allowPrivateAuthorityHttp = process.env.ALLOW_PRIVATE_AUTHORITY_HTTP === 'true';
 const authApiUrl = process.env.AUTH_API_URL ?? '';
-const listenHost = process.env.LISTEN_HOST ?? (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+const listenHost = process.env.LISTEN_HOST ?? '0.0.0.0';
 if (!isIP(listenHost)) throw new Error('LISTEN_HOST must be an IP address.');
 if (authApiUrl) {
   const url = new URL(authApiUrl);

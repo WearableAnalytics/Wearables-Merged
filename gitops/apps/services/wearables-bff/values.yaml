@@ -27,7 +27,7 @@ env:
   USE_MOCK_DATA: "false"
   NODE_ENV: "production"
   FRONTEND_ORIGINS: "https://wearables.charite.de"
-  FRONTEND_REDIRECT_URL: "https://wearables.charite.de/"
+  FRONTEND_REDIRECT_URL: "https://wearables.charite.de"
   ADMIN_EMAILS: ""
   BACKEND_URL: "https://wearables.charite.de"
   AUTH_SESSION_EXPIRY_SECONDS: "604800"
