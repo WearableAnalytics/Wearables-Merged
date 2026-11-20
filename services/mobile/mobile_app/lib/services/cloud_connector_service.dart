@@ -88,11 +88,11 @@ class CloudProvider {
     displayName: 'Polar Flow',
     description: 'Direct cloud sync for Polar heart rate & training.',
     icon: Symbols.cardiology_sharp,
-    enabled: false,
+    enabled: true,
   );
 
   /// Active providers currently enabled in the mobile app UI
-  static const List<CloudProvider> activeProviders = [garmin];
+  static const List<CloudProvider> activeProviders = [garmin, polar];
 
   /// Catalog of all known cloud providers for seamless future extensions
   static const List<CloudProvider> knownProviders = [

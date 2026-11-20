@@ -63,6 +63,27 @@ class Settings:
         )
     )
 
+    # Polar AccesLink OAuth 2.0 & API settings
+    polar_client_id: str = field(default_factory=lambda: os.getenv("POLAR_CLIENT_ID", ""))
+    polar_client_secret: str = field(
+        default_factory=lambda: os.getenv("POLAR_CLIENT_SECRET", "")
+    )
+    polar_auth_url: str = field(
+        default_factory=lambda: os.getenv(
+            "POLAR_AUTH_URL", "https://flow.polar.com/oauth2/authorization"
+        )
+    )
+    polar_token_url: str = field(
+        default_factory=lambda: os.getenv(
+            "POLAR_TOKEN_URL", "https://polarremote.com/v2/oauth2/token"
+        )
+    )
+    polar_api_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "POLAR_API_BASE_URL", "https://www.polaraccesslink.com/v3"
+        )
+    )
+
     @property
     def oauth_redirect_uri(self) -> str:
         override = os.getenv("OAUTH_REDIRECT_URI") or os.getenv("GARMIN_REDIRECT_URI")

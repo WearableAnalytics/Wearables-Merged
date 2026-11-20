@@ -180,6 +180,8 @@ services:
       KAFKA_TOPIC: wearables-raw
       GARMIN_CLIENT_ID: ${GARMIN_CLIENT_ID:-}
       GARMIN_CLIENT_SECRET: ${GARMIN_CLIENT_SECRET:-}
+      POLAR_CLIENT_ID: ${POLAR_CLIENT_ID:-}
+      POLAR_CLIENT_SECRET: ${POLAR_CLIENT_SECRET:-}
       OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI:-http://localhost/cloud/callback}
     volumes:
       - cloud_connector_data:/data

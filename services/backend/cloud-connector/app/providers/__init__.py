@@ -1,9 +1,11 @@
 from typing import Dict, List, Type
 from .base import BaseCloudProvider
 from .garmin import GarminProvider
+from .polar import PolarProvider
 
 _PROVIDERS: Dict[str, Type[BaseCloudProvider]] = {
     "garmin": GarminProvider,
+    "polar": PolarProvider,
 }
 
 
