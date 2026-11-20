@@ -49,21 +49,38 @@ class Settings:
             raise ValueError("Ingestion keys must be base64-encoded 32-byte keys")
         return key
 
-    def validate(self):
+    @property
+    def is_reliable_configured(self) -> bool:
+        """Returns True if the PostgreSQL upload archive and encryption keys are provided"""
         if not self.database_url or len(self.jwt_secret) < 32:
-            raise ValueError("INGEST_DATABASE_URL and a JWT_SECRET of at least 32 characters are required")
-        if not 1 <= self.max_body_bytes <= 700_000 or not 1 <= self.max_readings <= 10_000:
-            raise ValueError("Invalid ingestion body or reading limit")
-        if not 1 <= self.max_inflight <= 256 or not 100 <= self.delivery_timeout_ms <= 30_000:
-            raise ValueError("Invalid ingestion concurrency or delivery timeout")
-        if not self.archive_key_id or len(self.archive_key_id) > 64:
-            raise ValueError("Invalid archive key identifier")
-        self.decode_key(self.archive_key_b64)
-        self.decode_key(self.signing_key_b64)
-        if self.archive_key_b64 == self.signing_key_b64:
-            raise ValueError("Archive and signing keys must be different")
-        for key in json.loads(self.archive_old_keys_json).values():
-            self.decode_key(key)
+            return False
+        if not self.archive_key_b64 or not self.signing_key_b64:
+            return False
+        try:
+            self.decode_key(self.archive_key_b64)
+            self.decode_key(self.signing_key_b64)
+        except Exception:
+            return False
+        return True
+
+    def validate(self):
+        if self.is_reliable_configured:
+            if not 1 <= self.max_body_bytes <= 700_000 or not 1 <= self.max_readings <= 10_000:
+                raise ValueError("Invalid ingestion body or reading limit")
+            if not 1 <= self.max_inflight <= 256 or not 100 <= self.delivery_timeout_ms <= 30_000:
+                raise ValueError("Invalid ingestion concurrency or delivery timeout")
+            if not self.archive_key_id or len(self.archive_key_id) > 64:
+                raise ValueError("Invalid archive key identifier")
+            if self.archive_key_b64 == self.signing_key_b64:
+                raise ValueError("Archive and signing keys must be different")
+            for key in json.loads(self.archive_old_keys_json).values():
+                self.decode_key(key)
+        elif self.database_url:
+            # If database_url was provided but keys or jwt are invalid
+            if len(self.jwt_secret) < 32:
+                raise ValueError("INGEST_DATABASE_URL and a JWT_SECRET of at least 32 characters are required")
+            self.decode_key(self.archive_key_b64)
+            self.decode_key(self.signing_key_b64)
         allowed = {
             "security.protocol",
             "ssl.ca.location",

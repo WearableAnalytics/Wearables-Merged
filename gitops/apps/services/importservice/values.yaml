@@ -52,7 +52,7 @@ kafkaSecuritySecret:
   key: KAFKA_SECURITY_JSON
 
 migration:
-  enabled: true
+  enabled: false
   secretName: importservice-migration # Must differ from runtimeSecret.name.
   databaseKey: INGEST_DATABASE_URL
   runtimeRole: wearables_ingest # Existing unprivileged PostgreSQL LOGIN role.

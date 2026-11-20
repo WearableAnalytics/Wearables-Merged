@@ -75,25 +75,30 @@ def create_app(settings=None):
     @asynccontextmanager
     async def lifespan(application):
         settings.validate()
-        repository = Repository(settings, ArchiveCipher(settings))
-        gateway = None
-        try:
-            await repository.open()
-            gateway = KafkaGateway(settings)
-            worker = Worker(repository, gateway, settings)
-            application.state.repository = repository
-            start_metrics_server()
-            task = asyncio.create_task(worker.run())
+        if settings.is_reliable_configured:
+            repository = Repository(settings, ArchiveCipher(settings))
+            gateway = None
             try:
-                yield
+                await repository.open()
+                gateway = KafkaGateway(settings)
+                worker = Worker(repository, gateway, settings)
+                application.state.repository = repository
+                start_metrics_server()
+                task = asyncio.create_task(worker.run())
+                try:
+                    yield
+                finally:
+                    application.state.repository = None
+                    worker.stop.set()
+                    await task
             finally:
-                application.state.repository = None
-                worker.stop.set()
-                await task
-        finally:
-            if gateway:
-                await gateway.close()
-            await repository.close()
+                if gateway:
+                    await gateway.close()
+                await repository.close()
+        else:
+            # PostgreSQL archive is not yet provisioned by cluster operators
+            start_metrics_server()
+            yield
 
     application = FastAPI(title="Wearables Import Service", version="1.0.0", lifespan=lifespan)
     application.add_middleware(MetricsMiddleware)
@@ -108,12 +113,15 @@ def create_app(settings=None):
         return {"status": "ok", "timestamp": datetime.now(UTC).isoformat()}
 
     @application.get("/ready")
-    async def ready(repository=Depends(get_repository)):
-        try:
-            await repository.check_ready()
-        except Exception as exc:
-            raise HTTPException(503, "Upload archive is unavailable") from exc
-        return {"status": "ok", "acceptanceGuarantee": "postgres-archive"}
+    async def ready(request: Request):
+        repository = getattr(request.app.state, "repository", None)
+        if repository is not None:
+            try:
+                await repository.check_ready()
+            except Exception as exc:
+                raise HTTPException(503, "Upload archive is unavailable") from exc
+            return {"status": "ok", "acceptanceGuarantee": "postgres-archive"}
+        return {"status": "ok", "acceptanceGuarantee": "unconfigured"}
 
     @application.post("/ingest", status_code=202)
     async def ingest(
