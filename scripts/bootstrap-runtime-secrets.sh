@@ -26,6 +26,8 @@ EXTRACTION_SERVICE_NAMESPACE="${EXTRACTION_SERVICE_NAMESPACE:-extraction-service
 EXTRACTION_SERVICE_SECRET_NAME="${EXTRACTION_SERVICE_SECRET_NAME:-extraction-service-secrets}"
 GARMIN_CLIENT_ID="${GARMIN_CLIENT_ID:-}"
 GARMIN_CLIENT_SECRET="${GARMIN_CLIENT_SECRET:-}"
+POLAR_CLIENT_ID="${POLAR_CLIENT_ID:-}"
+POLAR_CLIENT_SECRET="${POLAR_CLIENT_SECRET:-}"
 
 BREVO_API_KEY="${BREVO_API_KEY:-}"
 SHARED_APP_JWT_SECRET="${SHARED_APP_JWT_SECRET:-}"
@@ -58,6 +60,7 @@ Environment variables:
   DB_LORD_INFLUX_ORG, DB_LORD_INFLUX_BUCKET, DB_LORD_INFLUX_TOKEN
                                       (default: INFLUX_ORG, INFLUX_BUCKET, INFLUX_TOKEN)
   GARMIN_CLIENT_ID, GARMIN_CLIENT_SECRET (optional; Garmin OAuth app of cloud-connector)
+  POLAR_CLIENT_ID, POLAR_CLIENT_SECRET   (optional; Polar AccessLink OAuth app of cloud-connector)
   CLOUD_CONNECTOR_NAMESPACE           (default: cloud-connector)
   CLOUD_CONNECTOR_SECRET_NAME         (default: cloud-connector-secrets)
   EXTRACTION_SERVICE_NAMESPACE        (default: extraction-service)
@@ -306,6 +309,15 @@ if [[ -n "${GARMIN_CLIENT_ID}" && -n "${GARMIN_CLIENT_SECRET}" ]]; then
   echo "  - ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (GARMIN_CLIENT_ID, GARMIN_CLIENT_SECRET)"
 else
   echo "  - kept/skipped Garmin keys in ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET not set)"
+fi
+
+# Polar is optional in the cloud-connector chart, so missing variables only skip
+if [[ -n "${POLAR_CLIENT_ID}" && -n "${POLAR_CLIENT_SECRET}" ]]; then
+  upsert_secret_key "${CLOUD_CONNECTOR_NAMESPACE}" "${CLOUD_CONNECTOR_SECRET_NAME}" "POLAR_CLIENT_ID" "${POLAR_CLIENT_ID}"
+  upsert_secret_key "${CLOUD_CONNECTOR_NAMESPACE}" "${CLOUD_CONNECTOR_SECRET_NAME}" "POLAR_CLIENT_SECRET" "${POLAR_CLIENT_SECRET}"
+  echo "  - ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (POLAR_CLIENT_ID, POLAR_CLIENT_SECRET)"
+else
+  echo "  - kept/skipped Polar keys in ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (POLAR_CLIENT_ID and POLAR_CLIENT_SECRET not set)"
 fi
 
 # operator_token <db-lord key> <BFF key>

@@ -56,6 +56,18 @@ spec:
                   name: {{ .Values.secrets.secretName }}
                   key: {{ .Values.secrets.garminClientSecretKey }}
                   optional: true
+            - name: POLAR_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.polarClientIdKey }}
+                  optional: true
+            - name: POLAR_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.polarClientSecretKey }}
+                  optional: true
           volumeMounts:
             - name: data-volume
               mountPath: /data
