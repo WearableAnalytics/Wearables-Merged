@@ -1,9 +1,10 @@
 """Durable upload acceptance. A 202 receipt means archived, not yet processed."""
 
 import asyncio
+import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -63,10 +64,7 @@ class AdmissionMiddleware:
 
 
 def get_repository(request: Request):
-    repository = getattr(request.app.state, "repository", None)
-    if repository is None:
-        raise HTTPException(503, "Upload archive is unavailable")
-    return repository
+    return getattr(request.app.state, "repository", None)
 
 
 def create_app(settings=None):
@@ -83,12 +81,14 @@ def create_app(settings=None):
                 gateway = KafkaGateway(settings)
                 worker = Worker(repository, gateway, settings)
                 application.state.repository = repository
+                application.state.gateway = gateway
                 start_metrics_server()
                 task = asyncio.create_task(worker.run())
                 try:
                     yield
                 finally:
                     application.state.repository = None
+                    application.state.gateway = None
                     worker.stop.set()
                     await task
             finally:
@@ -97,8 +97,20 @@ def create_app(settings=None):
                 await repository.close()
         else:
             # PostgreSQL archive is not yet provisioned by cluster operators
+            # Initialize Kafka gateway for direct forwarding fallback
+            gateway = None
+            try:
+                gateway = KafkaGateway(settings)
+                application.state.gateway = gateway
+            except Exception:
+                gateway = None
             start_metrics_server()
-            yield
+            try:
+                yield
+            finally:
+                application.state.gateway = None
+                if gateway:
+                    await gateway.close()
 
     application = FastAPI(title="Wearables Import Service", version="1.0.0", lifespan=lifespan)
     application.add_middleware(MetricsMiddleware)
@@ -130,30 +142,54 @@ def create_app(settings=None):
         claims=Depends(verify_case_verification_token),
         repository=Depends(get_repository),
     ):
-        try:
-            upload = parse_upload(await request.body(), claims, request.headers.get("idempotency-key"), settings)
-            upload_id, replayed = await repository.accept(upload)
-            receipt = await repository.receipt(upload_id, claims)
-        except (ValueError, ValidationError) as exc:
-            raise HTTPException(422, "Invalid upload contract") from exc
-        except Conflict as exc:
-            raise HTTPException(409, "An immutable upload key or source record changed") from exc
-        except QuotaExceeded as exc:
-            raise HTTPException(429, "Participant upload budget reached", headers={"Retry-After": "3600"}) from exc
-        except Exception as exc:
-            raise HTTPException(503, "Upload archive is unavailable; retry with the same bytes and key") from exc
-        return {
-            **receipt,
-            "replayed": replayed,
-            "instantaneous_count": len(payload.measurements.instantaneous),
-            "cumulative_count": len(payload.measurements.cumulative),
-            "duration_count": len(payload.measurements.duration),
-        }
+        if repository is not None:
+            try:
+                upload = parse_upload(await request.body(), claims, request.headers.get("idempotency-key"), settings)
+                upload_id, replayed = await repository.accept(upload)
+                receipt = await repository.receipt(upload_id, claims)
+            except (ValueError, ValidationError) as exc:
+                raise HTTPException(422, "Invalid upload contract") from exc
+            except Conflict as exc:
+                raise HTTPException(409, "An immutable upload key or source record changed") from exc
+            except QuotaExceeded as exc:
+                raise HTTPException(429, "Participant upload budget reached", headers={"Retry-After": "3600"}) from exc
+            except Exception as exc:
+                raise HTTPException(503, "Upload archive is unavailable; retry with the same bytes and key") from exc
+            return {
+                **receipt,
+                "replayed": replayed,
+                "instantaneous_count": len(payload.measurements.instantaneous),
+                "cumulative_count": len(payload.measurements.cumulative),
+                "duration_count": len(payload.measurements.duration),
+            }
+        else:
+            gateway = getattr(request.app.state, "gateway", None)
+            if gateway is None:
+                raise HTTPException(503, "Kafka delivery gateway is unavailable")
+            data = payload.model_dump(mode="json")
+            data["deviceInfo"]["deviceId"] = claims["patientId"]
+            data["participantId"] = claims["patientId"]
+            data["caseId"] = claims["caseId"]
+            wire = json.dumps(data).encode("utf-8")
+            try:
+                await gateway.publish(settings.kafka_topic, claims["patientId"], wire)
+            except Exception as exc:
+                raise HTTPException(503, "Kafka delivery failed") from exc
+            return {
+                "acceptanceId": str(uuid4()),
+                "status": "forwarded",
+                "replayed": False,
+                "instantaneous_count": len(payload.measurements.instantaneous),
+                "cumulative_count": len(payload.measurements.cumulative),
+                "duration_count": len(payload.measurements.duration),
+            }
 
     @application.get("/ingest/{upload_id}")
     async def receipt(
         upload_id: UUID, claims=Depends(verify_case_verification_token), repository=Depends(get_repository)
     ):
+        if repository is None:
+            raise HTTPException(404, "Upload archive is unconfigured")
         try:
             result = await repository.receipt(str(upload_id), claims)
         except Exception as exc:
@@ -166,6 +202,8 @@ def create_app(settings=None):
     async def retry(
         upload_id: UUID, claims=Depends(verify_case_verification_token), repository=Depends(get_repository)
     ):
+        if repository is None:
+            raise HTTPException(404, "Upload archive is unconfigured")
         try:
             count = await repository.retry(str(upload_id), claims)
         except Exception as exc:
