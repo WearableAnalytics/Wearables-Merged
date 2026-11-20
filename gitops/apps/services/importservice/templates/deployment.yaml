@@ -58,7 +58,6 @@ spec:
                 secretKeyRef:
                   name: {{ required "signingSecret.name is required" .Values.signingSecret.name }}
                   key: {{ .Values.signingSecret.key }}
-                  optional: true
             - name: INFLUXDB_TOKEN
               valueFrom:
                 secretKeyRef:

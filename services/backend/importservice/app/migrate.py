@@ -152,4 +152,8 @@ async def migrate(database_url, runtime_role=None):
 
 
 if __name__ == "__main__":
-    asyncio.run(migrate(os.environ["INGEST_DATABASE_URL"], os.getenv("INGEST_RUNTIME_ROLE")))
+    db_url = os.environ.get("INGEST_DATABASE_URL")
+    if not db_url:
+        print("INGEST_DATABASE_URL is not set; skipping migration in unconfigured cluster")
+    else:
+        asyncio.run(migrate(db_url, os.getenv("INGEST_RUNTIME_ROLE")))
