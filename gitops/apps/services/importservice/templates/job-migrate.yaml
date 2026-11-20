@@ -28,6 +28,7 @@ spec:
                 secretKeyRef:
                   name: {{ required "migration.secretName is required" .Values.migration.secretName }}
                   key: {{ .Values.migration.databaseKey }}
+                  optional: true
             - name: INGEST_RUNTIME_ROLE
               value: {{ required "migration.runtimeRole is required" .Values.migration.runtimeRole | quote }}
           {{- with .Values.migration.extraVolumeMounts }}
