@@ -310,3 +310,44 @@ def test_garmin_activities_parsing():
     assert p.measurements.instantaneous[0].metadata["activityType"] == "RUNNING"
     assert p.measurements.instantaneous[0].metadata["maxHeartRate"] == 175.0
 
+
+def test_garmin_sleep_scores_parsing():
+    provider = GarminProvider()
+    data = {
+        "sleeps": [
+            {
+                "userId": "user-sleep-1",
+                "startTimeInSeconds": 1730200460,
+                "durationInSeconds": 28800,
+                "deepSleepDurationInSeconds": 7200,
+                "lightSleepDurationInSeconds": 14400,
+                "remSleepInSeconds": 5400,
+                "awakeDurationInSeconds": 1800,
+                "sleepScores": {
+                    "overallScore": 88,
+                    "qualityScore": 92,
+                    "feedback": "POSITIVE_LONG_AND_REFRESHING",
+                    "durationScore": 85,
+                    "recoveryScore": 90,
+                },
+            }
+        ]
+    }
+    payloads = provider.parse_webhook_payload(
+        data=data,
+        resolve_patient_id=lambda uid: "patient-sleep-123",
+    )
+    assert len(payloads) == 1
+    p = payloads[0]
+    assert p.participantId == "patient-sleep-123"
+    assert len(p.measurements.duration) == 5
+    assert len(p.measurements.instantaneous) == 1
+    score = p.measurements.instantaneous[0]
+    assert score.type == "SLEEP_SCORE"
+    assert score.value == 88.0
+    assert score.unit == "SCORE"
+    assert score.metadata["qualifier"] == "POSITIVE_LONG_AND_REFRESHING"
+    assert score.metadata["durationScore"] == 85
+    assert score.metadata["recoveryScore"] == 90
+
+

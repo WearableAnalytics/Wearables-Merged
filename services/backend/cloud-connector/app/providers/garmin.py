@@ -321,6 +321,18 @@ class GarminProvider(BaseCloudProvider):
                             )
                             if step_val and step_val > total_steps:
                                 total_steps = step_val
+                        elif resp.status_code == 409:
+                            logger.info(
+                                "Garmin endpoint /%s returned 409 Conflict (request timeframe already processing or active backfill)",
+                                path,
+                            )
+                        elif resp.status_code != 200:
+                            logger.warning(
+                                "Garmin endpoint /%s returned status %s: %s",
+                                path,
+                                resp.status_code,
+                                resp.text[:200] if resp.text else "",
+                            )
                     except Exception as e:
                         logger.warning("Failed to fetch Garmin endpoint /%s: %s", path, e)
 
@@ -375,7 +387,9 @@ class GarminProvider(BaseCloudProvider):
         return 0
 
     def _handle_sleeps(self, data, inst, cum, dur, wav) -> int:
-        dur.extend(self._parse_sleeps(data))
+        d, i = self._parse_sleeps(data)
+        dur.extend(d)
+        inst.extend(i)
         return 0
 
     def _handle_stress(self, data, inst, cum, dur, wav) -> int:
@@ -682,8 +696,9 @@ class GarminProvider(BaseCloudProvider):
                 )
         return inst_results, cum_results
 
-    def _parse_sleeps(self, data: Any) -> List[DurationMeasurement]:
-        results = []
+    def _parse_sleeps(self, data: Any) -> tuple[List[DurationMeasurement], List[InstantaneousMeasurement]]:
+        dur_results: List[DurationMeasurement] = []
+        inst_results: List[InstantaneousMeasurement] = []
         items = data if isinstance(data, list) else [data]
         for item in items:
             start_ts = item.get("startTimeInSeconds", 0)
@@ -695,7 +710,7 @@ class GarminProvider(BaseCloudProvider):
             s_end = datetime.fromtimestamp(start_ts + duration_sec, tz=timezone.utc)
             total_min = duration_sec / 60.0
 
-            results.append(
+            dur_results.append(
                 DurationMeasurement(
                     type="SLEEP_ASLEEP",
                     value=float(total_min),
@@ -716,7 +731,7 @@ class GarminProvider(BaseCloudProvider):
                 stage_sec = int(item.get(field_name, 0) or 0)
                 if stage_sec > 0:
                     stage_min = stage_sec / 60.0
-                    results.append(
+                    dur_results.append(
                         DurationMeasurement(
                             type=metric_type,
                             value=float(stage_min),
@@ -726,7 +741,40 @@ class GarminProvider(BaseCloudProvider):
                             durationMinutes=stage_min,
                         )
                     )
-        return results
+
+            # Garmin sleep score and quality qualifiers
+            sleep_scores = item.get("sleepScores")
+            if isinstance(sleep_scores, dict):
+                overall_score = None
+                qualifier = None
+                if "overallScore" in sleep_scores and sleep_scores["overallScore"] is not None:
+                    overall_score = float(sleep_scores["overallScore"])
+                elif isinstance(sleep_scores.get("overall"), dict):
+                    overall_dict = sleep_scores["overall"]
+                    if overall_dict.get("value") is not None:
+                        overall_score = float(overall_dict["value"])
+                        qualifier = overall_dict.get("qualifierKey")
+
+                qualifier = qualifier or sleep_scores.get("feedback") or sleep_scores.get("insight")
+                if overall_score is not None and overall_score >= 0:
+                    inst_results.append(
+                        InstantaneousMeasurement(
+                            type="SLEEP_SCORE",
+                            value=overall_score,
+                            unit="SCORE",
+                            timestamp=s_end,
+                            metadata={
+                                "qualifier": str(qualifier) if qualifier else None,
+                                "durationScore": sleep_scores.get("durationScore"),
+                                "recoveryScore": sleep_scores.get("recoveryScore"),
+                                "deepScore": sleep_scores.get("deepScore"),
+                                "remScore": sleep_scores.get("remScore"),
+                                "lightScore": sleep_scores.get("lightScore"),
+                            },
+                        )
+                    )
+
+        return dur_results, inst_results
 
     def _parse_stress(self, data: Any) -> List[InstantaneousMeasurement]:
         results = []
@@ -1074,7 +1122,9 @@ class GarminProvider(BaseCloudProvider):
             inst.extend(i)
             cum.extend(c)
         if "sleeps" in bundle:
-            dur.extend(self._parse_sleeps(bundle["sleeps"]))
+            d, i = self._parse_sleeps(bundle["sleeps"])
+            dur.extend(d)
+            inst.extend(i)
         if "stressDetails" in bundle:
             inst.extend(self._parse_stress(bundle["stressDetails"]))
         if "bodyComps" in bundle:
