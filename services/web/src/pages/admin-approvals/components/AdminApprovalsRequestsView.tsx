@@ -18,7 +18,11 @@ type AdminApprovalsRequestsViewProps = {
   pendingAccessRequests: AdminUser[];
   actionUserId: string | null;
   onDecision: (userId: string, decision: 'approve' | 'deny') => void;
-  onAccessRequest: (userId: string, requestType: AccessRequestType, decision: 'approve' | 'deny') => void;
+  onAccessRequest: (
+    userId: string,
+    requestType: AccessRequestType,
+    decision: 'approve' | 'deny',
+  ) => void;
 };
 
 export function AdminApprovalsRequestsView({
@@ -31,7 +35,9 @@ export function AdminApprovalsRequestsView({
   return (
     <div className="mt-4 space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-foreground">Pending access approvals</h3>
+        <h3 className="text-lg font-semibold text-foreground">
+          Pending access approvals
+        </h3>
         {pendingUsers.length === 0 ? (
           <AdminApprovalsEmptyState
             title="No pending access requests."
@@ -53,17 +59,32 @@ export function AdminApprovalsRequestsView({
                 {pendingUsers.map((pendingUser) => {
                   const createdAt = formatDateOrFallback(pendingUser.createdAt);
                   const isBusy = actionUserId === pendingUser.id;
-                  const initialRole = pendingUser.roles?.includes('researcher') ? 'Researcher' : 'Practitioner';
+                  const initialRole =
+                    pendingUser.roles?.includes('researcher') ||
+                    pendingUser.roleRequestStatuses?.researcher === 'pending'
+                      ? 'Researcher'
+                      : 'Practitioner';
 
                   return (
-                    <tr key={pendingUser.id} className="table-row last:border-b-0">
-                      <td className="px-3 py-3 font-medium text-foreground">{pendingUser.email}</td>
+                    <tr
+                      key={pendingUser.id}
+                      className="table-row last:border-b-0"
+                    >
+                      <td className="px-3 py-3 font-medium text-foreground">
+                        {pendingUser.email}
+                      </td>
                       <td className="px-3 py-3">
                         <span className={badgeClassName}>{initialRole}</span>
                       </td>
-                      <td className="px-3 py-3 text-muted-foreground">{createdAt}</td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {createdAt}
+                      </td>
                       <td className="space-x-2 px-3 py-3 text-right">
-                        <Button size="sm" onClick={() => onDecision(pendingUser.id, 'approve')} disabled={isBusy}>
+                        <Button
+                          size="sm"
+                          onClick={() => onDecision(pendingUser.id, 'approve')}
+                          disabled={isBusy}
+                        >
                           Approve
                         </Button>
                         <Button
@@ -85,7 +106,9 @@ export function AdminApprovalsRequestsView({
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold text-foreground">Pending role and admin requests</h3>
+        <h3 className="text-lg font-semibold text-foreground">
+          Pending role and admin requests
+        </h3>
         {pendingAccessRequests.length === 0 ? (
           <AdminApprovalsEmptyState
             title="No pending role or admin requests."
@@ -105,7 +128,9 @@ export function AdminApprovalsRequestsView({
               </thead>
               <tbody>
                 {pendingAccessRequests.map((pendingUser) => {
-                  const requestedAt = formatDateOrFallback(pendingUser.requestedAt);
+                  const requestedAt = formatDateOrFallback(
+                    pendingUser.requestedAt,
+                  );
                   const isBusy = actionUserId === pendingUser.id;
                   const requestType = pendingUser.requestType;
 
@@ -114,16 +139,31 @@ export function AdminApprovalsRequestsView({
                   }
 
                   return (
-                    <tr key={`${pendingUser.id}-${requestType}`} className="table-row last:border-b-0">
-                      <td className="px-3 py-3 font-medium text-foreground">{pendingUser.email}</td>
-                      <td className="px-3 py-3">
-                        <span className={badgeClassName}>{requestLabel(requestType)}</span>
+                    <tr
+                      key={`${pendingUser.id}-${requestType}`}
+                      className="table-row last:border-b-0"
+                    >
+                      <td className="px-3 py-3 font-medium text-foreground">
+                        {pendingUser.email}
                       </td>
-                      <td className="px-3 py-3 text-muted-foreground">{requestedAt}</td>
+                      <td className="px-3 py-3">
+                        <span className={badgeClassName}>
+                          {requestLabel(requestType)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {requestedAt}
+                      </td>
                       <td className="space-x-2 px-3 py-3 text-right">
                         <Button
                           size="sm"
-                          onClick={() => onAccessRequest(pendingUser.id, requestType, 'approve')}
+                          onClick={() =>
+                            onAccessRequest(
+                              pendingUser.id,
+                              requestType,
+                              'approve',
+                            )
+                          }
                           disabled={isBusy}
                         >
                           Approve
@@ -131,7 +171,9 @@ export function AdminApprovalsRequestsView({
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => onAccessRequest(pendingUser.id, requestType, 'deny')}
+                          onClick={() =>
+                            onAccessRequest(pendingUser.id, requestType, 'deny')
+                          }
                           disabled={isBusy}
                         >
                           Deny

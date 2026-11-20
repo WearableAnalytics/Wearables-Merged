@@ -71,12 +71,42 @@ void main() {
       expect(payload['batchInfo']['collectionEnd'], '2026-11-03T10:00:00.000Z');
       expect(payload['batchInfo']['lastSendTime'], '2026-11-03T08:00:00.000Z');
       expect(payload['timestamp'], '2026-11-03T11:00:00.000Z');
+      expect(payload['sourceId'], 'sensor');
+      expect(payload['sourcePlatform'], 'apple-health');
+      expect(payload['contractVersion'], 'wearables-numeric/1');
+      expect(
+        payload['measurements']['instantaneous'][0]['sourceRecordId'],
+        'record',
+      );
+      expect(
+        payload['measurements']['instantaneous'][0]['sourceDeviceId'],
+        'device',
+      );
       expect(payload['deviceInfo'], {
         'deviceId': 'collector',
         'platform': 'iOS',
       });
       expect(uploads.every((u) => u.bytes.length <= 500000), isTrue);
       expect(() => uploads.first.bytes.add(1), throwsUnsupportedError);
+    },
+  );
+
+  test(
+    'missing native IDs remain legacy and do not borrow collector identity',
+    () {
+      final missing = point(sourceId: '');
+      missing.uuid = '';
+      final uploads = prepare([point(), missing]);
+      expect(uploads.length, 2);
+      final legacy = jsonDecode(utf8.decode(uploads.last.bytes));
+      expect(legacy.containsKey('contractVersion'), isFalse);
+      expect(legacy.containsKey('sourceId'), isFalse);
+      expect(
+        legacy['measurements']['instantaneous'][0].containsKey(
+          'sourceRecordId',
+        ),
+        isFalse,
+      );
     },
   );
 
@@ -111,7 +141,7 @@ void main() {
   );
 
   test(
-    'interleaved sources form complete batches and retain unsent native IDs',
+    'interleaved sources form complete batches and send native source IDs',
     () {
       final points = [
         point(source: 'same name', sourceId: 'provider-a'),
@@ -132,7 +162,7 @@ void main() {
         final wire = jsonDecode(utf8.decode(upload.bytes)) as Map;
         expect(wire['sourceName'], upload.source.name);
         expect(wire['sourcePlatform'], upload.source.platform);
-        expect(wire.containsKey('sourceId'), isFalse);
+        expect(wire['sourceId'], upload.source.id);
       }
     },
   );
@@ -327,37 +357,43 @@ void main() {
       });
     }
 
-    test('HTTP 200 produces synthetic receipt when allowLegacy200 is enabled', () async {
-      subscription = server.listen((request) async {
-        await request.drain<void>();
-        request.response.statusCode = 200;
-        request.response.write('{"status":"ok"}');
-        await request.response.close();
-      });
-      final upload = prepare([point()]).single;
-      final receipt = await uploader.send(upload, 'token');
-      expect(receipt.readingCount, upload.readingCount);
-      expect(receipt.rawSha256, upload.sha256Hex);
-      expect(receipt.processingState, 'awaiting-processing');
-    });
+    test(
+      'HTTP 200 produces synthetic receipt when allowLegacy200 is enabled',
+      () async {
+        subscription = server.listen((request) async {
+          await request.drain<void>();
+          request.response.statusCode = 200;
+          request.response.write('{"status":"ok"}');
+          await request.response.close();
+        });
+        final upload = prepare([point()]).single;
+        final receipt = await uploader.send(upload, 'token');
+        expect(receipt.readingCount, upload.readingCount);
+        expect(receipt.rawSha256, upload.sha256Hex);
+        expect(receipt.processingState, 'awaiting-processing');
+      },
+    );
 
-    test('HTTP 200 throws UploadHttpException when allowLegacy200 is false', () async {
-      uploader = HealthUploader(
-        client: client,
-        endpoint: Uri.parse('http://127.0.0.1:${server.port}/ingest'),
-        allowLegacy200: false,
-      );
-      subscription = server.listen((request) async {
-        await request.drain<void>();
-        request.response.statusCode = 200;
-        request.response.write('{"status":"ok"}');
-        await request.response.close();
-      });
-      await expectLater(
-        uploader.send(prepare([point()]).single, 'token'),
-        throwsA(isA<UploadHttpException>()),
-      );
-    });
+    test(
+      'HTTP 200 throws UploadHttpException when allowLegacy200 is false',
+      () async {
+        uploader = HealthUploader(
+          client: client,
+          endpoint: Uri.parse('http://127.0.0.1:${server.port}/ingest'),
+          allowLegacy200: false,
+        );
+        subscription = server.listen((request) async {
+          await request.drain<void>();
+          request.response.statusCode = 200;
+          request.response.write('{"status":"ok"}');
+          await request.response.close();
+        });
+        await expectLater(
+          uploader.send(prepare([point()]).single, 'token'),
+          throwsA(isA<UploadHttpException>()),
+        );
+      },
+    );
 
     test('honors short Retry-After before retrying the same upload', () async {
       final waits = <Duration>[];

@@ -2,6 +2,37 @@
 
 Runs the Wearables platform on one machine without Kubernetes. Service configuration mirrors the Helm charts in `gitops/`; Traefik exposes the same public paths as production.
 
+The stage integration adds persistent accounts and receipt-backed ingestion.
+Run `python3 init_env.py` before Compose. It creates a private `.env`, retains
+existing encryption keys and credentials on later runs, and upgrades the legacy
+short development JWT secret. Keep this file with its data volumes; do not
+regenerate archive keys for an existing archive. Ports bind to loopback only.
+
+The local database setup creates separate ingestion migration/runtime roles;
+the schema migration completes before importer/mapper startup. The importer
+returns HTTP 202 only after retaining the upload. The BFF and extraction service
+use the same private account authority. These changes replace the old local
+in-memory login and unacknowledged-upload assumptions in the historical table below.
+
+Development sends no email and exposes no links in service logs. After startup:
+
+```sh
+python3 login_link.py --email admin@example.test
+```
+
+Open the returned localhost URL within 60 seconds. It is a one-use database
+proof for an already-approved account; the helper cannot approve staff or restore
+revoked access. Registration/admin approval remain in the UI. Request another
+local link with the staff email after approval. There is no password or automatic
+production bypass. The helper accepts only loopback development endpoints.
+Use `--database-url`/`--bff-url` if local ports differ.
+
+The Grafana proxy permits private HTTP authority only with explicit
+`NODE_ENV=development` for this loopback-only Compose setup. Production still
+requires its configured HTTPS authority. Local synthetic mode can use the
+local Influx admin token for observation; supply `INFLUX_READ_TOKEN` for a
+separate bucket-read token. Production requires that least-privilege token.
+
 - [What has been verified](#what-has-been-verified)
 - [Deploying on a single developer machine](#deploying-on-a-single-developer-machine)
 - [Team setup: every developer runs the stack locally](#team-setup-every-developer-runs-the-stack-locally)
@@ -12,7 +43,7 @@ Runs the Wearables platform on one machine without Kubernetes. Service configura
 
 ## What has been verified
 
-Tested end to end on 2026-10-23 (Apple Silicon Mac, Docker Desktop with 8 GB RAM / 8 CPUs), using `data-generator/generate.py`:
+Historical pre-foundation test on 2026-10-23 (Apple Silicon Mac, Docker Desktop with 8 GB RAM / 8 CPUs), using `data-generator/generate.py`:
 
 | Stage | Status | Evidence |
 |---|---|---|
@@ -30,7 +61,7 @@ Not verified yet:
 
 - The "Six minute walking test" and "AI Insights" Grafana tabs.
 - Device and wearable management in db_lord (`/devices`, `/cases/{id}/wearables/...`). The ingestion pipeline keys data by patient only, so these endpoints are not part of the tested flow.
-- The production login flow: outside `NODE_ENV=production` the BFF logs users in directly and sends no magic link mail.
+- Real provider email delivery. The new local flow uses the one-use helper above.
 - Full FHIR validation coverage. The mapper only validates every 100th resource (`VALIDATION_FREQUENCY=100`), and only the types the generator sends were exercised.
 - The real iPhone app against this stack.
 
@@ -50,12 +81,16 @@ Docker Desktop: *Settings → Resources* sets memory and the disk limit. The dis
 
 ```bash
 cd deploy/local
+python3 init_env.py                        # generate private local inputs, retain them with volumes
 docker compose up -d --build               # core platform (first build: ~5-10 min)
 docker compose --profile ml up -d --build  # optional: Spark / lakeFS / SeaweedFS / MLflow / Feast
 docker compose ps                          # one-shot *-init / keygen / ml-train services exit with 0
 ```
 
-Defaults work without a `.env` file. To override secrets or ports, `cp .env.example .env` and edit it.
+The generated `.env` is required. Existing nonempty credentials and archive keys
+are retained. Existing databases with different ingestion roles/ownership require
+an explicit operator migration; setup does not overwrite a role or discard data.
+The legacy bootstrap script is not a replacement for these account credentials.
 
 ### Day-to-day
 
@@ -81,7 +116,7 @@ Each developer runs their own copy of the stack; nothing is shared between machi
 
 1. **Use this compose file as the single source of local configuration.** Change `docker-compose.yml` and the files next to it through pull requests, not ad-hoc local edits, so everyone gets the same fixes.
 2. **Personal overrides go into `.env`, which is git-ignored.** Typical overrides: `ADMIN_EMAILS` (your own address) and host ports that clash on your machine. Add every new variable to `.env.example` with a working default.
-3. **The secrets here are for local use only** (`JWT_SECRET=dev-secret`, the Influx token, lakeFS sample keys). Never reuse them on a shared or public server.
+3. **The generated secrets and local profile are for local use only.** Optional ML services still use their documented sample inputs. Do not use this Compose profile as a production configuration.
 4. **Data is per machine.** Volumes live in each developer's Docker. Reproduce test data with the generator (`--seed` makes runs deterministic) instead of sharing database dumps; real participant data must never be loaded into a local stack.
 5. **Architecture:** images are built locally, so Apple Silicon (arm64) and x86 machines both work. The first build downloads Maven, npm, pip and Spark dependencies and needs network access.
 6. **Phone testing:** a developer's phone reaches only their own machine. Use a personal tunnel (`cloudflared tunnel --url http://localhost:80`) and pass the URL to the app with `--dart-define=INGEST_ENDPOINT=...`. iOS signing changes (team, bundle id) stay local and must not be committed.

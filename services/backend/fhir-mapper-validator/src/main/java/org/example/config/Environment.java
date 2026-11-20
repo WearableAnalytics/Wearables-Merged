@@ -12,6 +12,8 @@ public class Environment {
 
     public static final String INPUT_TOPIC = setEnvWithDefault("INPUT_TOPIC", "wearables-raw");
 
+    public static final String RESULTS_TOPIC = setEnvWithDefault("RESULTS_TOPIC", "wearables-ingestion-results");
+
     public static final String OUTPUT_TOPIC = setEnvWithDefault("OUTPUT_TOPIC", "wearables-lp");
     public static final String DLQ_TOPIC = setEnvWithDefault("DLQ_TOPIC", "dlq");
 

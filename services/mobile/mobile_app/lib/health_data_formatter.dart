@@ -10,24 +10,29 @@ Map<String, dynamic> formatHealthDataByType(List<HealthDataPoint> healthData) {
   };
 
   for (var data in healthData) {
-    String category = categorizeHealthDataType(data.type);
+    final androidBmr =
+        data.type == HealthDataType.BASAL_ENERGY_BURNED &&
+        data.sourcePlatform == HealthPlatformType.googleHealthConnect;
+    String category = categoryForPoint(data);
+    final metric = androidBmr ? 'BASAL_METABOLIC_RATE' : data.type.name;
+    final unit = androidBmr ? 'KILOCALORIE_PER_DAY' : data.unit.name;
     Map<String, dynamic> formattedPoint = {};
 
     switch (category) {
       case 'instantaneous':
         formattedPoint = {
-          'type': data.type.toString().replaceAll('HealthDataType.', ''),
+          'type': metric,
           'value': parseValue(data.value),
-          'unit': data.unit.toString().replaceAll('HealthDataUnit.', ''),
+          'unit': unit,
           'timestamp': data.dateFrom.toUtc().toIso8601String(),
         };
         break;
 
       case 'cumulative':
         formattedPoint = {
-          'type': data.type.toString().replaceAll('HealthDataType.', ''),
+          'type': metric,
           'value': parseValue(data.value),
-          'unit': data.unit.toString().replaceAll('HealthDataUnit.', ''),
+          'unit': unit,
           'periodStart': data.dateFrom.toUtc().toIso8601String(),
           'periodEnd': data.dateTo.toUtc().toIso8601String(),
           'duration': data.dateTo.difference(data.dateFrom).inSeconds,
@@ -36,12 +41,14 @@ Map<String, dynamic> formatHealthDataByType(List<HealthDataPoint> healthData) {
 
       case 'duration':
         formattedPoint = {
-          'type': data.type.toString().replaceAll('HealthDataType.', ''),
+          'type': data.type == HealthDataType.WORKOUT
+              ? 'WORKOUT_ELAPSED_TIME'
+              : metric,
           'value': parseDurationValue(data),
-          'unit': data.unit.toString().replaceAll('HealthDataUnit.', ''),
+          'unit': 'MINUTE',
           'startTime': data.dateFrom.toUtc().toIso8601String(),
           'endTime': data.dateTo.toUtc().toIso8601String(),
-          'durationMinutes': data.dateTo.difference(data.dateFrom).inMinutes,
+          'durationMinutes': parseDurationValue(data),
         };
 
         // Provide rich metadata for workouts when available.
@@ -64,6 +71,14 @@ Map<String, dynamic> formatHealthDataByType(List<HealthDataPoint> healthData) {
   }
 
   return categorizedData;
+}
+
+String categoryForPoint(HealthDataPoint point) {
+  if (point.type == HealthDataType.BASAL_ENERGY_BURNED &&
+      point.sourcePlatform == HealthPlatformType.googleHealthConnect) {
+    return 'instantaneous';
+  }
+  return categorizeHealthDataType(point.type);
 }
 
 String categorizeHealthDataType(HealthDataType type) {
@@ -189,7 +204,8 @@ dynamic parseValue(dynamic value) {
 }
 
 double parseDurationValue(HealthDataPoint data) {
-  return data.dateTo.difference(data.dateFrom).inMinutes.toDouble();
+  return data.dateTo.difference(data.dateFrom).inMicroseconds /
+      Duration.microsecondsPerMinute;
 }
 
 Map<String, dynamic>? extractWorkoutDetails(dynamic value) {

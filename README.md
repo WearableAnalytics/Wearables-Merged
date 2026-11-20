@@ -1,4 +1,6 @@
 <p align="center">
+
+This feature branch keeps the existing registration, approval and email-link login flow and adds persistent staff authority. See [accounts and permissions](docs/accounts-and-permissions.md) for setup, scope and checks.
   <img src=".github/assets/wearables-logo-horizontal.png" alt="Wearables logo" width="720" />
 </p>
 <h1 align="center">Cloud-Native Wearable Analytics Framework</h1>
@@ -47,6 +49,7 @@ flowchart LR
   L --> M[Grafana]
 ```
 Notes:
+- Receipt-backed ingestion adds an encrypted PostgreSQL archive/delivery journal and a mapper result topic before forwarding points to Telegraf. See [reliable ingestion](docs/reliable-ingestion.md) for the exact flow, API guarantees, compatibility limits and checks.
 - `wearables-bff` integrates with `db_lord` through `DATABASE_API_URL` (`services/backend/wearables-bff/src/clients/databaseApi.ts`).
 - `extraction-service` is researcher-facing and queries `db_lord`; it is not part of the web frontend request path.
 - Web monitoring embeds dashboards through `grafana-proxy` (`services/web/src/pages/case/CasePage.tsx`).

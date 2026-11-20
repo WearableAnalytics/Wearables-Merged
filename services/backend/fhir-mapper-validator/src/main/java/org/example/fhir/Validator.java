@@ -50,24 +50,21 @@ public class Validator {
         log.info("FHIR validator initialized in {} ms", (end - start));
     }
 
-    public static int validateFhir(JsonObject producedStr, Integer counter){
-
-        if (validationFrq != 0 && counter < validationFrq) {
-            counter++;
-            return counter;
-        }
-
-        try {
-            // Parse once to avoid internal re-parsing costs and validate the resource instance
-            IParser parser = CTX.newJsonParser();
-            IBaseResource resource = parser.parseResource(producedStr.toString());
-            ValidationResult result = validator.validateWithResult(resource);
-            log.debug("Validation result: {}", result.toString());
-            throw new IllegalArgumentException(String.format("Fhir validation failed with result: %s", result));
-        } catch (Exception e) {
-            log.error("Validation failed (input may not be a valid FHIR resource).", e);
-            return 0;
-        }
+    public static int validateFhir(JsonObject produced, Integer counter) {
+        if (validationFrq != 0 && counter < validationFrq) return counter + 1;
+        validateAlways(produced);
+        return 0;
     }
 
+    public static void validateAlways(JsonObject produced) {
+        if (validator == null) throw new IllegalStateException("FHIR validator is not initialized");
+        final IBaseResource resource;
+        try {
+            resource = CTX.newJsonParser().parseResource(produced.toString());
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("FHIR resource could not be parsed");
+        }
+        ValidationResult result = validator.validateWithResult(resource);
+        if (!result.isSuccessful()) throw new IllegalArgumentException("FHIR resource failed validation");
+    }
 }

@@ -40,6 +40,7 @@ public class LineProtocolTemplate {
     private Map<String, String> fields;
     @JsonProperty("tag-mappings")
     private Map<String, String> tags;
+    private Set<String> stringFields = new HashSet<>();
 
 
     @Getter
@@ -86,12 +87,16 @@ public class LineProtocolTemplate {
                 .forEach(
                         x -> {
                             JsonElement value = getByPath(this.json, x.getTarget());
+                            if ((value == null || value.isJsonNull()) && x.isOptional()) return;
                             if (!(value instanceof JsonPrimitive)) {
                                 throw new IllegalArgumentException(String.format("LP transformation failed since value for measurement in FHIR was not primitive string [%s: %s]", x.getTarget(), value.toString()));
                             }
 
                             String tagValue = value.getAsString();
                             String tagKey = x.getLineProtocol().getName();
+                            if (type.equals("field") && value.getAsJsonPrimitive().isString()) {
+                                stringFields.add(tagKey);
+                            }
 
                             elementsMap.put(tagKey, tagValue);
                         }

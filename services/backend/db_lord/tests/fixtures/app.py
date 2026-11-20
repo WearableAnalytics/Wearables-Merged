@@ -9,6 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.graphql.context import GraphQLContext
 
+LEGACY_HEADERS = {
+    "X-Legacy-Operator-Token": "synthetic-legacy-operator-key",
+    "X-Api-Token-Service-Token": "synthetic-api-token-workload-key",
+}
+
+
+@pytest.fixture(autouse=True)
+def legacy_capabilities(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "LEGACY_OPERATOR_TOKEN", LEGACY_HEADERS["X-Legacy-Operator-Token"])
+    monkeypatch.setattr(settings, "API_TOKEN_SERVICE_TOKEN", LEGACY_HEADERS["X-Api-Token-Service-Token"])
+
 
 def _configure_test_app(main_app: FastAPI, db_session: AsyncSession, influx_client: InfluxDBClientAsync) -> None:
     from app.api.dependencies import get_db, get_graphql_context
@@ -69,7 +82,7 @@ async def client(app: FastAPI) -> AsyncGenerator[AsyncClient]:
     """Create an async HTTP test client."""
     async with (
         app.router.lifespan_context(app),
-        AsyncClient(transport=ASGITransport(app), base_url="http://test") as ac,
+        AsyncClient(transport=ASGITransport(app), base_url="http://test", headers=LEGACY_HEADERS) as ac,
     ):
         yield ac
 
@@ -90,6 +103,6 @@ async def integration_client(integration_app: FastAPI) -> AsyncGenerator[AsyncCl
     """Create an async HTTP test client connected to real databases."""
     async with (
         integration_app.router.lifespan_context(integration_app),
-        AsyncClient(transport=ASGITransport(integration_app), base_url="http://test") as ac,
+        AsyncClient(transport=ASGITransport(integration_app), base_url="http://test", headers=LEGACY_HEADERS) as ac,
     ):
         yield ac

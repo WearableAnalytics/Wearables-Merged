@@ -20,7 +20,7 @@ router.get('/researcher/api-tokens', auth.researcherOrAdmin, async (req: Request
   try {
     return res.json(await listApiTokens({ ownerEmail: req.user!.email }));
   } catch (error) {
-    logger.error('Error listing API tokens', error as Error);
+    logger.error('api_token.operation.failed');
     return fail(res, 500, 'Could not load your API tokens');
   }
 });
@@ -43,11 +43,11 @@ router.post('/researcher/api-tokens', auth.researcherOrAdmin, async (req: Reques
       );
     }
     const { token, record } = await createApiToken(req.user!.email, name);
-    logger.info('API token created', { tokenId: record.id, owner: record.owner_email });
+    logger.info('api_token.operation.committed');
     // The only time the plain token leaves the BFF.
     return res.status(201).json({ ...record, token });
   } catch (error) {
-    logger.error('Error creating API token', error as Error);
+    logger.error('api_token.operation.failed');
     return fail(res, 500, 'Could not create the API token');
   }
 });
@@ -62,10 +62,10 @@ router.post(
         return fail(res, 404, 'Token not found', 'NOT_FOUND');
       }
       const record = await revokeApiToken(req.params.tokenId, req.user!.email);
-      logger.info('API token revoked by owner', { tokenId: record.id });
+      logger.info('api_token.operation.committed');
       return res.json(record);
     } catch (error) {
-      logger.error('Error revoking API token', error as Error);
+      logger.error('api_token.operation.failed');
       return fail(res, 500, 'Could not revoke the API token');
     }
   },
@@ -75,7 +75,7 @@ router.get('/admin/api-tokens', ...auth.adminOnly, async (req: Request, res: Res
   try {
     return res.json(await listApiTokens({ includeRevoked: req.query.includeRevoked === 'true' }));
   } catch (error) {
-    logger.error('Error listing API tokens', error as Error);
+    logger.error('api_token.operation.failed');
     return fail(res, 500, 'Could not load API tokens');
   }
 });
@@ -87,10 +87,10 @@ router.post('/admin/api-tokens/:tokenId/revoke', ...auth.adminOnly, async (req: 
       return fail(res, 404, 'Token not found', 'NOT_FOUND');
     }
     const record = await revokeApiToken(req.params.tokenId, req.user!.email);
-    logger.info('API token revoked by admin', { tokenId: record.id, owner: record.owner_email });
+    logger.info('api_token.operation.committed');
     return res.json(record);
   } catch (error) {
-    logger.error('Error revoking API token', error as Error);
+    logger.error('api_token.operation.failed');
     return fail(res, 500, 'Could not revoke the API token');
   }
 });

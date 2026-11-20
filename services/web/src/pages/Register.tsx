@@ -1,7 +1,12 @@
+import { AccessProfileHelp } from '@/components/account/AccessProfileHelp';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { defaultApi, isDirectAuthResponse, type NonAdminRole } from '@/api/defaultApi';
+import {
+  defaultApi,
+  isDirectAuthResponse,
+  type NonAdminRole,
+} from '@/api/defaultApi';
 import { useAuth } from '@/context/AuthContext';
 import { AuthEmailFormPage } from '@/components/custom/AuthEmailFormPage';
 import { Button } from '@/components/ui/button';
@@ -9,7 +14,11 @@ import { getTrimmedOrNull } from '@/lib/input';
 import { getDefaultAuthenticatedPath } from '@/lib/userAccess';
 import { useMessageToast } from '@/lib/toast';
 
-const ROLE_OPTIONS: Array<{ value: NonAdminRole; label: string; description: string }> = [
+const ROLE_OPTIONS: Array<{
+  value: NonAdminRole;
+  label: string;
+  description: string;
+}> = [
   {
     value: 'practitioner',
     label: 'Practitioner',
@@ -62,17 +71,20 @@ export function RegisterPage() {
       const data = await defaultApi.register(trimmedEmail, requestedRole);
       if (isDirectAuthResponse(data)) {
         await refreshUser();
-        navigate('/overview', { replace: true });
         return;
       }
       const successMessage =
-        (data as { message?: string }).message ?? 'Your account is awaiting admin approval.';
-      const requestSentTone = /magic link sent/i.test(successMessage) ? 'success' : 'info';
+        (data as { message?: string }).message ??
+        'Your account is awaiting admin approval.';
+      const requestSentTone = /magic link sent/i.test(successMessage)
+        ? 'success'
+        : 'info';
       navigate('/request-sent', {
         replace: true,
         state: {
           title: 'Request submitted',
-          description: 'We will review your request and email you with next steps.',
+          description:
+            'We will review your request and email you with next steps.',
           message: successMessage,
           tone: requestSentTone,
         },
@@ -85,7 +97,8 @@ export function RegisterPage() {
   };
 
   const selectedRoleDescription =
-    ROLE_OPTIONS.find((option) => option.value === requestedRole)?.description ?? ROLE_OPTIONS[0].description;
+    ROLE_OPTIONS.find((option) => option.value === requestedRole)
+      ?.description ?? ROLE_OPTIONS[0].description;
 
   return (
     <AuthEmailFormPage
@@ -95,7 +108,12 @@ export function RegisterPage() {
       showForm={requestedRole !== null}
       preForm={
         <div className="space-y-2 text-center">
-          <p className="m-0 text-sm font-semibold text-foreground">Choose your role</p>
+          <div className="flex items-center justify-center gap-1">
+            <p className="m-0 text-sm font-semibold text-foreground">
+              Choose your role
+            </p>
+            <AccessProfileHelp />
+          </div>
           <div className="mx-auto grid w-1/2 grid-cols-2 gap-2">
             {ROLE_OPTIONS.map((option) => {
               const isActive = requestedRole === option.value;
@@ -114,7 +132,9 @@ export function RegisterPage() {
               );
             })}
           </div>
-          <p className="m-0 text-sm text-muted-foreground">{selectedRoleDescription}</p>
+          <p className="m-0 text-sm text-muted-foreground">
+            {selectedRoleDescription}
+          </p>
         </div>
       }
       email={email}
@@ -127,7 +147,10 @@ export function RegisterPage() {
       footer={
         <p className="m-0 w-full text-center text-sm text-muted-foreground">
           Already registered?{' '}
-          <Link to="/login" className="font-semibold text-foreground underline-offset-2 hover:underline">
+          <Link
+            to="/login"
+            className="font-semibold text-foreground underline-offset-2 hover:underline"
+          >
             Go to login
           </Link>
           .

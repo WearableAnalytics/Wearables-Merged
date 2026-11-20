@@ -1,12 +1,18 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import config from './config.js';
+import { sendControlError } from './clients/controlApi.js';
 import { logger } from './logger.js';
-import { getUserByEmail } from './services/userStore.js';
-import type { AccessRequestStatus, NonAdminRole, UserStatus } from './services/userStore.js';
+import { getUserById } from './services/userStore.js';
+import type {
+  AccessRequestStatus,
+  NonAdminRole,
+  UserStatus,
+} from './services/userStore.js';
 
 export interface JwtPayload {
   userId: string;
+  sessionVersion: number;
   email: string;
   name?: string;
   isAdmin?: boolean;
@@ -26,57 +32,168 @@ declare global {
 
 type CookieRequest = Request & { cookies?: Record<string, string> };
 
-export const parseCookies = (cookieHeader?: string): Record<string, string> => {
-  if (!cookieHeader) return {};
-
-  return cookieHeader.split(';').reduce<Record<string, string>>((acc, cookiePart) => {
-    const [rawName, ...rest] = cookiePart.split('=');
-    if (!rawName || rest.length === 0) return acc;
-
-    const name = rawName.trim();
-    if (!name) return acc;
-
-    acc[name] = decodeURIComponent(rest.join('='));
-    return acc;
-  }, {});
+let activeHttpRequests = 0;
+export const admitHttpRequest = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
+  if (
+    req.method === 'OPTIONS' ||
+    (['GET', 'HEAD'].includes(req.method) &&
+      req.path === `${config.apiPrefix}/health`)
+  ) {
+    next();
+    return;
+  }
+  if (activeHttpRequests >= config.httpMaxInflightRequests) {
+    res.setHeader('Retry-After', '1');
+    res
+      .status(503)
+      .json({ error: 'Request capacity exceeded', code: 'HTTP_CAPACITY' });
+    return;
+  }
+  activeHttpRequests++;
+  let released = false;
+  const release = () => {
+    if (!released) {
+      released = true;
+      activeHttpRequests--;
+    }
+  };
+  res.once('finish', release);
+  res.once('close', release);
+  next();
 };
 
-export const getUserFromRequest = (req: Request): JwtPayload | undefined => {
+const canonicalOrigin = (value: string): string | undefined => {
+  if (value.length > 2048) return undefined;
   try {
-    const cookies =
-      (req as CookieRequest).cookies ??
-      parseCookies(req.headers.cookie);
-    const token = cookies.jwt;
-    if (!token) return undefined;
-    const decoded = jwt.verify(token, config.jwtSecret, {
-      algorithms: ['HS256'],
-    }) as JwtPayload;
-    if (!decoded.userId || !decoded.email) {
-      throw new Error('Invalid token payload');
-    }
-    const userRecord = getUserByEmail(decoded.email);
-    if (!userRecord || userRecord.id !== decoded.userId) {
+    const url = new URL(value);
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      value !== url.origin
+    )
       return undefined;
-    }
-    return {
-      userId: userRecord.id,
-      email: userRecord.email,
-      name: userRecord.name,
-      isAdmin: userRecord.isAdmin,
-      roles: userRecord.roles,
-      status: userRecord.status,
-      adminRequestStatus: userRecord.adminRequestStatus,
-      roleRequestStatuses: userRecord.roleRequestStatuses,
-    };
-  } catch (err) {
+    return url.origin;
+  } catch {
     return undefined;
   }
 };
+const commandOrigins = new Set(
+  [
+    ...config.frontendOrigins.map((value) => canonicalOrigin(value)),
+    new URL(config.backendUrl).origin,
+  ].filter((value): value is string => Boolean(value)),
+);
+
+/** CORS does not stop browsers from sending cookie-authenticated commands. */
+export const requireCommandOrigin = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    next();
+    return;
+  }
+  const raw = req.headers.origin;
+  const origin = typeof raw === 'string' ? canonicalOrigin(raw) : undefined;
+  if (!origin || !commandOrigins.has(origin)) {
+    res
+      .status(403)
+      .json({
+        error: 'An approved request Origin is required',
+        code: 'ORIGIN_REQUIRED',
+      });
+    return;
+  }
+  next();
+};
+
+export const parseCookies = (cookieHeader?: string): Record<string, string> => {
+  if (!cookieHeader) return {};
+
+  return cookieHeader
+    .split(';')
+    .reduce<Record<string, string>>((acc, cookiePart) => {
+      const [rawName, ...rest] = cookiePart.split('=');
+      if (!rawName || rest.length === 0) return acc;
+
+      const name = rawName.trim();
+      if (!name) return acc;
+
+      acc[name] = decodeURIComponent(rest.join('='));
+      return acc;
+    }, {});
+};
+
+export const getUserFromRequest = async (
+  req: Request,
+  signal?: AbortSignal,
+): Promise<JwtPayload | undefined> => {
+  let decoded: jwt.JwtPayload;
+  try {
+    const cookies =
+      (req as CookieRequest).cookies ?? parseCookies(req.headers.cookie);
+    if (!cookies.jwt) return undefined;
+    const verified = jwt.verify(cookies.jwt, config.jwtSecret, {
+      algorithms: ['HS256'],
+      issuer: config.tokenIssuer,
+      audience: 'wearables-web',
+    });
+    if (typeof verified === 'string') return undefined;
+    decoded = verified;
+    if (
+      decoded.type !== 'web-session' ||
+      ![
+        'email-link-v1',
+        ...(config.devAuthBypass ? ['dev-email-v1'] : []),
+      ].includes(decoded.auth_method) ||
+      typeof decoded.userId !== 'string' ||
+      !decoded.userId ||
+      typeof decoded.email !== 'string' ||
+      decoded.sub !== decoded.userId ||
+      !Number.isInteger(decoded.sessionVersion) ||
+      decoded.sessionVersion < 1 ||
+      typeof decoded.exp !== 'number' ||
+      !Number.isFinite(decoded.exp)
+    )
+      return undefined;
+  } catch {
+    return undefined;
+  }
+  // Do not treat a control outage as a missing user or accept cached authority.
+  const user = await getUserById(decoded.userId, signal);
+  if (
+    !user ||
+    user.email !== decoded.email ||
+    user.authVersion !== decoded.sessionVersion
+  )
+    return undefined;
+  return {
+    userId: user.id,
+    email: user.email,
+    name: user.name,
+    isAdmin: user.isAdmin,
+    roles: user.roles,
+    status: user.status,
+    sessionVersion: user.authVersion,
+    adminRequestStatus: user.adminRequestStatus,
+    roleRequestStatuses: user.roleRequestStatuses,
+  };
+};
 
 // Basic Authentication
-const authenticate = (req: Request, res: Response, next: NextFunction): void => {
+const authenticate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getUserFromRequest(req);
 
     if (!user) {
       res.status(401).json({ error: 'Authentication required' });
@@ -95,7 +212,8 @@ const authenticate = (req: Request, res: Response, next: NextFunction): void => 
     if (user.status === 'denied') {
       res.status(403).json({
         error: 'Account denied',
-        message: 'Your access request was denied. Please contact an administrator.',
+        message:
+          'Your access request was denied. Please contact an administrator.',
         code: 'ACCOUNT_DENIED',
       });
       return;
@@ -104,11 +222,16 @@ const authenticate = (req: Request, res: Response, next: NextFunction): void => 
     req.user = user;
     next();
   } catch (err) {
+    if (sendControlError(res, err)) return;
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
 
-const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
+const requireAdmin = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
@@ -126,7 +249,11 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction): void => 
   next();
 };
 
-const requirePractitionerOrAdmin = (req: Request, res: Response, next: NextFunction): void => {
+const requirePractitionerOrAdmin = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
@@ -144,7 +271,11 @@ const requirePractitionerOrAdmin = (req: Request, res: Response, next: NextFunct
   });
 };
 
-const requireResearcherOrAdmin = (req: Request, res: Response, next: NextFunction): void => {
+const requireResearcherOrAdmin = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
@@ -175,16 +306,13 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
   res.on('finish', () => {
     const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
     const level: 'error' | 'warn' | 'info' =
-      res.statusCode >= 500 ? 'error' :
-      res.statusCode >= 400 ? 'warn' :
-      'info';
+      res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
 
-    logger[level]('HTTP request', {
+    logger[level]('http.request', {
       method: req.method,
-      path: req.originalUrl,
+      route: typeof req.route?.path === 'string' ? req.route.path : 'unmatched',
       status: res.statusCode,
       durationMs: Number(durationMs.toFixed(2)),
-      ip: req.ip,
     });
   });
 
@@ -194,16 +322,26 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
 // Error Handler
 export function notFound(req: Request, res: Response, next: NextFunction) {
   res.status(404);
-  const error = new Error(`🔍 - Not Found - ${req.originalUrl}`);
+  const error = new Error(`Not found: ${req.path}`);
   next(error);
 }
 
-export function errorHandler(err: Error, _: Request, res: Response, __: NextFunction) {
-  const statusCode = res.statusCode !== 200 ? res.statusCode : 500;
-  res.status(statusCode);
-  logger.error('Unhandled error', err);
-  res.json({
-    message: err.message,
-    stack: config.nodeEnv !== 'development' ? '<redacted>' : err.stack,
-  });
+export function errorHandler(
+  err: Error,
+  _: Request,
+  res: Response,
+  __: NextFunction,
+) {
+  if (res.destroyed) return;
+  if (res.headersSent) {
+    res.end();
+    return;
+  }
+  const proposed = (err as Error & { status?: number }).status;
+  const status = proposed && proposed >= 400 && proposed < 500 ? proposed : 500;
+  // Parser errors can retain raw JSON and cookies. Do not log or return them.
+  if (status >= 500) logger.error('http.request.failed', { status });
+  res
+    .status(status)
+    .json({ error: status >= 500 ? 'Request failed' : 'Invalid request' });
 }
