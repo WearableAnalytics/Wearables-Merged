@@ -1,6 +1,7 @@
 """Durable upload acceptance. A 202 receipt means archived, not yet processed."""
 
 import asyncio
+import hashlib
 import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -175,13 +176,27 @@ def create_app(settings=None):
                 await gateway.publish(settings.kafka_topic, claims["patientId"], wire)
             except Exception as exc:
                 raise HTTPException(503, "Kafka delivery failed") from exc
+            raw_bytes = await request.body()
+            raw_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+            reading_count = (
+                len(payload.measurements.instantaneous)
+                + len(payload.measurements.cumulative)
+                + len(payload.measurements.duration)
+            )
+            upload_id = str(uuid4())
             return {
-                "acceptanceId": str(uuid4()),
-                "status": "forwarded",
+                "acceptanceId": upload_id,
+                "status": "archived",
+                "processingState": "awaiting-processing",
+                "rawSha256": raw_sha256,
+                "readingCount": reading_count,
+                "recordCount": reading_count,
+                "brokerConfirmedCount": 1,
                 "replayed": False,
                 "instantaneous_count": len(payload.measurements.instantaneous),
                 "cumulative_count": len(payload.measurements.cumulative),
                 "duration_count": len(payload.measurements.duration),
+                "total_messages_produced": 1,
             }
 
     @application.get("/ingest/{upload_id}")

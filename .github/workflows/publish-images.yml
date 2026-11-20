@@ -10,7 +10,7 @@ name: Publish service images
 
 on:
   push:
-    branches: [main, stage/ws2627]
+    branches: [main, stage/ws2627, image-versioning]
     paths:
       - "services/backend/db_lord/**"
       - "services/backend/wearables-bff/**"
@@ -127,11 +127,58 @@ jobs:
             context: services/backend/grafana-proxy
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: docker/setup-buildx-action@v3
 
+      - name: Compute service version
+        id: version
+        run: |
+          # Check if service or workflow file changed in the current push
+          BEFORE="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CHANGED=true
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE" 2>/dev/null; then
+            DIFF=$(git diff --name-only "$BEFORE" HEAD -- "${{ matrix.context }}" ".github/workflows/publish-images.yml" 2>/dev/null || true)
+            if [ -n "$DIFF" ]; then
+              CHANGED=true
+            else
+              CHANGED=false
+            fi
+          else
+            DIFF=$(git diff --name-only HEAD~1 HEAD -- "${{ matrix.context }}" ".github/workflows/publish-images.yml" 2>/dev/null || true)
+            if [ -n "$DIFF" ]; then
+              CHANGED=true
+            else
+              CHANGED=false
+            fi
+          fi
+
+          echo "Service changed in this push: ${CHANGED}"
+          echo "changed=${CHANGED}" >> "$GITHUB_OUTPUT"
+
+          if [ -f "${{ matrix.context }}/VERSION" ]; then
+            BASE_VER=$(tr -d ' \r\n' < "${{ matrix.context }}/VERSION")
+            LAST_CHANGE=$(git log -n 1 --format="%H" -- "${{ matrix.context }}/VERSION" 2>/dev/null || true)
+            if [ -n "$LAST_CHANGE" ]; then
+              REV_COUNT=$(git rev-list --count "${LAST_CHANGE}..HEAD" -- "${{ matrix.context }}")
+            else
+              REV_COUNT=0
+            fi
+            TAG="${BASE_VER}.${REV_COUNT}"
+            if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+              TAG="${TAG}-stage"
+            fi
+            echo "Calculated service tag: ${TAG}"
+            echo "service_tag=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "has_version=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_version=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/stage/ws2627'
+        if: steps.version.outputs.changed == 'true' && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || steps.version.outputs.has_version == 'true')
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -139,17 +186,20 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Image metadata
+        if: steps.version.outputs.changed == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/wearableanalytics/${{ matrix.image }}
           tags: |
+            type=raw,value=${{ steps.version.outputs.service_tag }},enable=${{ steps.version.outputs.has_version == 'true' }}
             type=sha,format=long,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
       # The images are public, so refuse to publish one that contains a secret.
       # (Vulnerability scanning stays in trivy-security-scan.yml.)
       - name: Build for scanning
+        if: steps.version.outputs.changed == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
@@ -159,6 +209,7 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
 
       - name: Trivy secret scan
+        if: steps.version.outputs.changed == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: image
@@ -168,11 +219,12 @@ jobs:
           format: table
 
       - name: Build and publish
+        if: steps.version.outputs.changed == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' && github.ref != 'refs/heads/stage/ws2627' }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || steps.version.outputs.has_version == 'true') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
