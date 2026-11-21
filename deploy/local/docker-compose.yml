@@ -173,11 +173,17 @@ services:
 
   cloud-connector:
     build: ../../services/backend/cloud-connector
+    # OAuth callbacks carry single-use authorization codes in the query string.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
     environment:
       <<: *jwt-env
       JWT_ISSUER: wearables-bff
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: wearables-raw
+      POLAR_CLIENT_ID: ${POLAR_CLIENT_ID:-}
+      POLAR_CLIENT_SECRET: ${POLAR_CLIENT_SECRET:-}
+      POLAR_REDIRECT_URI: ${POLAR_REDIRECT_URI:-}
+      POLAR_INGEST_URL: http://importservice:8000/ingest
       GARMIN_CLIENT_ID: ${GARMIN_CLIENT_ID:-}
       GARMIN_CLIENT_SECRET: ${GARMIN_CLIENT_SECRET:-}
       OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI:-http://localhost/cloud/callback}

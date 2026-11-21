@@ -5,6 +5,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.responses import RedirectResponse, HTMLResponse
 
+from .polar_sync import router as polar_router
 from .models import SyncRequest, SyncResponse
 from .providers import get_provider, list_available_providers
 from .kafka_publisher import get_publisher, CloudKafkaPublisher
@@ -25,6 +26,9 @@ app = FastAPI(
     description="Modular multi-provider cloud telemetry connector for the Wearables platform",
     version="1.0.0",
 )
+
+
+app.include_router(polar_router)
 
 
 @app.on_event("startup")

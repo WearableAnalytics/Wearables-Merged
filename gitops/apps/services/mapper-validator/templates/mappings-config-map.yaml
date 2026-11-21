@@ -4,7 +4,7 @@ metadata:
   name: {{ .Values.mappingConfig }}
 data:
   mapping.yaml: |
-    version: 2.1.0
+    version: 2.2.0
     numericContract: wearables-numeric/2
     metadata:
       fields:
@@ -366,6 +366,18 @@ data:
             - fieldName: valueUnit
               valueType: string
               map:
+                - key: polar-sleep-score
+                  value: "1"
+                - key: polar-skin-contact
+                  value: "1"
+                - key: polar-ppi-error-estimate
+                  value: "ms"
+                - key: polar-nightly-mean-rmssd
+                  value: "ms"
+                - key: pulse-to-pulse-interval
+                  value: "ms"
+                - key: skin-temperature
+                  value: "Cel"
                 - key: 80404-7
                   value: ms
                 - key: 8867-4
@@ -383,6 +395,10 @@ data:
             - fieldName: valueSystem
               valueType: string
               map:
+                - key: "Cel"
+                  value: http://unitsofmeasure.org
+                - key: "1"
+                  value: http://unitsofmeasure.org
                 - key: ms
                   value: http://unitsofmeasure.org
                 - key: /min
@@ -392,6 +408,18 @@ data:
             - fieldName: codeCodingCodeZero
               valueType: string
               map:
+                - key: polar-sleep-score
+                  value: "polar-sleep-score"
+                - key: polar-skin-contact
+                  value: "polar-skin-contact"
+                - key: polar-ppi-error-estimate
+                  value: "polar-ppi-error-estimate"
+                - key: polar-nightly-mean-rmssd
+                  value: "polar-nightly-mean-rmssd"
+                - key: pulse-to-pulse-interval
+                  value: "pulse-to-pulse-interval"
+                - key: skin-temperature
+                  value: "skin-temperature"
                 - key: heart-rate-variability-sdnn
                   value: 80404-7
                 - key: heart-rate
@@ -409,6 +437,18 @@ data:
             - fieldName: codeCodingSystemZero
               valueType: string
               map:
+                - key: polar-sleep-score
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: polar-skin-contact
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: polar-ppi-error-estimate
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: polar-nightly-mean-rmssd
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: pulse-to-pulse-interval
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: skin-temperature
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
                 - key: 80404-7
                   value: http://loinc.org/
                 - key: 8867-4
@@ -426,6 +466,18 @@ data:
             - fieldName: codeCodingDisplayZero
               valueType: string
               map:
+                - key: polar-sleep-score
+                  value: "Polar sleep score"
+                - key: polar-skin-contact
+                  value: "Polar skin contact detected"
+                - key: polar-ppi-error-estimate
+                  value: "Polar PPI error estimate"
+                - key: polar-nightly-mean-rmssd
+                  value: "Polar nightly mean RMSSD"
+                - key: pulse-to-pulse-interval
+                  value: "Optical pulse-to-pulse interval"
+                - key: skin-temperature
+                  value: "Skin temperature"
                 - key: 80404-7
                   value: Heart Rate Variability Standard Deviation
                 - key: 8867-4
@@ -443,6 +495,18 @@ data:
             - fieldName: codeCodingCodeOne
               valueType: string
               map:
+                - key: polar-sleep-score
+                  value: "polar-sleep-score"
+                - key: polar-skin-contact
+                  value: "polar-skin-contact"
+                - key: polar-ppi-error-estimate
+                  value: "polar-ppi-error-estimate"
+                - key: polar-nightly-mean-rmssd
+                  value: "polar-nightly-mean-rmssd"
+                - key: pulse-to-pulse-interval
+                  value: "pulse-to-pulse-interval"
+                - key: skin-temperature
+                  value: "skin-temperature"
                 - key: 8867-4
                   value: 55425-3
                 - key: 80404-7
@@ -460,6 +524,18 @@ data:
             - fieldName: codeCodingSystemOne
               valueType: string
               map:
+                - key: polar-sleep-score
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: polar-skin-contact
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: polar-ppi-error-estimate
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: polar-nightly-mean-rmssd
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: pulse-to-pulse-interval
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: skin-temperature
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
                 - key: 55425-3
                   value: http://loinc.org/
                 - key: 76644-4
@@ -473,6 +549,18 @@ data:
             - fieldName: codeCodingDisplayOne
               valueType: string
               map:
+                - key: polar-sleep-score
+                  value: "Polar sleep score"
+                - key: polar-skin-contact
+                  value: "Polar skin contact detected"
+                - key: polar-ppi-error-estimate
+                  value: "Polar PPI error estimate"
+                - key: polar-nightly-mean-rmssd
+                  value: "Polar nightly mean RMSSD"
+                - key: pulse-to-pulse-interval
+                  value: "Optical pulse-to-pulse interval"
+                - key: skin-temperature
+                  value: "Skin temperature"
                 - key: 55425-3
                   value: Heart rate mean unspecified time pedometer
                 - key: 76644-4
@@ -850,6 +938,12 @@ data:
             - fieldName: codeCodingCodeZero
               valueType: string
               map:
+                - key: polar-activity-met
+                  value: "polar-activity-met"
+                - key: polar-workout-energy
+                  value: "polar-workout-energy"
+                - key: distance-delta
+                  value: "distance-delta"
                 - key: steps
                   value: 55423-8
                 - key: flights-climbed
@@ -863,6 +957,12 @@ data:
             - fieldName: codeCodingSystemZero
               valueType: string
               map:
+                - key: polar-activity-met
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: polar-workout-energy
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: distance-delta
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
                 - key: 55423-8
                   value: http://loinc.org/
                 - key: 100304-5
@@ -876,6 +976,12 @@ data:
             - fieldName: codeCodingDisplayZero
               valueType: string
               map:
+                - key: polar-activity-met
+                  value: "Polar activity metabolic equivalent"
+                - key: polar-workout-energy
+                  value: "Polar workout energy"
+                - key: distance-delta
+                  value: "Distance traveled"
                 - key: 55423-8
                   value: Number of steps taken pedometer
                 - key: 100304-5
@@ -889,6 +995,12 @@ data:
             - fieldName: codeCodingCodeOne
               valueType: string
               map:
+                - key: polar-activity-met
+                  value: "polar-activity-met"
+                - key: polar-workout-energy
+                  value: "polar-workout-energy"
+                - key: distance-delta
+                  value: "distance-delta"
                 - key: 55423-8
                   value: 66334-4
                 - key: 100304-5
@@ -902,6 +1014,12 @@ data:
             - fieldName: codeCodingSystemOne
               valueType: string
               map:
+                - key: polar-activity-met
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: polar-workout-energy
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
+                - key: distance-delta
+                  value: "https://wearableanalytics.github.io/fhir/CodeSystem/measurement"
                 - key: 66334-4
                   value: http://loinc.org/
                 - key: 100304-5
@@ -913,6 +1031,12 @@ data:
             - fieldName: codeCodingDisplayOne
               valueType: string
               map:
+                - key: polar-activity-met
+                  value: "Polar activity metabolic equivalent"
+                - key: polar-workout-energy
+                  value: "Polar workout energy"
+                - key: distance-delta
+                  value: "Distance traveled"
                 - key: 66334-4
                   value: Steps taken PhenX
                 - key: 100304-5
@@ -924,6 +1048,12 @@ data:
             - fieldName: valueUnit
               valueType: string
               map:
+                - key: polar-activity-met
+                  value: "1"
+                - key: polar-workout-energy
+                  value: "kcal"
+                - key: distance-delta
+                  value: "m"
                 - key: 55423-8
                   value: "1"
                 - key: 100304-5

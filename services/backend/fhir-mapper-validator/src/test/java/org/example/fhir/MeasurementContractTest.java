@@ -129,7 +129,7 @@ class MeasurementContractTest {
         String line = new LineProtocolParser(config).parse(mapped.getValue0(), mapped.getValue1(), graph.build().get(mapped.getValue0()));
         assertTrue(line.contains("period_end=\"2026-11-12T10:00:00.123456Z\""), line);
         assertTrue(line.contains("input_unit=\"SECOND\""), line);
-        assertTrue(line.contains("version=2.1.0"), line);
+        assertTrue(line.contains("version=2.2.0"), line);
         Files.createDirectories(Path.of("target/contract"));
         Files.writeString(Path.of("target/contract/sleep-light.lp"), line);
     }
