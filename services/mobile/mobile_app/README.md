@@ -30,3 +30,7 @@ e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWith
 2. connect device via usb
 3. discover device by running `flutter devices` in terminal
 4. run `flutter run -d <device id>` in terminal
+
+## Polar devices
+
+See the [Polar demo and setup](../../../docs/polar-demo.md) for Bluetooth pulse capture and Polar Flow history on iOS and Android.

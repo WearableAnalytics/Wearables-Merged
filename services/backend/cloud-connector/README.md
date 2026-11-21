@@ -39,6 +39,8 @@ Providers are registered in `app/providers/`:
 |---|---|---|---|
 | `garmin` | Garmin Connect | Implemented | OAuth 2.0 PKCE (`GARMIN_CLIENT_ID` / `GARMIN_CLIENT_SECRET`), PUSH Webhooks & Bearer Token |
 
+Polar Flow also supports a participant-initiated, one-day import through `/polar/sessions`. The participant chooses a date and categories, authorizes with Polar, previews counts, and shares the selected data through the receipt-backed importer. The mobile screen also supports a direct Bluetooth pulse recording. See the [Polar demo and setup](../../../docs/polar-demo.md).
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
