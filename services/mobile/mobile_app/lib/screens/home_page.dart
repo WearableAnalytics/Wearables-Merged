@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../app_config.dart';
+import 'polar_recording_page.dart';
 import '../storage_service.dart';
 import '../services/health_sync_service.dart';
 import '../services/sync_activity_notifier.dart';
@@ -315,6 +316,17 @@ class _ConnectedView extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (!expired && !rejected)
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.monitor_heart_outlined),
+                        label: const Text('Polar device'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                PolarRecordingPage(token: state.deviceId),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 40),
                     Center(
                       child: _StatusBadge(
