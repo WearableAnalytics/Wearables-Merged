@@ -84,6 +84,29 @@ class Settings:
         )
     )
 
+    # Google Health (Fitbit, Pixel Watch etc.) OAuth 2.0 PKCE & API settings
+    google_health_client_id: str = field(
+        default_factory=lambda: os.getenv("GOOGLE_HEALTH_CLIENT_ID") or os.getenv("FITBIT_CLIENT_ID", "")
+    )
+    google_health_client_secret: str = field(
+        default_factory=lambda: os.getenv("GOOGLE_HEALTH_CLIENT_SECRET") or os.getenv("FITBIT_CLIENT_SECRET", "")
+    )
+    google_health_auth_url: str = field(
+        default_factory=lambda: os.getenv(
+            "GOOGLE_HEALTH_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth"
+        )
+    )
+    google_health_token_url: str = field(
+        default_factory=lambda: os.getenv(
+            "GOOGLE_HEALTH_TOKEN_URL", "https://oauth2.googleapis.com/token"
+        )
+    )
+    google_health_api_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "GOOGLE_HEALTH_API_BASE_URL", "https://fitness.googleapis.com/fitness/v1"
+        )
+    )
+
     @property
     def oauth_redirect_uri(self) -> str:
         override = os.getenv("OAUTH_REDIRECT_URI") or os.getenv("GARMIN_REDIRECT_URI")

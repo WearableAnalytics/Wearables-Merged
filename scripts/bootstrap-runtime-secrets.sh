@@ -28,6 +28,8 @@ GARMIN_CLIENT_ID="${GARMIN_CLIENT_ID:-}"
 GARMIN_CLIENT_SECRET="${GARMIN_CLIENT_SECRET:-}"
 POLAR_CLIENT_ID="${POLAR_CLIENT_ID:-}"
 POLAR_CLIENT_SECRET="${POLAR_CLIENT_SECRET:-}"
+GOOGLE_HEALTH_CLIENT_ID="${GOOGLE_HEALTH_CLIENT_ID:-${FITBIT_CLIENT_ID:-}}"
+GOOGLE_HEALTH_CLIENT_SECRET="${GOOGLE_HEALTH_CLIENT_SECRET:-${FITBIT_CLIENT_SECRET:-}}"
 
 BREVO_API_KEY="${BREVO_API_KEY:-}"
 SHARED_APP_JWT_SECRET="${SHARED_APP_JWT_SECRET:-}"
@@ -61,6 +63,7 @@ Environment variables:
                                       (default: INFLUX_ORG, INFLUX_BUCKET, INFLUX_TOKEN)
   GARMIN_CLIENT_ID, GARMIN_CLIENT_SECRET (optional; Garmin OAuth app of cloud-connector)
   POLAR_CLIENT_ID, POLAR_CLIENT_SECRET   (optional; Polar AccessLink OAuth app of cloud-connector)
+  GOOGLE_HEALTH_CLIENT_ID, GOOGLE_HEALTH_CLIENT_SECRET (optional; Google Health / Fitbit OAuth app of cloud-connector)
   CLOUD_CONNECTOR_NAMESPACE           (default: cloud-connector)
   CLOUD_CONNECTOR_SECRET_NAME         (default: cloud-connector-secrets)
   EXTRACTION_SERVICE_NAMESPACE        (default: extraction-service)
@@ -318,6 +321,15 @@ if [[ -n "${POLAR_CLIENT_ID}" && -n "${POLAR_CLIENT_SECRET}" ]]; then
   echo "  - ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (POLAR_CLIENT_ID, POLAR_CLIENT_SECRET)"
 else
   echo "  - kept/skipped Polar keys in ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (POLAR_CLIENT_ID and POLAR_CLIENT_SECRET not set)"
+fi
+
+# Google Health (Fitbit & Pixel Watch) is optional in the cloud-connector chart, so missing variables only skip
+if [[ -n "${GOOGLE_HEALTH_CLIENT_ID}" && -n "${GOOGLE_HEALTH_CLIENT_SECRET}" ]]; then
+  upsert_secret_key "${CLOUD_CONNECTOR_NAMESPACE}" "${CLOUD_CONNECTOR_SECRET_NAME}" "GOOGLE_HEALTH_CLIENT_ID" "${GOOGLE_HEALTH_CLIENT_ID}"
+  upsert_secret_key "${CLOUD_CONNECTOR_NAMESPACE}" "${CLOUD_CONNECTOR_SECRET_NAME}" "GOOGLE_HEALTH_CLIENT_SECRET" "${GOOGLE_HEALTH_CLIENT_SECRET}"
+  echo "  - ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (GOOGLE_HEALTH_CLIENT_ID, GOOGLE_HEALTH_CLIENT_SECRET)"
+else
+  echo "  - kept/skipped Google Health keys in ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (GOOGLE_HEALTH_CLIENT_ID and GOOGLE_HEALTH_CLIENT_SECRET not set)"
 fi
 
 # operator_token <db-lord key> <BFF key>

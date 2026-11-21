@@ -68,6 +68,18 @@ spec:
                   name: {{ .Values.secrets.secretName }}
                   key: {{ .Values.secrets.polarClientSecretKey }}
                   optional: true
+            - name: GOOGLE_HEALTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.googleHealthClientIdKey }}
+                  optional: true
+            - name: GOOGLE_HEALTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.googleHealthClientSecretKey }}
+                  optional: true
           volumeMounts:
             - name: data-volume
               mountPath: /data

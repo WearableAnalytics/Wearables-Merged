@@ -2,10 +2,13 @@ from typing import Dict, List, Type
 from .base import BaseCloudProvider
 from .garmin import GarminProvider
 from .polar import PolarProvider
+from .google_health import GoogleHealthProvider
 
 _PROVIDERS: Dict[str, Type[BaseCloudProvider]] = {
     "garmin": GarminProvider,
     "polar": PolarProvider,
+    "google_health": GoogleHealthProvider,
+    "fitbit": GoogleHealthProvider,  # for Fitbit & Pixel Watch
 }
 
 

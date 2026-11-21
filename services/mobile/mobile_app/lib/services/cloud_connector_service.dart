@@ -49,10 +49,10 @@ class CloudProvider {
   static const fitbit = CloudProvider(
     id: 'fitbit',
     name: 'Fitbit',
-    displayName: 'Fitbit',
-    description: 'Direct cloud sync for Fitbit & Pixel Watch.',
+    displayName: 'Fitbit & Pixel Watch (Google Health)',
+    description: 'Direct cloud sync for Fitbit & Google Pixel Watch.',
     icon: Symbols.watch_button_sharp,
-    enabled: false,
+    enabled: true,
   );
 
   static const oura = CloudProvider(
@@ -92,7 +92,7 @@ class CloudProvider {
   );
 
   /// Active providers currently enabled in the mobile app UI
-  static const List<CloudProvider> activeProviders = [garmin, polar];
+  static const List<CloudProvider> activeProviders = [garmin, polar, fitbit];
 
   /// Catalog of all known cloud providers for seamless future extensions
   static const List<CloudProvider> knownProviders = [

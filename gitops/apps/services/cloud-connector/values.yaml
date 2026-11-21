@@ -21,13 +21,15 @@ env:
   CLOUD_CONNECTOR_STORAGE_PATH: "/data/connections.json"
   JWT_ISSUER: "wearables-bff"
 
-# Secrets for Garmin/Polar OAuth 2.0 and Case JWT verification
+# Secrets for Garmin/Polar/Google Health OAuth 2.0 and Case JWT verification
 secrets:
   secretName: cloud-connector-secrets
   garminClientIdKey: GARMIN_CLIENT_ID
   garminClientSecretKey: GARMIN_CLIENT_SECRET
   polarClientIdKey: POLAR_CLIENT_ID
   polarClientSecretKey: POLAR_CLIENT_SECRET
+  googleHealthClientIdKey: GOOGLE_HEALTH_CLIENT_ID
+  googleHealthClientSecretKey: GOOGLE_HEALTH_CLIENT_SECRET
   jwtSecretKey: JWT_SECRET
 
 persistence:
