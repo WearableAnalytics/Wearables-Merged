@@ -1,9 +1,38 @@
 import 'dart:convert';
 
+import 'package:charite_wearables/screens/polar_history_page.dart';
 import 'package:charite_wearables/services/polar_recording.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('history requires a category and authorization before sharing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      const MaterialApp(home: PolarHistoryPage(token: 'fixture')),
+    );
+    final authorize = find.widgetWithText(
+      FilledButton,
+      'Authorize in Polar Flow',
+    );
+    final pulse = find.widgetWithText(
+      CheckboxListTile,
+      'Continuous heart rate',
+    );
+    expect(find.byType(CheckboxListTile), findsNWidgets(8));
+    expect(tester.widget<FilledButton>(authorize).onPressed, isNull);
+    await tester.tap(pulse);
+    await tester.pump();
+    expect(tester.widget<FilledButton>(authorize).onPressed, isNotNull);
+    expect(find.textContaining('Share with'), findsNothing);
+    await tester.tap(pulse);
+    await tester.pump();
+    expect(tester.widget<FilledButton>(authorize).onPressed, isNull);
+  });
   test(
     'reads standard 8/16-bit heart rate and optional energy and RR fields',
     () {
