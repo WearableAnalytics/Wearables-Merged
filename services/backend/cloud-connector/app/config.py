@@ -107,6 +107,27 @@ class Settings:
         )
     )
 
+    # Oura Ring OAuth 2.0 PKCE & API settings
+    oura_client_id: str = field(default_factory=lambda: os.getenv("OURA_CLIENT_ID", ""))
+    oura_client_secret: str = field(
+        default_factory=lambda: os.getenv("OURA_CLIENT_SECRET", "")
+    )
+    oura_auth_url: str = field(
+        default_factory=lambda: os.getenv(
+            "OURA_AUTH_URL", "https://cloud.ouraring.com/oauth/authorize"
+        )
+    )
+    oura_token_url: str = field(
+        default_factory=lambda: os.getenv(
+            "OURA_TOKEN_URL", "https://api.ouraring.com/oauth/token"
+        )
+    )
+    oura_api_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "OURA_API_BASE_URL", "https://api.ouraring.com/v2"
+        )
+    )
+
     @property
     def oauth_redirect_uri(self) -> str:
         override = os.getenv("OAUTH_REDIRECT_URI") or os.getenv("GARMIN_REDIRECT_URI")

@@ -61,7 +61,7 @@ class CloudProvider {
     displayName: 'Oura Ring',
     description: 'Direct cloud sync for Oura sleep & readiness data.',
     icon: Symbols.ring_volume_sharp,
-    enabled: false,
+    enabled: true,
   );
 
   static const whoop = CloudProvider(
@@ -92,7 +92,7 @@ class CloudProvider {
   );
 
   /// Active providers currently enabled in the mobile app UI
-  static const List<CloudProvider> activeProviders = [garmin, polar, fitbit];
+  static const List<CloudProvider> activeProviders = [garmin, polar, fitbit, oura];
 
   /// Catalog of all known cloud providers for seamless future extensions
   static const List<CloudProvider> knownProviders = [
