@@ -141,7 +141,26 @@ DOCS = {
 def test_all_streams_have_distinct_stable_measurements():
     zone = ZoneInfo("Europe/Berlin")
     rows = [item for stream, data in DOCS.items() for item in normalize(stream, data, zone)]
-    assert len({r["type"] for _, r in rows}) == 17
+    expected = {
+        "HEART_RATE": (72, "/min"),
+        "STEPS": (12, "1"),
+        "POLAR_ACTIVITY_MET": (1.2, "1"),
+        "WORKOUT_ELAPSED_TIME": (10, "min"),
+        "POLAR_WORKOUT_ENERGY": (42, "kcal"),
+        "DISTANCE_DELTA": (1234, "m"),
+        "SLEEP_AWAKE": (1, "min"),
+        "SLEEP_LIGHT": (1, "min"),
+        "SLEEP_DEEP": (1, "min"),
+        "SLEEP_REM": (7, "min"),
+        "POLAR_SLEEP_SCORE": (85, "1"),
+        "RESPIRATORY_RATE": (12.5, "/min"),
+        "POLAR_NIGHTLY_MEAN_RMSSD": (58, "ms"),
+        "SKIN_TEMPERATURE": (33.2, "Cel"),
+        "PULSE_TO_PULSE_INTERVAL": (830, "ms"),
+        "POLAR_PPI_ERROR_ESTIMATE": (8, "ms"),
+        "POLAR_SKIN_CONTACT": (1, "1"),
+    }
+    assert {r["type"]: (r["value"], r["unit"]) for _, r in rows} == expected
     assert len({r["sourceRecordId"] for _, r in rows}) == len(rows)
     first, count = next(batches(rows, "test"))
     assert next(batches(reversed(rows), "test")) == (first, count)
