@@ -13,3 +13,18 @@ spec:
       name: http
   selector:
     app: {{ .Release.Name }}
+{{- if .Values.metrics.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-metrics
+spec:
+  type: ClusterIP
+  ports:
+    - name: export-metrics
+      port: {{ .Values.metrics.port }}
+      targetPort: export-metrics
+  selector:
+    app: {{ .Release.Name }}
+{{- end }}

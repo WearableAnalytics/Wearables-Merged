@@ -1,0 +1,422 @@
+{
+  "uid": "wearables-export-monitoring",
+  "title": "Wearables – Export Monitoring",
+  "schemaVersion": 39,
+  "tags": [
+    "wearables",
+    "export"
+  ],
+  "timezone": "browser",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Export Requests",
+      "type": "stat",
+      "description": "Requests reaching extraction in the selected window.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffct924rz8flsa"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(wearables_export_requests_total{job=\"extraction-service\"}[$__range]))",
+          "legendFormat": "Requests",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Export Outcomes",
+      "type": "bargauge",
+      "description": "Terminal outcomes in the selected window.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffct924rz8flsa"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (outcome)(increase(wearables_export_completed_total{job=\"extraction-service\"}[$__range]))",
+          "legendFormat": "{{outcome}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Export Success Rate",
+      "type": "stat",
+      "description": "Fully emitted responses divided by all terminal outcomes. No value when no exports finish.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffct924rz8flsa"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(wearables_export_completed_total{job=\"extraction-service\",outcome=\"success\"}[$__range])) / (sum(increase(wearables_export_completed_total{job=\"extraction-service\"}[$__range])) > 0)",
+          "legendFormat": "Success rate",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Active Exports",
+      "type": "timeseries",
+      "description": "Concurrent requests across all scraped pods.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffct924rz8flsa"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (format)(wearables_export_active{job=\"extraction-service\"})",
+          "legendFormat": "{{format}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Export Duration",
+      "type": "timeseries",
+      "description": "Histogram estimates for successful exports, including streaming.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffct924rz8flsa"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le, format)(rate(wearables_export_duration_seconds_bucket{job=\"extraction-service\",outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "p50 {{format}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, format)(rate(wearables_export_duration_seconds_bucket{job=\"extraction-service\",outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{format}}",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, format)(rate(wearables_export_duration_seconds_bucket{job=\"extraction-service\",outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "p99 {{format}}",
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "CSV vs. FHIR — Volume and Errors",
+      "type": "bargauge",
+      "description": "Compare counts here and percentile latency by format in Export Duration.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffct924rz8flsa"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (format)(increase(wearables_export_requests_total{job=\"extraction-service\"}[$__range]))",
+          "legendFormat": "{{format}} requests",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": true,
+          "range": false
+        },
+        {
+          "expr": "sum by (format)(increase(wearables_export_completed_total{job=\"extraction-service\",outcome=\"failed\"}[$__range]))",
+          "legendFormat": "{{format}} failures",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Processed Measurements",
+      "type": "bargauge",
+      "description": "Counts after filtering and reconciliation. Exported means serialized.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffct924rz8flsa"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (format)(increase(wearables_export_measurements_considered_total{job=\"extraction-service\"}[$__range]))",
+          "legendFormat": "{{format}} considered",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": true,
+          "range": false
+        },
+        {
+          "expr": "sum by (format)(increase(wearables_export_measurements_exported_total{job=\"extraction-service\"}[$__range]))",
+          "legendFormat": "{{format}} exported",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Omitted Measurements",
+      "type": "bargauge",
+      "description": "Deliberate omissions reported by the exporter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffct924rz8flsa"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (format, reason)(increase(wearables_export_measurements_omitted_total{job=\"extraction-service\"}[$__range]))",
+          "legendFormat": "{{format}} {{reason}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Export Throughput",
+      "type": "timeseries",
+      "description": "Successful exports and serialized readings per minute.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffct924rz8flsa"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (format)(rate(wearables_export_completed_total{job=\"extraction-service\",outcome=\"success\"}[$__rate_interval])) * 60",
+          "legendFormat": "{{format}} exports/min",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum by (format)(rate(wearables_export_measurements_exported_total{job=\"extraction-service\"}[$__rate_interval])) * 60",
+          "legendFormat": "{{format}} readings/min",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": false,
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Export Failures Over Time",
+      "type": "timeseries",
+      "description": "Failed and cancelled requests per minute.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffct924rz8flsa"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (format, outcome)(rate(wearables_export_completed_total{job=\"extraction-service\",outcome=~\"failed|cancelled\"}[$__rate_interval])) * 60",
+          "legendFormat": "{{format}} {{outcome}}/min",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffct924rz8flsa"
+          },
+          "instant": false,
+          "range": true
+        }
+      ]
+    }
+  ]
+}

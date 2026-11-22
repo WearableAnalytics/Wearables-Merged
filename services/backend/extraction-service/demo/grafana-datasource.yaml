@@ -1,0 +1,10 @@
+apiVersion: 1
+datasources:
+  - name: prometheus
+    uid: ffct924rz8flsa
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 5s

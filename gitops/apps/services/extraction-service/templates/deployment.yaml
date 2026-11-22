@@ -21,11 +21,17 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
+          {{- if .Values.metrics.enabled }}
+            - name: export-metrics
+              containerPort: {{ .Values.metrics.port }}
+          {{- end }}
           envFrom:
             - secretRef:
                 name: {{ .Values.secretRef }}
-          {{- with .Values.config }}
           env:
+            - name: METRICS_PORT
+              value: {{ ternary (toString .Values.metrics.port) "0" .Values.metrics.enabled | quote }}
+          {{- with .Values.config }}
             {{- range $key, $value := . }}
             - name: {{ $key }}
               value: {{ $value | quote }}

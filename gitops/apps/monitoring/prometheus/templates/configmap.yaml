@@ -60,3 +60,24 @@ data:
         scrape_timeout: 30s
         static_configs:
           - targets: [{{ .Values.scrape.dbStats.target | quote }}]
+
+      {{- if .Values.scrape.extractionService.enabled }}
+      - job_name: extraction-service
+        scrape_interval: {{ .Values.scrape.extractionService.interval }}
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Values.scrape.extractionService.namespace | quote }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: {{ .Values.scrape.extractionService.release | quote }}
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            regex: export-metrics
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_phase]
+            regex: Running
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+      {{- end }}

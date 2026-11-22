@@ -40,3 +40,8 @@ scrape:
     target: db-stats-exporter.db-lord.svc.cluster.local:9399
     # The exporter only queries Postgres when it is scraped.
     interval: 15m
+  extractionService:
+    enabled: true
+    namespace: extraction-service
+    release: extraction-service
+    interval: 30s

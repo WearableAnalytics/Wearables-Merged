@@ -35,3 +35,5 @@ Environment variables:
 `uv run uvicorn src.app.main:app --reload --port 8010`
 
 `uv run pytest`
+
+See [Export Monitoring](EXPORT_MONITORING.md) for metrics, deployment and the local demo.

@@ -21,3 +21,7 @@ config:
   # The BFF serves this API under /api/extraction (EXTRACTION_API_URL in its values);
   # the Swagger UI at /api/extraction/docs needs to know that prefix.
   ROOT_PATH: "/api/extraction"
+
+metrics:
+  enabled: true
+  port: 9103
