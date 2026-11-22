@@ -180,7 +180,9 @@ def test_measurement_types(client):
 
 def test_openapi_documents_auth(client):
     spec = client.get("/openapi.json").json()
-    assert set(spec["components"]["securitySchemes"]) == {"researcherToken", "session"}
+    # The login cookie is sent by the browser itself, so only the token is offered under "Authorize".
+    assert set(spec["components"]["securitySchemes"]) == {"researcherToken"}
+    assert spec["security"] == [{}, {"researcherToken": []}]
     assert "/v1/measurements/export.csv" in spec["paths"]
     assert client.get("/docs").status_code == 200
 

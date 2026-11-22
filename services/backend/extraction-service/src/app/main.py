@@ -39,9 +39,10 @@ DESCRIPTION = """
 Export wearable measurements stored on the Charité Wearables platform.
 
 **Authentication.** The API is served by the platform at `/api/extraction`.
-Either be logged in to the web app as an admin, practitioner or researcher (the session cookie
-is sent automatically, also from this page), or, as a researcher or admin, create a personal API
-token on the web app's *API Access* page and send it as `Authorization: Bearer <token>`.
+On this page nothing needs to be entered: you are logged in to the web app (as an admin,
+practitioner or researcher), and your browser sends the login cookie with every request.
+Scripts and other tools use a personal API token (researchers and admins, from the web app's
+*API Access* page) as `Authorization: Bearer <token>`; *Authorize* above is only needed to try one.
 
 **Pseudonymization.** Researchers always get pseudonymized data: fresh patient pseudonyms per
 response, only known numeric measurements, no extra fields. Admins and practitioners get the
@@ -80,16 +81,18 @@ def custom_openapi() -> dict:
     if app.openapi_schema:
         return app.openapi_schema
     schema = get_openapi(title=app.title, version=app.version, description=app.description, routes=app.routes)
-    # Documents the BFF's auth so Swagger UI offers an "Authorize" button for the token.
+    # Documents the BFF's token auth so Swagger UI offers an "Authorize" button for it. The login cookie is
+    # not listed: the browser sends it by itself (it is httpOnly, so Swagger UI could neither read nor set it).
+    # `{}` marks auth as optional here, as a logged-in browser needs nothing.
     schema.setdefault("components", {})["securitySchemes"] = {
         "researcherToken": {
             "type": "http",
             "scheme": "bearer",
-            "description": "Personal API token from the web app's API Access page (starts with wrt_).",
+            "description": "Personal API token from the web app's API Access page (starts with wrt_). "
+            "Not needed in the browser when logged in.",
         },
-        "session": {"type": "apiKey", "in": "cookie", "name": "jwt", "description": "Web app login session."},
     }
-    schema["security"] = [{"researcherToken": []}, {"session": []}]
+    schema["security"] = [{}, {"researcherToken": []}]
     app.openapi_schema = schema
     return schema
 
