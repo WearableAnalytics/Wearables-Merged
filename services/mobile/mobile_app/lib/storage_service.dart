@@ -8,6 +8,7 @@ import 'services/health_upload.dart';
 
 // Storage utility functions
 class StorageService {
+  static const polarBandConsentKey = 'polar_band_consent';
   static const String _deviceIdKey = 'device_id';
   static const String _lastDataSendKey = 'last_data_send_time';
   static const String _initialSyncStartKey = 'initial_sync_start';
@@ -110,6 +111,9 @@ class StorageService {
   // Set a custom device ID (for testing)
   static Future<void> setCustomDeviceId(String deviceId) async {
     final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_deviceIdKey) != deviceId) {
+      await SharedPreferencesAsync().remove(polarBandConsentKey);
+    }
     await prefs.setString(_deviceIdKey, deviceId);
     await prefs.remove(_rejectedCodeKey);
   }
@@ -247,6 +251,13 @@ class StorageService {
   static Future<void> markCodeRejected(String code) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_rejectedCodeKey, code);
+  }
+
+  static Future<bool> currentStudyMatches(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return isStudyCode(token) && !isCodeExpired(token) &&
+        prefs.getString(_deviceIdKey) == token && prefs.getString(_rejectedCodeKey) != token;
   }
 
   /// Whether currently linked code was marked rejected by server

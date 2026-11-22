@@ -239,6 +239,7 @@ class HealthUploader {
     required this.endpoint,
     this.timeout = const Duration(seconds: 30),
     this.allowLegacy200 = true,
+    this.beforeSend,
     Future<void> Function(Duration)? delay,
   }) : delay = delay ?? Future<void>.delayed;
 
@@ -246,6 +247,7 @@ class HealthUploader {
   final Uri endpoint;
   final Duration timeout;
   final bool allowLegacy200;
+  final Future<void> Function()? beforeSend;
   final Future<void> Function(Duration) delay;
 
   Future<UploadReceipt> send(HealthUpload upload, String token) async {
@@ -284,7 +286,9 @@ class HealthUploader {
   Future<UploadReceipt> _sendOnce(HealthUpload upload, String token) async {
     HttpClientRequest? request;
     try {
+      await beforeSend?.call();
       request = await client.postUrl(endpoint).timeout(timeout);
+      request.followRedirects = false;
       request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
       request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
       request.headers.set('Idempotency-Key', upload.key);

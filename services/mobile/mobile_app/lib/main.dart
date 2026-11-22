@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'app_config.dart';
 import 'screens/main_page.dart';
 import 'services/background_sync_manager.dart';
+import 'services/polar_band_sync.dart';
 import 'services/health_background_delivery.dart';
 import 'services/notification_service.dart';
 import 'state/app_state.dart';
@@ -54,10 +55,23 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     // Registered before MaterialApp mounts (wearables://oauth-callback)
     WidgetsBinding.instance.addObserver(this);
+    PolarBandSync.startForeground();
+    unawaited(PolarBandSync.run());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      PolarBandSync.startForeground();
+      unawaited(PolarBandSync.run());
+    } else if (state == AppLifecycleState.paused) {
+      PolarBandSync.stopForeground();
+    }
   }
 
   @override
   void dispose() {
+    PolarBandSync.stopForeground();
     WidgetsBinding.instance.removeObserver(this);
     if (widget.state == null) _state.dispose();
     super.dispose();

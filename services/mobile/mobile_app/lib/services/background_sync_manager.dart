@@ -2,6 +2,7 @@ import 'package:background_fetch/background_fetch.dart';
 import 'package:flutter/foundation.dart';
 
 import 'notification_service.dart';
+import 'polar_band_sync.dart';
 import 'sync_activity_notifier.dart';
 import '../storage_service.dart';
 import 'health_sync_service.dart';
@@ -59,7 +60,7 @@ class BackgroundSyncManager {
     BackgroundFetch.finish(taskId);
   }
 
-  static Future<void> handleHeadlessTask(HeadlessTask task) async {
+  static Future<void> handleHeadlessTask(HeadlessEvent task) async {
     if (task.timeout) {
       debugPrint('[BackgroundFetch] Headless task timed-out: ${task.taskId}');
       BackgroundFetch.finish(task.taskId);
@@ -72,7 +73,7 @@ class BackgroundSyncManager {
   /// they need to act. Every run reschedules the inactivity reminder.
   static Future<void> _runHealthSync(String taskId) async {
     try {
-      await runQuietSync();
+      await Future.wait([runQuietSync(), PolarBandSync.run()]);
     } finally {
       BackgroundFetch.finish(taskId);
     }

@@ -10,6 +10,7 @@ import '../services/health_sync_service.dart';
 import '../services/health_upload.dart';
 import '../services/polar_recording.dart';
 import '../services/polar_pmd.dart';
+import '../services/polar_band_sync.dart';
 import '../storage_service.dart';
 
 class PolarRecordingPage extends StatefulWidget {
@@ -26,10 +27,80 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
   final devices = <String, BleDevice>{};
   final samples = <PolarSample>[];
   final endpointResolver = HealthSyncService();
-  String message = 'Wear your Polar. On watches, enable heart rate sharing.';
+  String message =
+      'Scan for your band. Choose Auto sync for daily use or tap the device for a live recording.';
   Completer<void>? stop;
   bool sending = false;
   bool longerRecording = false;
+  String? bandGrant;
+  bool grantLoaded = false;
+  String? bandStatus;
+  Timer? statusTimer;
+  Future<void> loadSharing() async {
+    final granted = await PolarBandSync.grant(widget.token);
+    final status = granted == null ? null : await PolarBandSync.status(granted);
+    if (mounted) {
+      setState(() {
+        bandGrant = granted;
+        bandStatus = status;
+        grantLoaded = true;
+      });
+    }
+  }
+
+  Future<void> chooseAutomatic(BleDevice device) async {
+    final selected = PolarMetric.values.toSet();
+    final allowed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Enable automatic sharing?'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Share new readings from ${device.name} with ${endpointResolver.endpointFor(widget.token).host} starting now. Wearables will automatically retrieve stored readings when the band reconnects. Stop sharing here at any time.',
+                ),
+                for (final m in PolarMetric.values)
+                  CheckboxListTile(
+                    title: Text(m.label),
+                    value: selected.contains(m),
+                    onChanged: (v) => update(() {
+                      if (v == true) {
+                        selected.add(m);
+                      } else {
+                        selected.remove(m);
+                      }
+                    }),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: selected.isEmpty
+                  ? null
+                  : () => Navigator.pop(context, true),
+              child: const Text('Enable sharing'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (allowed != true || !mounted) return;
+    try {
+      await PolarBandSync.enable(widget.token, device.deviceId, selected);
+      await loadSharing();
+    } catch (_) {
+      showMessage('Unable to enable automatic sharing. Check the study link.');
+    }
+  }
+
   PolarMetric metric = PolarMetric.heartRate;
   static const uploadLimit = int.fromEnvironment(
     'INGEST_MAX_READINGS',
@@ -44,6 +115,11 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(loadSharing());
+    statusTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => loadSharing(),
+    );
   }
 
   void finish() {
@@ -58,6 +134,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
 
   @override
   void dispose() {
+    statusTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     finish();
     super.dispose();
@@ -314,7 +391,9 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       final status = await sender.status(receipt.acceptanceId, token);
       if (status['rawSha256'] != receipt.rawSha256 ||
           status['readingCount'] != receipt.readingCount) {
-        throw const FormatException('Status does not match the accepted upload');
+        throw const FormatException(
+          'Status does not match the accepted upload',
+        );
       }
       await StorageService.saveUploadReceipt(token, {
         ...receipt.document,
@@ -344,17 +423,30 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text(
-            message,
-            semanticsLabel: message,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          if (bandGrant == null)
+            Text(
+              message,
+              semanticsLabel: message,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          if (bandGrant != null)
+            ListTile(
+              title: const Text('Automatic Polar sharing is on'),
+              subtitle: Text(bandStatus ?? 'Waiting for the first band sync.'),
+              trailing: TextButton(
+                onPressed: () async {
+                  await PolarBandSync.disable(widget.token);
+                  await loadSharing();
+                },
+                child: const Text('Turn off'),
+              ),
+            ),
           if (lastReceipt != null)
             TextButton(
               onPressed: busy ? null : checkStorage,
               child: const Text('Check storage status'),
             ),
-          if (upload == null) ...[
+          if (upload == null && bandGrant == null && grantLoaded) ...[
             Wrap(
               spacing: 8,
               children: [
@@ -387,11 +479,15 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
                 title: Text(device.name!),
                 subtitle: Text(device.deviceId),
                 enabled: !busy,
-                onTap: () => record(device),
+                onTap: busy ? null : () => record(device),
+                trailing: TextButton(
+                  onPressed: busy ? null : () => chooseAutomatic(device),
+                  child: const Text('Auto sync'),
+                ),
               ),
             if (stop != null)
               TextButton(onPressed: finish, child: const Text('Stop')),
-          ] else ...[
+          ] else if (upload != null) ...[
             Text(
               '${metric.label}: ${samples.map((s) => displayValue(s.value)).join(', ')} ${metric.displayUnit}',
             ),

@@ -427,6 +427,34 @@ void main() {
       },
     );
 
+    test(
+      'revoking automatic sharing during backoff prevents the next upload',
+      () async {
+        var allowed = true, received = 0;
+        subscription = server.listen((request) async {
+          received++;
+          await request.drain<void>();
+          request.response.statusCode = 503;
+          await request.response.close();
+        });
+        final guarded = HealthUploader(
+          client: client,
+          endpoint: uploader.endpoint,
+          beforeSend: () async {
+            if (!allowed) throw StateError('Sharing ended');
+          },
+          delay: (_) async {
+            allowed = false;
+          },
+        );
+        await expectLater(
+          guarded.send(prepare([point()]).single, 'token'),
+          throwsStateError,
+        );
+        expect(received, 1);
+      },
+    );
+
     test('honors short Retry-After before retrying the same upload', () async {
       final waits = <Duration>[];
       uploader = HealthUploader(

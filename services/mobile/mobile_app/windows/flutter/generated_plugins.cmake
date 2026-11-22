@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  flutter_timezone
   universal_ble
   url_launcher_windows
 )
