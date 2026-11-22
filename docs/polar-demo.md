@@ -103,7 +103,7 @@ An enrolled participant can set up a Polar 360 in Wearables over Bluetooth. Unde
 | Band history | Measurements read automatically | When to expect them |
 | --- | --- | --- |
 | Automatic samples and skin-temperature history | Heart rate, pulse intervals, skin temperature | As the band writes samples and the app gets a sync opportunity. These three signals have been observed reaching storage from a worn Polar 360 and a physical iPhone. |
-| Activity samples (ACT) | Step counts per interval and activity intensity in MET | After the band writes the interval. The physical band returned a decodable file containing both kinds of sample. Only intervals within the category's sharing window are eligible. |
+| Activity samples (ACT) | Step counts per interval and activity intensity in MET | After the band writes the interval. On the worn band, both types reached InfluxDB automatically after opt-in. The case dashboard queries returned a daily step total and a time series of activity intensity. Only intervals within the category's sharing window are eligible. |
 | Daily summary (DSUM) | Activity distance, activity calories and basal calories | After a complete local calendar day covered by consent. Distance has no associated sport. The demo band was configured with a fictitious physical profile, which affects estimates such as calories. |
 | Finished training session (E) | Elapsed training time and workout energy | After the band records a session with an end time. Energy is included when present. |
 | Sleep results (SLEEP) | Time asleep, light, deep, REM and awake phases | After the device generates the sleep result. Time asleep sums recognized sleeping phases. |
