@@ -53,3 +53,9 @@ Run `flutter test` in the mobile app, `pytest -q` in the cloud connector, `mvn t
 - The iOS debug build compiled for a device without code signing. The Android arm64 debug APK also built with Flutter 3.47.9. Pairing, physiological values, Polar authorization with a registered client and a real Android phone remain hardware/demo checks.
 
 Polar publishes the device services in the [360 manual](https://support.polar.com/e_manuals/polar-360/polar-360-user-manual-english/manual.pdf) and the cloud schemas and scopes in the [AccessLink v4 reference](https://www.polar.com/polar-api-v4/).
+
+### Physical iPhone check, 2026-11-22
+
+- A locally signed build ran on an iPhone 16 Pro Max. Enabling new Bluetooth connections in iOS allowed discovery. The phone saw a connectable, unnamed advertisement with Polar’s manufacturer identifier. The advertisement alone did not identify the model.
+- The app and a separate native CoreBluetooth check both timed out while connecting. The recording contained zero heart-rate samples, and the local importer had accepted zero uploads. Physical pairing, pulse capture and downstream confirmation remain open.
+- The mobile suite passed 47 tests after adding Bluetooth availability checks and discovery by Polar manufacturer identifier. For an unconfigured band, follow [Polar’s first-time setup instructions](https://support.polar.com/e_manuals/polar-360/polar-360-flow-user-manual-english/setting-up-polar-360.htm) before repeating the hardware check.
