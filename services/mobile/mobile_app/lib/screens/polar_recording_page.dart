@@ -75,6 +75,16 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
     try {
       await UniversalBle.requestPermissions();
       if (done.isCompleted) return;
+      final radio = await UniversalBle.getBluetoothAvailabilityState();
+      if (done.isCompleted) return;
+      if (radio != AvailabilityState.poweredOn) {
+        showMessage(
+          radio == AvailabilityState.poweredOff
+              ? 'Bluetooth is unavailable to Wearables. Check Bluetooth in phone settings, then scan again.'
+              : 'Bluetooth is not ready. Check Bluetooth access for Wearables, then scan again.',
+        );
+        return;
+      }
       for (final device in await UniversalBle.getSystemDevices(
         withServices: [service],
       )) {
