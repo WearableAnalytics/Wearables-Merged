@@ -74,7 +74,6 @@ class GoogleHealthProvider(BaseCloudProvider):
             "https://www.googleapis.com/auth/fitness.heart_rate.read",
             "https://www.googleapis.com/auth/fitness.sleep.read",
             "https://www.googleapis.com/auth/fitness.oxygen_saturation.read",
-            "https://www.googleapis.com/auth/fitness.respiratory_rate.read",
         ]
         params = {
             "client_id": client_id,

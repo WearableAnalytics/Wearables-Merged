@@ -566,7 +566,11 @@ class _CloudProviderTile extends StatelessWidget {
     if (!connected) {
       return ListTile(
         leading: Icon(provider.icon ?? Symbols.watch_sharp),
-        title: Text('Connect ${provider.name} Cloud'),
+        title: Text(
+          provider.name.endsWith('Health') || provider.name.endsWith('Cloud')
+              ? 'Connect ${provider.name}'
+              : 'Connect ${provider.name} Cloud',
+        ),
         subtitle: Text(provider.description),
         trailing: busy
             ? const SizedBox(

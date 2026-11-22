@@ -48,8 +48,8 @@ class CloudProvider {
 
   static const fitbit = CloudProvider(
     id: 'fitbit',
-    name: 'Fitbit',
-    displayName: 'Fitbit & Pixel Watch (Google Health)',
+    name: 'Google Health',
+    displayName: 'Google Health (Fitbit & Pixel Watch)',
     description: 'Direct cloud sync for Fitbit & Google Pixel Watch.',
     icon: Symbols.watch_button_sharp,
     enabled: true,
