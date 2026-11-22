@@ -49,10 +49,10 @@ class CloudProvider {
   static const fitbit = CloudProvider(
     id: 'fitbit',
     name: 'Fitbit',
-    displayName: 'Fitbit',
-    description: 'Direct cloud sync for Fitbit & Pixel Watch.',
+    displayName: 'Fitbit & Pixel Watch (Google Health)',
+    description: 'Direct cloud sync for Fitbit & Google Pixel Watch.',
     icon: Symbols.watch_button_sharp,
-    enabled: false,
+    enabled: true,
   );
 
   static const oura = CloudProvider(
@@ -61,7 +61,7 @@ class CloudProvider {
     displayName: 'Oura Ring',
     description: 'Direct cloud sync for Oura sleep & readiness data.',
     icon: Symbols.ring_volume_sharp,
-    enabled: false,
+    enabled: true,
   );
 
   static const whoop = CloudProvider(
@@ -70,7 +70,7 @@ class CloudProvider {
     displayName: 'Whoop Strap',
     description: 'Direct cloud sync for Whoop recovery & strain.',
     icon: Symbols.vital_signs_sharp,
-    enabled: false,
+    enabled: true,
   );
 
   static const withings = CloudProvider(
@@ -79,7 +79,7 @@ class CloudProvider {
     displayName: 'Withings Health',
     description: 'Direct cloud sync for Withings devices.',
     icon: Symbols.monitor_weight_sharp,
-    enabled: false,
+    enabled: true,
   );
 
   static const polar = CloudProvider(
@@ -88,11 +88,18 @@ class CloudProvider {
     displayName: 'Polar Flow',
     description: 'Direct cloud sync for Polar heart rate & training.',
     icon: Symbols.cardiology_sharp,
-    enabled: false,
+    enabled: true,
   );
 
   /// Active providers currently enabled in the mobile app UI
-  static const List<CloudProvider> activeProviders = [garmin];
+  static const List<CloudProvider> activeProviders = [
+    garmin,
+    polar,
+    fitbit,
+    oura,
+    whoop,
+    withings,
+  ];
 
   /// Catalog of all known cloud providers for seamless future extensions
   static const List<CloudProvider> knownProviders = [

@@ -63,6 +63,113 @@ class Settings:
         )
     )
 
+    # Polar AccesLink OAuth 2.0 & API settings
+    polar_client_id: str = field(default_factory=lambda: os.getenv("POLAR_CLIENT_ID", ""))
+    polar_client_secret: str = field(
+        default_factory=lambda: os.getenv("POLAR_CLIENT_SECRET", "")
+    )
+    polar_auth_url: str = field(
+        default_factory=lambda: os.getenv(
+            "POLAR_AUTH_URL", "https://flow.polar.com/oauth2/authorization"
+        )
+    )
+    polar_token_url: str = field(
+        default_factory=lambda: os.getenv(
+            "POLAR_TOKEN_URL", "https://polarremote.com/v2/oauth2/token"
+        )
+    )
+    polar_api_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "POLAR_API_BASE_URL", "https://www.polaraccesslink.com/v3"
+        )
+    )
+
+    # Google Health (Fitbit, Pixel Watch etc.) OAuth 2.0 PKCE & API settings
+    google_health_client_id: str = field(
+        default_factory=lambda: os.getenv("GOOGLE_HEALTH_CLIENT_ID") or os.getenv("FITBIT_CLIENT_ID", "")
+    )
+    google_health_client_secret: str = field(
+        default_factory=lambda: os.getenv("GOOGLE_HEALTH_CLIENT_SECRET") or os.getenv("FITBIT_CLIENT_SECRET", "")
+    )
+    google_health_auth_url: str = field(
+        default_factory=lambda: os.getenv(
+            "GOOGLE_HEALTH_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth"
+        )
+    )
+    google_health_token_url: str = field(
+        default_factory=lambda: os.getenv(
+            "GOOGLE_HEALTH_TOKEN_URL", "https://oauth2.googleapis.com/token"
+        )
+    )
+    google_health_api_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "GOOGLE_HEALTH_API_BASE_URL", "https://fitness.googleapis.com/fitness/v1"
+        )
+    )
+
+    # Oura Ring OAuth 2.0 PKCE & API settings
+    oura_client_id: str = field(default_factory=lambda: os.getenv("OURA_CLIENT_ID", ""))
+    oura_client_secret: str = field(
+        default_factory=lambda: os.getenv("OURA_CLIENT_SECRET", "")
+    )
+    oura_auth_url: str = field(
+        default_factory=lambda: os.getenv(
+            "OURA_AUTH_URL", "https://cloud.ouraring.com/oauth/authorize"
+        )
+    )
+    oura_token_url: str = field(
+        default_factory=lambda: os.getenv(
+            "OURA_TOKEN_URL", "https://api.ouraring.com/oauth/token"
+        )
+    )
+    oura_api_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "OURA_API_BASE_URL", "https://api.ouraring.com/v2"
+        )
+    )
+
+    # Whoop Developer OAuth 2.0 PKCE & API settings
+    whoop_client_id: str = field(default_factory=lambda: os.getenv("WHOOP_CLIENT_ID", ""))
+    whoop_client_secret: str = field(
+        default_factory=lambda: os.getenv("WHOOP_CLIENT_SECRET", "")
+    )
+    whoop_auth_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WHOOP_AUTH_URL", "https://api.prod.whoop.com/oauth/oauth2/auth"
+        )
+    )
+    whoop_token_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WHOOP_TOKEN_URL", "https://api.prod.whoop.com/oauth/oauth2/token"
+        )
+    )
+    whoop_api_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WHOOP_API_BASE_URL", "https://api.prod.whoop.com/developer/v2"
+        )
+    )
+
+    # Withings Health OAuth 2.0 PKCE & API settings
+    withings_client_id: str = field(default_factory=lambda: os.getenv("WITHINGS_CLIENT_ID", ""))
+    withings_client_secret: str = field(
+        default_factory=lambda: os.getenv("WITHINGS_CLIENT_SECRET", "")
+    )
+    withings_auth_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WITHINGS_AUTH_URL", "https://account.withings.com/oauth2_user/authorize2"
+        )
+    )
+    withings_token_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WITHINGS_TOKEN_URL", "https://wbsapi.withings.net/v2/oauth2"
+        )
+    )
+    withings_api_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WITHINGS_API_BASE_URL", "https://wbsapi.withings.net"
+        )
+    )
+
     @property
     def oauth_redirect_uri(self) -> str:
         override = os.getenv("OAUTH_REDIRECT_URI") or os.getenv("GARMIN_REDIRECT_URI")

@@ -1,9 +1,20 @@
 from typing import Dict, List, Type
 from .base import BaseCloudProvider
 from .garmin import GarminProvider
+from .polar import PolarProvider
+from .google_health import GoogleHealthProvider
+from .oura import OuraProvider
+from .whoop import WhoopProvider
+from .withings import WithingsProvider
 
 _PROVIDERS: Dict[str, Type[BaseCloudProvider]] = {
     "garmin": GarminProvider,
+    "polar": PolarProvider,
+    "google_health": GoogleHealthProvider,
+    "fitbit": GoogleHealthProvider,  # for Fitbit & Pixel Watch
+    "oura": OuraProvider,
+    "whoop": WhoopProvider,
+    "withings": WithingsProvider,
 }
 
 

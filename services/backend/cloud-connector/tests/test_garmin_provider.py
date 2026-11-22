@@ -266,3 +266,88 @@ def test_garmin_pkce_and_webhook_user_linking(monkeypatch, tmp_path):
     assert len(payloads[0].measurements.instantaneous) == 2
     assert len(payloads[0].measurements.cumulative) == 1
     get_settings.cache_clear()
+
+
+def test_garmin_activities_parsing():
+    provider = GarminProvider()
+    data = {
+        "activities": [
+            {
+                "userId": "user-123",
+                "activityId": 987654321,
+                "activityName": "Morning Run",
+                "activityType": "RUNNING",
+                "startTimeInSeconds": 1730200010,
+                "durationInSeconds": 1800,
+                "distanceInMeters": 4500.5,
+                "activeKilocalories": 320,
+                "averageHeartRateInBeatsPerMinute": 148,
+                "maxHeartRateInBeatsPerMinute": 175,
+                "steps": 3800,
+            }
+        ]
+    }
+    payloads = provider.parse_webhook_payload(
+        data=data,
+        resolve_patient_id=lambda uid: "patient-test-abc",
+    )
+    assert len(payloads) == 1
+    p = payloads[0]
+    assert p.participantId == "patient-test-abc"
+    assert len(p.measurements.duration) == 1
+    assert p.measurements.duration[0].type == "EXERCISE_TIME"
+    assert p.measurements.duration[0].value == 30.0
+    assert p.measurements.duration[0].sourceRecordId == "garmin-activity-987654321"
+
+    assert len(p.measurements.cumulative) == 2
+    cum_types = {c.type: c.value for c in p.measurements.cumulative}
+    assert cum_types["DISTANCE_WALKING_RUNNING"] == 4500.5
+    assert cum_types["ACTIVE_ENERGY_BURNED"] == 320.0
+
+    assert len(p.measurements.instantaneous) == 1
+    assert p.measurements.instantaneous[0].type == "HEART_RATE"
+    assert p.measurements.instantaneous[0].value == 148.0
+    assert p.measurements.instantaneous[0].metadata["activityType"] == "RUNNING"
+    assert p.measurements.instantaneous[0].metadata["maxHeartRate"] == 175.0
+
+
+def test_garmin_sleep_scores_parsing():
+    provider = GarminProvider()
+    data = {
+        "sleeps": [
+            {
+                "userId": "user-sleep-1",
+                "startTimeInSeconds": 1730200460,
+                "durationInSeconds": 28800,
+                "deepSleepDurationInSeconds": 7200,
+                "lightSleepDurationInSeconds": 14400,
+                "remSleepInSeconds": 5400,
+                "awakeDurationInSeconds": 1800,
+                "sleepScores": {
+                    "overallScore": 88,
+                    "qualityScore": 92,
+                    "feedback": "POSITIVE_LONG_AND_REFRESHING",
+                    "durationScore": 85,
+                    "recoveryScore": 90,
+                },
+            }
+        ]
+    }
+    payloads = provider.parse_webhook_payload(
+        data=data,
+        resolve_patient_id=lambda uid: "patient-sleep-123",
+    )
+    assert len(payloads) == 1
+    p = payloads[0]
+    assert p.participantId == "patient-sleep-123"
+    assert len(p.measurements.duration) == 5
+    assert len(p.measurements.instantaneous) == 1
+    score = p.measurements.instantaneous[0]
+    assert score.type == "SLEEP_SCORE"
+    assert score.value == 88.0
+    assert score.unit == "SCORE"
+    assert score.metadata["qualifier"] == "POSITIVE_LONG_AND_REFRESHING"
+    assert score.metadata["durationScore"] == 85
+    assert score.metadata["recoveryScore"] == 90
+
+

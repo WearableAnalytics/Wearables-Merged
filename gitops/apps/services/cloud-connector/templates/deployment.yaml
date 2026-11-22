@@ -56,6 +56,66 @@ spec:
                   name: {{ .Values.secrets.secretName }}
                   key: {{ .Values.secrets.garminClientSecretKey }}
                   optional: true
+            - name: POLAR_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.polarClientIdKey }}
+                  optional: true
+            - name: POLAR_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.polarClientSecretKey }}
+                  optional: true
+            - name: GOOGLE_HEALTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.googleHealthClientIdKey }}
+                  optional: true
+            - name: GOOGLE_HEALTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.googleHealthClientSecretKey }}
+                  optional: true
+            - name: OURA_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.ouraClientIdKey }}
+                  optional: true
+            - name: OURA_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.ouraClientSecretKey }}
+                  optional: true
+            - name: WHOOP_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.whoopClientIdKey }}
+                  optional: true
+            - name: WHOOP_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.whoopClientSecretKey }}
+                  optional: true
+            - name: WITHINGS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.withingsClientIdKey }}
+                  optional: true
+            - name: WITHINGS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.withingsClientSecretKey }}
+                  optional: true
           volumeMounts:
             - name: data-volume
               mountPath: /data
