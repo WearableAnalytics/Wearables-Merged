@@ -70,7 +70,7 @@ class CloudProvider {
     displayName: 'Whoop Strap',
     description: 'Direct cloud sync for Whoop recovery & strain.',
     icon: Symbols.vital_signs_sharp,
-    enabled: false,
+    enabled: true,
   );
 
   static const withings = CloudProvider(
@@ -92,7 +92,13 @@ class CloudProvider {
   );
 
   /// Active providers currently enabled in the mobile app UI
-  static const List<CloudProvider> activeProviders = [garmin, polar, fitbit, oura];
+  static const List<CloudProvider> activeProviders = [
+    garmin,
+    polar,
+    fitbit,
+    oura,
+    whoop,
+  ];
 
   /// Catalog of all known cloud providers for seamless future extensions
   static const List<CloudProvider> knownProviders = [

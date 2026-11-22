@@ -4,6 +4,7 @@ from .garmin import GarminProvider
 from .polar import PolarProvider
 from .google_health import GoogleHealthProvider
 from .oura import OuraProvider
+from .whoop import WhoopProvider
 
 _PROVIDERS: Dict[str, Type[BaseCloudProvider]] = {
     "garmin": GarminProvider,
@@ -11,6 +12,7 @@ _PROVIDERS: Dict[str, Type[BaseCloudProvider]] = {
     "google_health": GoogleHealthProvider,
     "fitbit": GoogleHealthProvider,  # for Fitbit & Pixel Watch
     "oura": OuraProvider,
+    "whoop": WhoopProvider,
 }
 
 

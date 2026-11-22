@@ -186,6 +186,8 @@ services:
       GOOGLE_HEALTH_CLIENT_SECRET: ${GOOGLE_HEALTH_CLIENT_SECRET:-${FITBIT_CLIENT_SECRET:-}}
       OURA_CLIENT_ID: ${OURA_CLIENT_ID:-}
       OURA_CLIENT_SECRET: ${OURA_CLIENT_SECRET:-}
+      WHOOP_CLIENT_ID: ${WHOOP_CLIENT_ID:-}
+      WHOOP_CLIENT_SECRET: ${WHOOP_CLIENT_SECRET:-}
       OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI:-http://localhost/cloud/callback}
     volumes:
       - cloud_connector_data:/data

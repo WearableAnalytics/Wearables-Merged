@@ -32,6 +32,8 @@ GOOGLE_HEALTH_CLIENT_ID="${GOOGLE_HEALTH_CLIENT_ID:-${FITBIT_CLIENT_ID:-}}"
 GOOGLE_HEALTH_CLIENT_SECRET="${GOOGLE_HEALTH_CLIENT_SECRET:-${FITBIT_CLIENT_SECRET:-}}"
 OURA_CLIENT_ID="${OURA_CLIENT_ID:-}"
 OURA_CLIENT_SECRET="${OURA_CLIENT_SECRET:-}"
+WHOOP_CLIENT_ID="${WHOOP_CLIENT_ID:-}"
+WHOOP_CLIENT_SECRET="${WHOOP_CLIENT_SECRET:-}"
 
 BREVO_API_KEY="${BREVO_API_KEY:-}"
 SHARED_APP_JWT_SECRET="${SHARED_APP_JWT_SECRET:-}"
@@ -67,6 +69,7 @@ Environment variables:
   POLAR_CLIENT_ID, POLAR_CLIENT_SECRET   (optional; Polar AccessLink OAuth app of cloud-connector)
   GOOGLE_HEALTH_CLIENT_ID, GOOGLE_HEALTH_CLIENT_SECRET (optional; Google Health / Fitbit OAuth app of cloud-connector)
   OURA_CLIENT_ID, OURA_CLIENT_SECRET     (optional; Oura Ring OAuth app of cloud-connector)
+  WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET   (optional; Whoop Developer OAuth app of cloud-connector)
   CLOUD_CONNECTOR_NAMESPACE           (default: cloud-connector)
   CLOUD_CONNECTOR_SECRET_NAME         (default: cloud-connector-secrets)
   EXTRACTION_SERVICE_NAMESPACE        (default: extraction-service)
@@ -342,6 +345,15 @@ if [[ -n "${OURA_CLIENT_ID}" && -n "${OURA_CLIENT_SECRET}" ]]; then
   echo "  - ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (OURA_CLIENT_ID, OURA_CLIENT_SECRET)"
 else
   echo "  - kept/skipped Oura keys in ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (OURA_CLIENT_ID and OURA_CLIENT_SECRET not set)"
+fi
+
+# Whoop Developer is optional in the cloud-connector chart, so missing variables only skip
+if [[ -n "${WHOOP_CLIENT_ID}" && -n "${WHOOP_CLIENT_SECRET}" ]]; then
+  upsert_secret_key "${CLOUD_CONNECTOR_NAMESPACE}" "${CLOUD_CONNECTOR_SECRET_NAME}" "WHOOP_CLIENT_ID" "${WHOOP_CLIENT_ID}"
+  upsert_secret_key "${CLOUD_CONNECTOR_NAMESPACE}" "${CLOUD_CONNECTOR_SECRET_NAME}" "WHOOP_CLIENT_SECRET" "${WHOOP_CLIENT_SECRET}"
+  echo "  - ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET)"
+else
+  echo "  - kept/skipped Whoop keys in ${CLOUD_CONNECTOR_NAMESPACE}/${CLOUD_CONNECTOR_SECRET_NAME} (WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET not set)"
 fi
 
 # operator_token <db-lord key> <BFF key>

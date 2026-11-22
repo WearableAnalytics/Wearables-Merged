@@ -128,6 +128,27 @@ class Settings:
         )
     )
 
+    # Whoop Developer OAuth 2.0 PKCE & API settings
+    whoop_client_id: str = field(default_factory=lambda: os.getenv("WHOOP_CLIENT_ID", ""))
+    whoop_client_secret: str = field(
+        default_factory=lambda: os.getenv("WHOOP_CLIENT_SECRET", "")
+    )
+    whoop_auth_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WHOOP_AUTH_URL", "https://api.prod.whoop.com/oauth/oauth2/auth"
+        )
+    )
+    whoop_token_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WHOOP_TOKEN_URL", "https://api.prod.whoop.com/oauth/oauth2/token"
+        )
+    )
+    whoop_api_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WHOOP_API_BASE_URL", "https://api.prod.whoop.com/developer/v2"
+        )
+    )
+
     @property
     def oauth_redirect_uri(self) -> str:
         override = os.getenv("OAUTH_REDIRECT_URI") or os.getenv("GARMIN_REDIRECT_URI")
