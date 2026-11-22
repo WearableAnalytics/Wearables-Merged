@@ -1,3 +1,4 @@
+from app.config import get_settings
 import pytest
 from app.providers.polar import PolarProvider
 
@@ -14,6 +15,7 @@ async def test_polar_provider_validate_credentials():
 def test_polar_authorization_url_generation(monkeypatch):
     monkeypatch.setenv("POLAR_CLIENT_ID", "pol_client_live_8a7f92b")
     monkeypatch.setenv("POLAR_CLIENT_SECRET", "pol_sec_99182fa34b")
+    get_settings.cache_clear()
 
     provider = PolarProvider()
     url = provider.build_authorization_url(
@@ -66,25 +68,25 @@ async def test_polar_provider_parses_sleep_and_scores():
     # Verify sleep duration (7h 51m 23s = 28283.0 seconds)
     sleep_durations = [m for m in payload.measurements.duration if m.type == "SLEEP"]
     assert len(sleep_durations) == 1
-    assert sleep_durations[0].duration == 28283.0
+    assert sleep_durations[0].durationMinutes == pytest.approx(471.38, abs=0.01)
     assert sleep_durations[0].metadata.get("device_id") == "Polar Vantage V2"
 
     # Verify sleep stages
     light_durations = [m for m in payload.measurements.duration if m.type == "SLEEP_LIGHT"]
     assert len(light_durations) == 1
-    assert light_durations[0].duration == 13860.0
+    assert light_durations[0].durationMinutes == pytest.approx(231.0, abs=0.01)
 
     deep_durations = [m for m in payload.measurements.duration if m.type == "SLEEP_DEEP"]
     assert len(deep_durations) == 1
-    assert deep_durations[0].duration == 4920.0
+    assert deep_durations[0].durationMinutes == pytest.approx(82.0, abs=0.01)
 
     rem_durations = [m for m in payload.measurements.duration if m.type == "SLEEP_REM"]
     assert len(rem_durations) == 1
-    assert rem_durations[0].duration == 6840.0
+    assert rem_durations[0].durationMinutes == pytest.approx(114.0, abs=0.01)
 
     awake_durations = [m for m in payload.measurements.duration if m.type == "SLEEP_AWAKE"]
     assert len(awake_durations) == 1
-    assert awake_durations[0].duration == 2663.0
+    assert awake_durations[0].durationMinutes == pytest.approx(44.38, abs=0.01)
 
     # Verify sleep score
     sleep_scores = [m for m in payload.measurements.instantaneous if m.type == "SLEEP_SCORE"]
@@ -145,7 +147,7 @@ async def test_polar_provider_parses_continuous_hr_and_exercises():
     # Exercise duration (43 min 18 sec)
     exercise_durations = [m for m in payload.measurements.duration if m.type == "EXERCISE_TIME"]
     assert len(exercise_durations) == 1
-    assert exercise_durations[0].duration == 2598.0
+    assert exercise_durations[0].durationMinutes == pytest.approx(43.3, abs=0.01)
     assert exercise_durations[0].metadata.get("sport") == "RUNNING"
     assert exercise_durations[0].metadata.get("exercise_id") == "749102831"
     assert exercise_durations[0].metadata.get("device") == "Polar Pacer Pro"

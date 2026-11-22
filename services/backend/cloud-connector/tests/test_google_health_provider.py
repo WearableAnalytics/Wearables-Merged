@@ -1,3 +1,4 @@
+from app.config import get_settings
 import pytest
 from app.providers.google_health import GoogleHealthProvider
 
@@ -14,6 +15,7 @@ async def test_google_health_provider_validate_credentials():
 def test_google_health_authorization_url_generation(monkeypatch):
     monkeypatch.setenv("GOOGLE_HEALTH_CLIENT_ID", "4820194820-apps.googleusercontent.com")
     monkeypatch.setenv("GOOGLE_HEALTH_CLIENT_SECRET", "GOCSPX-real_secret_key_8492")
+    get_settings.cache_clear()
 
     provider = GoogleHealthProvider()
     url = provider.build_authorization_url(
@@ -69,7 +71,7 @@ async def test_google_health_provider_parses_sleep_and_stages():
     # Sleep total duration
     sleep_durations = [m for m in payload.measurements.duration if m.type == "SLEEP"]
     assert len(sleep_durations) == 1
-    assert sleep_durations[0].duration == 28283.0
+    assert sleep_durations[0].durationMinutes == pytest.approx(471.38, abs=0.01)
 
     # Sleep score
     sleep_scores = [m for m in payload.measurements.instantaneous if m.type == "SLEEP_SCORE"]
@@ -80,19 +82,19 @@ async def test_google_health_provider_parses_sleep_and_stages():
     # Sleep stages
     light = [m for m in payload.measurements.duration if m.type == "SLEEP_LIGHT"]
     assert len(light) == 1
-    assert light[0].duration == 13860.0
+    assert light[0].durationMinutes == pytest.approx(231.0, abs=0.01)
 
     deep = [m for m in payload.measurements.duration if m.type == "SLEEP_DEEP"]
     assert len(deep) == 1
-    assert deep[0].duration == 4920.0
+    assert deep[0].durationMinutes == pytest.approx(82.0, abs=0.01)
 
     rem = [m for m in payload.measurements.duration if m.type == "SLEEP_REM"]
     assert len(rem) == 1
-    assert rem[0].duration == 6840.0
+    assert rem[0].durationMinutes == pytest.approx(114.0, abs=0.01)
 
     awake = [m for m in payload.measurements.duration if m.type == "SLEEP_AWAKE"]
     assert len(awake) == 1
-    assert awake[0].duration == 2663.0
+    assert awake[0].durationMinutes == pytest.approx(44.38, abs=0.01)
 
 
 @pytest.mark.asyncio
@@ -137,7 +139,7 @@ async def test_google_health_provider_parses_heart_rate_and_workouts():
     # Workout duration
     work_dur = [m for m in payload.measurements.duration if m.type == "EXERCISE_TIME"]
     assert len(work_dur) == 1
-    assert work_dur[0].duration == 2598.0
+    assert work_dur[0].durationMinutes == pytest.approx(43.3, abs=0.01)
     assert work_dur[0].metadata.get("sport") == "OUTDOOR CYCLING"
 
     # Workout distance & calories

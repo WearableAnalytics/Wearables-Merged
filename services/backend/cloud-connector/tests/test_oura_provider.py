@@ -1,3 +1,4 @@
+from app.config import get_settings
 import pytest
 from app.providers.oura import OuraProvider
 
@@ -15,6 +16,7 @@ async def test_oura_provider_validate_credentials():
 def test_oura_authorization_url_generation(monkeypatch):
     monkeypatch.setenv("OURA_CLIENT_ID", "oura_client_live_7391")
     monkeypatch.setenv("OURA_CLIENT_SECRET", "oura_sec_8392019a")
+    get_settings.cache_clear()
 
     provider = OuraProvider()
     url = provider.build_authorization_url(
@@ -81,25 +83,25 @@ async def test_oura_provider_parses_sleep_and_readiness():
     # Total sleep duration
     sleeps = [m for m in payload.measurements.duration if m.type == "SLEEP"]
     assert len(sleeps) == 1
-    assert sleeps[0].duration == 25740.0
+    assert sleeps[0].durationMinutes == pytest.approx(429.0, abs=0.01)
     assert sleeps[0].metadata.get("documentId") == "sleep_doc_839102"
 
     # Sleep stages
     deep = [m for m in payload.measurements.duration if m.type == "SLEEP_DEEP"]
     assert len(deep) == 1
-    assert deep[0].duration == 4860.0
+    assert deep[0].durationMinutes == pytest.approx(81.0, abs=0.01)
 
     light = [m for m in payload.measurements.duration if m.type == "SLEEP_LIGHT"]
     assert len(light) == 1
-    assert light[0].duration == 14220.0
+    assert light[0].durationMinutes == pytest.approx(237.0, abs=0.01)
 
     rem = [m for m in payload.measurements.duration if m.type == "SLEEP_REM"]
     assert len(rem) == 1
-    assert rem[0].duration == 6660.0
+    assert rem[0].durationMinutes == pytest.approx(111.0, abs=0.01)
 
     awake = [m for m in payload.measurements.duration if m.type == "SLEEP_AWAKE"]
     assert len(awake) == 1
-    assert awake[0].duration == 2543.0
+    assert awake[0].durationMinutes == pytest.approx(42.38, abs=0.01)
 
     # Sleep Score & Readiness Score
     sleep_score = [m for m in payload.measurements.instantaneous if m.type == "SLEEP_SCORE"]
@@ -174,7 +176,7 @@ async def test_oura_provider_parses_heart_rate_workouts_and_spo2():
     # Workout duration
     work_dur = [m for m in payload.measurements.duration if m.type == "EXERCISE_TIME"]
     assert len(work_dur) == 1
-    assert work_dur[0].duration == 1950.0
+    assert work_dur[0].durationMinutes == pytest.approx(32.5, abs=0.01)
     assert work_dur[0].metadata.get("sport") == "WALKING"
 
     # Workout calories & distance

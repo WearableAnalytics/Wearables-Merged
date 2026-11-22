@@ -490,10 +490,11 @@ class WhoopProvider(BaseCloudProvider):
             dur.append(
                 DurationMeasurement(
                     type="SLEEP",
-                    start=start_dt,
-                    end=end_dt,
-                    duration=total_sec,
-                    unit="s",
+                    value=float(total_sec) / 60.0,
+                    unit="MINUTE",
+                    startTime=start_dt,
+                    endTime=end_dt,
+                    durationMinutes=float(total_sec) / 60.0,
                     metadata=meta,
                 )
             )
@@ -504,10 +505,11 @@ class WhoopProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="SLEEP_DEEP",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=float(deep_ms) / 1000.0,
-                        unit="s",
+                        value=round(float(float(deep_ms) / 1000.0) / 60.0, 2),
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=round(float(float(deep_ms) / 1000.0) / 60.0, 2),
                         metadata=meta,
                     )
                 )
@@ -517,10 +519,11 @@ class WhoopProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="SLEEP_LIGHT",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=float(light_ms) / 1000.0,
-                        unit="s",
+                        value=round(float(float(light_ms) / 1000.0) / 60.0, 2),
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=round(float(float(light_ms) / 1000.0) / 60.0, 2),
                         metadata=meta,
                     )
                 )
@@ -530,10 +533,11 @@ class WhoopProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="SLEEP_REM",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=float(rem_ms) / 1000.0,
-                        unit="s",
+                        value=round(float(float(rem_ms) / 1000.0) / 60.0, 2),
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=round(float(float(rem_ms) / 1000.0) / 60.0, 2),
                         metadata=meta,
                     )
                 )
@@ -543,10 +547,11 @@ class WhoopProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="SLEEP_AWAKE",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=float(awake_ms) / 1000.0,
-                        unit="s",
+                        value=round(float(float(awake_ms) / 1000.0) / 60.0, 2),
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=round(float(float(awake_ms) / 1000.0) / 60.0, 2),
                         metadata=meta,
                     )
                 )
@@ -610,10 +615,11 @@ class WhoopProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="EXERCISE_TIME",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=duration_sec,
-                        unit="s",
+                        value=float(duration_sec) / 60.0,
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=float(duration_sec) / 60.0,
                         metadata=meta,
                     )
                 )
@@ -625,10 +631,11 @@ class WhoopProvider(BaseCloudProvider):
                 cum.append(
                     CumulativeMeasurement(
                         type="ACTIVE_ENERGY_BURNED",
-                        start=start_dt,
-                        end=end_dt,
                         value=round(kcal, 1),
                         unit="kcal",
+                        periodStart=start_dt,
+                        periodEnd=end_dt,
+                        duration=max(0, int((end_dt - start_dt).total_seconds())),
                         metadata=meta,
                     )
                 )
@@ -639,10 +646,11 @@ class WhoopProvider(BaseCloudProvider):
                 cum.append(
                     CumulativeMeasurement(
                         type="DISTANCE_WALKING_RUNNING",
-                        start=start_dt,
-                        end=end_dt,
                         value=float(dist),
                         unit="m",
+                        periodStart=start_dt,
+                        periodEnd=end_dt,
+                        duration=max(0, int((end_dt - start_dt).total_seconds())),
                         metadata=meta,
                     )
                 )

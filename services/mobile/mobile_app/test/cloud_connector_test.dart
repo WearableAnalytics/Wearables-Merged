@@ -327,12 +327,13 @@ class _FakeCloudConnectorService extends CloudConnectorService {
     String deviceId, {
     String provider = 'garmin',
   }) async {
+    final isConnected = serverConnected && provider == 'garmin';
     return CloudConnectionStatus(
-      connected: serverConnected,
+      connected: isConnected,
       provider: provider,
       patientId: patientIdFor(deviceId),
-      providerUserId: serverConnected ? 'garmin-user-99' : null,
-      linkedAt: serverConnected ? DateTime.utc(2026, 11, 6, 10) : null,
+      providerUserId: isConnected ? 'garmin-user-99' : null,
+      linkedAt: isConnected ? DateTime.utc(2026, 11, 6, 10) : null,
     );
   }
 

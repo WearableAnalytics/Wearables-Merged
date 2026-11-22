@@ -321,10 +321,11 @@ class GoogleHealthProvider(BaseCloudProvider):
             dur.append(
                 DurationMeasurement(
                     type="SLEEP",
-                    start=start_dt,
-                    end=end_dt,
-                    duration=duration_sec,
-                    unit="s",
+                    value=float(duration_sec) / 60.0,
+                    unit="MINUTE",
+                    startTime=start_dt,
+                    endTime=end_dt,
+                    durationMinutes=float(duration_sec) / 60.0,
                     metadata=meta,
                 )
             )
@@ -351,10 +352,11 @@ class GoogleHealthProvider(BaseCloudProvider):
                     dur.append(
                         DurationMeasurement(
                             type=stage_map[s_type],
-                            start=start_dt,
-                            end=end_dt,
-                            duration=float(s_duration),
-                            unit="s",
+                            value=round(float(float(s_duration)) / 60.0, 2),
+                            unit="MINUTE",
+                            startTime=start_dt,
+                            endTime=end_dt,
+                            durationMinutes=round(float(float(s_duration)) / 60.0, 2),
                             metadata=meta,
                         )
                     )
@@ -434,10 +436,11 @@ class GoogleHealthProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="EXERCISE_TIME",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=duration_sec,
-                        unit="s",
+                        value=float(duration_sec) / 60.0,
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=float(duration_sec) / 60.0,
                         metadata=meta,
                     )
                 )
@@ -448,10 +451,11 @@ class GoogleHealthProvider(BaseCloudProvider):
                 cum.append(
                     CumulativeMeasurement(
                         type="ACTIVE_ENERGY_BURNED",
-                        start=start_dt,
-                        end=end_dt,
                         value=float(calories),
                         unit="kcal",
+                        periodStart=start_dt,
+                        periodEnd=end_dt,
+                        duration=max(0, int((end_dt - start_dt).total_seconds())),
                         metadata=meta,
                     )
                 )
@@ -462,10 +466,11 @@ class GoogleHealthProvider(BaseCloudProvider):
                 cum.append(
                     CumulativeMeasurement(
                         type="DISTANCE_WALKING_RUNNING",
-                        start=start_dt,
-                        end=end_dt,
                         value=float(distance),
                         unit="m",
+                        periodStart=start_dt,
+                        periodEnd=end_dt,
+                        duration=max(0, int((end_dt - start_dt).total_seconds())),
                         metadata=meta,
                     )
                 )

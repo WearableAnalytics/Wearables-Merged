@@ -426,10 +426,11 @@ class WithingsProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="SLEEP",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=float(total_sleep_sec),
-                        unit="s",
+                        value=round(float(float(total_sleep_sec)) / 60.0, 2),
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=round(float(float(total_sleep_sec)) / 60.0, 2),
                         metadata=meta,
                     )
                 )
@@ -440,10 +441,11 @@ class WithingsProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="SLEEP_DEEP",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=float(deep_sec),
-                        unit="s",
+                        value=round(float(float(deep_sec)) / 60.0, 2),
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=round(float(float(deep_sec)) / 60.0, 2),
                         metadata=meta,
                     )
                 )
@@ -454,10 +456,11 @@ class WithingsProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="SLEEP_LIGHT",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=float(light_sec),
-                        unit="s",
+                        value=round(float(float(light_sec)) / 60.0, 2),
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=round(float(float(light_sec)) / 60.0, 2),
                         metadata=meta,
                     )
                 )
@@ -468,10 +471,11 @@ class WithingsProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="SLEEP_REM",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=float(rem_sec),
-                        unit="s",
+                        value=round(float(float(rem_sec)) / 60.0, 2),
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=round(float(float(rem_sec)) / 60.0, 2),
                         metadata=meta,
                     )
                 )
@@ -482,10 +486,11 @@ class WithingsProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="SLEEP_AWAKE",
-                        start=start_dt,
-                        end=end_dt,
-                        duration=float(wake_sec),
-                        unit="s",
+                        value=round(float(float(wake_sec)) / 60.0, 2),
+                        unit="MINUTE",
+                        startTime=start_dt,
+                        endTime=end_dt,
+                        durationMinutes=round(float(float(wake_sec)) / 60.0, 2),
                         metadata=meta,
                     )
                 )
@@ -549,10 +554,11 @@ class WithingsProvider(BaseCloudProvider):
                 cum.append(
                     CumulativeMeasurement(
                         type="STEP_COUNT",
-                        start=day_start,
-                        end=day_end,
                         value=float(steps),
                         unit="count",
+                        periodStart=day_start,
+                        periodEnd=day_end,
+                        duration=max(0, int((day_end - day_start).total_seconds())),
                         metadata=meta,
                     )
                 )
@@ -563,10 +569,11 @@ class WithingsProvider(BaseCloudProvider):
                 cum.append(
                     CumulativeMeasurement(
                         type="DISTANCE_WALKING_RUNNING",
-                        start=day_start,
-                        end=day_end,
                         value=float(dist),
                         unit="m",
+                        periodStart=day_start,
+                        periodEnd=day_end,
+                        duration=max(0, int((day_end - day_start).total_seconds())),
                         metadata=meta,
                     )
                 )
@@ -577,10 +584,11 @@ class WithingsProvider(BaseCloudProvider):
                 cum.append(
                     CumulativeMeasurement(
                         type="ACTIVE_ENERGY_BURNED",
-                        start=day_start,
-                        end=day_end,
                         value=float(cals),
                         unit="kcal",
+                        periodStart=day_start,
+                        periodEnd=day_end,
+                        duration=max(0, int((day_end - day_start).total_seconds())),
                         metadata=meta,
                     )
                 )
@@ -591,10 +599,11 @@ class WithingsProvider(BaseCloudProvider):
                 dur.append(
                     DurationMeasurement(
                         type="EXERCISE_TIME",
-                        start=day_start,
-                        end=day_end,
-                        duration=float(active_sec),
-                        unit="s",
+                        value=round(float(float(active_sec)) / 60.0, 2),
+                        unit="MINUTE",
+                        startTime=day_start,
+                        endTime=day_end,
+                        durationMinutes=round(float(float(active_sec)) / 60.0, 2),
                         metadata=meta,
                     )
                 )

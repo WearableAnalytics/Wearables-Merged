@@ -35,6 +35,7 @@ class CumulativeMeasurement(SourceRecord):
     periodStart: datetime
     periodEnd: datetime
     duration: int
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class DurationMeasurement(SourceRecord):
@@ -44,6 +45,7 @@ class DurationMeasurement(SourceRecord):
     startTime: datetime
     endTime: datetime
     durationMinutes: float
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class WaveformMeasurement(BaseModel):

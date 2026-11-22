@@ -1,3 +1,4 @@
+from app.config import get_settings
 import pytest
 from datetime import datetime, timezone
 from app.providers.withings import WithingsProvider
@@ -15,6 +16,7 @@ async def test_withings_provider_validate_credentials():
 def test_withings_authorization_url_generation(monkeypatch):
     monkeypatch.setenv("WITHINGS_CLIENT_ID", "withings_client_live_7718")
     monkeypatch.setenv("WITHINGS_CLIENT_SECRET", "withings_sec_49102")
+    get_settings.cache_clear()
 
     provider = WithingsProvider()
     url = provider.build_authorization_url(
@@ -153,24 +155,24 @@ async def test_withings_provider_parses_sleep_and_activity():
     # Total sleep
     sleep = [m for m in payload.measurements.duration if m.type == "SLEEP"]
     assert len(sleep) == 1
-    assert sleep[0].duration == 25200.0
+    assert sleep[0].durationMinutes == pytest.approx(420.0, abs=0.01)
 
     # Sleep stages
     deep = [m for m in payload.measurements.duration if m.type == "SLEEP_DEEP"]
     assert len(deep) == 1
-    assert deep[0].duration == 5400.0
+    assert deep[0].durationMinutes == pytest.approx(90.0, abs=0.01)
 
     light = [m for m in payload.measurements.duration if m.type == "SLEEP_LIGHT"]
     assert len(light) == 1
-    assert light[0].duration == 13800.0
+    assert light[0].durationMinutes == pytest.approx(230.0, abs=0.01)
 
     rem = [m for m in payload.measurements.duration if m.type == "SLEEP_REM"]
     assert len(rem) == 1
-    assert rem[0].duration == 6000.0
+    assert rem[0].durationMinutes == pytest.approx(100.0, abs=0.01)
 
     awake = [m for m in payload.measurements.duration if m.type == "SLEEP_AWAKE"]
     assert len(awake) == 1
-    assert awake[0].duration == 3600.0
+    assert awake[0].durationMinutes == pytest.approx(60.0, abs=0.01)
 
     # Sleep score
     score = [m for m in payload.measurements.instantaneous if m.type == "SLEEP_SCORE"]
@@ -193,4 +195,4 @@ async def test_withings_provider_parses_sleep_and_activity():
 
     ex_time = [m for m in payload.measurements.duration if m.type == "EXERCISE_TIME"]
     assert len(ex_time) == 1
-    assert ex_time[0].duration == 3120.0
+    assert ex_time[0].durationMinutes == pytest.approx(52.0, abs=0.01)

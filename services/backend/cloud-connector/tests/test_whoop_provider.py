@@ -1,3 +1,4 @@
+from app.config import get_settings
 import pytest
 from app.providers.whoop import WhoopProvider
 
@@ -14,6 +15,7 @@ async def test_whoop_provider_validate_credentials():
 def test_whoop_authorization_url_generation(monkeypatch):
     monkeypatch.setenv("WHOOP_CLIENT_ID", "whoop_client_live_49102")
     monkeypatch.setenv("WHOOP_CLIENT_SECRET", "whoop_sec_991823ab")
+    get_settings.cache_clear()
 
     provider = WhoopProvider()
     url = provider.build_authorization_url(
@@ -153,26 +155,26 @@ async def test_whoop_provider_parses_sleep():
     # Total sleep
     sleep = [m for m in payload.measurements.duration if m.type == "SLEEP"]
     assert len(sleep) == 1
-    assert sleep[0].duration == 27865.0
-    assert sleep[0].unit == "s"
+    assert sleep[0].durationMinutes == pytest.approx(464.42, abs=0.01)
+    assert sleep[0].unit == "MINUTE"
     assert sleep[0].metadata.get("id") == "882e8400-e29b-41d4-a716-446655440002"
 
     # Sleep stages
     deep = [m for m in payload.measurements.duration if m.type == "SLEEP_DEEP"]
     assert len(deep) == 1
-    assert deep[0].duration == 5820.0
+    assert deep[0].durationMinutes == pytest.approx(97.0, abs=0.01)
 
     light = [m for m in payload.measurements.duration if m.type == "SLEEP_LIGHT"]
     assert len(light) == 1
-    assert light[0].duration == 13925.0
+    assert light[0].durationMinutes == pytest.approx(232.08, abs=0.01)
 
     rem = [m for m in payload.measurements.duration if m.type == "SLEEP_REM"]
     assert len(rem) == 1
-    assert rem[0].duration == 5780.0
+    assert rem[0].durationMinutes == pytest.approx(96.33, abs=0.01)
 
     awake = [m for m in payload.measurements.duration if m.type == "SLEEP_AWAKE"]
     assert len(awake) == 1
-    assert awake[0].duration == 2340.0
+    assert awake[0].durationMinutes == pytest.approx(39.0, abs=0.01)
 
     # Sleep performance
     scores = [m for m in payload.measurements.instantaneous if m.type == "SLEEP_SCORE"]
@@ -219,7 +221,7 @@ async def test_whoop_provider_parses_workouts():
     # Exercise time
     work_dur = [m for m in payload.measurements.duration if m.type == "EXERCISE_TIME"]
     assert len(work_dur) == 1
-    assert work_dur[0].duration == 3450.0
+    assert work_dur[0].durationMinutes == pytest.approx(57.5, abs=0.01)
     assert work_dur[0].metadata.get("sport") == "RUNNING"
     assert work_dur[0].metadata.get("strain") == "14.82"
 
@@ -252,6 +254,7 @@ def test_whoop_webhook_signature_verification(monkeypatch):
     secret = "whoop_super_secret_test_key_8492"
     monkeypatch.setenv("WHOOP_CLIENT_ID", "whoop_client_99")
     monkeypatch.setenv("WHOOP_CLIENT_SECRET", secret)
+    get_settings.cache_clear()
 
     provider = WhoopProvider()
 
@@ -323,7 +326,7 @@ def test_whoop_v2_webhook_parsing_with_uuid():
     # Workout duration and metadata
     durs = [m for m in p.measurements.duration if m.type == "EXERCISE_TIME"]
     assert len(durs) == 1
-    assert durs[0].duration == 2700.0
+    assert durs[0].durationMinutes == pytest.approx(45.0, abs=0.01)
     assert durs[0].metadata.get("id") == "ecfc6a15-4661-442f-a9a4-f160dd7afae8"
     assert durs[0].metadata.get("sport") == "CYCLING"
     assert durs[0].metadata.get("strain") == "11.2"
