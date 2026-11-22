@@ -4,6 +4,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../app_config.dart';
 import 'polar_recording_page.dart';
+import 'upload_history_page.dart';
 import '../storage_service.dart';
 import '../services/health_sync_service.dart';
 import '../services/sync_activity_notifier.dart';
@@ -324,6 +325,17 @@ class _ConnectedView extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (_) =>
                                 PolarRecordingPage(token: state.deviceId),
+                          ),
+                        ),
+                      ),
+                    if (!state.codeRejected)
+                      TextButton.icon(
+                        icon: const Icon(Icons.receipt_long_outlined),
+                        label: const Text('Upload history'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                UploadHistoryPage(token: state.deviceId),
                           ),
                         ),
                       ),

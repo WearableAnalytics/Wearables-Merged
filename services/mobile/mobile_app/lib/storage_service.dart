@@ -60,10 +60,9 @@ class StorageService {
   ) async {
     final prefs = await SharedPreferences.getInstance();
     final key = _receiptKey(token);
-    final receipts =
-        jsonDecode(prefs.getString(key) ?? '{}') as Map<String, dynamic>;
-    receipts[receipt['acceptanceId'] as String] = receipt;
-    if (!await prefs.setString(key, jsonEncode(receipts))) {
+    final id = receipt['acceptanceId'] as String;
+    final entryKey = '$key/$id';
+    if (!await prefs.setString(entryKey, jsonEncode(receipt))) {
       throw StateError('Unable to persist upload receipt');
     }
   }
@@ -72,11 +71,21 @@ class StorageService {
     String token,
   ) async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final key = _receiptKey(token);
+    // Earlier app versions stored all receipts for the linked credential in one map.
     final receipts =
-        jsonDecode(prefs.getString(_receiptKey(token)) ?? '{}')
-            as Map<String, dynamic>;
+        jsonDecode(prefs.getString(key) ?? '{}') as Map<String, dynamic>;
+    for (final entryKey in prefs.getKeys().where(
+      (k) => k.startsWith('$key/'),
+    )) {
+      final value = prefs.getString(entryKey);
+      if (value != null) {
+        receipts[entryKey.substring(key.length + 1)] = jsonDecode(value);
+      }
+    }
     return receipts.values
-        .map((value) => Map<String, dynamic>.from(value as Map))
+        .map((v) => Map<String, dynamic>.from(v as Map))
         .toList();
   }
 

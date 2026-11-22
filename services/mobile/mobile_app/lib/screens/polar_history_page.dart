@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/cloud_connector_service.dart';
+import '../storage_service.dart';
 
 class PolarHistoryPage extends StatefulWidget {
   const PolarHistoryPage({super.key, required this.token});
@@ -52,6 +53,11 @@ class _PolarHistoryPageState extends State<PolarHistoryPage> {
         .transform(utf8.decoder)
         .join()
         .timeout(const Duration(seconds: 30));
+    if (response.statusCode == 503 && path == 'sessions') {
+      throw const HttpException(
+        'Polar Flow import is unavailable on this study server.',
+      );
+    }
     if (response.statusCode >= 400) {
       throw HttpException('HTTP ${response.statusCode}');
     }
@@ -183,6 +189,16 @@ class _PolarHistoryPageState extends State<PolarHistoryPage> {
                         );
                         final receipts = (result['receipts'] as List)
                             .cast<String>();
+                        for (final detail
+                            in result['receiptDetails'] as List? ?? const []) {
+                          await StorageService.saveUploadReceipt(widget.token, {
+                            ...Map<String, dynamic>.from(detail as Map),
+                            'sourceLabel': 'Polar Flow',
+                            'receivedAt': DateTime.now()
+                                .toUtc()
+                                .toIso8601String(),
+                          });
+                        }
                         message =
                             'Accepted for processing. Receipts: ${receipts.join(", ")}';
                         shared = true;

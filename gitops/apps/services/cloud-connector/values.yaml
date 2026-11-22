@@ -28,6 +28,13 @@ secrets:
   garminClientSecretKey: GARMIN_CLIENT_SECRET
   jwtSecretKey: JWT_SECRET
 
+# Set the exact registered callback and the trusted importer endpoint for this installation.
+polar:
+  enabled: false
+  secretName: cloud-connector-secrets
+  redirectUri: ""
+  ingestUrl: ""
+
 persistence:
   enabled: true
   size: 1Gi

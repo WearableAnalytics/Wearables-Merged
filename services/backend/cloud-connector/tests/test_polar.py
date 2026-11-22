@@ -251,6 +251,8 @@ def test_authorization_preview_and_idempotent_share(monkeypatch):
         receipts = client.post(session + "/share").json()
         assert attempts[0] != attempts[1] == attempts[2]
         assert len(receipts["receipts"]) == len(DOCS)
+        assert [r["acceptanceId"] for r in receipts["receiptDetails"]] == receipts["receipts"]
+        assert all(r["readingCount"] > 0 and len(r["rawSha256"]) == 64 for r in receipts["receiptDetails"])
         assert client.post(session + "/share").json() == receipts
         assert len(delivered) == len(DOCS)
         assert client.delete(session).status_code == 204

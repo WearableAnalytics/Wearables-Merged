@@ -56,6 +56,22 @@ spec:
                   name: {{ .Values.secrets.secretName }}
                   key: {{ .Values.secrets.garminClientSecretKey }}
                   optional: true
+            {{- if .Values.polar.enabled }}
+            - name: POLAR_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.polar.secretName | quote }}
+                  key: POLAR_CLIENT_ID
+            - name: POLAR_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.polar.secretName | quote }}
+                  key: POLAR_CLIENT_SECRET
+            - name: POLAR_REDIRECT_URI
+              value: {{ required "polar.redirectUri is required when enabled" .Values.polar.redirectUri | quote }}
+            - name: POLAR_INGEST_URL
+              value: {{ required "polar.ingestUrl is required when enabled" .Values.polar.ingestUrl | quote }}
+            {{- end }}
           volumeMounts:
             - name: data-volume
               mountPath: /data

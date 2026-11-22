@@ -167,7 +167,7 @@ async def preview(sid: str, claims: CaseClaims):
             detail += f" (Polar HTTP {exc.response.status_code})"
         raise HTTPException(502, detail)
     session.pop("token", None)
-    session.update(phase="ready", work=work, counts=dict(counts), receipts=[])
+    session.update(phase="ready", work=work, counts=dict(counts), receipts=[], receipt_details=[])
     return dict(counts)
 
 
@@ -175,7 +175,7 @@ async def preview(sid: str, claims: CaseClaims):
 async def share(sid: str, claims: CaseClaims, authorization: Annotated[str, Header()]):
     session = lookup(sid, claims)
     if session["phase"] == "done":
-        return {"receipts": session["receipts"]}
+        return {"receipts": session["receipts"], "receiptDetails": session["receipt_details"]}
     if session["phase"] != "ready":
         raise HTTPException(409, "Preview required")
     session["phase"] = "sending"
@@ -204,12 +204,17 @@ async def share(sid: str, claims: CaseClaims, authorization: Annotated[str, Head
                     or receipt.get("readingCount") != count
                 ):
                     raise ValueError("Unconfirmed batch")
-                session["receipts"].append(str(UUID(receipt["acceptanceId"])))
+                acceptance_id = str(UUID(receipt["acceptanceId"]))
+                session["receipts"].append(acceptance_id)
+                session["receipt_details"].append({
+                    "acceptanceId": acceptance_id, "readingCount": count,
+                    "rawSha256": digest, "status": "archived",
+                })
     except (httpx.HTTPError, ValueError, KeyError, TypeError):
         session["phase"] = "ready"
         raise HTTPException(502, "Importer did not confirm this batch. Retry this session.")
     session.update(phase="done", work=[])
-    return {"receipts": session["receipts"]}
+    return {"receipts": session["receipts"], "receiptDetails": session["receipt_details"]}
 
 
 @router.delete("/sessions/{sid}", status_code=204)

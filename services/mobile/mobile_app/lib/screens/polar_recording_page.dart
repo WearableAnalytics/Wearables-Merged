@@ -28,6 +28,12 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
   String message = 'Wear your Polar. On watches, enable heart rate sharing.';
   Completer<void>? stop;
   bool sending = false;
+  bool longerRecording = false;
+  static const uploadLimit = int.fromEnvironment(
+    'INGEST_MAX_READINGS',
+    defaultValue: 1000,
+  );
+  int get sampleLimit => (longerRecording ? 300 : 10).clamp(1, uploadLimit);
   HealthUpload? upload;
   UploadReceipt? lastReceipt;
 
@@ -106,7 +112,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       showMessage(
         devices.isEmpty
             ? 'No Polar found. Check Bluetooth and heart rate sharing, then scan again.'
-            : 'Select your Polar to record up to 10 pulse readings.',
+            : 'Select your Polar to record.',
       );
     } catch (_) {
       showMessage(
@@ -127,6 +133,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
     samples.clear();
     lastReceipt = null;
     showMessage('Connecting to ${device.name}…');
+    Timer? idleTimer;
     StreamSubscription<List<int>>? values;
     StreamSubscription<bool>? connection;
     try {
@@ -150,8 +157,10 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
             final bpm = polarHeartRate(bytes);
             if (bpm == null || done.isCompleted || !mounted) return;
             samples.add((bpm: bpm, time: DateTime.now().toUtc()));
-            showMessage('$bpm bpm · ${samples.length}/10 readings');
-            if (samples.length == 10) finish();
+            idleTimer?.cancel();
+            idleTimer = Timer(const Duration(seconds: 30), finish);
+            showMessage('$bpm bpm · ${samples.length}/$sampleLimit readings');
+            if (samples.length >= sampleLimit) finish();
           });
       showMessage('Waiting for a heart rate measurement…');
       await UniversalBle.subscribeNotifications(
@@ -159,15 +168,14 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
         service,
         characteristic,
       );
-      await Future.any([
-        done.future,
-        Future<void>.delayed(const Duration(seconds: 30)),
-      ]);
+      idleTimer ??= Timer(const Duration(seconds: 30), finish);
+      await done.future;
     } catch (_) {
       showMessage(
         'Connection interrupted. Check that your Polar is sharing heart rate.',
       );
     } finally {
+      idleTimer?.cancel();
       await values?.cancel();
       await connection?.cancel();
       try {
@@ -219,7 +227,11 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
         allowLegacy200: false,
       );
       final receipt = await sender.send(batch, token);
-      await StorageService.saveUploadReceipt(token, receipt.document);
+      await StorageService.saveUploadReceipt(token, {
+        ...receipt.document,
+        'sourceLabel': 'Polar Bluetooth',
+        'receivedAt': DateTime.now().toUtc().toIso8601String(),
+      });
       lastReceipt = receipt;
       upload = null;
       samples.clear();
@@ -247,6 +259,12 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
         endpoint: endpointResolver.endpointFor(token),
       );
       final status = await sender.status(receipt.acceptanceId, token);
+      await StorageService.saveUploadReceipt(token, {
+        ...receipt.document,
+        ...status,
+        'sourceLabel': 'Polar Bluetooth',
+        'checkedAt': DateTime.now().toUtc().toIso8601String(),
+      });
       showMessage(
         'Processing: ${status["processingState"]}. '
         'Storage confirmed for ${status["storedConfirmedCount"] ?? 0} of ${receipt.readingCount} readings.',
@@ -280,6 +298,16 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
               child: const Text('Check storage status'),
             ),
           if (upload == null) ...[
+            SwitchListTile(
+              title: const Text('Longer recording'),
+              subtitle: Text(
+                'Stop at any time. This upload accepts up to $sampleLimit pulse readings.',
+              ),
+              value: longerRecording,
+              onChanged: busy
+                  ? null
+                  : (v) => setState(() => longerRecording = v),
+            ),
             OutlinedButton(
               onPressed: busy ? null : scan,
               child: const Text('Scan for Polar'),
@@ -312,10 +340,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
               child: const Text('Discard recording'),
             ),
           ],
-          if ((const bool.fromEnvironment('POLAR_FLOW_ENABLED') ||
-                  StorageService.cloudEndpoint(widget.token) != null) &&
-              !busy &&
-              upload == null)
+          if (!busy && upload == null)
             OutlinedButton(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:crypto/crypto.dart';
 import 'package:health/health.dart';
 import 'package:charite_wearables/services/health_upload.dart';
 import 'package:charite_wearables/storage_service.dart';
@@ -234,6 +235,37 @@ void main() {
     },
   );
 
+  test(
+    'receipt history preserves legacy entries across concurrent saves and refreshes',
+    () async {
+      final key = 'upload_receipts_${sha256.convert(utf8.encode('old-link'))}';
+      SharedPreferences.setMockInitialValues({
+        key: jsonEncode({
+          'first': {'acceptanceId': 'first', 'readingCount': 10},
+        }),
+      });
+      await Future.wait([
+        StorageService.saveUploadReceipt('old-link', {
+          'acceptanceId': 'first',
+          'readingCount': 10,
+          'storedConfirmedCount': 10,
+        }),
+        StorageService.saveUploadReceipt('old-link', {
+          'acceptanceId': 'second',
+          'readingCount': 2,
+        }),
+      ]);
+      final receipts = await StorageService.getUploadReceipts('old-link');
+      expect(receipts, hasLength(2));
+      expect(
+        receipts.singleWhere(
+          (r) => r['acceptanceId'] == 'first',
+        )['storedConfirmedCount'],
+        10,
+      );
+      expect(await StorageService.getUploadReceipts('different-link'), isEmpty);
+    },
+  );
   test(
     'saves receipts before checkpoint, scoped away from another study',
     () async {

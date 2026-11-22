@@ -152,10 +152,19 @@ export function CasePage() {
   const { isDark } = useTheme();
   const activeCaseRef = useRef(activeCase);
   useMessageToast('error', 'case-error', error);
-  const [toInput, setToInput] = useState<string>(() => toDatetimeLocalValue(new Date()));
-  const [fromInput, setFromInput] = useState<string>(() =>
-    toDatetimeLocalValue(new Date(Date.now() - ONE_DAY_MS)),
-  );
+  const [initialWindow] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const from = params.get('from') ?? '';
+    const to = params.get('to') ?? '';
+    if (/^\d{1,13}$/.test(from) && /^\d{1,13}$/.test(to) && Number(from) < Number(to)) {
+      // The case date controls have minute precision. Include both edges of a shorter recording.
+      return { from: Number(from), to: Math.ceil(Number(to) / ONE_MINUTE_MS) * ONE_MINUTE_MS };
+    }
+    const now = Date.now();
+    return { from: now - ONE_DAY_MS, to: now };
+  });
+  const [toInput, setToInput] = useState(() => toDatetimeLocalValue(new Date(initialWindow.to)));
+  const [fromInput, setFromInput] = useState(() => toDatetimeLocalValue(new Date(initialWindow.from)));
 
   useEffect(() => {
     activeCaseRef.current = activeCase;

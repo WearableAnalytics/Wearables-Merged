@@ -2982,6 +2982,41 @@
       "title": "Recent Workouts",
       "transparent": true,
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB}"
+      },
+      "description": "Individual stored observations for the selected participant, source and time range. Up to 250 recent points per series. Select a series below the table when several are present.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 80
+      },
+      "id": 106,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB}"
+          },
+          "rawQuery": true,
+          "query": "SELECT \"codeCodingDisplayZero\" AS \"Measurement\", \"value\" AS \"Value\", \"valueUnit\" AS \"Unit\", \"source_platform\" AS \"Source\" FROM /.*/ WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ ORDER BY time DESC LIMIT 250",
+          "refId": "A",
+          "resultFormat": "table"
+        }
+      ],
+      "title": "Stored readings",
+      "type": "table"
     }
   ],
   "preload": false,
@@ -3067,5 +3102,5 @@
   "timezone": "browser",
   "title": "Wearables Dashboard Real",
   "uid": "wearables-health-real",
-  "version": 27
+  "version": 28
 }
