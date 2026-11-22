@@ -1508,7 +1508,7 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 34
       },
@@ -1736,8 +1736,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 8,
         "y": 34
       },
       "id": 12,
@@ -1811,6 +1811,52 @@
       ],
       "title": "Daily Exercise Time",
       "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB}"
+      },
+      "description": "Band-reported metabolic equivalents (MET) during each activity interval.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: MET",
+          "custom": {
+            "drawStyle": "points",
+            "showPoints": "always",
+            "pointSize": 5
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
+      "id": 109,
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB}"
+          },
+          "rawQuery": true,
+          "query": "SELECT mean(\"value\") FROM \"polar-activity-met\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Activity Intensity",
       "type": "timeseries"
     },
     {
@@ -3164,7 +3210,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT * FROM /^(workout|workout-elapsed-time)$/ WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\" ORDER BY time DESC LIMIT 20",
+          "query": "SELECT * FROM /^(workout|workout-elapsed-time|polar-workout-energy)$/ WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\" ORDER BY time DESC LIMIT 20",
           "rawQuery": true,
           "refId": "A"
         }

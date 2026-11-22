@@ -146,6 +146,7 @@ def test_rendered_telegraf_keeps_new_and_legacy_patients_visible_in_grafana(tmp_
             dashboard = json.loads(DASHBOARDS[0].read_text())
             for title, measurement, target_index, value, expected in [
                 ("Skin Temperature", "skin-temperature", 0, 32.5, 32.5),
+                ("Activity Intensity", "polar-activity-met", 0, 1.5, 1.5),
                 ("Pulse-to-Pulse Interval", "pulse-to-pulse-interval", 0, 800.0, 800.0),
                 ("Sleep Stages (One Night)", "sleep-rem", 1, 20.0, 3),
                 ("Sleep Stages (One Night)", "sleep-deep", 3, 10.0, 1),
