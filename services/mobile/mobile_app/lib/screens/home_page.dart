@@ -3,11 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../app_config.dart';
-import 'polar_recording_page.dart';
+import 'devices_page.dart';
 import 'upload_history_page.dart';
 import '../storage_service.dart';
 import '../services/health_sync_service.dart';
-import '../services/polar_band_sync.dart';
 import '../services/sync_activity_notifier.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -20,7 +19,8 @@ import '../widgets/sync_mode_dialog.dart';
 /// First tab: welcome flow until a study code is linked, then the
 /// connection status with a manual "share now" action.
 class HomePage extends StatelessWidget {
-  const HomePage({super.key, required this.state});
+  const HomePage({super.key, required this.state, required this.openDevices});
+  final VoidCallback openDevices;
 
   final AppState state;
 
@@ -35,7 +35,7 @@ class HomePage extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
             return state.isLinked
-                ? _ConnectedView(state: state)
+                ? _ConnectedView(state: state, openDevices: openDevices)
                 : _WelcomeView(state: state);
           },
         ),
@@ -182,7 +182,8 @@ class _Steps extends StatelessWidget {
 }
 
 class _ConnectedView extends StatelessWidget {
-  const _ConnectedView({required this.state});
+  const _ConnectedView({required this.state, required this.openDevices});
+  final VoidCallback openDevices;
 
   final AppState state;
 
@@ -319,8 +320,9 @@ class _ConnectedView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (!expired && !rejected)
-                      _PolarDeviceEntry(
+                      PolarDeviceEntry(
                         key: ValueKey(state.deviceId),
+                        openDevices: openDevices,
                         token: state.deviceId,
                       ),
                     if (!state.codeRejected)
@@ -680,76 +682,4 @@ class _InfoTile extends StatelessWidget {
       ),
     );
   }
-}
-
-class _PolarDeviceEntry extends StatefulWidget {
-  const _PolarDeviceEntry({super.key, required this.token});
-  final String token;
-
-  @override
-  State<_PolarDeviceEntry> createState() => _PolarDeviceEntryState();
-}
-
-class _PolarDeviceEntryState extends State<_PolarDeviceEntry> {
-  late Future<PolarSharingState> sharing = PolarBandSync.sharingState(
-    widget.token,
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    PolarBandSync.changes.addListener(reload);
-  }
-
-  void reload() {
-    setState(() {
-      sharing = PolarBandSync.sharingState(widget.token);
-    });
-  }
-
-  @override
-  void dispose() {
-    PolarBandSync.changes.removeListener(reload);
-    super.dispose();
-  }
-
-  Future<void> open() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => PolarRecordingPage(token: widget.token),
-      ),
-    );
-    if (mounted) reload();
-  }
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      OutlinedButton.icon(
-        icon: const Icon(Icons.monitor_heart_outlined),
-        label: const Text('Polar device'),
-        onPressed: open,
-      ),
-      FutureBuilder<PolarSharingState>(
-        future: sharing,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Text(
-              'Polar sharing status unavailable',
-              textAlign: TextAlign.center,
-            );
-          }
-          final state = snapshot.data;
-          if (state == null || state.grant == null) {
-            return const SizedBox.shrink();
-          }
-          return Text(
-            state.paused ? 'Polar auto-sync paused' : 'Polar auto-sync enabled',
-            textAlign: TextAlign.center,
-          );
-        },
-      ),
-    ],
-  );
 }

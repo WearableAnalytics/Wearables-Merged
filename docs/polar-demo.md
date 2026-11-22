@@ -1,17 +1,17 @@
 # Polar 360 study demo
 
-The participant links the Wearables app to a local test case on an iPhone or Android phone. **Polar device** on the linked home screen offers automatic band sync, a manual live capture, and an optional Flow import.
+The participant links the Wearables app to a local test case on an iPhone or Android phone. **Devices → Polar 360** offers automatic band sync, a manual live capture, and an optional Flow import.
 
 | Path | What the participant does | What the study receives |
 | --- | --- | --- |
 | Automatic Bluetooth sync | Scan, choose **Auto sync** on the band, select the metrics and approve the study destination once. | Up to 17 selected measurements from band history, including pulse, temperature, activity, training and sleep. The band retains readings between connections. See the coverage table below for timing. |
-| Manual live Bluetooth capture | Expand **Manual live recording**, choose one sensor (heart rate, skin temperature or pulse interval), scan and tap the band name. Record with the app open, then review and share or discard. | A short session collects ten readings of one metric. A longer session allows up to 300. Heart rate uses the Bluetooth Heart Rate Service. The other two use Polar Measurement Data, subject to the device's advertised capabilities. The phone shows a receipt and checks storage. Unsent readings live only on the recording screen. |
+| Manual live Bluetooth capture | Expand **Manual live recording**, choose one sensor (heart rate, skin temperature or pulse interval), tap **Start live recording** when sharing is enabled, or scan and tap the band name. Record with the app open, then review and share or discard. | A short session collects ten readings of one metric. A longer session allows up to 300. Heart rate uses the Bluetooth Heart Rate Service. The other two use Polar Measurement Data, subject to the device's advertised capabilities. The phone shows a receipt and checks storage. Unsent readings live only on the recording screen. |
 | Polar Flow / AccessLink v4 | Sync the device in Polar Flow. Choose **Import a day from Polar Flow**, the recording date, time zone and categories. Authorize in Polar’s browser page, return to Wearables, preview counts and tap Share. | Supported observations from that Flow account for the selected day, including device identifiers where Polar supplies them. Cloud timing depends on the last device-to-Flow sync. |
 | Phone health store | In Polar Flow, enable Apple Health or Health Connect. Allow the categories wanted in both apps and use the existing Wearables health-store sync. | The intersection of what Flow exports and what the existing platform importer supports. Flow exports workout HR through both bridges. Avoid overlapping recording paths when comparing counts. |
 
 ## Set up a new Polar 360 in Wearables
 
-1. Link Wearables to the intended study. Plug the new band into a powered charger, keep it near the phone, then open **Polar device → Scan for Polar**.
+1. Link Wearables to the intended study. Plug the new band into a powered charger, keep it near the phone, then open **Devices → Polar 360 → Scan for Polar**.
 2. Choose **Auto sync** to set up the band and then review sharing, or **Set up band** for device setup alone. Accept the phone's Bluetooth pairing prompt. An already configured band keeps its settings.
 3. Enter the physical settings Polar uses for activity and sleep. Review the selected band and tap **Save settings to this band**. Wearables sets local and UTC time and writes the Polar user identifier and physical profile. It verifies both files over Bluetooth. The profile is held in memory on the phone while setting up and stays on the band; Wearables does not send it to the study. No Polar account or AccessLink client is used.
 4. Automatic study uploads need a separate grant for the selected metrics and destination. A reset or changed band setup requires a new grant. Old app versions' grants also require one-time confirmation on upgrade.
@@ -52,7 +52,7 @@ Device firmware, Flow configuration, API entitlement and having recorded a quali
 
 ## Physical demonstration
 
-1. Link the app to a synthetic study case. On the home screen open **Polar device**, scan and select the band you are wearing. Choose a metric and verify that readings arrive. Skin temperature uses °C. A pulse interval is the time between two detected pulse beats, in milliseconds.
+1. Link the app to a synthetic study case. Open **Devices → Polar 360 → Manual live recording**, choose a metric, then use **Start live recording** or scan and tap the band name. Verify that readings arrive. Skin temperature uses °C. A pulse interval is the time between two detected pulse beats, in milliseconds.
 2. Review the captured values and destination. Tap **Share** once, record the receipt ID, then use **Check storage status** until the confirmed count equals the number of readings. If acceptance is temporarily unavailable, leave this screen open to retry the same recording.
 3. In the dashboard, open the same participant and recording time. Check that the points fall in the recording window and compare the values and units with the reviewed capture. Record the platform, model, firmware and counts for the demo report.
 4. For history, sync to Flow first. Select a date with known data and start with one category (e.g. sleep after an overnight recording). Compare the preview and stored values with Flow. Additional categories with no observations for that day can validly return zero.
@@ -86,7 +86,7 @@ The initial band setup used Polar Flow. The subsequent Bluetooth measurements re
 
 ### Automatic daily use
 
-The participant opens **Polar device → Scan for Polar → Auto sync**, reviews the band, destination and categories, then enables sharing. **Turn off** stops future uploads. A changed study credential requires fresh opt-in. Users can revisit accepted batches under **Upload history** and refresh the storage status. Polar Flow, AccessLink and the phone health store are independent sources; the direct sync uses only Bluetooth and the enrolled HTTPS endpoint.
+The participant opens **Devices → Polar 360 → Scan for Polar → Auto sync**, reviews the band, destination and categories, then enables sharing. **Turn off** stops future uploads. A changed study credential requires fresh opt-in. Users can revisit accepted batches under **Upload history** and refresh the storage status. Polar Flow, AccessLink and the phone health store are independent sources; the direct sync uses only Bluetooth and the enrolled HTTPS endpoint.
 
 The band records at its own cadence. Wearables reads the 360's stored automatic samples and daily skin-temperature files over read-only Polar file transfer on app launch/resume, every five minutes while the app is active, and when the OS schedules the existing background fetch. The OS controls background opportunities. An unreachable phone or backend delays uploads until a later connection. Force-quitting the app can require reopening it. Catch-up is limited by what the device retains. Sharing never erases data from the band. Configure the band clock to match the phone at enrollment; after a time-zone change the app requests a new opt-in to avoid reinterpreting wall-clock timestamps.
 
@@ -98,7 +98,7 @@ The Flutter suite passed 56 tests, and the Android arm64 debug APK built from th
 
 ### Polar 360 automatic measurement coverage and case demo (2026-11-22)
 
-An enrolled participant can set up a Polar 360 in Wearables over Bluetooth. Under **Polar device → Auto sync**, an existing participant can use **Add measurements** to extend sharing. Each newly enabled category starts at its own consent time. An older grant keeps its original categories and checkpoints. Uploads go to the enrolled study endpoint.
+An enrolled participant can set up a Polar 360 in Wearables over Bluetooth. An existing participant can open **Devices → Polar 360 → Manage measurements** to change the selection. Removing a category excludes it from subsequent automatic syncs. Re-enabling it sets a fresh start time. Each newly enabled category starts at its own consent time. An older grant keeps its original categories and checkpoints. Uploads go to the enrolled study endpoint.
 
 | Band history | Measurements read automatically | When to expect them |
 | --- | --- | --- |
@@ -116,9 +116,13 @@ Local verification covered 72 Flutter tests, 24 Java mapper tests, two dashboard
 
 ### Sharing indicators on the phone
 
-**Linked to your study** on Home confirms enrollment. **Apple Health sharing** (or **Health Connect sharing**) reports the phone health-store setting. Home and **Polar device** read the same current-study grant and sync result when consent changes, sync finishes or the app returns to the foreground. Both show **Polar auto-sync paused** if the destination or band setup changes or the stored result indicates a pause. The grant can remain enabled between Bluetooth connections. **Upload history** reports delivery independently.
+**Linked to your study** on Home confirms enrollment. **Apple Health sharing** (or **Health Connect sharing**) reports the phone health-store setting. Home and **Devices → Polar 360** read the same current-study grant and sync result when consent changes, sync finishes or the app returns to the foreground. Both indicate a pause if the destination or band setup changes or the stored result indicates a pause. The grant can remain enabled between Bluetooth connections. **Upload history** reports delivery independently.
 
 **Manual live recording** selects one live stream per recording. **Auto sync** opens a separate multi-select review for the available band-history metrics. The Flutter regression test checks the combination of paused phone sharing and enabled Polar sync, revoking the Polar grant and returning Home, and expanding the three live recording options.
 
 
 While **Upload history** is open, a new local receipt updates the list. The page checks one pending receipt on opening or resuming and rotates through pending receipts every 15 seconds in the foreground. The refresh button checks a specific upload immediately. Backend checks require the current valid enrollment. Checked storage progress remains available offline and survives a replay of the same acceptance.
+
+Before the first setup, **Connect wearable** on Home opens **Devices**. After setup, the compact **Polar 360** row opens the band directly. Home and Devices show the last successful automatic band read when one has been recorded. **Upload history** shows which batches the backend accepted and confirmed in storage. **Manual live recording** remains available alongside automatic sharing.
+
+The Devices navigation was exercised on a physical iPhone with a linked study and no active Polar grant, from Home through sensor selection and back. The Flutter tests also cover an existing grant, pause and disable states, reopening measurement selection, consent times when a category is re-enabled, and the last successful sync display.

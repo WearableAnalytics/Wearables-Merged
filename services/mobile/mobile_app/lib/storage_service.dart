@@ -9,6 +9,7 @@ import 'services/health_upload.dart';
 
 // Storage utility functions
 class StorageService {
+  static const polarBandSetupKey = 'polar_band_setup';
   static const polarBandConsentKey = 'polar_band_consent';
   static const String _deviceIdKey = 'device_id';
   static const String _lastDataSendKey = 'last_data_send_time';
@@ -135,6 +136,7 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getString(_deviceIdKey) != deviceId) {
       await SharedPreferencesAsync().remove(polarBandConsentKey);
+      await SharedPreferencesAsync().remove(polarBandSetupKey);
     }
     await prefs.setString(_deviceIdKey, deviceId);
     await prefs.remove(_rejectedCodeKey);

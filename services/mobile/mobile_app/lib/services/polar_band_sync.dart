@@ -165,7 +165,13 @@ Iterable<HealthUpload> bandUploads(
   }
 }
 
-typedef PolarSharingState = ({String? grant, String? detail, bool paused});
+typedef PolarSharingState = ({
+  String? grant,
+  String? detail,
+  bool paused,
+  bool configured,
+  DateTime? lastRead,
+});
 
 class PolarBandSync {
   // Invalidation only. The grant and last sync result remain in the durable store.
@@ -192,6 +198,19 @@ class PolarBandSync {
     }
     return value;
   }
+
+  static Future<void> rememberSetup(String token, String device) async {
+    if (!await StorageService.currentStudyMatches(token)) return;
+    final band = jsonEncode({
+      'owner': _digest(token),
+      'device': _digest(device),
+    });
+    await _prefs.setString(StorageService.polarBandSetupKey, band);
+    _changes.value++;
+  }
+
+  static String _readKey(String token, String deviceHash) =>
+      'polar_last_read_${_digest(token)}/$deviceHash';
 
   static Future<void> enable(
     String token,
@@ -222,12 +241,13 @@ class PolarBandSync {
     unawaited(run());
   }
 
-  static Future<void> addMetrics(
+  static Future<void> setMetrics(
     String token,
     String original,
-    Set<PolarMetric> additions,
+    Set<PolarMetric> selected,
   ) => duringSetup(() async {
-    if (await grant(token) != original ||
+    if (selected.isEmpty ||
+        await grant(token) != original ||
         !await StorageService.currentStudyMatches(token)) {
       throw StateError('Study or sharing settings changed');
     }
@@ -235,12 +255,12 @@ class PolarBandSync {
     final existing = List<String>.from(cfg['metrics']);
     final starts = Map<String, dynamic>.from(cfg['metricStarts'] ?? {});
     final now = DateTime.now().toUtc().toIso8601String();
-    for (final m in additions) {
+    for (final m in selected) {
       if (existing.contains(m.name)) continue;
-      existing.add(m.name);
+
       starts[m.name] = now;
     }
-    cfg['metrics'] = existing;
+    cfg['metrics'] = selected.map((m) => m.name).toList();
     cfg['metricStarts'] = starts;
     await _prefs.setString(grantKey, jsonEncode(cfg));
     _changes.value++;
@@ -249,6 +269,8 @@ class PolarBandSync {
   static Future<void> disable(String token) async {
     final cfg = await grant(token);
     if (cfg == null) return;
+    final device = jsonDecode(cfg)['device'] as String?;
+    if (device != null) await rememberSetup(token, device);
     await _prefs.remove(grantKey);
     _changes.value++;
     if (_activeGrant == cfg) _client?.close(force: true);
@@ -258,11 +280,38 @@ class PolarBandSync {
 
   static Future<PolarSharingState> sharingState(String token) async {
     final saved = await grant(token);
-    if (saved == null) return (grant: null, detail: null, paused: false);
-    final cfg = jsonDecode(saved);
+    final cfg = saved == null ? null : jsonDecode(saved) as Map;
+    final storedSetup = await _prefs.getString(
+      StorageService.polarBandSetupKey,
+    );
+    final setup = storedSetup == null ? null : jsonDecode(storedSetup) as Map;
+    final remembered = setup?['owner'] == _digest(token);
+    final device = cfg?['device'] as String?;
+    final deviceHash = device != null
+        ? _digest(device)
+        : remembered
+        ? setup!['device'] as String
+        : null;
+    final timestamp = deviceHash == null
+        ? null
+        : await _prefs.getString(_readKey(token, deviceHash));
+    final lastRead = timestamp == null
+        ? null
+        : DateTime.tryParse(timestamp)?.toLocal();
+    if (cfg == null) {
+      return (
+        grant: null,
+        detail: null,
+        paused: false,
+        configured: remembered,
+        lastRead: lastRead,
+      );
+    }
     if (!await StorageService.currentStudyMatches(token)) {
       return (
         grant: saved,
+        configured: true,
+        lastRead: lastRead,
         detail: 'Study link unavailable. Review the study code.',
         paused: true,
       );
@@ -271,6 +320,8 @@ class PolarBandSync {
     if (endpoint.scheme != 'https' || cfg['endpoint'] != endpoint.toString()) {
       return (
         grant: saved,
+        configured: true,
+        lastRead: lastRead,
         detail:
             'Study destination changed. Review sharing for the current destination.',
         paused: true,
@@ -281,6 +332,8 @@ class PolarBandSync {
       final result = jsonDecode(stored) as Map;
       return (
         grant: saved,
+        configured: true,
+        lastRead: lastRead,
         detail: result['detail'] as String,
         paused: result['paused'] == true,
       );
@@ -288,6 +341,8 @@ class PolarBandSync {
     // Previous builds persisted the display message alone.
     return (
       grant: saved,
+      configured: true,
+      lastRead: lastRead,
       detail: stored,
       paused: stored == _zonePause || stored == _setupPause,
     );
@@ -607,9 +662,16 @@ class PolarBandSync {
         }
       }
       await authorized();
+      final completed = DateTime.now();
+      if (unreadable == 0) {
+        await _prefs.setString(
+          _readKey(token, _digest(device)),
+          completed.toUtc().toIso8601String(),
+        );
+      }
       await _recordStatus(
         id,
-        'Last sync ${DateTime.now().toLocal().toString().split(".").first} · $accepted readings accepted on this pass.'
+        'Last sync ${completed.toLocal().toString().split(".").first} · $accepted readings accepted on this pass.'
         "${unreadable == 0 ? '' : ' $unreadable band file(s) could not be decoded and will be retried.'}",
       );
     } on UnsupportedError {

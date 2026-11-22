@@ -5,6 +5,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:charite_wearables/storage_service.dart';
 import 'package:charite_wearables/services/polar_band_sync.dart';
+import 'package:charite_wearables/services/polar_recording.dart';
 import 'package:charite_wearables/screens/upload_history_page.dart';
 
 import 'package:flutter/material.dart';
@@ -133,21 +134,45 @@ void main() {
     }));
     await SharedPreferencesAsync().setString(StorageService.polarBandConsentKey, jsonEncode({
       'owner': sha256.convert(utf8.encode(_studyCode)).toString(),
-      'id': 'test-grant', 'endpoint': HealthSyncService().endpointFor(_studyCode).toString(), 'metrics': ['heartRate'],
+      'id': 'test-grant', 'device': 'test-device', 'endpoint': HealthSyncService().endpointFor(_studyCode).toString(), 'metrics': ['heartRate'],
     }));
     await _pump(tester, state!);
-    expect(find.text('Polar auto-sync enabled'), findsOneWidget);
+    expect(find.textContaining('Auto-sync enabled'), findsOneWidget);
     expect(find.text('Health Connect sharing'), findsOneWidget);
     expect(find.text('Paused'), findsOneWidget);
+    Future<Map> changeMetrics(Set<PolarMetric> selected) async {
+      final current = (await PolarBandSync.grant(_studyCode))!;
+      await PolarBandSync.setMetrics(_studyCode, current, selected);
+      return jsonDecode((await PolarBandSync.grant(_studyCode))!) as Map;
+    }
+
+    final both = await changeMetrics({PolarMetric.heartRate, PolarMetric.steps});
+    final stepsStart = both['metricStarts']['steps'];
+    expect(stepsStart, isA<String>());
+    final stepsOnly = await changeMetrics({PolarMetric.steps});
+    expect(stepsOnly['metrics'], ['steps']);
+    final restored = await changeMetrics({PolarMetric.heartRate, PolarMetric.steps});
+    expect(restored['metricStarts']['steps'], stepsStart);
+    expect(restored['metricStarts']['heartRate'], isA<String>());
+
+    final deviceHash = sha256.convert(utf8.encode('test-device'));
+    final owner = sha256.convert(utf8.encode(_studyCode));
+    await SharedPreferencesAsync().setString('polar_last_read_$owner/$deviceHash','2026-11-22T08:15:00Z');
     await SharedPreferencesAsync().setString('polar_status_test-grant',
         jsonEncode({'detail': 'Band setup changed', 'paused': true}));
     PolarBandSync.startForeground();
     addTearDown(PolarBandSync.stopForeground);
     await tester.pumpAndSettle();
-    expect(find.text('Polar auto-sync paused'), findsOneWidget);
-    await tester.tap(find.text('Polar device'));
+    expect(find.textContaining('Auto-sync paused · Last successful sync'), findsOneWidget);
+    await tester.tap(find.text('Polar 360'));
     await tester.pumpAndSettle();
     expect(find.text('Band setup changed'), findsOneWidget);
+    await tester.tap(find.text('Manage measurements'));
+    await tester.pumpAndSettle();
+    expect(find.text('Automatic measurements'), findsOneWidget);
+    expect(find.text('Save selection'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
     expect(find.text('Automatic Polar sharing is on'), findsNothing);
     await tester.tap(find.text('Turn off'));
     await tester.pumpAndSettle();
@@ -160,7 +185,27 @@ void main() {
     expect(find.text('Pulse interval'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.text('Polar auto-sync enabled'), findsNothing);
+    expect(find.textContaining('Auto-sync off · Last successful sync'), findsOneWidget);
+  });
+
+  testWidgets('first connection starts in Devices and returns to the device list', (tester) async {
+    final previous = SharedPreferencesAsyncPlatform.instance;
+    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
+    addTearDown(() => SharedPreferencesAsyncPlatform.instance = previous);
+    const freshStudy = 'eyJhbGciOiJIUzI1NiJ9.eyJjYXNlSWQiOiJuZXcifQ.c2lnbmF0dXJlLXNhbXBsZQ';
+    final state = await tester.runAsync(() => _state({'device_id': freshStudy}));
+    await _pump(tester, state!);
+    await tester.tap(find.text('Connect wearable'));
+    await tester.pumpAndSettle();
+    expect(find.text('Set up via Bluetooth'), findsOneWidget);
+    await tester.tap(find.text('Polar 360'));
+    await tester.pumpAndSettle();
+    expect(find.text('Scan for Polar'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Phone and cloud sources'));
+    await tester.pumpAndSettle();
+    expect(find.text('More settings'), findsOneWidget);
   });
 
   testWidgets('open history follows new local receipts and keeps checked progress on replay', (tester) async {

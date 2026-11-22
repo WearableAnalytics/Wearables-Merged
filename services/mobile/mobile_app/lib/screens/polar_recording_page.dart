@@ -40,6 +40,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
   bool grantLoaded = false;
   String? bandStatus;
   bool bandPaused = false;
+  bool showRecordingStatus = false;
   int _readGeneration = 0;
   Future<void> loadSharing() async {
     final generation = ++_readGeneration;
@@ -85,6 +86,8 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       final state = await connected(setup.inspect);
       if (!mounted) return;
       if (state == PolarSetupState.configured) {
+        await PolarBandSync.rememberSetup(widget.token, device.deviceId);
+        if (!mounted) return;
         showMessage(
           'This band is already set up. Choose Auto sync to review study sharing.',
         );
@@ -109,6 +112,8 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       final written = await connected(
         () => setup.configure(profile, DateTime.now()),
       );
+      await PolarBandSync.rememberSetup(widget.token, device.deviceId);
+      if (!mounted) return;
       showMessage(
         written
             ? 'Band setup complete. Choose Auto sync to review study sharing.'
@@ -218,23 +223,22 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
 
   Future<void> addSharing(String original) async {
     final current = List<String>.from(jsonDecode(original)['metrics']);
-    final options = PolarMetric.values
-        .where((m) => !current.contains(m.name))
-        .toList();
-    final selected = options.toSet();
+    final selected = PolarMetric.values
+        .where((m) => current.contains(m.name))
+        .toSet();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, update) => AlertDialog(
-          title: const Text('Add automatic measurements'),
+          title: const Text('Automatic measurements'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Share selected measurements from now with ${endpointResolver.endpointFor(widget.token).host}. Daily totals need a complete day of sharing.',
+                  'Newly selected measurements will be shared from now with ${endpointResolver.endpointFor(widget.token).host}. Daily totals need a complete day of sharing.',
                 ),
-                for (final m in options)
+                for (final m in PolarMetric.values)
                   CheckboxListTile(
                     title: Text(m.label),
                     value: selected.contains(m),
@@ -258,7 +262,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
               onPressed: selected.isEmpty
                   ? null
                   : () => Navigator.pop(ctx, true),
-              child: const Text('Add selected measurements'),
+              child: const Text('Save selection'),
             ),
           ],
         ),
@@ -266,7 +270,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
     );
     if (ok != true || !mounted) return;
     try {
-      await PolarBandSync.addMetrics(widget.token, original, selected);
+      await PolarBandSync.setMetrics(widget.token, original, selected);
       unawaited(PolarBandSync.run());
       await loadSharing();
     } catch (_) {
@@ -375,6 +379,31 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       } catch (_) {}
       stop = null;
       if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> recordSavedBand(String grant) async {
+    setState(() {
+      settingUp = true;
+      showRecordingStatus = true;
+    });
+    try {
+      await PolarBandSync.duringSetup(() async {
+        if (!mounted || await PolarBandSync.grant(widget.token) != grant) {
+          return;
+        }
+        if (!mounted) return;
+        await record(
+          BleDevice(
+            deviceId: jsonDecode(grant)['device'] as String,
+            name: 'Polar 360',
+          ),
+        );
+      });
+    } on StateError {
+      showMessage('Wait for the current band operation and try again.');
+    } finally {
+      if (mounted) setState(() => settingUp = false);
     }
   }
 
@@ -593,11 +622,15 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
   Widget build(BuildContext context) {
     final busy = stop != null || sending || settingUp;
     return Scaffold(
-      appBar: AppBar(title: const Text('Polar device')),
+      appBar: AppBar(title: const Text('Polar 360')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          if (bandGrant == null)
+          if (bandGrant == null ||
+              showRecordingStatus ||
+              stop != null ||
+              upload != null ||
+              lastReceipt != null)
             Text(
               message,
               semanticsLabel: message,
@@ -612,49 +645,48 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
               ),
               subtitle: Text(bandStatus ?? 'Waiting for the first band sync.'),
               trailing: TextButton(
-                onPressed: () async {
-                  await PolarBandSync.disable(widget.token);
-                  await loadSharing();
-                },
+                onPressed: busy
+                    ? null
+                    : () async {
+                        await PolarBandSync.disable(widget.token);
+                        await loadSharing();
+                      },
                 child: const Text('Turn off'),
               ),
             ),
-          if (bandGrant != null &&
-              PolarMetric.values.any(
-                (m) => !(jsonDecode(bandGrant!)['metrics'] as List).contains(
-                  m.name,
-                ),
-              ))
+          if (bandGrant != null)
             OutlinedButton(
               onPressed: busy ? null : () => addSharing(bandGrant!),
-              child: const Text('Add measurements'),
+              child: const Text('Manage measurements'),
             ),
           if (lastReceipt != null)
             TextButton(
               onPressed: busy ? null : checkStorage,
               child: const Text('Check storage status'),
             ),
-          if (upload == null && bandGrant == null && grantLoaded) ...[
-            OutlinedButton(
-              onPressed: busy ? null : scan,
-              child: const Text('Scan for Polar'),
-            ),
-            for (final device in devices.values)
-              ListTile(
-                title: Text(device.name!),
-                subtitle: TextButton(
-                  onPressed: busy ? null : () => setupBand(device),
-                  child: const Text('Set up band'),
-                ),
-                enabled: !busy,
-                onTap: busy ? null : () => record(device),
-                trailing: TextButton(
-                  onPressed: busy
-                      ? null
-                      : () => setupBand(device, shareAfter: true),
-                  child: const Text('Auto sync'),
-                ),
+          if (upload == null && grantLoaded) ...[
+            if (bandGrant == null) ...[
+              OutlinedButton(
+                onPressed: busy ? null : scan,
+                child: const Text('Scan for Polar'),
               ),
+              for (final device in devices.values)
+                ListTile(
+                  title: Text(device.name!),
+                  subtitle: TextButton(
+                    onPressed: busy ? null : () => setupBand(device),
+                    child: const Text('Set up band'),
+                  ),
+                  enabled: !busy,
+                  onTap: busy ? null : () => record(device),
+                  trailing: TextButton(
+                    onPressed: busy
+                        ? null
+                        : () => setupBand(device, shareAfter: true),
+                    child: const Text('Auto sync'),
+                  ),
+                ),
+            ],
             ExpansionTile(
               title: const Text('Manual live recording'),
               subtitle: const Text('Choose one sensor for this recording.'),
@@ -682,6 +714,11 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
                       ? null
                       : (v) => setState(() => longerRecording = v),
                 ),
+                if (bandGrant != null && !bandPaused)
+                  OutlinedButton(
+                    onPressed: busy ? null : () => recordSavedBand(bandGrant!),
+                    child: const Text('Start live recording'),
+                  ),
               ],
             ),
             if (stop != null)

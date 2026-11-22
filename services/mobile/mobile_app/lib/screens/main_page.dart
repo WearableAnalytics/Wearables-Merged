@@ -5,10 +5,11 @@ import '../data_view_page.dart';
 import '../services/notification_service.dart';
 import '../state/app_state.dart';
 import 'home_page.dart';
+import 'devices_page.dart';
 import 'study_page.dart';
 
 /// Root screen. Shows only the welcome flow until a study code is linked,
-/// then a tab bar with Home, My data and Study.
+/// then a tab bar with Home, My data, Devices and Account.
 class MainPage extends StatefulWidget {
   const MainPage({super.key, this.state});
 
@@ -71,8 +72,19 @@ class _MainPageState extends State<MainPage> {
           body: IndexedStack(
             index: isWelcome ? 0 : _tab,
             children: [
-              HomePage(state: _state),
+              HomePage(
+                state: _state,
+                openDevices: () => setState(() => _tab = 2),
+              ),
               const DataViewPage(),
+              if (_state.isLinked)
+                DevicesPage(
+                  token: _state.deviceId,
+                  available: !_state.isCodeUnusable,
+                  openAccount: () => setState(() => _tab = 3),
+                )
+              else
+                const SizedBox.shrink(),
               StudyPage(state: _state),
             ],
           ),
@@ -95,6 +107,10 @@ class _MainPageState extends State<MainPage> {
                       NavigationDestination(
                         icon: Icon(Symbols.insights_sharp),
                         label: 'My data',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.watch_outlined),
+                        label: 'Devices',
                       ),
                       NavigationDestination(
                         icon: Icon(Symbols.badge_sharp),
