@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -53,6 +54,10 @@ class StorageService {
   static String _receiptKey(String token) =>
       'upload_receipts_${sha256.convert(utf8.encode(token))}';
 
+  static final _receiptUpdates = StreamController<String>.broadcast();
+  static Stream<void> receiptChanges(String token) =>
+      _receiptUpdates.stream.where((key) => key == _receiptKey(token)).map((_) {});
+
   /// Receipts contain progress metadata only, never request bodies or tokens.
   /// Retained by linked credential, so a different study cannot see them.
   static Future<void> saveUploadReceipt(
@@ -62,28 +67,45 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     final key = _receiptKey(token);
     final id = receipt['acceptanceId'] as String;
-    final entryKey = '$key/$id';
+    // A retried acceptance and a storage-status check may arrive on different
+    // isolates. Separate keys prevent a replay from overwriting checked progress.
+    final slot = receipt['checkedAt'] == null ? 'accepted' : 'checked';
+    final entryKey = '$key/$slot/$id';
     if (!await prefs.setString(entryKey, jsonEncode(receipt))) {
       throw StateError('Unable to persist upload receipt');
     }
+    _receiptUpdates.add(key);
   }
 
   static Future<List<Map<String, dynamic>>> getUploadReceipts(
-    String token,
+    String token, {bool currentEnrollmentOnly = false}
   ) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
+    if (currentEnrollmentOnly && prefs.getString(_deviceIdKey) != token) return [];
     final key = _receiptKey(token);
     // Earlier app versions stored all receipts for the linked credential in one map.
     final receipts =
         jsonDecode(prefs.getString(key) ?? '{}') as Map<String, dynamic>;
-    for (final entryKey in prefs.getKeys().where(
-      (k) => k.startsWith('$key/'),
-    )) {
+    void merge(String entryKey) {
       final value = prefs.getString(entryKey);
-      if (value != null) {
-        receipts[entryKey.substring(key.length + 1)] = jsonDecode(value);
+      if (value == null) return;
+      final row = jsonDecode(value) as Map<String, dynamic>;
+      final id = row['acceptanceId'] as String;
+      final old = receipts[id] as Map?;
+      if (old == null) {
+        receipts[id] = row;
+        return;
       }
+      final oldCount = old['storedConfirmedCount'] as int? ?? 0;
+      final newCount = row['storedConfirmedCount'] as int? ?? 0;
+      final keepOld = oldCount > newCount ||
+          (oldCount == newCount && old['checkedAt'] != null &&
+           (row['checkedAt'] == null || old['checkedAt'].toString().compareTo(row['checkedAt'].toString()) > 0));
+      receipts[id] = keepOld ? {...row, ...old} : {...old, ...row};
+    }
+    for (final entryKey in prefs.getKeys().where((k) => k.startsWith('$key/'))) {
+      merge(entryKey);
     }
     return receipts.values
         .map((v) => Map<String, dynamic>.from(v as Map))

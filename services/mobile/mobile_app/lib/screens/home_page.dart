@@ -691,10 +691,27 @@ class _PolarDeviceEntry extends StatefulWidget {
 }
 
 class _PolarDeviceEntryState extends State<_PolarDeviceEntry> {
-  late Future<bool> sharing = readSharing();
+  late Future<PolarSharingState> sharing = PolarBandSync.sharingState(
+    widget.token,
+  );
 
-  Future<bool> readSharing() async =>
-      await PolarBandSync.grant(widget.token) != null;
+  @override
+  void initState() {
+    super.initState();
+    PolarBandSync.changes.addListener(reload);
+  }
+
+  void reload() {
+    setState(() {
+      sharing = PolarBandSync.sharingState(widget.token);
+    });
+  }
+
+  @override
+  void dispose() {
+    PolarBandSync.changes.removeListener(reload);
+    super.dispose();
+  }
 
   Future<void> open() async {
     await Navigator.of(context).push<void>(
@@ -702,12 +719,7 @@ class _PolarDeviceEntryState extends State<_PolarDeviceEntry> {
         builder: (_) => PolarRecordingPage(token: widget.token),
       ),
     );
-    if (mounted) {
-      final updated = readSharing();
-      setState(() {
-        sharing = updated;
-      });
-    }
+    if (mounted) reload();
   }
 
   @override
@@ -719,11 +731,24 @@ class _PolarDeviceEntryState extends State<_PolarDeviceEntry> {
         label: const Text('Polar device'),
         onPressed: open,
       ),
-      FutureBuilder<bool>(
+      FutureBuilder<PolarSharingState>(
         future: sharing,
-        builder: (context, snapshot) => snapshot.data == true
-            ? const Text('Polar auto-sync enabled', textAlign: TextAlign.center)
-            : const SizedBox.shrink(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Text(
+              'Polar sharing status unavailable',
+              textAlign: TextAlign.center,
+            );
+          }
+          final state = snapshot.data;
+          if (state == null || state.grant == null) {
+            return const SizedBox.shrink();
+          }
+          return Text(
+            state.paused ? 'Polar auto-sync paused' : 'Polar auto-sync enabled',
+            textAlign: TextAlign.center,
+          );
+        },
       ),
     ],
   );

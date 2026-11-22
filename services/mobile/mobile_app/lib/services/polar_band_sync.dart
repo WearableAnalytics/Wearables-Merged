@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -164,7 +165,17 @@ Iterable<HealthUpload> bandUploads(
   }
 }
 
+typedef PolarSharingState = ({String? grant, String? detail, bool paused});
+
 class PolarBandSync {
+  // Invalidation only. The grant and last sync result remain in the durable store.
+  static final _changes = ValueNotifier<int>(0);
+  static ValueListenable<int> get changes => _changes;
+  static const _zonePause =
+      'Time zone changed. Check the band clock, then turn sharing off and on to resume.';
+  static const _setupPause =
+      'Band setup has changed or needs confirmation. Turn sharing off, then choose Auto sync to grant access again.';
+
   static const grantKey = StorageService.polarBandConsentKey;
   static final _prefs = SharedPreferencesAsync();
   static Future<void>? _active;
@@ -207,6 +218,7 @@ class PolarBandSync {
       'endpoint': destination.toString(),
     });
     await _prefs.setString(grantKey, cfg);
+    _changes.value++;
     unawaited(run());
   }
 
@@ -231,22 +243,68 @@ class PolarBandSync {
     cfg['metrics'] = existing;
     cfg['metricStarts'] = starts;
     await _prefs.setString(grantKey, jsonEncode(cfg));
+    _changes.value++;
   });
 
   static Future<void> disable(String token) async {
     final cfg = await grant(token);
     if (cfg == null) return;
     await _prefs.remove(grantKey);
+    _changes.value++;
     if (_activeGrant == cfg) _client?.close(force: true);
     _timer?.cancel();
     _timer = null;
   }
 
-  static Future<String?> status(String cfg) =>
-      _prefs.getString('polar_status_${jsonDecode(cfg)['id']}');
+  static Future<PolarSharingState> sharingState(String token) async {
+    final saved = await grant(token);
+    if (saved == null) return (grant: null, detail: null, paused: false);
+    final cfg = jsonDecode(saved);
+    if (!await StorageService.currentStudyMatches(token)) {
+      return (
+        grant: saved,
+        detail: 'Study link unavailable. Review the study code.',
+        paused: true,
+      );
+    }
+    final endpoint = HealthSyncService().endpointFor(token);
+    if (endpoint.scheme != 'https' || cfg['endpoint'] != endpoint.toString()) {
+      return (
+        grant: saved,
+        detail:
+            'Study destination changed. Review sharing for the current destination.',
+        paused: true,
+      );
+    }
+    final stored = await _prefs.getString('polar_status_${cfg['id']}');
+    if (stored != null && stored.startsWith('{')) {
+      final result = jsonDecode(stored) as Map;
+      return (
+        grant: saved,
+        detail: result['detail'] as String,
+        paused: result['paused'] == true,
+      );
+    }
+    // Previous builds persisted the display message alone.
+    return (
+      grant: saved,
+      detail: stored,
+      paused: stored == _zonePause || stored == _setupPause,
+    );
+  }
+
+  static Future<void> _recordStatus(
+    String id,
+    String detail, {
+    bool paused = false,
+  }) => _prefs.setString(
+    'polar_status_$id',
+    jsonEncode({'detail': detail, 'paused': paused}),
+  );
 
   static void startForeground() {
     _foreground = true;
+    _changes.value++;
   }
 
   static void _schedule() {
@@ -278,7 +336,10 @@ class PolarBandSync {
 
   static Future<void> run() => _settingUp
       ? Future.value()
-      : _active ??= _run().whenComplete(() => _active = null);
+      : _active ??= _run().whenComplete(() {
+          _active = null;
+          _changes.value++;
+        });
 
   static Future<void> _run() async {
     final raw = await _prefs.getString(grantKey);
@@ -418,20 +479,14 @@ class PolarBandSync {
       if (zone != (originalZone ?? zone) ||
           await _prefs.getBool('polar_zone_paused_$id') == true) {
         await _prefs.setBool('polar_zone_paused_$id', true);
-        await _prefs.setString(
-          'polar_status_$id',
-          'Time zone changed. Check the band clock, then turn sharing off and on to resume.',
-        );
+        await _recordStatus(id, _zonePause, paused: true);
         return;
       }
       connectionAttempted = true;
       await files.open();
       final expected = cfg['setupIdentity'];
       if (expected == null || expected != await PolarSetup(files).identity()) {
-        await _prefs.setString(
-          'polar_status_$id',
-          'Band setup has changed or needs confirmation. Turn sharing off, then choose Auto sync to grant access again.',
-        );
+        await _recordStatus(id, _setupPause, paused: true);
         return;
       }
       if (wanted.contains(PolarMetric.heartRate) ||
@@ -552,15 +607,16 @@ class PolarBandSync {
         }
       }
       await authorized();
-      await _prefs.setString(
-        'polar_status_$id',
+      await _recordStatus(
+        id,
         'Last sync ${DateTime.now().toLocal().toString().split(".").first} · $accepted readings accepted on this pass.'
-            "${unreadable == 0 ? '' : ' $unreadable band file(s) could not be decoded and will be retried.'}",
+        "${unreadable == 0 ? '' : ' $unreadable band file(s) could not be decoded and will be retried.'}",
       );
     } on UnsupportedError {
-      await _prefs.setString(
-        'polar_status_$id',
+      await _recordStatus(
+        id,
         'This device does not expose Polar band history.',
+        paused: true,
       );
     } on UploadHttpException catch (error) {
       final delay = error.retryAfter;
@@ -570,15 +626,13 @@ class PolarBandSync {
           DateTime.now().add(delay).millisecondsSinceEpoch,
         );
       }
-      await _prefs.setString(
-        'polar_status_$id',
+      await _recordStatus(
+        id,
         'Study server returned ${error.statusCode}. Unconfirmed files remain on the band.',
+        paused: error.statusCode == 401 || error.statusCode == 403,
       );
     } catch (_) {
-      await _prefs.setString(
-        'polar_status_$id',
-        '$stage was interrupted. Wearables will retry.',
-      );
+      await _recordStatus(id, '$stage was interrupted. Wearables will retry.');
     } finally {
       client.close(force: true);
       _client = null;

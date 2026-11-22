@@ -116,6 +116,9 @@ Local verification covered 72 Flutter tests, 24 Java mapper tests, two dashboard
 
 ### Sharing indicators on the phone
 
-**Linked to your study** on Home confirms enrollment. **Apple Health sharing** (or **Health Connect sharing**) reports the phone health-store setting. A separate **Polar auto-sync enabled** label reports the saved Polar grant for the current study and refreshes on returning from the device screen. The grant can remain enabled between Bluetooth connections. **Upload history** reports delivery independently.
+**Linked to your study** on Home confirms enrollment. **Apple Health sharing** (or **Health Connect sharing**) reports the phone health-store setting. Home and **Polar device** read the same current-study grant and sync result when consent changes, sync finishes or the app returns to the foreground. Both show **Polar auto-sync paused** if the destination or band setup changes or the stored result indicates a pause. The grant can remain enabled between Bluetooth connections. **Upload history** reports delivery independently.
 
 **Manual live recording** selects one live stream per recording. **Auto sync** opens a separate multi-select review for the available band-history metrics. The Flutter regression test checks the combination of paused phone sharing and enabled Polar sync, revoking the Polar grant and returning Home, and expanding the three live recording options.
+
+
+While **Upload history** is open, a new local receipt updates the list. The page checks one pending receipt on opening or resuming and rotates through pending receipts every 15 seconds in the foreground. The refresh button checks a specific upload immediately. Backend checks require the current valid enrollment. Checked storage progress remains available offline and survives a replay of the same acceptance.

@@ -39,15 +39,25 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
   String? bandGrant;
   bool grantLoaded = false;
   String? bandStatus;
-  Timer? statusTimer;
+  bool bandPaused = false;
+  int _readGeneration = 0;
   Future<void> loadSharing() async {
-    final granted = await PolarBandSync.grant(widget.token);
-    final status = granted == null ? null : await PolarBandSync.status(granted);
-    if (mounted) {
+    final generation = ++_readGeneration;
+    try {
+      final current = await PolarBandSync.sharingState(widget.token);
+      if (!mounted || generation != _readGeneration) return;
       setState(() {
-        bandGrant = granted;
-        bandStatus = status;
+        bandGrant = current.grant;
+        bandStatus = current.detail;
+        bandPaused = current.paused;
         grantLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted || generation != _readGeneration) return;
+      setState(() {
+        bandGrant = null;
+        grantLoaded = false;
+        message = 'Polar sharing status unavailable.';
       });
     }
   }
@@ -279,10 +289,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(loadSharing());
-    statusTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => loadSharing(),
-    );
+    PolarBandSync.changes.addListener(loadSharing);
   }
 
   void finish() {
@@ -297,7 +304,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
 
   @override
   void dispose() {
-    statusTimer?.cancel();
+    PolarBandSync.changes.removeListener(loadSharing);
     WidgetsBinding.instance.removeObserver(this);
     finish();
     super.dispose();
@@ -547,6 +554,10 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
     setState(() => sending = true);
     final client = HttpClient();
     try {
+      if (!await StorageService.currentStudyMatches(token)) {
+        showMessage('Study link unavailable. Return to the study home.');
+        return;
+      }
       final sender = HealthUploader(
         client: client,
         endpoint: endpointResolver.endpointFor(token),
@@ -594,7 +605,11 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
             ),
           if (bandGrant != null)
             ListTile(
-              title: const Text('Automatic Polar sharing is on'),
+              title: Text(
+                bandPaused
+                    ? 'Polar auto-sync paused'
+                    : 'Automatic Polar sharing is on',
+              ),
               subtitle: Text(bandStatus ?? 'Waiting for the first band sync.'),
               trailing: TextButton(
                 onPressed: () async {

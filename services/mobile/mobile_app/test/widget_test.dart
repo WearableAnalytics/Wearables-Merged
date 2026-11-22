@@ -4,6 +4,8 @@ import 'package:crypto/crypto.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:charite_wearables/storage_service.dart';
+import 'package:charite_wearables/services/polar_band_sync.dart';
+import 'package:charite_wearables/screens/upload_history_page.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -131,14 +133,22 @@ void main() {
     }));
     await SharedPreferencesAsync().setString(StorageService.polarBandConsentKey, jsonEncode({
       'owner': sha256.convert(utf8.encode(_studyCode)).toString(),
-      'id': 'test-grant', 'metrics': ['heartRate'],
+      'id': 'test-grant', 'endpoint': HealthSyncService().endpointFor(_studyCode).toString(), 'metrics': ['heartRate'],
     }));
     await _pump(tester, state!);
     expect(find.text('Polar auto-sync enabled'), findsOneWidget);
     expect(find.text('Health Connect sharing'), findsOneWidget);
     expect(find.text('Paused'), findsOneWidget);
+    await SharedPreferencesAsync().setString('polar_status_test-grant',
+        jsonEncode({'detail': 'Band setup changed', 'paused': true}));
+    PolarBandSync.startForeground();
+    addTearDown(PolarBandSync.stopForeground);
+    await tester.pumpAndSettle();
+    expect(find.text('Polar auto-sync paused'), findsOneWidget);
     await tester.tap(find.text('Polar device'));
     await tester.pumpAndSettle();
+    expect(find.text('Band setup changed'), findsOneWidget);
+    expect(find.text('Automatic Polar sharing is on'), findsNothing);
     await tester.tap(find.text('Turn off'));
     await tester.pumpAndSettle();
     expect(find.text('Manual live recording'), findsOneWidget);
@@ -151,6 +161,26 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('Polar auto-sync enabled'), findsNothing);
+  });
+
+  testWidgets('open history follows new local receipts and keeps checked progress on replay', (tester) async {
+    SharedPreferences.setMockInitialValues({'device_id': _studyCode});
+    await tester.pumpWidget(const MaterialApp(home: UploadHistoryPage(token: _studyCode)));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No uploads'), findsOneWidget);
+    final receipt = {'acceptanceId':'fixture', 'readingCount': 5, 'storedConfirmedCount': 0};
+    await StorageService.saveUploadReceipt(_studyCode, receipt);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Storage confirmed: 0 of 5'), findsOneWidget);
+    await StorageService.saveUploadReceipt(_studyCode, {...receipt,'checkedAt':'2026-11-22T20:00:00Z', 'storedConfirmedCount':5});
+    await StorageService.saveUploadReceipt(_studyCode, receipt);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Storage confirmed: 5 of 5'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('linked shows connected status and tabs', (tester) async {
