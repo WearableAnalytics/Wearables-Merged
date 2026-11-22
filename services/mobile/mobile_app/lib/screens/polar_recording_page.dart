@@ -69,7 +69,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
         });
     try {
       showMessage(
-        'Checking the band. Keep it on its charger near the phone and accept pairing if prompted.',
+        'Checking the band. Keep it beside this phone. If iOS or Android asks to pair with your Polar, confirm the request.',
       );
       final state = await connected(setup.inspect);
       if (!mounted) return;
@@ -112,7 +112,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       final code = int.tryParse(error.details.toString());
       if (code == 5 || code == 15) {
         final detail =
-            'This phone and the band could not establish an encrypted Bluetooth connection (ATT $code). Keep the band on its charger and close to this phone. Accept the system pairing request if it appears. If the band was reset, remove its old Bluetooth pairing before retrying.';
+            'The band was found, but its setup connection could not be secured (Bluetooth ATT $code). Keep the band beside this phone. If you reset it, check Settings → Bluetooth for a previous Polar pairing and forget that entry if present. Then return to Wearables and choose Set up band again.';
         showMessage(detail);
         if (mounted) {
           await showDialog<void>(

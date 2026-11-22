@@ -113,6 +113,51 @@ class PolarSetupProfile {
   }
 }
 
+// The 360 serializes its ownership timestamp to whole seconds. Older app
+// versions may still have a pending marker containing fractional seconds.
+bool _matchesStoredUser(List<int> expected, List<int>? stored) {
+  if (stored == null) return false;
+  final wanted = polarMessage(expected), actual = polarMessage(stored);
+  if (wanted == actual) return true;
+  final expectedStamp = wanted.getField(100)?.lengthDelimited.singleOrNull;
+  final actualStamp = actual.getField(100)?.lengthDelimited.singleOrNull;
+  if (expectedStamp == null || actualStamp == null) return false;
+  wanted.clearField(100);
+  actual.clearField(100);
+  if (wanted != actual) return false;
+
+  final expectedClock = polarMessage(expectedStamp);
+  final actualClock = polarMessage(actualStamp);
+  final expectedTime = expectedClock.getField(2)?.lengthDelimited.singleOrNull;
+  final actualTime = actualClock.getField(2)?.lengthDelimited.singleOrNull;
+  if (expectedTime == null || actualTime == null) return false;
+  expectedClock.clearField(2);
+  actualClock.clearField(2);
+  if (expectedClock != actualClock) return false;
+
+  final time = polarMessage(expectedTime),
+      storedTime = polarMessage(actualTime);
+  if (!storedTime.hasField(4)) time.clearField(4);
+  return time == storedTime;
+}
+
+// Firmware adds derived fields and updates its own metadata. Verify every
+// participant-entered value, including its protobuf wire type, on readback.
+bool _matchesStoredProfile(List<int> expected, List<int>? stored) {
+  if (stored == null) return false;
+  final actual = polarMessage(stored);
+  for (final entry in polarMessage(expected).asMap().entries) {
+    if (entry.key == 100) continue; // File modification timestamp.
+    final field = actual.getField(entry.key)?.lengthDelimited.singleOrNull;
+    if (field == null ||
+        polarMessage(field).getField(1) !=
+            polarMessage(entry.value.lengthDelimited.single).getField(1)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 enum PolarSetupState { fresh, interrupted, configured }
 
 class PolarSetup {
@@ -146,8 +191,27 @@ class PolarSetup {
     if (user == null) return PolarSetupState.fresh;
     final id = polarMessage(user);
     if (!id.hasField(1)) {
-      if (id.asMap().isNotEmpty) {
+      if (id.asMap().isEmpty) return PolarSetupState.fresh;
+      // Polar permits a last-modified timestamp before the first user is set.
+      // Only this documented metadata may accompany an absent master identifier.
+      final stamp = id.getField(100)?.lengthDelimited.singleOrNull;
+      if (stamp == null ||
+          !const ListEquality<int>().equals(
+            user,
+            _message((w) => w.bytes(100, stamp)),
+          )) {
         throw const FormatException('Unrecognised device setup state');
+      }
+      final clock = polarMessage(stamp);
+      for (final tag in [1, 2]) {
+        final part = clock.getField(tag)?.lengthDelimited.singleOrNull;
+        if (part == null) {
+          throw const FormatException('Invalid device timestamp');
+        }
+        final fields = polarMessage(part);
+        if ([1, 2, 3].any((i) => fields.getField(i)?.varints.length != 1)) {
+          throw const FormatException('Invalid device timestamp');
+        }
       }
       return PolarSetupState.fresh;
     }
@@ -156,7 +220,8 @@ class PolarSetup {
     }
     // Resume only our own interrupted setup, identified by its complete marker
     // (including timestamp). A previously configured band is never reconfigured.
-    return await _prefs.getString(_key) == base64Encode(user)
+    final pending = await _prefs.getString(_key);
+    return pending != null && _matchesStoredUser(base64Decode(pending), user)
         ? PolarSetupState.interrupted
         : PolarSetupState.configured;
   }
@@ -205,14 +270,8 @@ class PolarSetup {
         await files.putSetupFile(userPath, marker);
       }
       await files.putSetupFile(profilePath, phys);
-      if (!const ListEquality<int>().equals(
-            await files.read(userPath),
-            marker,
-          ) ||
-          !const ListEquality<int>().equals(
-            await files.read(profilePath),
-            phys,
-          )) {
+      if (!_matchesStoredUser(marker, await files.read(userPath)) ||
+          !_matchesStoredProfile(phys, await files.read(profilePath))) {
         throw StateError('Band did not confirm the setup values');
       }
       await files.setupNotification(1, [8, 1]);

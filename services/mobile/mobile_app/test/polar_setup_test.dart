@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:protobuf/protobuf.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:charite_wearables/screens/polar_setup_page.dart';
@@ -13,6 +14,7 @@ final class Band extends PolarFiles {
   final stored = <String, Uint8List>{};
   final events = <String>[];
   bool failProfile = false;
+  Uint8List Function(String, Uint8List)? serialize;
   @override
   Future<Uint8List?> read(String path) async => stored[path];
   @override
@@ -29,7 +31,8 @@ final class Band extends PolarFiles {
     if (path == PolarSetup.profilePath && failProfile) {
       throw StateError('disconnected');
     }
-    stored[path] = Uint8List.fromList(contents);
+    final bytes = Uint8List.fromList(contents);
+    stored[path] = serialize?.call(path, bytes) ?? bytes;
   }
 }
 
@@ -127,6 +130,73 @@ void main() {
       band.events.clear();
       expect(await setup.inspect(), PolarSetupState.configured);
       expect(band.events, isEmpty);
+    },
+  );
+  test(
+    'factory metadata without a master identifier allows first-time setup',
+    () async {
+      final stamp = polarSetupClock(time, system: true);
+      band.stored[PolarSetup.userPath] = Uint8List.fromList([
+        0xa2,
+        0x06,
+        stamp.length,
+        ...stamp,
+      ]);
+      expect(await setup.inspect(), PolarSetupState.fresh);
+      expect(await setup.identity(), isNull);
+      expect(await setup.configure(profile, time), isTrue);
+      expect(await setup.inspect(), PolarSetupState.configured);
+    },
+  );
+  test('malformed factory timestamp prevents writing', () async {
+    band.stored[PolarSetup.userPath] = Uint8List.fromList([0xa2, 0x06, 0]);
+    await expectLater(setup.configure(profile, time), throwsFormatException);
+    expect(band.events, isEmpty);
+  });
+  test(
+    'firmware may omit marker milliseconds and add profile fields on readback',
+    () async {
+      Uint8List encode(UnknownFieldSet fields) {
+        final writer = CodedBufferWriter();
+        fields.writeToCodedBufferWriter(writer);
+        return writer.toBuffer();
+      }
+
+      band.serialize = (path, bytes) {
+        if (path == PolarSetup.profilePath) {
+          return Uint8List.fromList([...bytes, 0x42, 0]);
+        }
+        final user = polarMessage(bytes);
+        final clock = polarMessage(user.getField(100)!.lengthDelimited.single);
+        final t = polarMessage(clock.getField(2)!.lengthDelimited.single)
+          ..clearField(4);
+        clock
+          ..clearField(2)
+          ..mergeLengthDelimitedField(2, encode(t));
+        user
+          ..clearField(100)
+          ..mergeLengthDelimitedField(100, encode(clock));
+        return encode(user);
+      };
+      band.failProfile = true;
+      await expectLater(setup.configure(profile, time), throwsStateError);
+      expect(await setup.inspect(), PolarSetupState.interrupted);
+      band.failProfile = false;
+      expect(await setup.configure(profile, time), isTrue);
+      expect(await setup.inspect(), PolarSetupState.configured);
+    },
+  );
+  test(
+    'readback rejects a missing participant-entered profile value',
+    () async {
+      band.serialize = (path, bytes) {
+        if (path != PolarSetup.profilePath) return bytes;
+        final writer = CodedBufferWriter();
+        (polarMessage(bytes)..clearField(6)).writeToCodedBufferWriter(writer);
+        return writer.toBuffer();
+      };
+      await expectLater(setup.configure(profile, time), throwsStateError);
+      expect(band.events, isNot(contains('notify:1:[8, 1]')));
     },
   );
   test('ambiguous identifier does not allow a write', () async {

@@ -19,7 +19,11 @@ class PolarFiles {
 
   Future<void> open({bool setupSession = false}) async {
     await UniversalBle.connect(device, timeout: const Duration(seconds: 9));
-    final services = await UniversalBle.discoverServices(device);
+    final timeout = setupSession ? const Duration(seconds: 15) : null;
+    final services = await UniversalBle.discoverServices(
+      device,
+      timeout: timeout,
+    );
     final chars = services
         .where((s) => s.uuid == service)
         .expand((s) => s.characteristics);
@@ -34,13 +38,30 @@ class PolarFiles {
     // Apple pairing an encrypted ATT operation may fail while the OS sheet is
     // still waiting for confirmation. Keep the same connection alive for it.
     Future<void> subscribe(BleCharacteristic c) async {
-      final wait = Stopwatch()..start();
+      // CoreBluetooth handles the bonding prompt. Repeated subscriptions can
+      // start new pairing negotiations while the user is still responding.
+      const retryDelays = [
+        Duration(seconds: 3),
+        Duration(seconds: 9),
+        Duration(seconds: 18),
+      ];
+      var retries = 0;
       while (true) {
         try {
           if (c.properties.contains(CharacteristicProperty.indicate)) {
-            await UniversalBle.subscribeIndications(device, service, c.uuid);
+            await UniversalBle.subscribeIndications(
+              device,
+              service,
+              c.uuid,
+              timeout: timeout,
+            );
           } else {
-            await UniversalBle.subscribeNotifications(device, service, c.uuid);
+            await UniversalBle.subscribeNotifications(
+              device,
+              service,
+              c.uuid,
+              timeout: timeout,
+            );
           }
           return;
         } on UniversalBleException catch (e) {
@@ -48,10 +69,10 @@ class PolarFiles {
           if (!setupSession ||
               !Platform.isIOS ||
               ![5, 15].contains(attCode) ||
-              wait.elapsed >= const Duration(seconds: 35)) {
+              retries >= retryDelays.length) {
             rethrow;
           }
-          await Future<void>.delayed(const Duration(seconds: 1));
+          await Future<void>.delayed(retryDelays[retries++]);
         }
       }
     }
