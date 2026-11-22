@@ -65,8 +65,14 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
     void found(BleDevice device) {
       if (!mounted ||
           done.isCompleted ||
-          !(device.name ?? '').toLowerCase().startsWith('polar')) {
+          !isPolarAdvertisement(
+            device.name,
+            device.manufacturerDataList.map((m) => m.companyId),
+          )) {
         return;
+      }
+      if ((device.name ?? '').isEmpty) {
+        device.name = devices[device.deviceId]?.name ?? 'Polar sensor';
       }
       setState(() => devices[device.deviceId] = device);
     }
@@ -91,9 +97,8 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
         found(device);
       }
       if (done.isCompleted) return;
-      await UniversalBle.startScan(
-        scanFilter: ScanFilter(withNamePrefix: ['Polar']),
-      );
+      // A Polar sensor can advertise its company ID without a local name.
+      await UniversalBle.startScan();
       await Future.any([
         done.future,
         Future<void>.delayed(const Duration(seconds: 8)),

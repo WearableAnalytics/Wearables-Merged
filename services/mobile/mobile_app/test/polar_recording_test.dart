@@ -6,6 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('recognizes the Polar company ID when the device omits its name', () {
+    expect(isPolarAdvertisement(null, [0x006b]), isTrue);
+    expect(isPolarAdvertisement('Polar 360', []), isTrue);
+    expect(isPolarAdvertisement(null, [0x004c]), isFalse);
+    expect(isPolarAdvertisement('Other sensor', []), isFalse);
+  });
   testWidgets('history requires a category and authorization before sharing', (
     tester,
   ) async {

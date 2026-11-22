@@ -1,5 +1,9 @@
 import 'health_upload.dart';
 
+bool isPolarAdvertisement(String? name, Iterable<int> companyIds) =>
+    (name ?? '').trimLeft().toLowerCase().startsWith('polar') ||
+    companyIds.contains(0x006b);
+
 /// Bluetooth SIG Heart Rate Measurement (0x2A37). Ignore packets with lost
 /// sensor contact, invalid trailing fields, or no measured rate.
 int? polarHeartRate(List<int> bytes) {
