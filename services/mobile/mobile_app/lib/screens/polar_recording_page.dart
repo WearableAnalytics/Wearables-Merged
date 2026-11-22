@@ -6,6 +6,9 @@ import 'package:universal_ble/universal_ble.dart';
 
 import '../app_config.dart';
 import 'polar_history_page.dart';
+import 'polar_setup_page.dart';
+import '../services/polar_files.dart';
+import '../services/polar_setup.dart';
 import '../services/health_sync_service.dart';
 import '../services/health_upload.dart';
 import '../services/polar_recording.dart';
@@ -28,7 +31,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
   final samples = <PolarSample>[];
   final endpointResolver = HealthSyncService();
   String message =
-      'Scan for your band. Choose Auto sync for daily use or tap the device for a live recording.';
+      'Scan for your band. For a new Polar 360 choose Set up band. Choose Auto sync for daily use or tap the device for live recording.';
   Completer<void>? stop;
   bool sending = false;
   bool longerRecording = false;
@@ -48,7 +51,103 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
     }
   }
 
-  Future<void> chooseAutomatic(BleDevice device) async {
+  bool settingUp = false;
+  Future<void> setupBand(BleDevice device, {bool shareAfter = false}) async {
+    setState(() => settingUp = true);
+    final files = PolarFiles(device.deviceId);
+    final setup = PolarSetup(files);
+    Future<T> connected<T>(Future<T> Function() task) =>
+        PolarBandSync.duringSetup(() async {
+          try {
+            await files.open(setupSession: true);
+            return await task();
+          } finally {
+            try {
+              await files.close();
+            } catch (_) {}
+          }
+        });
+    try {
+      showMessage(
+        'Checking the band. Keep it on its charger near the phone and accept pairing if prompted.',
+      );
+      final state = await connected(setup.inspect);
+      if (!mounted) return;
+      if (state == PolarSetupState.configured) {
+        showMessage(
+          'This band is already set up. Choose Auto sync to review study sharing.',
+        );
+        if (shareAfter) {
+          final identity = await connected(setup.identity);
+          if (identity == null) throw StateError('Band setup changed');
+          if (mounted) await chooseAutomatic(device, identity);
+        }
+        return;
+      }
+      final profile = await Navigator.push<PolarSetupProfile>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PolarSetupPage(band: device.name ?? 'Polar 360'),
+        ),
+      );
+      if (profile == null || !mounted) {
+        showMessage('Setup cancelled.');
+        return;
+      }
+      showMessage('Saving settings to your Polar 360…');
+      final written = await connected(
+        () => setup.configure(profile, DateTime.now()),
+      );
+      showMessage(
+        written
+            ? 'Band setup complete. Choose Auto sync to review study sharing.'
+            : 'This band is already set up. Choose Auto sync to review study sharing.',
+      );
+      if (shareAfter && mounted) {
+        final identity = await connected(setup.identity);
+        if (identity == null) throw StateError('Band setup changed');
+        if (mounted) await chooseAutomatic(device, identity);
+      }
+    } on UniversalBleException catch (error) {
+      final code = int.tryParse(error.details.toString());
+      if (code == 5 || code == 15) {
+        final detail =
+            'This phone and the band could not establish an encrypted Bluetooth connection (ATT $code). Keep the band on its charger and close to this phone. Accept the system pairing request if it appears. If the band was reset, remove its old Bluetooth pairing before retrying.';
+        showMessage(detail);
+        if (mounted) {
+          await showDialog<void>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Bluetooth pairing incomplete'),
+              content: Text(detail),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        showMessage(
+          'Bluetooth setup was interrupted. Keep the band near the phone and retry Set up band.',
+        );
+      }
+    } on UnsupportedError {
+      showMessage(
+        'Setup requires an identifiable Polar 360 with Bluetooth file transfer.',
+      );
+    } catch (_) {
+      showMessage(
+        'Could not confirm setup. Keep the band charged near the phone, accept Bluetooth pairing, and retry Set up band.',
+      );
+    } finally {
+      if (mounted) setState(() => settingUp = false);
+    }
+  }
+
+  Future<void> chooseAutomatic(BleDevice device, String identity) async {
     final selected = PolarMetric.values.toSet();
     final allowed = await showDialog<bool>(
       context: context,
@@ -94,7 +193,12 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
     );
     if (allowed != true || !mounted) return;
     try {
-      await PolarBandSync.enable(widget.token, device.deviceId, selected);
+      await PolarBandSync.enable(
+        widget.token,
+        device.deviceId,
+        selected,
+        identity,
+      );
       await loadSharing();
     } catch (_) {
       showMessage('Unable to enable automatic sharing. Check the study link.');
@@ -417,7 +521,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
 
   @override
   Widget build(BuildContext context) {
-    final busy = stop != null || sending;
+    final busy = stop != null || sending || settingUp;
     return Scaffold(
       appBar: AppBar(title: const Text('Polar device')),
       body: ListView(
@@ -477,11 +581,16 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
             for (final device in devices.values)
               ListTile(
                 title: Text(device.name!),
-                subtitle: Text(device.deviceId),
+                subtitle: TextButton(
+                  onPressed: busy ? null : () => setupBand(device),
+                  child: const Text('Set up band'),
+                ),
                 enabled: !busy,
                 onTap: busy ? null : () => record(device),
                 trailing: TextButton(
-                  onPressed: busy ? null : () => chooseAutomatic(device),
+                  onPressed: busy
+                      ? null
+                      : () => setupBand(device, shareAfter: true),
                   child: const Text('Auto sync'),
                 ),
               ),

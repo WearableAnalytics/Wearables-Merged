@@ -9,6 +9,17 @@ The participant links the Wearables app to a local test case on an iPhone or And
 | Polar Flow / AccessLink v4 | Sync the device in Polar Flow. Choose **Import a day from Polar Flow**, the recording date, time zone and categories. Authorize in Polar’s browser page, return to Wearables, preview counts and tap Share. | Supported observations from that Flow account for the selected day, including device identifiers where Polar supplies them. Cloud timing depends on the last device-to-Flow sync. |
 | Phone health store | In Polar Flow, enable Apple Health or Health Connect. Allow the categories wanted in both apps and use the existing Wearables health-store sync. | The intersection of what Flow exports and what the existing platform importer supports. Flow exports workout HR through both bridges. Avoid overlapping recording paths when comparing counts. |
 
+## Set up a new Polar 360 in Wearables
+
+1. Link Wearables to the intended study. Plug the new band into a powered charger, keep it near the phone, then open **Polar device → Scan for Polar**.
+2. Choose **Auto sync** to set up the band and then review sharing, or **Set up band** for device setup alone. Accept the phone's Bluetooth pairing prompt. An already configured band keeps its settings.
+3. Enter the physical settings Polar uses for activity and sleep. Review the selected band and tap **Save settings to this band**. Wearables sets local and UTC time and writes the Polar user identifier and physical profile. It verifies both files over Bluetooth. The profile is held in memory on the phone while setting up and stays on the band; Wearables does not send it to the study. No Polar account or AccessLink client is used.
+4. Automatic study uploads need a separate grant for the selected metrics and destination. A reset or changed band setup requires a new grant. Old app versions' grants also require one-time confirmation on upgrade.
+
+The implementation follows the [Polar first-time-use protocol](https://github.com/polarofficial/polar-ble-sdk/blob/3caa1af/documentation/FirstTimeUse.md). Wearables requests a synchronization session before writing. If the phone disconnects partway through, it can recognize a setup it began on this phone and retry. Wearables never resets the band. Firmware management and Polar Flow cloud services are separate from this setup.
+
+Verification for first-time setup: the encoded body profile matches an independent fixture produced by protoc from Polar’s schema. Tests exercise fresh and existing bands, a broken transfer, a changed identifier, invalid input, and canceling the form. All 63 mobile tests passed. The Android arm64 APK and signed iPhone build compiled. In the iPhone hardware run the app found the loan band, recognized its prior setup and left it intact. After removing the old iOS bond, protected Bluetooth access returned ATT error 15 before any write. A successful first-time write on a factory-reset device still needs hardware confirmation.
+
 ## AccessLink categories
 
 | Selection | Measurements in this implementation |

@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:protobuf/protobuf.dart';
 import 'package:universal_ble/universal_ble.dart';
 
-// Read-only Polar PS-FTP. RFC60 GET envelope carried by RFC76 frames.
+// Polar PS-FTP over RFC60/RFC76. Band-history sync uses only GET.
 // Protocol definitions: polarofficial/polar-ble-sdk, technical_documentation.
 class PolarFiles {
   PolarFiles(this.device);
@@ -13,32 +14,107 @@ class PolarFiles {
   static const service = '0000feee-0000-1000-8000-00805f9b34fb';
   static const pipe = 'fb005c51-02e7-f387-1cad-8acd2d8df0c8';
 
-  Future<void> open() async {
+  static const hostNotify = 'fb005c53-02e7-f387-1cad-8acd2d8df0c8';
+  static const deviceNotify = 'fb005c52-02e7-f387-1cad-8acd2d8df0c8';
+
+  Future<void> open({bool setupSession = false}) async {
     await UniversalBle.connect(device, timeout: const Duration(seconds: 9));
     final services = await UniversalBle.discoverServices(device);
-    final characteristic = services
+    final chars = services
         .where((s) => s.uuid == service)
-        .expand((s) => s.characteristics)
-        .where((c) => c.uuid == pipe)
-        .firstOrNull;
-    if (characteristic == null) {
-      throw UnsupportedError('Band history unavailable');
+        .expand((s) => s.characteristics);
+    final transfer = chars.where((c) => c.uuid == pipe).firstOrNull;
+    if (transfer == null) throw UnsupportedError('Band history unavailable');
+    if (setupSession &&
+        Platform.isAndroid &&
+        await UniversalBle.isPaired(device) != true) {
+      await UniversalBle.pair(device, timeout: const Duration(seconds: 45));
     }
-    if (characteristic.properties.contains(CharacteristicProperty.indicate)) {
-      await UniversalBle.subscribeIndications(device, service, pipe);
-    } else {
-      await UniversalBle.subscribeNotifications(device, service, pipe);
+    // Subscribe to the transfer pipe first, as in the Polar SDK. On a fresh
+    // Apple pairing an encrypted ATT operation may fail while the OS sheet is
+    // still waiting for confirmation. Keep the same connection alive for it.
+    Future<void> subscribe(BleCharacteristic c) async {
+      final wait = Stopwatch()..start();
+      while (true) {
+        try {
+          if (c.properties.contains(CharacteristicProperty.indicate)) {
+            await UniversalBle.subscribeIndications(device, service, c.uuid);
+          } else {
+            await UniversalBle.subscribeNotifications(device, service, c.uuid);
+          }
+          return;
+        } on UniversalBleException catch (e) {
+          final attCode = int.tryParse(e.details.toString());
+          if (!setupSession ||
+              !Platform.isIOS ||
+              ![5, 15].contains(attCode) ||
+              wait.elapsed >= const Duration(seconds: 35)) {
+            rethrow;
+          }
+          await Future<void>.delayed(const Duration(seconds: 1));
+        }
+      }
+    }
+
+    await subscribe(transfer);
+    if (setupSession) {
+      final fromDevice = chars.where((c) => c.uuid == deviceNotify).firstOrNull;
+      if (fromDevice == null ||
+          !chars.any(
+            (c) =>
+                c.uuid == hostNotify &&
+                c.properties.contains(CharacteristicProperty.write),
+          )) {
+        throw UnsupportedError('Band setup unavailable');
+      }
+      await subscribe(fromDevice);
     }
   }
 
   Future<void> close() =>
       UniversalBle.disconnect(device, timeout: const Duration(seconds: 4));
 
-  Future<Uint8List?> read(String path) async {
+  List<int> _fileHeader(int command, String path) {
     final name = ascii.encode(path);
     if (name.length > 100) throw ArgumentError('Polar file path too long');
-    final operation = [8, 0, 18, name.length, ...name];
-    final request = [operation.length, 0, ...operation];
+    final operation = [8, command, 18, name.length, ...name];
+    return [operation.length, 0, ...operation];
+  }
+
+  Future<Uint8List?> read(String path) =>
+      _exchange(_fileHeader(0, path), missingAllowed: true);
+
+  Future<void> putSetupFile(String path, List<int> contents) async {
+    if (path != '/U/0/USERID.BPB' && path != '/U/0/S/PHYSDATA.BPB') {
+      throw ArgumentError('Unsupported setup file');
+    }
+    await _exchange([..._fileHeader(1, path), ...contents]);
+  }
+
+  Future<void> setupQuery(int id, [List<int> payload = const []]) async {
+    if (![1, 3, 13].contains(id)) {
+      throw ArgumentError('Unsupported setup query');
+    }
+    await _exchange([id, 0x80, ...payload]);
+  }
+
+  Future<void> setupNotification(int id, [List<int> payload = const []]) async {
+    if (![0, 1, 8, 9].contains(id)) {
+      throw ArgumentError('Unsupported setup notification');
+    }
+    await UniversalBle.write(
+      device,
+      service,
+      hostNotify,
+      Uint8List.fromList([2, id, ...payload]),
+      timeout: const Duration(seconds: 5),
+    );
+  }
+
+  Future<Uint8List?> _exchange(
+    List<int> request, {
+    bool missingAllowed = false,
+  }) async {
     final packets = UniversalBle.characteristicValueStream(device, pipe);
     final response = Completer<Uint8List?>();
     final bytes = BytesBuilder(copy: false);
@@ -59,7 +135,7 @@ class PolarFiles {
               throw const FormatException('Invalid Polar reply');
             }
             final error = frame[1] | frame[2] << 8;
-            if (error == 103) {
+            if (error == 103 && missingAllowed) {
               response.complete(null);
               return;
             }

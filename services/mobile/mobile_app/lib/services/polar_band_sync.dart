@@ -12,6 +12,7 @@ import 'health_sync_service.dart';
 import 'health_upload.dart';
 import 'polar_band_samples.dart';
 import 'polar_files.dart';
+import 'polar_setup.dart';
 import 'polar_recording.dart';
 
 String _digest(String value) => sha256.convert(utf8.encode(value)).toString();
@@ -167,6 +168,7 @@ class PolarBandSync {
     String token,
     String device,
     Set<PolarMetric> metrics,
+    String setupIdentity,
   ) async {
     if (metrics.isEmpty || !await StorageService.currentStudyMatches(token)) {
       throw StateError('A valid study and metrics are required');
@@ -181,6 +183,7 @@ class PolarBandSync {
       'owner': _digest(token),
       'id': newUploadKey(),
       'device': device,
+      'setupIdentity': setupIdentity,
       'metrics': metrics.map((m) => m.name).toList(),
       'since': DateTime.now().toUtc().toIso8601String(),
       'endpoint': destination.toString(),
@@ -219,8 +222,22 @@ class PolarBandSync {
     _timer = null;
   }
 
-  static Future<void> run() =>
-      _active ??= _run().whenComplete(() => _active = null);
+  static bool _settingUp = false;
+
+  static Future<T> duringSetup<T>(Future<T> Function() task) async {
+    if (_settingUp) throw StateError('Setup is already running');
+    _settingUp = true;
+    try {
+      await _active;
+      return await task();
+    } finally {
+      _settingUp = false;
+    }
+  }
+
+  static Future<void> run() => _settingUp
+      ? Future.value()
+      : _active ??= _run().whenComplete(() => _active = null);
 
   static Future<void> _run() async {
     final raw = await _prefs.getString(grantKey);
@@ -357,6 +374,14 @@ class PolarBandSync {
       }
       connectionAttempted = true;
       await files.open();
+      final expected = cfg['setupIdentity'];
+      if (expected == null || expected != await PolarSetup(files).identity()) {
+        await _prefs.setString(
+          'polar_status_$id',
+          'Band setup has changed or needs confirmation. Turn sharing off, then choose Auto sync to grant access again.',
+        );
+        return;
+      }
       if (wanted.contains(PolarMetric.heartRate) ||
           wanted.contains(PolarMetric.pulseInterval)) {
         final directory = await files.read('/U/0/AUTOS/');
