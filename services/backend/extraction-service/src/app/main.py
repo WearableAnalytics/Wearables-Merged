@@ -19,6 +19,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from .clients import create_db_lord_client
 from .db_lord_api import DbLordApi
 from .fhir import ObservationBuilder
+from .metrics import ExportMetrics, ExportMonitoring, ExportResponse
 from .points import iter_readings, read_page, reading_key
 from .reconciliation import Mode, bounded_readings, reconcile
 from .schemas import MeasurementPage, MeasurementPoint, MeasurementType
@@ -66,6 +67,10 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
 )
+
+
+export_metrics = ExportMetrics()
+app.add_middleware(ExportMonitoring, metrics=export_metrics)
 
 
 def custom_openapi() -> dict:
@@ -221,16 +226,19 @@ def csv_line(values: list) -> str:
     responses={200: {"content": {"text/csv": {}}, "description": "CSV file"}},
 )
 async def export_measurements_csv(
+    request: Request,
     filters: Annotated[ReadingFilter, Depends()],
     api: DbLordDep,
 ):
+    metrics = request.state.export_metrics
 
     async def rows() -> AsyncIterator[str]:
         yield csv_line(CSV_COLUMNS)
         async with aclosing(filters.readings(api)) as readings:
             async for point in readings:
+                metrics.considered.labels("csv").inc()
                 row = MeasurementPoint.from_telemetry(point)
-                yield csv_line(
+                serialized = csv_line(
                     [
                         row.timestamp.isoformat(),
                         row.measurement,
@@ -240,8 +248,10 @@ async def export_measurements_csv(
                         json.dumps(row.fields, ensure_ascii=False) if row.fields else "",
                     ]
                 )
+                metrics.exported.labels("csv").inc()
+                yield serialized
 
-    return StreamingResponse(
+    return ExportResponse(
         rows(),
         media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="measurements.csv"'},
@@ -258,9 +268,11 @@ async def export_measurements_csv(
     responses={200: {"content": {"application/fhir+json": {}}, "description": "FHIR Bundle"}},
 )
 async def export_measurements_fhir(
+    request: Request,
     filters: Annotated[ReadingFilter, Depends()],
     api: DbLordDep,
 ):
+    metrics = request.state.export_metrics
     builder = ObservationBuilder(api)
 
     async def bundle() -> AsyncIterator[str]:
@@ -268,18 +280,22 @@ async def export_measurements_fhir(
         first = True
         async with aclosing(filters.readings(api)) as readings:
             async for point in readings:
+                metrics.considered.labels("fhir").inc()
                 observation = await builder.build(point)
                 if observation is None:
+                    metrics.omitted.labels("fhir", "unsupported_mapping").inc()
                     continue
                 reading = json.dumps([point.timestamp.isoformat(), reading_key(point)], sort_keys=True, default=str)
                 resource_id = str(uuid5(NAMESPACE_URL, reading))
                 observation["id"] = resource_id
                 entry = {"fullUrl": f"urn:uuid:{resource_id}", "resource": observation}
-                yield ("" if first else ",") + json.dumps(entry, ensure_ascii=False)
+                serialized = ("" if first else ",") + json.dumps(entry, ensure_ascii=False)
+                metrics.exported.labels("fhir").inc()
+                yield serialized
                 first = False
         yield "]}"
 
-    return StreamingResponse(
+    return ExportResponse(
         bundle(),
         media_type="application/fhir+json",
         headers={"Content-Disposition": 'attachment; filename="measurements.fhir.json"'},
