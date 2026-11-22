@@ -4,7 +4,7 @@ The participant links the Wearables app to a local test case on an iPhone or And
 
 | Path | What the participant does | What the study receives |
 | --- | --- | --- |
-| Bluetooth Heart Rate Service | Wear the Polar, enable HR broadcasting if required by the model, scan, select the device and record. Review and share, or discard. | Ten pulse readings in a short foreground recording, or a longer foreground recording stopped by the participant (up to 300 readings, subject to the importer limit). The phone timestamps each notification. The screen shows live bpm, then an archive receipt and a storage-status check. Unsent recordings live only on this screen. |
+| Direct Bluetooth | Choose heart rate, skin temperature or pulse interval. Scan, select the worn band, record with the app open, then review and share or discard. | A short session collects ten readings of one metric. A longer session allows up to 300. Heart rate uses the Bluetooth Heart Rate Service. The other two use Polar Measurement Data, subject to the device's advertised capabilities. The phone shows a receipt and checks storage. Unsent readings live only on the recording screen. |
 | Polar Flow / AccessLink v4 | Sync the device in Polar Flow. Choose **Import a day from Polar Flow**, the recording date, time zone and categories. Authorize in Polar’s browser page, return to Wearables, preview counts and tap Share. | Supported observations from that Flow account for the selected day, including device identifiers where Polar supplies them. Cloud timing depends on the last device-to-Flow sync. |
 | Phone health store | In Polar Flow, enable Apple Health or Health Connect. Allow the categories wanted in both apps and use the existing Wearables health-store sync. | The intersection of what Flow exports and what the existing platform importer supports. Flow exports workout HR through both bridges. Avoid overlapping recording paths when comparing counts. |
 
@@ -36,9 +36,9 @@ Device firmware, Flow configuration, API entitlement and having recorded a quali
 
 ## Physical demonstration
 
-1. Link the app to a synthetic study case. On the home screen open **Polar device**, scan and select the band you are wearing. Verify that the displayed bpm changes as notifications arrive.
+1. Link the app to a synthetic study case. On the home screen open **Polar device**, scan and select the band you are wearing. Choose a metric and verify that readings arrive. Skin temperature uses °C. A pulse interval is the time between two detected pulse beats, in milliseconds.
 2. Review the captured values and destination. Tap **Share** once, record the receipt ID, then use **Check storage status** until the confirmed count equals the number of readings. If acceptance is temporarily unavailable, leave this screen open to retry the same recording.
-3. In the dashboard, open the same participant and recording time. Check that the points fall in the recording window and compare the bpm values with the reviewed capture. Record the platform, model, firmware and counts for the demo report.
+3. In the dashboard, open the same participant and recording time. Check that the points fall in the recording window and compare the values and units with the reviewed capture. Record the platform, model, firmware and counts for the demo report.
 4. For history, sync to Flow first. Select a date with known data and start with one category (e.g. sleep after an overnight recording). Compare the preview and stored values with Flow. Additional categories with no observations for that day can validly return zero.
 
 ## Verification
@@ -61,3 +61,9 @@ Polar publishes the device services in the [360 manual](https://support.polar.co
 - In the normal Wearables web application open the authorized case and select **General data**. Its existing Grafana dashboard shows the heart-rate chart. **Stored readings** shows individual timestamps, values, units and sources. The hardware check used a private local case. For presentations, use a separate case with readings approved for display, or label a synthetic dataset explicitly.
 - To revisit a short capture, bookmark `/cases/<case-id>?from=<epoch-ms>&to=<epoch-ms>` with the recording interval. The page expands the range to whole minutes. The uploaded points remain available after removing the band, subject to the InfluxDB retention policy. Keep the local Docker data volumes and run the stack to serve the dashboard.
 - The mobile suite passed 48 tests and the connector suite passed nine. A real Android phone and a Polar-authorized history import are still outstanding. The eight history categories above were tested with fixtures. The ten physical readings establish the Bluetooth heart-rate path on iOS.
+
+### Direct Bluetooth sensor verification, 2026-11-22
+
+The same Polar 360 and iPhone sent two additional recordings through the regular Wearables app. The importer accepted each upload. The phone received storage confirmation for all ten skin temperature readings and all ten pulse intervals. Independent InfluxDB queries found ten distinct records for each metric. The case dashboard displayed both series under **General data** in the capture time window.
+
+The initial band setup used Polar Flow. The subsequent Bluetooth measurements required the linked study app, Bluetooth permission, and a reachable study backend for sharing. They used neither Apple Health nor a Polar cloud session. Removing the band after confirmed upload leaves the stored measurements available for the configured retention period. Direct raw accelerometry, optical waveforms and offline history retrieval from the band are outside this live capture implementation. The new streams have been tested on physical iOS hardware. Physical Android verification remains open. The mobile suite passed 50 tests, Dart analysis passed for the changed recording code, and both Grafana regression tests passed against the local test stack.

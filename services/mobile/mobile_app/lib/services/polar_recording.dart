@@ -21,10 +21,20 @@ int? polarHeartRate(List<int> bytes) {
   return bpm == 0 ? null : bpm;
 }
 
-typedef PolarSample = ({int bpm, DateTime time});
+enum PolarMetric {
+  heartRate('Heart rate', 'HEART_RATE', 'BEATS_PER_MINUTE', 'bpm'),
+  skinTemperature('Skin temperature', 'SKIN_TEMPERATURE', 'Cel', '°C'),
+  pulseInterval('Pulse interval', 'PULSE_TO_PULSE_INTERVAL', 'ms', 'ms');
+
+  const PolarMetric(this.label, this.type, this.unit, this.displayUnit);
+  final String label, type, unit, displayUnit;
+}
+
+typedef PolarSample = ({num value, DateTime time});
 
 HealthUpload polarUpload({
   required List<PolarSample> samples,
+  PolarMetric metric = PolarMetric.heartRate,
   required String device,
   required String name,
   required String collector,
@@ -50,12 +60,11 @@ HealthUpload polarUpload({
         'instantaneous': [
           for (var i = 0; i < samples.length; i++)
             {
-              'type': 'HEART_RATE',
-              'unit': 'BEATS_PER_MINUTE',
-              'value': samples[i].bpm,
+              'type': metric.type,
+              'unit': metric.unit,
+              'value': samples[i].value,
               'timestamp': samples[i].time.toUtc().toIso8601String(),
-              // HRS has no native sample identifier or clock. Identity is scoped
-              // to this capture, and timestamps are phone reception times.
+              // Live notifications have no persistent provider record ID. Retries reuse this capture.
               'sourceRecordId': '$key-$i', 'sourceDeviceId': device,
             },
         ],

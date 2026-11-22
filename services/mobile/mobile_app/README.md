@@ -33,4 +33,4 @@ e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWith
 
 ## Polar devices
 
-See the [Polar demo and setup](../../../docs/polar-demo.md) for Bluetooth pulse capture and Polar Flow history on iOS and Android.
+See the [Polar demo and setup](../../../docs/polar-demo.md) for Bluetooth heart rate, skin temperature and pulse interval capture and Polar Flow history on iOS and Android.

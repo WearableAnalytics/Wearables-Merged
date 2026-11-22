@@ -9,6 +9,7 @@ import 'polar_history_page.dart';
 import '../services/health_sync_service.dart';
 import '../services/health_upload.dart';
 import '../services/polar_recording.dart';
+import '../services/polar_pmd.dart';
 import '../storage_service.dart';
 
 class PolarRecordingPage extends StatefulWidget {
@@ -29,6 +30,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
   Completer<void>? stop;
   bool sending = false;
   bool longerRecording = false;
+  PolarMetric metric = PolarMetric.heartRate;
   static const uploadLimit = int.fromEnvironment(
     'INGEST_MAX_READINGS',
     defaultValue: 1000,
@@ -36,6 +38,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
   int get sampleLimit => (longerRecording ? 300 : 10).clamp(1, uploadLimit);
   HealthUpload? upload;
   UploadReceipt? lastReceipt;
+  PolarMetric? receiptMetric;
 
   @override
   void initState() {
@@ -136,6 +139,19 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
     Timer? idleTimer;
     StreamSubscription<List<int>>? values;
     StreamSubscription<bool>? connection;
+    PolarPmd? pmd;
+    String? failure;
+    void accept(List<PolarSample> batch) {
+      if (done.isCompleted || !mounted || batch.isEmpty) return;
+      samples.addAll(batch.take(sampleLimit - samples.length));
+      idleTimer?.cancel();
+      idleTimer = Timer(const Duration(seconds: 30), finish);
+      showMessage(
+        '${displayValue(samples.last.value)} ${metric.displayUnit} · ${samples.length}/$sampleLimit readings',
+      );
+      if (samples.length >= sampleLimit) finish();
+    }
+
     try {
       await UniversalBle.connect(
         device.deviceId,
@@ -147,35 +163,65 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       ) {
         if (!connected) finish();
       });
-      await UniversalBle.discoverServices(device.deviceId);
+      final services = await UniversalBle.discoverServices(device.deviceId);
       if (done.isCompleted) return;
-      values =
-          UniversalBle.characteristicValueStream(
-            device.deviceId,
-            characteristic,
-          ).listen((bytes) {
-            final bpm = polarHeartRate(bytes);
-            if (bpm == null || done.isCompleted || !mounted) return;
-            samples.add((bpm: bpm, time: DateTime.now().toUtc()));
-            idleTimer?.cancel();
-            idleTimer = Timer(const Duration(seconds: 30), finish);
-            showMessage('$bpm bpm · ${samples.length}/$sampleLimit readings');
-            if (samples.length >= sampleLimit) finish();
-          });
-      showMessage('Waiting for a heart rate measurement…');
-      await UniversalBle.subscribeNotifications(
-        device.deviceId,
-        service,
-        characteristic,
+      if (metric == PolarMetric.heartRate) {
+        values =
+            UniversalBle.characteristicValueStream(
+              device.deviceId,
+              characteristic,
+            ).listen(
+              (bytes) {
+                final bpm = polarHeartRate(bytes);
+                if (bpm != null) {
+                  accept([(value: bpm, time: DateTime.now().toUtc())]);
+                }
+              },
+              onError: (Object e) {
+                failure = 'Heart-rate stream interrupted.';
+                finish();
+              },
+            );
+        await UniversalBle.subscribeNotifications(
+          device.deviceId,
+          service,
+          characteristic,
+        );
+      } else {
+        if (!services.any((s) => s.uuid.toLowerCase() == polarPmdService)) {
+          throw StateError(
+            'This device did not expose the Polar measurement service.',
+          );
+        }
+        if (Platform.isAndroid) {
+          await UniversalBle.requestMtu(device.deviceId, 232);
+        }
+        pmd = PolarPmd(device.deviceId);
+        await pmd.start(metric, device.name ?? '', accept, (error) {
+          failure = 'Could not read ${metric.label}: $error';
+          finish();
+        });
+      }
+      if (samples.isEmpty) {
+        showMessage('Waiting for ${metric.label.toLowerCase()}…');
+      }
+      idleTimer ??= Timer(
+        Duration(seconds: metric == PolarMetric.pulseInterval ? 90 : 40),
+        finish,
       );
-      idleTimer ??= Timer(const Duration(seconds: 30), finish);
       await done.future;
-    } catch (_) {
-      showMessage(
-        'Connection interrupted. Check that your Polar is sharing heart rate.',
-      );
+    } catch (error) {
+      failure = error is StateError
+          ? error.message
+          : 'Could not connect to the selected Polar stream.';
     } finally {
+      finish();
       idleTimer?.cancel();
+      try {
+        await pmd?.close();
+      } catch (_) {
+        /* Disconnect below also stops the live stream. */
+      }
       await values?.cancel();
       await connection?.cancel();
       try {
@@ -188,6 +234,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
         if (mounted && samples.isNotEmpty) {
           upload = polarUpload(
             samples: samples,
+            metric: metric,
             device: device.deviceId,
             name: device.name!,
             collector: await StorageService.getOrCreateCollectorId(),
@@ -198,7 +245,8 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
           );
         } else if (mounted) {
           showMessage(
-            'No readings captured. Check sensor contact and heart rate sharing.',
+            failure ??
+                'No usable readings captured. Check that the band is worn snugly.',
           );
         }
       } catch (_) {
@@ -209,6 +257,10 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       }
     }
   }
+
+  String displayValue(num value) => metric == PolarMetric.skinTemperature
+      ? value.toStringAsFixed(2)
+      : value.toString();
 
   Future<void> share() async {
     final batch = upload!;
@@ -229,10 +281,11 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       final receipt = await sender.send(batch, token);
       await StorageService.saveUploadReceipt(token, {
         ...receipt.document,
-        'sourceLabel': 'Polar Bluetooth',
+        'sourceLabel': 'Polar Bluetooth · ${metric.label}',
         'receivedAt': DateTime.now().toUtc().toIso8601String(),
       });
       lastReceipt = receipt;
+      receiptMetric = metric;
       upload = null;
       samples.clear();
       showMessage(
@@ -259,10 +312,14 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
         endpoint: endpointResolver.endpointFor(token),
       );
       final status = await sender.status(receipt.acceptanceId, token);
+      if (status['rawSha256'] != receipt.rawSha256 ||
+          status['readingCount'] != receipt.readingCount) {
+        throw const FormatException('Status does not match the accepted upload');
+      }
       await StorageService.saveUploadReceipt(token, {
         ...receipt.document,
         ...status,
-        'sourceLabel': 'Polar Bluetooth',
+        'sourceLabel': 'Polar Bluetooth · ${receiptMetric!.label}',
         'checkedAt': DateTime.now().toUtc().toIso8601String(),
       });
       showMessage(
@@ -298,10 +355,23 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
               child: const Text('Check storage status'),
             ),
           if (upload == null) ...[
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final option in PolarMetric.values)
+                  ChoiceChip(
+                    label: Text(option.label),
+                    selected: metric == option,
+                    onSelected: busy
+                        ? null
+                        : (_) => setState(() => metric = option),
+                  ),
+              ],
+            ),
             SwitchListTile(
               title: const Text('Longer recording'),
               subtitle: Text(
-                'Stop at any time. This upload accepts up to $sampleLimit pulse readings.',
+                'Stop at any time. This upload accepts up to $sampleLimit readings.',
               ),
               value: longerRecording,
               onChanged: busy
@@ -322,7 +392,9 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
             if (stop != null)
               TextButton(onPressed: finish, child: const Text('Stop')),
           ] else ...[
-            Text('${samples.map((s) => s.bpm).join(', ')} bpm'),
+            Text(
+              '${metric.label}: ${samples.map((s) => displayValue(s.value)).join(', ')} ${metric.displayUnit}',
+            ),
             FilledButton(
               onPressed: busy ? null : share,
               child: Text(

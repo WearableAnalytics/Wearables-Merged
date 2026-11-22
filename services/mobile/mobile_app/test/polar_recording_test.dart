@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:charite_wearables/services/polar_pmd.dart';
 
 import 'package:charite_wearables/screens/polar_history_page.dart';
 import 'package:charite_wearables/services/polar_recording.dart';
@@ -58,6 +61,104 @@ void main() {
       }
     },
   );
+  test(
+    'skin temperature preserves Celsius, sensor time and compressed deltas',
+    () {
+      final received = DateTime.utc(2026, 11, 22);
+      final raw = ByteData(18)
+        ..setUint8(0, 7)
+        ..setUint64(1, 2000000000, Endian.little)
+        ..setFloat32(10, 32.5, Endian.little)
+        ..setFloat32(14, 32.75, Endian.little);
+      final values = decodePolarFrame(
+        raw.buffer.asUint8List(),
+        7,
+        received,
+        sampleHz: 1,
+      );
+      expect(values.map((s) => s.value), [32.5, 32.75]);
+      expect(values.first.time, DateTime.utc(2000, 1, 1, 0, 0, 1));
+      final delta = Uint8List.fromList([
+        ...raw.buffer.asUint8List(0, 14),
+        2,
+        2,
+        13,
+      ])..[9] = 128;
+      final compressed = decodePolarFrame(delta, 7, received, sampleHz: 1);
+      expect(compressed.length, 3);
+      expect(compressed[1].value, greaterThan(32.5));
+      expect(compressed.last.value, 32.5);
+      expect(
+        () => decodePolarFrame(delta.sublist(0, 16), 7, received, sampleHz: 1),
+        throwsFormatException,
+      );
+    },
+  );
+  test(
+    'PPI excludes blocked samples and poor contact while preserving elapsed beat time',
+    () {
+      final received = DateTime.utc(2026, 11, 22);
+      final bytes = Uint8List.fromList([
+        3,
+        ...List.filled(9, 0),
+        70,
+        32,
+        3,
+        2,
+        0,
+        6,
+        70,
+        32,
+        3,
+        2,
+        0,
+        7,
+        70,
+        32,
+        3,
+        2,
+        0,
+        4,
+        70,
+        32,
+        3,
+        2,
+        0,
+        6,
+      ]);
+      final points = decodePolarFrame(bytes, 3, received, sampleHz: 1);
+      expect(points.map((p) => p.value), [800, 800]);
+      expect(
+        points.first.time,
+        received.subtract(const Duration(milliseconds: 2400)),
+      );
+      expect(points.last.time, received);
+      for (final metric in [
+        PolarMetric.skinTemperature,
+        PolarMetric.pulseInterval,
+      ]) {
+        final batch = polarUpload(
+          samples: [
+            (
+              value: metric == PolarMetric.skinTemperature ? 32.5 : 800,
+              time: received,
+            ),
+          ],
+          metric: metric,
+          device: 'sensor',
+          name: 'Polar 360',
+          collector: 'phone',
+          platform: 'ios',
+        );
+        final row = jsonDecode(
+          utf8.decode(batch.bytes),
+        )['measurements']['instantaneous'].single;
+        expect(row['type'], metric.type);
+        expect(row['unit'], metric.unit);
+        expect(row['sourceDeviceId'], 'sensor');
+      }
+    },
+  );
   for (final platform in ['ios', 'android']) {
     test(
       '$platform capture uses importer units and separate source/collector identities',
@@ -65,8 +166,8 @@ void main() {
         final time = DateTime.utc(2026, 11, 21);
         final upload = polarUpload(
           samples: [
-            (time: time, bpm: 75),
-            (time: time.add(const Duration(seconds: 1)), bpm: 76),
+            (time: time, value: 75),
+            (time: time.add(const Duration(seconds: 1)), value: 76),
           ],
           device: 'demo-device',
           name: 'Polar 360',
