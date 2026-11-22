@@ -188,6 +188,8 @@ services:
       OURA_CLIENT_SECRET: ${OURA_CLIENT_SECRET:-}
       WHOOP_CLIENT_ID: ${WHOOP_CLIENT_ID:-}
       WHOOP_CLIENT_SECRET: ${WHOOP_CLIENT_SECRET:-}
+      WITHINGS_CLIENT_ID: ${WITHINGS_CLIENT_ID:-}
+      WITHINGS_CLIENT_SECRET: ${WITHINGS_CLIENT_SECRET:-}
       OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI:-http://localhost/cloud/callback}
     volumes:
       - cloud_connector_data:/data

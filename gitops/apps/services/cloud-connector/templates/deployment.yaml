@@ -104,6 +104,18 @@ spec:
                   name: {{ .Values.secrets.secretName }}
                   key: {{ .Values.secrets.whoopClientSecretKey }}
                   optional: true
+            - name: WITHINGS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.withingsClientIdKey }}
+                  optional: true
+            - name: WITHINGS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.secretName }}
+                  key: {{ .Values.secrets.withingsClientSecretKey }}
+                  optional: true
           volumeMounts:
             - name: data-volume
               mountPath: /data

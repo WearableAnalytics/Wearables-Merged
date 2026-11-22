@@ -79,7 +79,7 @@ class CloudProvider {
     displayName: 'Withings Health',
     description: 'Direct cloud sync for Withings devices.',
     icon: Symbols.monitor_weight_sharp,
-    enabled: false,
+    enabled: true,
   );
 
   static const polar = CloudProvider(
@@ -98,6 +98,7 @@ class CloudProvider {
     fitbit,
     oura,
     whoop,
+    withings,
   ];
 
   /// Catalog of all known cloud providers for seamless future extensions

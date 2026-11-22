@@ -149,6 +149,27 @@ class Settings:
         )
     )
 
+    # Withings Health OAuth 2.0 PKCE & API settings
+    withings_client_id: str = field(default_factory=lambda: os.getenv("WITHINGS_CLIENT_ID", ""))
+    withings_client_secret: str = field(
+        default_factory=lambda: os.getenv("WITHINGS_CLIENT_SECRET", "")
+    )
+    withings_auth_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WITHINGS_AUTH_URL", "https://account.withings.com/oauth2_user/authorize2"
+        )
+    )
+    withings_token_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WITHINGS_TOKEN_URL", "https://wbsapi.withings.net/v2/oauth2"
+        )
+    )
+    withings_api_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "WITHINGS_API_BASE_URL", "https://wbsapi.withings.net"
+        )
+    )
+
     @property
     def oauth_redirect_uri(self) -> str:
         override = os.getenv("OAUTH_REDIRECT_URI") or os.getenv("GARMIN_REDIRECT_URI")

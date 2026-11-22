@@ -21,7 +21,7 @@ env:
   CLOUD_CONNECTOR_STORAGE_PATH: "/data/connections.json"
   JWT_ISSUER: "wearables-bff"
 
-# Secrets for Garmin/Polar/Google Health/Oura/Whoop OAuth 2.0 and Case JWT verification
+# Secrets for Garmin/Polar/Google Health/Oura/Whoop/Withings OAuth 2.0 and Case JWT verification
 secrets:
   secretName: cloud-connector-secrets
   garminClientIdKey: GARMIN_CLIENT_ID
@@ -34,6 +34,8 @@ secrets:
   ouraClientSecretKey: OURA_CLIENT_SECRET
   whoopClientIdKey: WHOOP_CLIENT_ID
   whoopClientSecretKey: WHOOP_CLIENT_SECRET
+  withingsClientIdKey: WITHINGS_CLIENT_ID
+  withingsClientSecretKey: WITHINGS_CLIENT_SECRET
   jwtSecretKey: JWT_SECRET
 
 persistence:
