@@ -22,12 +22,26 @@ services:
       postgres:
         condition: service_healthy
 
+  # Stand-in for the model (OpenAI-compatible): lets everyone run the worker without Ollama or cluster access.
+  fake-llm:
+    build: .
+    command: ["python", "-m", "llm_worker", "fake-llm", "--port", "8080"]
+
   worker:
     build: .
     environment:
       WORKER_DSN: postgresql://worker:worker@postgres:5432/worker
-      WORKER_WORK_SECONDS: ${WORKER_WORK_SECONDS:-10}
+      # default: the fake model. Local Ollama: WORKER_LLM_BASE_URL=http://host.docker.internal:11434/v1
+      # WORKER_LLM_MODEL=qwen2.5:7b. Cluster: the Ollama / vLLM service URL and its model tag.
+      WORKER_LLM_BASE_URL: ${WORKER_LLM_BASE_URL:-http://fake-llm:8080/v1}
+      WORKER_LLM_MODEL: ${WORKER_LLM_MODEL:-fake-small}
+      WORKER_LLM_API_KEY: ${WORKER_LLM_API_KEY:-unused}
+      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-8}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       migrate:
         condition: service_completed_successfully
-    stop_grace_period: 30s
+      fake-llm:
+        condition: service_started
+    stop_grace_period: 60s

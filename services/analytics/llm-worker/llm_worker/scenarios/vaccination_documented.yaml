@@ -1,0 +1,13 @@
+name: vaccination_documented
+summary: Flu shot the afternoon before; resting HR, wrist temperature and HRV move for one night.
+patient: {id: P-001, birth_year: 1968, sex: F}
+baseline: {rhr: 62, hrv_sdnn: 45, wrist_temp_delta: 0.0, resp_rate: 15, spo2_mean: 97, steps: 8000}
+nights:
+  2026-03-14: {rhr: 70, hrv_sdnn: 36, wrist_temp_delta: 0.6, resp_rate: 16, steps: 6500}
+context:
+  - {id: 101, kind: condition, text: "Hypothyroidism, stable on treatment."}
+  - {id: 102, kind: medication, ts: 2024-05-02T09:00, text: "Levothyroxine 75 µg once daily, ongoing."}
+  - {id: 103, kind: note, ts: 2026-03-10T20:15, text: "Busy week at work, slept a bit less."}
+  - {id: 104, kind: note, ts: 2026-03-13T17:30, text: "Got my flu shot at the pharmacy this afternoon, arm is sore."}
+candidate: {night: 2026-03-14, trigger_reasons: [rhr_z>2, temp_delta>0.5, hrv_drop>15%], red_flag: false, l2_score: 0.41}
+expect: {verdict: suppress}

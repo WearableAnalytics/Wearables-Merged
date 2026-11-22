@@ -1,0 +1,10 @@
+name: alcohol_documented
+summary: Several glasses of wine before bed; one night of high resting HR and low HRV, temperature normal.
+patient: {id: P-003, birth_year: 1985, sex: M}
+baseline: {rhr: 58, hrv_sdnn: 52, wrist_temp_delta: 0.0, resp_rate: 14, spo2_mean: 97, steps: 9500}
+nights:
+  2026-03-14: {rhr: 67, hrv_sdnn: 31, wrist_temp_delta: 0.1, resp_rate: 15}
+context:
+  - {id: 301, kind: note, ts: 2026-03-14T23:10, text: "Birthday party tonight, had four glasses of wine before going to bed."}
+candidate: {night: 2026-03-14, trigger_reasons: [rhr_z>2, hrv_drop>30%], red_flag: false, l2_score: 0.33}
+expect: {verdict: suppress}

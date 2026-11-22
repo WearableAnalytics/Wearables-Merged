@@ -32,30 +32,45 @@ class Worker:
         log.info("worker %s stopped", self.settings.id)
 
     def run_once(self) -> bool:
+        """Claim up to `batch_size` candidates, run them through the pipeline together, write each one back."""
         s = self.settings
+        finished = []
         with self.pool.connection() as conn:
-            event = repository.claim(conn, s.id, s.lease_seconds)
-            if event is None:
+            events = repository.claim_batch(conn, s.id, s.lease_seconds, s.batch_size)
+            if not events:
                 return False
+            log.info("claimed %d event(s): %s", len(events), [e.event_id for e in events])
 
-            log.info("claimed event %s (attempt %s)", event.event_id, event.attempts)
-            if event.attempts > s.max_attempts:
-                self._fail(conn, event, "lease expired too many times; the worker probably crashed")
+            runnable = []
+            for event in events:
+                if event.attempts > s.max_attempts:
+                    self._fail(conn, event, "lease expired too many times; the worker probably crashed")
+                else:
+                    runnable.append(event)
+            if not runnable:
                 return True
 
             try:
-                ctx = run_pipeline(event, self.stages, conn)
-            except Exception as exc:
-                log.exception("event %s failed", event.event_id)
-                self._fail(conn, event, f"{type(exc).__name__}: {exc}")
+                ctxs = run_pipeline(runnable, self.stages, conn)
+            except Exception as exc:  # e.g. the model is down: the whole batch is retried with backoff
+                log.exception("batch %s failed", [e.event_id for e in runnable])
+                for event in runnable:
+                    self._fail(conn, event, f"{type(exc).__name__}: {exc}")
                 return True
 
-            if not repository.finish(conn, event, s.id, ctx.result, ctx.explanation):
-                log.warning("lost the lease on event %s, someone else will finish it", event.event_id)
-                return True
+            for ctx in ctxs:
+                if ctx.error is not None:
+                    self._fail(conn, ctx.event, ctx.error)
+                elif repository.finish(conn, ctx.event, s.id, ctx.result, ctx.explanation):
+                    finished.append(ctx)
+                else:
+                    log.warning("lost the lease on event %s, someone else will finish it", ctx.event.event_id)
 
-        log.info("finish event %s", event.event_id)
-        self.notifier.notify(event, ctx.explanation)
+        for ctx in finished:
+            verdict = ctx.decision.verdict if ctx.decision else "?"
+            log.info("finish event %s (%s)", ctx.event.event_id, verdict)
+            if ctx.notify:
+                self.notifier.notify(ctx.event, ctx.explanation)
         return True
 
     def _fail(self, conn, event: Event, error: str) -> None:

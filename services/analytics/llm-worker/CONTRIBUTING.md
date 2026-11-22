@@ -1,40 +1,45 @@
 # Adding to the worker
 
-New behaviour goes into a **stage**. The loop (`worker.py`) and the queue (`repository.py`) should rarely change, which
-keeps two people working on different stages out of each other's way.
+Keep changes in one of these places, so two people rarely touch the same file:
+
+| You want to … | Change | Not |
+| --- | --- | --- |
+| change what the model is asked (triage rule, benign causes, explanation style) | `llm_worker/operators/*.yaml`, bump `version` | Python |
+| add a test case / mock patient | `llm_worker/scenarios/<name>.yaml` | providers |
+| plug in a real data source (PostgreSQL `vitals`, db_lord, ClickHouse) | a new class in `llm_worker/providers/` implementing `NumericContextProvider` or `DescriptiveContextProvider` | stages |
+| add an operator kind (LOTUS `sem_agg`, `sem_topk`, …) | a new class with `@register_operator("<kind>")` | existing operators |
+| add a pipeline step | a new stage in `llm_worker/stages/`, registered in `default_stages()` | `worker.py` |
+| change what the model reads | `render.py`, bump `RENDER_VERSION` | operators |
 
 ## What a stage looks like
+
+Stages work on a whole claimed batch at once (LOTUS works on DataFrames):
 
 ```python
 class MyStage:
     name = "my_stage"
 
-    def run(self, ctx: Context, conn: Connection) -> dict:
-        ...
-        return {"anything": "json-serialisable"}
+    def run(self, batch: list[Context], conn) -> list[dict]:
+        return [{"anything": "json-serialisable"} for ctx in batch]  # one output per candidate, same order
 ```
 
-- `ctx.event` is the claimed row (read-only): patient, night, reasons, red flag, pipeline features.
-- `ctx.patient` holds the patient context loaded by `load_context`, grouped by kind.
-- `ctx.result` holds the outputs of earlier stages; what you return is stored under `ctx.result[name]` and ends up in
-  the `result` column.
-- Set `ctx.explanation` if your stage produces the text clinicians read. Set `ctx.stop = True` to skip the stages after
-  yours.
-- `conn` is an autocommit connection for reads. Do not commit, and do not touch `state`; the worker does that.
-
-Then register it in `default_stages()` in `llm_worker/stages/__init__.py`, put new settings in `settings.py` and the
-README table, and add tests.
+- `ctx.event` is the claimed queue row; `ctx.bundle` the evidence (DTOs from `dto.py`); `ctx.rendered` the text the
+  operators read; `ctx.decision` / `ctx.explained` the L3 / L4 results.
+- Set `ctx.error` to fail one candidate (it is retried on its own); raise to fail and retry the whole batch.
+  `ctx.stop = True` skips the remaining stages for that candidate. `ctx.notify = False` holds the notification back.
+- What you return is stored under `result[name]`. Do not commit and do not touch `state`; the worker does that.
 
 ## Workflow
 
-1. Write the test first. Stage logic gets a plain unit test in `tests/test_stages.py` (fake `sleep`, no database).
-   Anything that reads tables goes into an integration test that uses the `conn` fixture.
-2. Make it pass, keep `ruff check` and `ruff format --check` clean.
-3. One milestone per PR, branched from `feat/llm-worker-skeleton`.
+1. Write the test first. Stage logic: `tests/test_stages.py` with a scripted operator (no model, no database).
+   LOTUS plumbing: `tests/test_semantic.py` against `fake_llm`. Real model: `tests/test_ollama.py` (`-m ollama`).
+2. Make it pass; keep `ruff check` and `ruff format --check` clean.
+3. One milestone per PR, branched from `feat/llm-worker-semops`.
 
-## Rules that already hold for the real worker
+## Rules that hold everywhere
 
-- A red-flag event never goes through the semantic filter and can never be marked as explained.
-- A stage must be safe to run twice on the same event; a lease can expire and the event is processed again.
-- Patient context only from the night itself or earlier, never from the future.
-- Nothing sent to an LLM contains `patient_id`.
+- A red flag never goes through triage and can never be suppressed.
+- An answer the code cannot read never suppresses a notification.
+- Context only from before `as_of_for(night)`, never from the future.
+- Nothing sent to a model contains `patient_id` or other identifiers.
+- A stage must be safe to run twice on the same candidate; a lease can expire and the batch is processed again.

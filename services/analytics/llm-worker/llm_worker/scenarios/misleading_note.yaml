@@ -1,0 +1,13 @@
+name: misleading_note
+summary: Older patient, fever, faster breathing and lower SpO2 rising over two nights; the diary plays it down.
+patient: {id: P-005, birth_year: 1952, sex: M}
+baseline: {rhr: 64, hrv_sdnn: 30, wrist_temp_delta: 0.0, resp_rate: 15, spo2_mean: 96, steps: 5000}
+nights:
+  2026-03-13: {rhr: 70, hrv_sdnn: 26, wrist_temp_delta: 0.4, resp_rate: 17, spo2_mean: 95, steps: 3800}
+  2026-03-14: {rhr: 78, hrv_sdnn: 21, wrist_temp_delta: 1.1, resp_rate: 21, spo2_mean: 93, steps: 1900}
+context:
+  - {id: 501, kind: condition, text: "Type 2 diabetes."}
+  - {id: 502, kind: medication, ts: 2023-01-10T09:00, text: "Metformin 1000 mg twice daily, ongoing."}
+  - {id: 503, kind: note, ts: 2026-03-14T20:00, text: "Just tired from looking after the grandchildren all week, nothing to worry about."}
+candidate: {night: 2026-03-14, trigger_reasons: [rhr_z>2, temp_delta>1.0, resp_rate_z>2, spo2_drop>=3, persists_2_nights], red_flag: false, l2_score: 0.88}
+expect: {verdict: notify}

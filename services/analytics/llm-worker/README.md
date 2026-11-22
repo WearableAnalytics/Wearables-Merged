@@ -1,72 +1,92 @@
 # llm-worker
 
-Picks up suspicious events from PostgreSQL, runs them through a small pipeline and writes the result back:
+Picks up flagged patient-nights (alert candidates) from PostgreSQL and runs them, in batches, through semantic
+operators (LOTUS) on a language model, then writes the decision and an explanation back:
 
 ```
-pending ─claim─▶ processing ─▶ load_context ─▶ semantic_filter ─▶ explain ─▶ finished ─▶ notify
-                     │                (red flags skip the filter)
-                     └─ a stage raises ─▶ back to pending with backoff ─▶ failed after the last attempt
+pending ─claim ≤ 8─▶ processing ─▶ load_evidence ─▶ triage (sem_filter) ─▶ explain (sem_map) ─▶ finished ─▶ notify
+                                     numbers + text     red flags skip it      every candidate       (not if suppressed)
+                          └─ model down ─▶ whole batch back to pending with backoff ─▶ failed after the last attempt
 ```
 
-Today every stage is a stand-in: `semantic_filter` and `explain` sleep for a while and `explain` writes a template
-explanation. They have the same shape as the real L3 semantic filter and L4 explanation, so each one can be swapped for
-the real thing without touching the loop. See [CONTRIBUTING.md](CONTRIBUTING.md).
+- **load_evidence**: numbers (gold layer) and descriptive text (patient context) are fetched in parallel and rendered
+  into two text columns. Every line carries an id (`n:rhr`, `c:104`) the model must cite.
+- **triage** (L3): LOTUS `sem_filter` with a natural-language spec. True = a documented benign cause explains the night
+  → `suppress`; false → `notify`; an unclear answer → `unparseable_notify`. Red flags never reach the model
+  (`red_flag_bypass`).
+- **explain** (L4): LOTUS `sem_map` writes a short note for the physician. Cited ids are checked against the evidence;
+  unknown ids are dropped. An unusable answer falls back to a template (`fallback: true`).
+
+Design and decisions: `docs/architecture/llm-worker-semops-plan.md` (main checkout).
+
+### What is mocked
+
+| Piece | Today | Later (plan) |
+| --- | --- | --- |
+| Gold layer numbers | scenario YAML files in `llm_worker/scenarios/` | `vitals` serving tables in PostgreSQL (§4) |
+| Patient context | the same scenario files | `patient_context` schema, then db_lord / FHIR |
+| Model | `fake-llm` (in compose), or local Ollama | Ollama / vLLM on the OpenStack cluster |
+| Queue | `worker.suspicious_events` (state on the row) | `alerting.alert_candidates` + `triage_jobs` + result tables (S0) |
+
+Only `NumericContextProvider` / `DescriptiveContextProvider` (`llm_worker/providers/`) and the three `WORKER_LLM_*`
+settings change when the real pieces arrive.
 
 ## Run it
 
 ```bash
-docker compose up --build                                   # postgres, schema migration, one worker
-docker compose run --rm migrate python -m llm_worker seed   # 5 events for 3 patients, one red flag
-docker compose logs -f worker                               # one "finish event N" + "[notify]" per event
+docker compose up --build                                   # postgres, migration, fake model, one worker
+docker compose run --rm migrate python -m llm_worker seed   # one candidate per scenario (9, one red flag)
+docker compose logs -f worker                               # "finish event N (verdict)" + "[notify]" lines
 ```
 
-More workers: `docker compose up --scale worker=3`. Each event is processed by exactly one of them.
+With a real model on your machine (Ollama):
+
+```bash
+ollama pull qwen2.5:7b
+WORKER_LLM_BASE_URL=http://host.docker.internal:11434/v1 WORKER_LLM_MODEL=qwen2.5:7b docker compose up --build
+```
+
+With the cluster model: `kubectl -n bayes-llm port-forward svc/ollama 11434:11434`, then the same as above with the
+cluster's model tag (to be confirmed with the platform team, plan §5.3).
 
 Look at the results:
 
 ```bash
-docker compose exec postgres psql -U worker -d worker \
-  -c "SELECT event_id, state, attempts, result, explanation FROM worker.suspicious_events"
+docker compose exec postgres psql -U worker -d worker -c "
+  SELECT event_id, patient_id, state, result->'triage'->>'verdict' AS verdict, explanation
+  FROM worker.suspicious_events ORDER BY event_id"
 ```
 
 ## Run it locally (no container for the worker)
 
-The worker only needs a PostgreSQL. The default `WORKER_DSN` points at the one from this compose file on port 55433:
-
 ```bash
-docker compose up -d postgres        # or any PostgreSQL you have: export WORKER_DSN=postgresql://user:pw@host:port/db
-```
-
-With [uv](https://docs.astral.sh/uv/):
-
-```bash
+docker compose up -d postgres
 uv sync
-uv run python -m llm_worker migrate  # create the schema (safe to run again)
-uv run python -m llm_worker seed     # sample events and patient context
-uv run python -m llm_worker run      # keep consuming; Ctrl-C finishes the current event, then stops
+uv run python -m llm_worker migrate
+uv run python -m llm_worker seed
+uv run python -m llm_worker fake-llm --port 8080 &          # or use Ollama (default URL: localhost:11434)
+WORKER_LLM_BASE_URL=http://localhost:8080/v1 WORKER_LLM_MODEL=fake-small uv run python -m llm_worker once
 ```
 
-With plain Python (3.12 or newer):
+`once` processes everything that is pending and exits; `run` keeps consuming until Ctrl-C. Python 3.12 only
+(`lotus-ai 1.2.4` needs Python < 3.13, numpy < 2, pandas < 3).
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-python -m llm_worker migrate
-python -m llm_worker seed
-python -m llm_worker run
+## Ask a new question in plain language
+
+Operators are specs written in natural language (`llm_worker/operators/*.yaml`), not code. Changing the clinical rule
+means editing `triage.yaml` and bumping its `version` (stored with every result). The same engine answers ad-hoc
+questions; this is the extension point for data scientists and clinicians later:
+
+```python
+from llm_worker.semantic import LotusModel, OperatorSpec, build_operator
+
+question = OperatorSpec.adhoc("filter", "In {context}, the patient says they travelled to the mountains")
+op = build_operator(question, columns={"numeric", "context"})
+result = op(df, LotusModel(base_url="http://localhost:11434/v1", model="qwen2.5:7b"))  # df: rendered evidence
 ```
 
-`python -m llm_worker once` processes everything that is pending and exits. For quick runs, shorten the fake work with
-`WORKER_WORK_SECONDS=1`. Add an event by hand:
-
-```bash
-docker compose exec postgres psql -U worker -d worker -c "
-  INSERT INTO worker.suspicious_events (patient_id, night_date, reasons, features)
-  VALUES ('p-001', '2026-03-20', 'rule:multi_signal', '{\"rhr_z\": 2.6}')"
-```
-
-Clean up with `docker compose down -v`.
+New operator kinds (LOTUS `sem_agg`, `sem_topk`, ...) are added with `@register_operator("agg")` in a new module,
+without changing the existing ones. There is no API for this yet.
 
 ## Settings
 
@@ -74,27 +94,37 @@ Clean up with `docker compose down -v`.
 | --- | --- | --- |
 | `WORKER_DSN` | `postgresql://worker:worker@localhost:55433/worker` | database (the compose postgres) |
 | `WORKER_ID` | hostname | written to `locked_by` |
-| `WORKER_WORK_SECONDS` | `10` | fake work per event, split between filter and explain |
+| `WORKER_BATCH_SIZE` | `8` | candidates per claim = rows per LOTUS call |
+| `WORKER_LLM_BASE_URL` | `http://localhost:11434/v1` | any OpenAI-compatible endpoint |
+| `WORKER_LLM_MODEL` | `qwen2.5:7b` | model name on that endpoint |
+| `WORKER_LLM_API_KEY` | `unused` | for a gateway that needs one |
+| `WORKER_LLM_TIMEOUT_SECONDS` | `180` | per model call |
+| `WORKER_LLM_CONCURRENCY` | `4` | parallel calls inside one LOTUS batch |
+| `WORKER_SCENARIOS_DIR` | bundled | directory of scenario YAML files (mock data) |
 | `WORKER_POLL_INTERVAL_SECONDS` | `2` | wait when the queue is empty |
-| `WORKER_LEASE_SECONDS` | `60` | after this, an unfinished event can be claimed again |
+| `WORKER_LEASE_SECONDS` | `900` | must cover a whole batch on a slow model |
 | `WORKER_MAX_ATTEMPTS` | `3` | then the event is `failed` |
 | `WORKER_BACKOFF_SECONDS` | `5` | retry delay, doubled on every attempt |
 
 ## How it behaves
 
-- **No double processing.** Claims use `SELECT … FOR UPDATE SKIP LOCKED`, so workers never block each other or take the
-  same row.
-- **Crashes.** A claimed event carries a lease. If the worker dies, another one takes the event after the lease runs out.
-  A worker that lost its lease can no longer write to the row.
-- **Failures.** An exception in a stage sends the event back to `pending` with exponential backoff and stores the error.
-  After `WORKER_MAX_ATTEMPTS` it becomes `failed`. An event whose lease keeps expiring is failed the same way.
-- **Shutdown.** `SIGTERM` lets the current event finish, then the worker exits. `docker compose stop` waits up to 30 s.
-- **Notification** goes out only after the result is committed, so whoever receives it can already read the explanation.
+- **Safety rules in code, not in the prompt:** red flags are never sent to the model and are always notified; an
+  unclear triage answer notifies; citations are checked; nothing sent to the model contains `patient_id`; context is
+  read only up to noon after the night (`providers.as_of_for`).
+- **No double processing.** Claims use `SELECT … FOR UPDATE SKIP LOCKED … LIMIT n`.
+- **Failures.** A model outage (`LLMUnavailable`) sends the whole batch back with backoff. A candidate without evidence
+  fails on its own. After `WORKER_MAX_ATTEMPTS` the event is `failed`.
+- **Notification** goes out only after the result is committed, and not for `suppress`.
 
 ## Tests
 
 ```bash
-uv run pytest            # needs Docker for the integration tests (throwaway postgres via testcontainers)
-uv run pytest -m "not integration"
+uv run pytest                       # unit + integration (Docker for a throwaway postgres); LOTUS runs against fake-llm
+uv run pytest -m "not integration"  # no Docker
+uv run pytest -m ollama -s          # real model through LOTUS; prints a per-scenario table (~5 min with qwen2.5:7b)
 uv run ruff check . && uv run ruff format --check .
 ```
+
+The `ollama` tests assert only what the code guarantees. Judgement quality depends on the model and is measured on the
+cluster model; with qwen2.5:7b (2026-11-21) triage matched 5–6 of 8 scenarios and wrongly suppressed
+`future_note_leak`.

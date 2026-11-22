@@ -1,0 +1,17 @@
+# L3 triage. True = a documented benign cause explains the night -> the notification is held back (verdict `suppress`).
+# Red flags never reach this operator. An unclear answer is never read as True.
+# Edit the instruction (and bump `version`) when the clinical definition changes; no code change is needed.
+name: triage
+version: 1
+kind: filter
+description: Does the patient's documented context explain tonight's deviations with a benign, non-infectious cause?
+reasoning: true
+max_tokens: 300
+instruction: |
+  The documented {context} names a specific benign, non-infectious cause that happened shortly before this night,
+  and that cause plausibly explains every abnormal value in {numeric}.
+  Benign causes include: drinking alcohol, a vaccination, unusually hard exercise, staying at high altitude,
+  travel or jet lag, and a known problem with wearing or charging the watch (which explains missing data only).
+  The claim is false when any abnormal value is not explained by the documented cause, for example fever,
+  fast breathing or falling blood oxygen that build up over several nights, or when the context only says
+  the patient feels fine or tired, or when nothing relevant is documented.

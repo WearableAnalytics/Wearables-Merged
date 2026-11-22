@@ -1,0 +1,39 @@
+name: long_context_truncation
+summary: Thirty diary entries; only the 20 most recent reach the model. Hard training the evening before explains a lower HRV.
+patient: {id: P-008, birth_year: 1988, sex: F}
+baseline: {rhr: 55, hrv_sdnn: 62, wrist_temp_delta: 0.0, resp_rate: 13, spo2_mean: 98, steps: 12000}
+nights:
+  2026-03-14: {rhr: 62, hrv_sdnn: 38, wrist_temp_delta: 0.1, resp_rate: 14}
+context:
+  - {id: 801, kind: note, ts: 2026-02-11T19:00, text: "Easy 5 km run."}
+  - {id: 802, kind: note, ts: 2026-02-12T19:00, text: "Rest day, walked the dog."}
+  - {id: 803, kind: note, ts: 2026-02-13T19:00, text: "Yoga class in the evening."}
+  - {id: 804, kind: note, ts: 2026-02-14T19:00, text: "Long day at the office."}
+  - {id: 805, kind: note, ts: 2026-02-15T19:00, text: "Cycled to work."}
+  - {id: 806, kind: note, ts: 2026-02-16T19:00, text: "Easy 5 km run."}
+  - {id: 807, kind: note, ts: 2026-02-17T19:00, text: "Rest day, walked the dog."}
+  - {id: 808, kind: note, ts: 2026-02-18T19:00, text: "Yoga class in the evening."}
+  - {id: 809, kind: note, ts: 2026-02-19T19:00, text: "Long day at the office."}
+  - {id: 810, kind: note, ts: 2026-02-20T19:00, text: "Cycled to work."}
+  - {id: 811, kind: note, ts: 2026-02-21T19:00, text: "Easy 5 km run."}
+  - {id: 812, kind: note, ts: 2026-02-22T19:00, text: "Rest day, walked the dog."}
+  - {id: 813, kind: note, ts: 2026-02-23T19:00, text: "Yoga class in the evening."}
+  - {id: 814, kind: note, ts: 2026-02-24T19:00, text: "Long day at the office."}
+  - {id: 815, kind: note, ts: 2026-02-25T19:00, text: "Cycled to work."}
+  - {id: 816, kind: note, ts: 2026-02-26T19:00, text: "Easy 5 km run."}
+  - {id: 817, kind: note, ts: 2026-02-27T19:00, text: "Rest day, walked the dog."}
+  - {id: 818, kind: note, ts: 2026-02-28T19:00, text: "Yoga class in the evening."}
+  - {id: 819, kind: note, ts: 2026-03-01T19:00, text: "Long day at the office."}
+  - {id: 820, kind: note, ts: 2026-03-02T19:00, text: "Cycled to work."}
+  - {id: 821, kind: note, ts: 2026-03-03T19:00, text: "Easy 5 km run."}
+  - {id: 822, kind: note, ts: 2026-03-04T19:00, text: "Rest day, walked the dog."}
+  - {id: 823, kind: note, ts: 2026-03-05T19:00, text: "Yoga class in the evening."}
+  - {id: 824, kind: note, ts: 2026-03-06T19:00, text: "Long day at the office."}
+  - {id: 825, kind: note, ts: 2026-03-07T19:00, text: "Cycled to work."}
+  - {id: 826, kind: note, ts: 2026-03-08T19:00, text: "Easy 5 km run."}
+  - {id: 827, kind: note, ts: 2026-03-09T19:00, text: "Rest day, walked the dog."}
+  - {id: 828, kind: note, ts: 2026-03-10T19:00, text: "Yoga class in the evening."}
+  - {id: 829, kind: note, ts: 2026-03-11T19:00, text: "Long day at the office."}
+  - {id: 830, kind: note, ts: 2026-03-13T21:30, text: "Very hard interval session at the track tonight (10 x 400 m), legs are dead."}
+candidate: {night: 2026-03-14, trigger_reasons: [rhr_z>2, hrv_drop>30%], red_flag: false, l2_score: 0.31}
+expect: {verdict: suppress}

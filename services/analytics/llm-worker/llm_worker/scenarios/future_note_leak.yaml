@@ -1,0 +1,11 @@
+name: future_note_leak
+summary: Looks like vaccination, but the note was written two days after the night and must not be read.
+patient: {id: P-006, birth_year: 1970, sex: F}
+baseline: {rhr: 61, hrv_sdnn: 44, wrist_temp_delta: 0.0, resp_rate: 15, spo2_mean: 97, steps: 8500}
+nights:
+  2026-03-14: {rhr: 69, hrv_sdnn: 35, wrist_temp_delta: 0.6, resp_rate: 16}
+context:
+  - {id: 601, kind: note, ts: 2026-03-08T18:00, text: "Weekend hike with friends, about 15 km."}
+  - {id: 602, kind: note, ts: 2026-03-16T09:00, text: "Forgot to log it: I got my flu shot on Saturday morning."}
+candidate: {night: 2026-03-14, trigger_reasons: [rhr_z>2, temp_delta>0.5, hrv_drop>15%], red_flag: false, l2_score: 0.42}
+expect: {verdict: notify}

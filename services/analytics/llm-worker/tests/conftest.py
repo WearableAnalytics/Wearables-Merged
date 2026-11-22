@@ -7,6 +7,7 @@ import pytest
 from psycopg_pool import ConnectionPool
 
 from llm_worker import repository
+from llm_worker.fake_llm import FakeLLM
 
 
 @pytest.fixture(scope="session")
@@ -29,7 +30,7 @@ def postgres_dsn() -> Iterator[str]:
 def pool(postgres_dsn: str) -> Iterator[ConnectionPool]:
     with ConnectionPool(postgres_dsn, min_size=1, max_size=4, kwargs={"autocommit": True}) as pool:
         with pool.connection() as conn:
-            conn.execute("TRUNCATE worker.suspicious_events, worker.patient_context RESTART IDENTITY")
+            conn.execute("TRUNCATE worker.suspicious_events RESTART IDENTITY")
         yield pool
 
 
@@ -61,3 +62,10 @@ def add_event(
 def event_row(conn: psycopg.Connection, event_id: int) -> dict:
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         return cur.execute("SELECT * FROM worker.suspicious_events WHERE event_id = %s", (event_id,)).fetchone()
+
+
+@pytest.fixture
+def fake_llm() -> Iterator[FakeLLM]:
+    server = FakeLLM()
+    yield server
+    server.close()

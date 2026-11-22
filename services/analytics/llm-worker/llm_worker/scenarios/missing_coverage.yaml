@@ -1,0 +1,11 @@
+name: missing_coverage
+summary: Watch worn loosely, SpO2 mostly missing; HR and temperature are still up. Missing data must not be read as normal.
+patient: {id: P-007, birth_year: 1960, sex: M}
+baseline: {rhr: 63, hrv_sdnn: 35, wrist_temp_delta: 0.0, resp_rate: 15, spo2_mean: 96, steps: 7000}
+nights:
+  2026-03-14: {rhr: 71, hrv_sdnn: 28, wrist_temp_delta: 0.7, resp_rate: 17, spo2_mean: null}
+coverage: {spo2_mean: 0.2, rhr: 0.8}
+context:
+  - {id: 701, kind: note, ts: 2026-03-14T21:00, text: "Watch strap is broken, wearing it loosely until the new one arrives."}
+candidate: {night: 2026-03-14, trigger_reasons: [rhr_z>2, temp_delta>0.5], red_flag: false, l2_score: 0.47}
+expect: {verdict: notify}

@@ -29,12 +29,5 @@ CREATE INDEX IF NOT EXISTS suspicious_events_open
     ON worker.suspicious_events (run_after, event_id)
     WHERE state IN ('pending', 'processing');
 
-CREATE TABLE IF NOT EXISTS worker.patient_context (
-    context_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    patient_id text NOT NULL,
-    kind       text NOT NULL CHECK (kind IN ('profile', 'medication', 'encounter', 'diary')),
-    ts         timestamptz,
-    text       text NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS patient_context_patient ON worker.patient_context (patient_id, ts);
+-- Patient context moved to providers (mocked by scenario fixtures for now; plan §4.6).
+DROP TABLE IF EXISTS worker.patient_context;

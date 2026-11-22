@@ -1,0 +1,12 @@
+name: altitude_documented
+summary: Ski trip at altitude; SpO2 lower and breathing faster for several nights.
+patient: {id: P-004, birth_year: 1979, sex: F}
+baseline: {rhr: 60, hrv_sdnn: 48, wrist_temp_delta: 0.0, resp_rate: 14, spo2_mean: 97, steps: 9000}
+nights:
+  2026-03-12: {spo2_mean: 94, resp_rate: 16, rhr: 64}
+  2026-03-13: {spo2_mean: 93, resp_rate: 17, rhr: 66}
+  2026-03-14: {spo2_mean: 93, resp_rate: 17, rhr: 66, steps: 21000}
+context:
+  - {id: 401, kind: note, ts: 2026-03-12T10:00, text: "Arrived in Zermatt for a ski week, staying at about 1,600 m and skiing up to 3,800 m."}
+candidate: {night: 2026-03-14, trigger_reasons: [spo2_drop>=3, resp_rate_z>2], red_flag: false, l2_score: 0.29}
+expect: {verdict: suppress}

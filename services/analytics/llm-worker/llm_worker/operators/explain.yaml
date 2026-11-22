@@ -1,0 +1,15 @@
+# L4 explanation for the clinician. Runs for every candidate, whatever the triage decision was.
+# Ids at the start of each evidence line (n:..., c:...) must be cited; unknown ids are dropped by the worker.
+name: explain
+version: 1
+kind: map
+description: Short note for the physician that explains the decision and cites the evidence.
+max_tokens: 400
+instruction: |
+  Write a short note for the patient's physician about one night of wearable data.
+  The triage decision for this night is: {decision}.
+  Use only the evidence in {numeric} and {context}. In two to four sentences, say which values differ from the
+  patient's own baseline and by how much, whether the change was already visible on previous nights, and which
+  documented context, if any, is relevant to the decision. Do not diagnose and do not invent facts.
+  Answer with a single JSON object and nothing else. It has two keys: "explanation" (the note as a string) and
+  "cited_ids" (a list of the evidence ids you used, such as n:rhr or c:104).

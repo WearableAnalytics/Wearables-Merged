@@ -1,0 +1,10 @@
+name: alcohol_undocumented
+summary: Same physiology as alcohol_documented, but nothing in the context explains it.
+patient: {id: P-002, birth_year: 1990, sex: M}
+baseline: {rhr: 57, hrv_sdnn: 55, wrist_temp_delta: 0.0, resp_rate: 14, spo2_mean: 98, steps: 10500}
+nights:
+  2026-03-14: {rhr: 66, hrv_sdnn: 33, wrist_temp_delta: 0.1, resp_rate: 15}
+context:
+  - {id: 201, kind: note, ts: 2026-03-02T19:00, text: "Started a new 10k running plan, three runs a week."}
+candidate: {night: 2026-03-14, trigger_reasons: [rhr_z>2, hrv_drop>30%], red_flag: false, l2_score: 0.35}
+expect: {verdict: notify}

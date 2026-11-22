@@ -1,0 +1,10 @@
+name: red_flag
+summary: Heart rate above the red-flag threshold during sleep. A plausible benign note exists, but red flags can never be suppressed.
+patient: {id: P-009, birth_year: 1958, sex: M}
+baseline: {rhr: 58, hrv_sdnn: 34, wrist_temp_delta: 0.0, resp_rate: 15, spo2_mean: 96, steps: 6000}
+nights:
+  2026-03-14: {rhr: 88, hrv_sdnn: 18, wrist_temp_delta: 0.3, resp_rate: 19}
+context:
+  - {id: 901, kind: note, ts: 2026-03-14T19:30, text: "Had two double espressos after dinner, feeling a bit wired."}
+candidate: {night: 2026-03-14, trigger_reasons: ["hr>=131 for 20 min (red flag rf-1)", rhr_z>2], red_flag: true, l2_score: 0.93}
+expect: {verdict: red_flag_bypass}

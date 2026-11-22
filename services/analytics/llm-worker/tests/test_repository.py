@@ -5,8 +5,7 @@ from datetime import UTC, date, datetime
 import pytest
 
 from llm_worker import repository
-from llm_worker.pipeline import Context
-from llm_worker.stages.context import LoadContext
+from llm_worker.providers.scenarios import load_bundled_store
 
 from .conftest import add_event, event_row
 
@@ -115,31 +114,55 @@ def test_fail_gives_up_after_the_last_attempt(conn):
     assert repository.claim(conn, worker_id="a", lease_seconds=60) is None
 
 
-def test_seed_loads_events_and_context(conn):
-    repository.seed(conn)
+def test_claim_batch_takes_up_to_the_limit_in_queue_order(conn):
+    ids = [add_event(conn, patient_id=f"p-{i}") for i in range(10)]
 
-    events = conn.execute("SELECT count(*), count(*) FILTER (WHERE red_flag) FROM worker.suspicious_events").fetchone()
-    patients = conn.execute("SELECT count(DISTINCT patient_id) FROM worker.patient_context").fetchone()
-    assert events == (5, 1)
-    assert patients == (3,)
+    batch = repository.claim_batch(conn, worker_id="a", lease_seconds=60, limit=8)
+
+    assert [event.event_id for event in batch] == ids[:8]
+    assert all(event_row(conn, i)["state"] == "processing" for i in ids[:8])
+    assert all(event_row(conn, i)["state"] == "pending" for i in ids[8:])
 
 
-def test_load_context_never_reads_the_future(conn):
-    conn.execute(
-        """
-        INSERT INTO worker.patient_context (patient_id, kind, ts, text) VALUES
-          ('p-001', 'profile', NULL, '54 y, female'),
-          ('p-001', 'diary', '2026-03-13 21:00+00', 'felt feverish'),
-          ('p-001', 'diary', '2026-03-16 08:00+00', 'got better'),
-          ('p-002', 'diary', '2026-03-13 21:00+00', 'someone else')
-        """
-    )
-    add_event(conn)
+def test_two_workers_claiming_batches_never_overlap(pool):
+    with pool.connection() as conn:
+        for i in range(20):
+            add_event(conn, patient_id=f"p-{i}")
+    claimed: dict[str, list[int]] = {"a": [], "b": []}
+
+    def consume(worker_id: str) -> None:
+        with pool.connection() as conn:
+            while batch := repository.claim_batch(conn, worker_id=worker_id, lease_seconds=60, limit=3):
+                claimed[worker_id] += [event.event_id for event in batch]
+
+    threads = [threading.Thread(target=consume, args=(w,)) for w in claimed]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert sorted(claimed["a"] + claimed["b"]) == list(range(1, 21))
+    assert not set(claimed["a"]) & set(claimed["b"])
+
+
+def test_an_event_becomes_an_alert_candidate(conn):
+    add_event(conn, reasons="rhr_z>2, temp_delta>0.5", red_flag=True, features={"l2_score": 0.7})
+
     event = repository.claim(conn, worker_id="a", lease_seconds=60)
-    ctx = Context(event)
+    candidate = event.to_candidate()
 
-    output = LoadContext().run(ctx, conn)
+    assert candidate.candidate_id == event.event_id
+    assert candidate.trigger_reasons == ["rhr_z>2", "temp_delta>0.5"]
+    assert candidate.red_flag is True and candidate.l2_score == 0.7
 
-    assert output == {"profile": 1, "diary": 1}
-    assert [entry["text"] for entry in ctx.patient["diary"]] == ["felt feverish"]
-    assert event.night_date == date(2026, 3, 14)
+
+def test_seed_enqueues_one_candidate_per_bundled_scenario(conn):
+    store = load_bundled_store()
+
+    repository.seed(conn, store)
+    repository.seed(conn, store)  # idempotent
+
+    rows = conn.execute("SELECT patient_id, night_date, red_flag FROM worker.suspicious_events").fetchall()
+    assert len(rows) == len(store.names())
+    assert {(r[0], r[2]) for r in rows} >= {("P-009", True), ("P-001", False)}
+    assert {r[1] for r in rows} == {date(2026, 3, 14)}
