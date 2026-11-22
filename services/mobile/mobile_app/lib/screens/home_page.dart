@@ -7,6 +7,7 @@ import 'polar_recording_page.dart';
 import 'upload_history_page.dart';
 import '../storage_service.dart';
 import '../services/health_sync_service.dart';
+import '../services/polar_band_sync.dart';
 import '../services/sync_activity_notifier.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -318,15 +319,9 @@ class _ConnectedView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (!expired && !rejected)
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.monitor_heart_outlined),
-                        label: const Text('Polar device'),
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                PolarRecordingPage(token: state.deviceId),
-                          ),
-                        ),
+                      _PolarDeviceEntry(
+                        key: ValueKey(state.deviceId),
+                        token: state.deviceId,
                       ),
                     if (!state.codeRejected)
                       TextButton.icon(
@@ -361,7 +356,7 @@ class _ConnectedView extends StatelessWidget {
                           ? 'Last upload failed'
                           : incomplete
                           ? 'Not fully shared yet'
-                          : 'You are connected',
+                          : 'Linked to your study',
                       style: textTheme.headlineMedium,
                       textAlign: TextAlign.center,
                     ),
@@ -389,6 +384,8 @@ class _ConnectedView extends StatelessWidget {
                           : state.isParallelSyncMode
                           ? 'Your ${AppConfig.healthStore} data and ${state.primaryCloudProvider?.name ?? "Garmin"} Cloud are '
                                 'shared securely with the Charité Wearables platform.'
+                          : !state.localHealthSyncEnabled
+                          ? 'This phone is linked to your study.'
                           : 'Your ${AppConfig.healthStore} data is shared securely with the '
                                 'Charité Wearables platform.',
                       style: textTheme.bodyLarge?.copyWith(
@@ -481,7 +478,9 @@ class _ConnectedView extends StatelessWidget {
                         Expanded(
                           child: _InfoTile(
                             icon: Symbols.schedule_sharp,
-                            label: 'Shared up to',
+                            label: state.isCloudOnlyMode
+                                ? 'Cloud uploads'
+                                : '${AppConfig.healthStore} shared up to',
                             value: state.isCloudOnlyMode
                                 ? 'Direct cloud'
                                 : state.lastSendTime == null
@@ -493,7 +492,9 @@ class _ConnectedView extends StatelessWidget {
                         Expanded(
                           child: _InfoTile(
                             icon: Symbols.autorenew_sharp,
-                            label: 'Automatic sharing',
+                            label: state.isCloudOnlyMode
+                                ? 'Cloud sharing'
+                                : '${AppConfig.healthStore} sharing',
                             value: (expired || rejected)
                                 ? 'Paused'
                                 : state.isCloudOnlyMode
@@ -679,4 +680,51 @@ class _InfoTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PolarDeviceEntry extends StatefulWidget {
+  const _PolarDeviceEntry({super.key, required this.token});
+  final String token;
+
+  @override
+  State<_PolarDeviceEntry> createState() => _PolarDeviceEntryState();
+}
+
+class _PolarDeviceEntryState extends State<_PolarDeviceEntry> {
+  late Future<bool> sharing = readSharing();
+
+  Future<bool> readSharing() async =>
+      await PolarBandSync.grant(widget.token) != null;
+
+  Future<void> open() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => PolarRecordingPage(token: widget.token),
+      ),
+    );
+    if (mounted) {
+      final updated = readSharing();
+      setState(() {
+        sharing = updated;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      OutlinedButton.icon(
+        icon: const Icon(Icons.monitor_heart_outlined),
+        label: const Text('Polar device'),
+        onPressed: open,
+      ),
+      FutureBuilder<bool>(
+        future: sharing,
+        builder: (context, snapshot) => snapshot.data == true
+            ? const Text('Polar auto-sync enabled', textAlign: TextAlign.center)
+            : const SizedBox.shrink(),
+      ),
+    ],
+  );
 }

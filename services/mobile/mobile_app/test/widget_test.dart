@@ -1,4 +1,9 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:charite_wearables/storage_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -117,6 +122,37 @@ void main() {
     await _shot('screenshots/01_welcome.png');
   });
 
+  testWidgets('Home distinguishes Polar consent from paused phone sharing', (tester) async {
+    final previous = SharedPreferencesAsyncPlatform.instance;
+    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
+    addTearDown(() => SharedPreferencesAsyncPlatform.instance = previous);
+    final state = await tester.runAsync(() => _state({
+      'device_id': _studyCode, 'local_health_sync_enabled': false,
+    }));
+    await SharedPreferencesAsync().setString(StorageService.polarBandConsentKey, jsonEncode({
+      'owner': sha256.convert(utf8.encode(_studyCode)).toString(),
+      'id': 'test-grant', 'metrics': ['heartRate'],
+    }));
+    await _pump(tester, state!);
+    expect(find.text('Polar auto-sync enabled'), findsOneWidget);
+    expect(find.text('Health Connect sharing'), findsOneWidget);
+    expect(find.text('Paused'), findsOneWidget);
+    await tester.tap(find.text('Polar device'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Turn off'));
+    await tester.pumpAndSettle();
+    expect(find.text('Manual live recording'), findsOneWidget);
+    expect(find.text('Heart rate'), findsNothing);
+    await tester.tap(find.text('Manual live recording'));
+    await tester.pumpAndSettle();
+    expect(find.text('Heart rate'), findsOneWidget);
+    expect(find.text('Skin temperature'), findsOneWidget);
+    expect(find.text('Pulse interval'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Polar auto-sync enabled'), findsNothing);
+  });
+
   testWidgets('linked shows connected status and tabs', (tester) async {
     final last = DateTime.now().subtract(const Duration(hours: 2));
     final state = await tester.runAsync(() => _state({
@@ -124,7 +160,7 @@ void main() {
           'last_data_send_time': last.millisecondsSinceEpoch,
         }));
     await _pump(tester, state!);
-    expect(find.text('You are connected'), findsOneWidget);
+    expect(find.text('Linked to your study'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
     await _shot('screenshots/02_connected.png');
 
@@ -210,7 +246,7 @@ void main() {
       find.text('Welcome back. Your data transfer has resumed.'),
       findsOneWidget,
     );
-    expect(find.text('You are connected'), findsOneWidget);
+    expect(find.text('Linked to your study'), findsOneWidget);
     expect(state.syncCalls, 1);
     await _shot('screenshots/08_resumed.png');
   });

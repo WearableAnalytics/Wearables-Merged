@@ -32,7 +32,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
   final samples = <PolarSample>[];
   final endpointResolver = HealthSyncService();
   String message =
-      'Scan for your band. For a new Polar 360 choose Set up band. Choose Auto sync for daily use or tap the device for live recording.';
+      'Scan for your band, then choose Auto sync to set up daily sharing.';
   Completer<void>? stop;
   bool sending = false;
   bool longerRecording = false;
@@ -160,7 +160,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Share new readings from ${device.name} with ${endpointResolver.endpointFor(widget.token).host} starting now. Wearables will automatically retrieve stored readings when the band reconnects. Stop sharing here at any time.',
+                  'Share new readings from ${device.name} with ${endpointResolver.endpointFor(widget.token).host} starting now. Select any combination below. Wearables retrieves the selected readings when the band reconnects. Stop sharing here at any time.',
                 ),
                 for (final m in PolarMetric.values)
                   CheckboxListTile(
@@ -355,7 +355,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       showMessage(
         devices.isEmpty
             ? 'No Polar found. Check Bluetooth and heart rate sharing, then scan again.'
-            : 'Select your Polar to record.',
+            : 'Choose Auto sync for daily sharing, or tap the band name for a live recording.',
       );
     } catch (_) {
       showMessage(
@@ -620,29 +620,6 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
               child: const Text('Check storage status'),
             ),
           if (upload == null && bandGrant == null && grantLoaded) ...[
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final option in PolarMetric.live)
-                  ChoiceChip(
-                    label: Text(option.label),
-                    selected: metric == option,
-                    onSelected: busy
-                        ? null
-                        : (_) => setState(() => metric = option),
-                  ),
-              ],
-            ),
-            SwitchListTile(
-              title: const Text('Longer recording'),
-              subtitle: Text(
-                'Stop at any time. This upload accepts up to $sampleLimit readings.',
-              ),
-              value: longerRecording,
-              onChanged: busy
-                  ? null
-                  : (v) => setState(() => longerRecording = v),
-            ),
             OutlinedButton(
               onPressed: busy ? null : scan,
               child: const Text('Scan for Polar'),
@@ -663,6 +640,35 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
                   child: const Text('Auto sync'),
                 ),
               ),
+            ExpansionTile(
+              title: const Text('Manual live recording'),
+              subtitle: const Text('Choose one sensor for this recording.'),
+              children: [
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final option in PolarMetric.live)
+                      ChoiceChip(
+                        label: Text(option.label),
+                        selected: metric == option,
+                        onSelected: busy
+                            ? null
+                            : (_) => setState(() => metric = option),
+                      ),
+                  ],
+                ),
+                SwitchListTile(
+                  title: const Text('Longer recording'),
+                  subtitle: Text(
+                    'Stop at any time. This upload accepts up to $sampleLimit readings.',
+                  ),
+                  value: longerRecording,
+                  onChanged: busy
+                      ? null
+                      : (v) => setState(() => longerRecording = v),
+                ),
+              ],
+            ),
             if (stop != null)
               TextButton(onPressed: finish, child: const Text('Stop')),
           ] else if (upload != null) ...[
