@@ -11,7 +11,9 @@ config:
 
 The chart does not create its Secret. Provision `extraction-service-secrets`
 (`secretRef`) outside Git with `DB_LORD_OPERATOR_TOKEN`, the same value as
-db-lord's `LEGACY_OPERATOR_TOKEN`.
+db-lord's `LEGACY_OPERATOR_TOKEN`, and `EXTRACTION_INTERNAL_JWT_SECRET`, the same
+value as in `wearables-bff-secrets` (the BFF signs the caller it forwards with it).
+`scripts/bootstrap-runtime-secrets.sh` writes both; locally `gitops/local/setup-local.sh`.
 
 ## Accessing the Service
 

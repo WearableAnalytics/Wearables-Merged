@@ -104,6 +104,32 @@ keep_secret() {
   k annotate secret "$2" -n "$1" helm.sh/resource-policy=keep --overwrite >/dev/null
 }
 
+# ensure_secret_key <namespace> <secret> <key> <value>
+# Creates the secret or adds the key to an existing one. An existing value is
+# kept, so re-running the script on an older cluster only fills in what is missing.
+ensure_secret_key() {
+  local namespace="$1" secret="$2" key="$3" value="$4"
+  ensure_namespace "$namespace"
+  if ! k get secret "$secret" -n "$namespace" >/dev/null 2>&1; then
+    k create secret generic "$secret" -n "$namespace" --from-literal="${key}=${value}" >/dev/null
+  elif [[ -z "$(k get secret "$secret" -n "$namespace" -o "jsonpath={.data.${key}}")" ]]; then
+    k patch secret "$secret" -n "$namespace" --type=merge \
+      -p "{\"data\":{\"${key}\":\"$(printf '%s' "$value" | base64 | tr -d '\n')\"}}" >/dev/null
+  fi
+}
+
+# The BFF signs the caller it forwards to the extraction service with this
+# (production: scripts/bootstrap-runtime-secrets.sh). Local-only value.
+LOCAL_EXTRACTION_INTERNAL_JWT_SECRET="local-extraction-internal-jwt-secret-not-for-prod"
+
+create_extraction_secrets() {
+  ensure_secret_key wearables-bff wearables-bff-secrets \
+    EXTRACTION_INTERNAL_JWT_SECRET "$LOCAL_EXTRACTION_INTERNAL_JWT_SECRET"
+  ensure_secret_key extraction-service extraction-service-secrets \
+    EXTRACTION_INTERNAL_JWT_SECRET "$LOCAL_EXTRACTION_INTERNAL_JWT_SECRET"
+  keep_secret extraction-service extraction-service-secrets
+}
+
 install_strimzi() {
   h upgrade --install strimzi-cluster-operator oci://quay.io/strimzi-helm/strimzi-kafka-operator \
     --version "$STRIMZI_VERSION" --namespace kafka --create-namespace --wait --timeout "$TIMEOUT"
@@ -304,6 +330,7 @@ if $USE_ARGOCD; then
   create_postgres_secret
   create_db_lord_secret
   create_bff_secret
+  create_extraction_secrets
   create_grafana_proxy_secret
   apply_grafana_dashboards
 

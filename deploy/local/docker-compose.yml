@@ -293,6 +293,7 @@ services:
     environment:
       DB_LORD_BASE_URL: http://db-lord:8000
       DB_LORD_OPERATOR_TOKEN: ${DATABASE_OPERATOR_TOKEN:?Run python3 init_env.py first}
+      EXTRACTION_INTERNAL_JWT_SECRET: ${EXTRACTION_INTERNAL_JWT_SECRET:?Run python3 init_env.py first}
       # Served through the BFF at /api/extraction (Swagger at /api/extraction/docs).
       ROOT_PATH: /api/extraction
     depends_on:
@@ -323,6 +324,7 @@ services:
       DATABASE_API_URL: http://db-lord:8000
       DATABASE_API_TIMEOUT: 30000
       EXTRACTION_API_URL: http://extraction-service:8010
+      EXTRACTION_INTERNAL_JWT_SECRET: ${EXTRACTION_INTERNAL_JWT_SECRET:?Run python3 init_env.py first}
       USE_MOCK_DATA: "false"
       LOG_LEVEL: debug
       # Development sends no email. Use login_link.py for a one-use local link.

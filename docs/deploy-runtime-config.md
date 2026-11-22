@@ -63,6 +63,12 @@ This script:
 - ensures one shared JWT secret is used by both BFF and Grafana proxy
 - applies `wearables-bff-secrets` in namespace `wearables-bff`
 - applies `grafana-auth-secrets` in namespace `monitoring`
+- writes one `EXTRACTION_INTERNAL_JWT_SECRET` to `wearables-bff-secrets` and
+  `extraction-service-secrets` (namespace `extraction-service`); the existing value is reused.
+  Without it the BFF starts with a warning and `/api/extraction` answers 503. After the first
+  run or a change, restart both deployments:
+  `kubectl -n wearables-bff rollout restart deploy/wearables-bff` and
+  `kubectl -n extraction-service rollout restart deploy/extraction-service`
 
 ## 2. Deploy wearables-bff
 

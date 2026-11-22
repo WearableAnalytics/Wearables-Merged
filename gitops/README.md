@@ -136,7 +136,7 @@ INFLUX_TOKEN: "token"
 
 **Install extraction service**
 
-1. Create the secret `extraction-service-secrets` with `DB_LORD_OPERATOR_TOKEN` (same value as db-lord's `LEGACY_OPERATOR_TOKEN`). The chart does not create it.
+1. Create the secret `extraction-service-secrets` with `DB_LORD_OPERATOR_TOKEN` (same value as db-lord's `LEGACY_OPERATOR_TOKEN`) and `EXTRACTION_INTERNAL_JWT_SECRET` (same value as in `wearables-bff-secrets`). The chart does not create it; `scripts/bootstrap-runtime-secrets.sh` writes both.
 
 2. Install the extraction service
 

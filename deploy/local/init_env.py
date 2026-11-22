@@ -34,7 +34,7 @@ def configure(path):
     if values.get("JWT_SECRET") == "dev-secret":
         values["JWT_SECRET"] = ""
     for key in ("JWT_SECRET", "CONTROL_WRITE_TOKEN", "API_TOKEN_SERVICE_TOKEN", "DATABASE_OPERATOR_TOKEN",
-                "INGEST_RUNTIME_PASSWORD", "INGEST_MIGRATION_PASSWORD", "POSTGRES_PASSWORD",
+                "EXTRACTION_INTERNAL_JWT_SECRET", "INGEST_RUNTIME_PASSWORD", "INGEST_MIGRATION_PASSWORD", "POSTGRES_PASSWORD",
                 "INFLUX_TOKEN", "INFLUX_PASSWORD", "GRAFANA_ADMIN_PASSWORD"):
         if not values.get(key):
             values[key] = secrets.token_hex(32)
