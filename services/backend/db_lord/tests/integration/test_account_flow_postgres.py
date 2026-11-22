@@ -298,7 +298,11 @@ async def test_real_bff_registration_approval_shared_sessions_and_existing_case_
                 assert (await staff.get("/cases/" + str(case))).status_code == 200
                 assert (await staff.get("/admin/pending-users")).status_code == 403
                 assert (await staff.get("/admin/forward-auth")).status_code == 403
-                assert (await staff.get("/extraction/test")).status_code == 403
+                # Practitioners may use the extraction API (researchers only pseudonymized). This BFF has no
+                # EXTRACTION_API_URL, so passing the role check ends in "not configured" instead of 403.
+                extraction = await staff.get("/extraction/test")
+                assert extraction.status_code == 503, extraction.text
+                assert extraction.json()["error"] == "Extraction API is not configured"
                 assert (
                     await staff.post("/cases/from-hospital-case", json={"hospitalCaseId": "C-123456"})
                 ).status_code in (200, 201)

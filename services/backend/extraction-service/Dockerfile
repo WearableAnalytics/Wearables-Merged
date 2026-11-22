@@ -4,8 +4,10 @@ WORKDIR /app
 
 COPY pyproject.toml .
 
+# No pip cache in the image: it is public, and cached package pages (e.g. PyJWT's example token)
+# trip the secret scan in publish-images.yml.
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install .
+    && pip install --no-cache-dir .
 
 COPY ./ .
 
