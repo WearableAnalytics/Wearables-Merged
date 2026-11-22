@@ -28,7 +28,7 @@ List<BandReading> eligibleBandRows(
         (r) =>
             metrics.contains(r.metric) &&
             !r.time.isBefore(since) &&
-            !r.time.isAfter(until),
+            !(r.end ?? r.time).isAfter(until),
       )
       .toList()
     ..sort((a, b) {
@@ -49,6 +49,7 @@ String bandPrefix(Iterable<BandReading> rows, [String digest = '']) {
         r.time.microsecondsSinceEpoch,
         r.metric.name,
         r.value,
+        if (r.end != null) r.end!.microsecondsSinceEpoch,
       ]),
     );
   }
@@ -101,7 +102,18 @@ Iterable<HealthUpload> bandUploads(
             'type': row.metric.type,
             'unit': row.metric.unit,
             'value': row.value,
-            'timestamp': row.time.toUtc().toIso8601String(),
+            if (row.metric.group == 'instantaneous')
+              'timestamp': (row.end ?? row.time).toUtc().toIso8601String(),
+            if (row.metric.group == 'cumulative') ...{
+              'periodStart': row.time.toUtc().toIso8601String(),
+              'periodEnd': row.end!.toUtc().toIso8601String(),
+              'duration': row.end!.difference(row.time).inMilliseconds / 1000,
+            },
+            if (row.metric.group == 'duration') ...{
+              'startTime': row.time.toUtc().toIso8601String(),
+              'endTime': row.end!.toUtc().toIso8601String(),
+              'durationMinutes': row.value,
+            },
             'sourceDeviceId': device,
             'sourceRecordId': _digest('$device/${row.id}'),
           },
@@ -109,8 +121,12 @@ Iterable<HealthUpload> bandUploads(
       final key = _digest(
         jsonEncode([source.id, device, collector, platform, points]),
       );
-      final start = points.first['timestamp'],
-          finish = points.last['timestamp'];
+      final start = entries.first.time.toUtc().toIso8601String();
+      final finish = entries
+          .map((r) => r.end ?? r.time)
+          .reduce((a, b) => a.isAfter(b) ? a : b)
+          .toUtc()
+          .toIso8601String();
       final upload = HealthUpload(
         {
           ...source.toLegacyMetadata(),
@@ -124,9 +140,11 @@ Iterable<HealthUpload> bandUploads(
           },
           'timestamp': finish,
           'measurements': {
-            'instantaneous': points,
-            'cumulative': [],
-            'duration': [],
+            for (final group in ['instantaneous', 'cumulative', 'duration'])
+              group: [
+                for (var i = 0; i < entries.length; i++)
+                  if (entries[i].metric.group == group) points[i],
+              ],
           },
         },
         key,
@@ -191,6 +209,29 @@ class PolarBandSync {
     await _prefs.setString(grantKey, cfg);
     unawaited(run());
   }
+
+  static Future<void> addMetrics(
+    String token,
+    String original,
+    Set<PolarMetric> additions,
+  ) => duringSetup(() async {
+    if (await grant(token) != original ||
+        !await StorageService.currentStudyMatches(token)) {
+      throw StateError('Study or sharing settings changed');
+    }
+    final cfg = jsonDecode(original);
+    final existing = List<String>.from(cfg['metrics']);
+    final starts = Map<String, dynamic>.from(cfg['metricStarts'] ?? {});
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (final m in additions) {
+      if (existing.contains(m.name)) continue;
+      existing.add(m.name);
+      starts[m.name] = now;
+    }
+    cfg['metrics'] = existing;
+    cfg['metricStarts'] = starts;
+    await _prefs.setString(grantKey, jsonEncode(cfg));
+  });
 
   static Future<void> disable(String token) async {
     final cfg = await grant(token);
@@ -288,9 +329,16 @@ class PolarBandSync {
       String path,
       Iterable<BandReading> Function(List<int>) parse, {
       String? revision,
+      List<int>? provided,
+      List<PolarMetric> selection = const [],
+      String dependency = '',
     }) async {
       await authorized();
-      final marker = 'polar_file_${id}_${_digest(path)}';
+      final suffix = selection
+          .where(wanted.contains)
+          .map((m) => m.name)
+          .join(',');
+      final marker = 'polar_file_${id}_${_digest(path + suffix)}';
       // Even when the firmware supplies a modification time, periodically
       // recheck the content in case a file was replaced within one clock tick.
       final stamp = revision == null
@@ -300,9 +348,9 @@ class PolarBandSync {
         return;
       }
       stage = 'Reading band history';
-      final data = await files.read(path);
+      final data = provided ?? await files.read(path);
       if (data == null) return;
-      final digest = sha256.convert(data).toString();
+      final digest = sha256.convert(data).toString() + dependency;
       if (await _prefs.getString(marker) == digest) {
         if (stamp != null) await _prefs.setString('$marker/stat', stamp);
         return;
@@ -320,7 +368,11 @@ class PolarBandSync {
         unreadable++;
         return;
       }
-      final eligible = eligibleBandRows(rows, wanted, since, now);
+      final starts = cfg['metricStarts'] as Map?;
+      final eligible = eligibleBandRows(rows, wanted, since, now).where((row) {
+        final earliest = starts?[row.metric.name] as String?;
+        return earliest == null || !row.time.isBefore(DateTime.parse(earliest));
+      }).toList();
       final markerValue = await _prefs.getString('$marker/prefix');
       var confirmed = confirmedBandPrefix(eligible, markerValue);
       var fingerprint = confirmed == 0 ? '' : markerValue!.split('/').last;
@@ -350,7 +402,7 @@ class PolarBandSync {
         confirmed = end;
         await _prefs.setString('$marker/prefix', '$confirmed/$fingerprint');
       }
-      if (!rows.any((r) => r.time.isAfter(now))) {
+      if (!rows.any((r) => (r.end ?? r.time).isAfter(now))) {
         await _prefs.setString(marker, digest);
         if (stamp != null) await _prefs.setString('$marker/stat', stamp);
       }
@@ -396,7 +448,9 @@ class PolarBandSync {
           }
         }
       }
-      if (wanted.contains(PolarMetric.skinTemperature)) {
+      if (wanted.any(
+        (m) => m != PolarMetric.heartRate && m != PolarMetric.pulseInterval,
+      )) {
         final dir = await files.read('/U/0/');
         if (dir != null) {
           for (final entry in polarDirectory(dir)) {
@@ -411,10 +465,89 @@ class PolarBandSync {
                 day.isAfter(now)) {
               continue;
             }
-            await importFile(
-              '/U/0/$name/SKINTEMP/TEMPCONT.BPB',
-              (bytes) => polarTemperatureSamples(day, bytes),
-            );
+            final root = '/U/0/$name';
+            if (wanted.contains(PolarMetric.skinTemperature)) {
+              await importFile(
+                '$root/SKINTEMP/TEMPCONT.BPB',
+                (bytes) => polarTemperatureSamples(day, bytes),
+              );
+            }
+            if (wanted.contains(PolarMetric.steps) ||
+                wanted.contains(PolarMetric.activityMet)) {
+              Future<void> stepsIn(String folder, int depth) async {
+                final listing = await files.read(folder);
+                if (listing == null) return;
+                for (final item in polarDirectory(listing)) {
+                  if (RegExp(r'^[A-Z0-9_-]+\.BPB$').hasMatch(item.name)) {
+                    await importFile(
+                      folder + item.name,
+                      polarActivitySamples,
+                      selection: [PolarMetric.steps, PolarMetric.activityMet],
+                      revision: item.revision,
+                    );
+                  } else if (depth < 2 &&
+                      RegExp(r'^[A-Z0-9_-]+/$').hasMatch(item.name)) {
+                    await stepsIn(folder + item.name, depth + 1);
+                  }
+                }
+              }
+
+              await stepsIn('$root/ACT/', 0);
+            }
+            const workouts = [
+              PolarMetric.workoutTime,
+              PolarMetric.workoutEnergy,
+            ];
+            if (workouts.any(wanted.contains)) {
+              final list = await files.read('$root/E/');
+              if (list != null) {
+                for (final session in polarDirectory(list)) {
+                  if (!RegExp(r'^\d{6}/$').hasMatch(session.name)) continue;
+                  await importFile(
+                    '$root/E/${session.name}TSESS.BPB',
+                    polarWorkout,
+                    selection: workouts,
+                  );
+                }
+              }
+            }
+            final tomorrow = DateTime(day.year, day.month, day.day + 1);
+            if (PolarMetric.dailyTotals.any(wanted.contains) &&
+                !tomorrow.isAfter(now) &&
+                !day.isBefore(since)) {
+              await importFile(
+                '$root/DSUM/DSUM.BPB',
+                (b) => polarDailyTotals(day, b),
+                selection: PolarMetric.dailyTotals,
+              );
+            }
+            final recovery =
+                wanted.contains(PolarMetric.nightlyHrv) ||
+                wanted.contains(PolarMetric.nightlyBreathing);
+            if (PolarMetric.sleepStages.any(wanted.contains) || recovery) {
+              final path = '$root/SLEEP/SLEEPRES.BPB';
+              final sleep = await files.read(path);
+              if (sleep == null) continue;
+              if (PolarMetric.sleepStages.any(wanted.contains)) {
+                await importFile(
+                  path,
+                  polarSleepPhases,
+                  provided: sleep,
+                  selection: PolarMetric.sleepStages,
+                );
+              }
+              if (recovery) {
+                await importFile(
+                  '$root/NR/NR.BPB',
+                  (b) => polarNightlyRecovery(day, polarSleepWindow(sleep), b),
+                  selection: [
+                    PolarMetric.nightlyHrv,
+                    PolarMetric.nightlyBreathing,
+                  ],
+                  dependency: _digest(base64Encode(sleep)),
+                );
+              }
+            }
           }
         }
       }

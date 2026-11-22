@@ -20,6 +20,8 @@ type CaseMonitoringPanelProps<ViewId extends string = string> = {
   activeMonitoringView: ViewId;
   onMonitoringViewChange: (viewId: ViewId) => void;
   activeMonitoringConfig: MonitoringViewOption<ViewId>;
+  live: boolean;
+  onToggleLive?: () => void;
   activeQuickRangeOptions: QuickRangeOption[];
   onQuickRangeSelect: (durationMs: number) => void;
   fromInput: string;
@@ -39,6 +41,8 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
   activeMonitoringView,
   onMonitoringViewChange,
   activeMonitoringConfig,
+  live,
+  onToggleLive,
   activeQuickRangeOptions,
   onQuickRangeSelect,
   fromInput,
@@ -100,6 +104,11 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
                     Quick range
                   </span>
                   <div className="mt-2 grid grid-cols-3 gap-2">
+                    {onToggleLive && (
+                      <Button type="button" size="sm" variant={live ? 'default' : 'outline'} aria-pressed={live} onClick={onToggleLive}>
+                        Live 30 min
+                      </Button>
+                    )}
                     {activeQuickRangeOptions.map((option) => (
                       <Button
                         key={option.label}
@@ -119,6 +128,7 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
                     From
                   </span>
                   <input
+                    disabled={live}
                     type="datetime-local"
                     className="field-input ui-control-h mt-2 w-full rounded-xl"
                     value={fromInput}
@@ -131,6 +141,7 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
                     Until
                   </span>
                   <input
+                    disabled={live}
                     type="datetime-local"
                     className="field-input ui-control-h mt-2 w-full rounded-xl"
                     value={toInput}
@@ -141,7 +152,8 @@ export function CaseMonitoringPanel<ViewId extends string = string>({
                 </label>
               </div>
             </div>
-            {timeRangeError ? (
+            {live && <p className="mt-2 text-sm">Last 30 minutes · updates every minute</p>}
+            {!live && timeRangeError ? (
               <div className="rounded-lg border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.16)] px-3 py-2 text-sm font-semibold text-foreground">
                 {timeRangeError}
               </div>

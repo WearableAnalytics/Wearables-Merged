@@ -24,10 +24,86 @@ int? polarHeartRate(List<int> bytes) {
 enum PolarMetric {
   heartRate('Heart rate', 'HEART_RATE', 'BEATS_PER_MINUTE', 'bpm'),
   skinTemperature('Skin temperature', 'SKIN_TEMPERATURE', 'Cel', '°C'),
-  pulseInterval('Pulse interval', 'PULSE_TO_PULSE_INTERVAL', 'ms', 'ms');
+  pulseInterval('Pulse interval', 'PULSE_TO_PULSE_INTERVAL', 'ms', 'ms'),
+  steps('Steps', 'STEPS', '1', 'steps', 'cumulative'),
+  activityDistance(
+    'Activity distance',
+    'DISTANCE_DELTA',
+    'm',
+    'm',
+    'cumulative',
+  ),
+  activityEnergy(
+    'Activity energy',
+    'ACTIVE_ENERGY_BURNED',
+    'kcal',
+    'kcal',
+    'cumulative',
+  ),
+  basalEnergy(
+    'Basal energy',
+    'BASAL_ENERGY_BURNED',
+    'kcal',
+    'kcal',
+    'cumulative',
+  ),
+  activityMet(
+    'Activity intensity (MET)',
+    'POLAR_ACTIVITY_MET',
+    '1',
+    'MET',
+    'cumulative',
+  ),
+  workoutTime(
+    'Workout elapsed time',
+    'WORKOUT_ELAPSED_TIME',
+    'min',
+    'min',
+    'duration',
+  ),
+  workoutEnergy(
+    'Workout energy',
+    'POLAR_WORKOUT_ENERGY',
+    'kcal',
+    'kcal',
+    'cumulative',
+  ),
+  sleepAsleep('Time asleep', 'SLEEP_ASLEEP', 'min', 'min', 'duration'),
+  sleepLight('Light sleep', 'SLEEP_LIGHT', 'min', 'min', 'duration'),
+  sleepDeep('Deep sleep', 'SLEEP_DEEP', 'min', 'min', 'duration'),
+  sleepRem('REM sleep', 'SLEEP_REM', 'min', 'min', 'duration'),
+  sleepAwake('Awake during sleep', 'SLEEP_AWAKE', 'min', 'min', 'duration'),
+  nightlyHrv(
+    'Nightly mean HRV (RMSSD)',
+    'POLAR_NIGHTLY_MEAN_RMSSD',
+    'ms',
+    'ms',
+  ),
+  nightlyBreathing(
+    'Nightly breathing rate',
+    'RESPIRATORY_RATE',
+    '/min',
+    '/min',
+  );
 
-  const PolarMetric(this.label, this.type, this.unit, this.displayUnit);
-  final String label, type, unit, displayUnit;
+  static const live = [heartRate, skinTemperature, pulseInterval];
+  static const sleepStages = [
+    sleepLight,
+    sleepDeep,
+    sleepRem,
+    sleepAwake,
+    sleepAsleep,
+  ];
+  static const dailyTotals = [activityDistance, activityEnergy, basalEnergy];
+
+  const PolarMetric(
+    this.label,
+    this.type,
+    this.unit,
+    this.displayUnit, [
+    this.group = 'instantaneous',
+  ]);
+  final String label, type, unit, displayUnit, group;
 }
 
 typedef PolarSample = ({num value, DateTime time});

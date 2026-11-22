@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 
@@ -202,6 +203,64 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
       await loadSharing();
     } catch (_) {
       showMessage('Unable to enable automatic sharing. Check the study link.');
+    }
+  }
+
+  Future<void> addSharing(String original) async {
+    final current = List<String>.from(jsonDecode(original)['metrics']);
+    final options = PolarMetric.values
+        .where((m) => !current.contains(m.name))
+        .toList();
+    final selected = options.toSet();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, update) => AlertDialog(
+          title: const Text('Add automatic measurements'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Share selected measurements from now with ${endpointResolver.endpointFor(widget.token).host}. Daily totals need a complete day of sharing.',
+                ),
+                for (final m in options)
+                  CheckboxListTile(
+                    title: Text(m.label),
+                    value: selected.contains(m),
+                    onChanged: (v) => update(() {
+                      if (v == true) {
+                        selected.add(m);
+                      } else {
+                        selected.remove(m);
+                      }
+                    }),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: selected.isEmpty
+                  ? null
+                  : () => Navigator.pop(ctx, true),
+              child: const Text('Add selected measurements'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await PolarBandSync.addMetrics(widget.token, original, selected);
+      unawaited(PolarBandSync.run());
+      await loadSharing();
+    } catch (_) {
+      showMessage('Sharing settings changed. Review your selection again.');
     }
   }
 
@@ -545,6 +604,16 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
                 child: const Text('Turn off'),
               ),
             ),
+          if (bandGrant != null &&
+              PolarMetric.values.any(
+                (m) => !(jsonDecode(bandGrant!)['metrics'] as List).contains(
+                  m.name,
+                ),
+              ))
+            OutlinedButton(
+              onPressed: busy ? null : () => addSharing(bandGrant!),
+              child: const Text('Add measurements'),
+            ),
           if (lastReceipt != null)
             TextButton(
               onPressed: busy ? null : checkStorage,
@@ -554,7 +623,7 @@ class _PolarRecordingPageState extends State<PolarRecordingPage>
             Wrap(
               spacing: 8,
               children: [
-                for (final option in PolarMetric.values)
+                for (final option in PolarMetric.live)
                   ChoiceChip(
                     label: Text(option.label),
                     selected: metric == option,

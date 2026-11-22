@@ -142,22 +142,24 @@ def test_rendered_telegraf_keeps_new_and_legacy_patients_visible_in_grafana(tmp_
                 assert ids == {"participant-a", "participant-b", "legacy-participant", "legacy-plain"}
                 sources = query(variables["sourceKey"]["query"].replace("$deviceId", "participant-a"))
                 assert {row[1] for s in sources for row in s["values"]} == {"source-a", "source-b"}
-            # Exercise the two live sensor panels with shared hardware across participants.
+            # Query individual sensor and sleep series with shared hardware across participants.
             dashboard = json.loads(DASHBOARDS[0].read_text())
-            for title, measurement, expected in [
-                ("Skin Temperature", "skin-temperature", 32.5),
-                ("Pulse-to-Pulse Interval", "pulse-to-pulse-interval", 800.0),
+            for title, measurement, target_index, value, expected in [
+                ("Skin Temperature", "skin-temperature", 0, 32.5, 32.5),
+                ("Pulse-to-Pulse Interval", "pulse-to-pulse-interval", 0, 800.0, 800.0),
+                ("Sleep Stages (One Night)", "sleep-rem", 1, 20.0, 3),
+                ("Sleep Stages (One Night)", "sleep-deep", 3, 10.0, 1),
             ]:
-                values = [("participant-a", "source-a", expected),
-                          ("participant-b", "source-a", expected + 2),
-                          ("participant-a", "source-b", expected + 4)]
+                values = [("participant-a", "source-a", value),
+                          ("participant-b", "source-a", value + 2),
+                          ("participant-a", "source-b", value + 4)]
                 payload = "\n".join(f"{measurement},device-id={pid},source-key={source} value={value} {stamp}"
                                     for pid, source, value in values)
                 write = client.post("/api/v2/write", params={"org": "identity_test", "bucket": "identity_test",
                                     "precision": "ns"}, content=payload)
                 assert write.status_code == 204, write.text
                 panel = next(p for p in dashboard["panels"] if p["title"] == title)
-                q = panel["targets"][0]["query"].replace("$timeFilter", "time > now() - 1h")
+                q = panel["targets"][target_index]["query"].replace("$timeFilter", "time > now() - 1h")
                 q = q.replace("$__interval", "1m").replace("$deviceId", "participant-a").replace("$sourceKey", "source-a")
                 result = query(q)
                 assert len(result) == 1

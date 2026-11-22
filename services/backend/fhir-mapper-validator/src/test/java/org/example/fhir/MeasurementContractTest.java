@@ -119,6 +119,16 @@ class MeasurementContractTest {
         assertEquals("kcal", energy.getValue1().getAsJsonObject("valueQuantity").get("unit").getAsString());
     }
 
+    @Test void preservesPolarDailyBasalEnergyCollectedByAndroid() {
+        JsonObject input = input("cumulative", "BASAL_ENERGY_BURNED", 1400, "kcal");
+        input.getAsJsonObject("deviceInfo").addProperty("platform", "android");
+        input.addProperty("sourcePlatform", "bluetooth-le");
+        input.addProperty("sourceId", "polar-band-history");
+        var result = mapper.mapFhir(input.toString());
+        assertEquals("measurements.cumulative", result.getValue0());
+        assertEquals("kcal", result.getValue1().getAsJsonObject("valueQuantity").get("unit").getAsString());
+    }
+
     @Test void preservesFractionalDurationAndIntervalsThroughStorage() throws Exception {
         var mapped = mapper.mapFhir(input("duration", "SLEEP_LIGHT", 90.25, "SECOND").toString());
         assertEquals(90.25 / 60, mapped.getValue1().getAsJsonObject("valueQuantity").get("value").getAsDouble(), 1e-12);

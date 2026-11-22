@@ -1,3 +1,4 @@
+import 'package:charite_wearables/services/health_upload.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:charite_wearables/services/polar_band_samples.dart';
@@ -21,14 +22,169 @@ List<int> varint(int n) {
   return [...bytes, n];
 }
 
-List<int> number(int tag, int value) => [tag << 3, ...varint(value)];
+List<int> number(int tag, int value) => [...varint(tag << 3), ...varint(value)];
 List<int> nested(int tag, List<int> bytes) => [
-  tag << 3 | 2,
+  ...varint(tag << 3 | 2),
   ...varint(bytes.length),
   ...bytes,
 ];
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final fixtureDay = DateTime(2026, 11, 22);
+  final date = [...number(1, 2026), ...number(2, 11), ...number(3, 22)];
+  List<int> stamp(int hour) => [
+    ...nested(1, date),
+    ...nested(2, [...number(1, hour), ...number(2, 0), ...number(3, 0)]),
+    ...number(4, 60),
+  ];
+  List<int> float32(double value) =>
+      (ByteData(4)..setFloat32(0, value, Endian.little)).buffer.asUint8List();
+  final activity = [
+    ...nested(1, stamp(9)),
+    ...nested(3, number(3, 60)),
+    ...nested(5, [4, 9]),
+    ...nested(2, number(3, 30)),
+    ...nested(4, [...float32(2.5), ...float32(3)]),
+  ];
+  List<int> phase(int sec, int state) =>
+      nested(5, [...number(1, sec), ...number(2, state & 0xffffffff)]);
+  final night = [
+    ...nested(1, stamp(1)),
+    ...nested(2, stamp(7)),
+    ...phase(0, -5),
+    ...phase(1800, -6),
+    ...phase(2400, -3),
+    ...phase(2700, -2),
+    ...phase(3000, 0),
+  ];
+  final summary = [
+    ...nested(1, date),
+    ...number(3, 250),
+    ...number(5, 1400),
+    69,
+    ...float32(1500),
+  ];
+  final recovery = [...nested(20, date), ...number(9, 48), ...number(10, 4000)];
+  final workout = [
+    ...nested(1, stamp(11)),
+    ...nested(20, stamp(12)),
+    ...number(7, 280),
+  ];
+  test('activity bins, explicit UTC offset and full-interval consent', () {
+    final rows = polarActivitySamples(activity).toList();
+    expect(rows.map((r) => r.value), [4, 9, 2.5, 3]);
+    expect(rows.first.time, DateTime.utc(2026, 11, 22, 8));
+    expect(
+      rows.first.end!.difference(rows.first.time),
+      const Duration(minutes: 1),
+    );
+    expect(
+      eligibleBandRows(
+        rows,
+        {PolarMetric.steps},
+        rows.first.time.add(const Duration(seconds: 1)),
+        rows.last.end!.add(const Duration(seconds: 59)),
+      ),
+      isEmpty,
+    );
+  });
+  test(
+    'completed summaries do not invent absent values or combine calorie categories',
+    () {
+      final rows = polarDailyTotals(fixtureDay, summary).toList();
+      expect(rows.map((r) => r.value), [250, 1400, 1500]);
+      expect(polarDailyTotals(fixtureDay, nested(1, date)), isEmpty);
+      expect(
+        eligibleBandRows(
+          rows,
+          PolarMetric.values.toSet(),
+          fixtureDay.add(const Duration(seconds: 1)),
+          fixtureDay.add(const Duration(days: 2)),
+        ),
+        isEmpty,
+      );
+    },
+  );
+  test(
+    'sleep stages preserve boundaries, skip unknown and count only asleep phases',
+    () {
+      final rows = polarSleepPhases(night).toList();
+      expect(
+        rows
+            .where((r) => r.metric == PolarMetric.sleepAsleep)
+            .map((r) => r.value),
+        [30, 10, 5],
+      );
+      expect(
+        rows.where((r) => r.metric == PolarMetric.sleepAwake).single.value,
+        5,
+      );
+      expect(
+        () => polarSleepPhases([...night, ...phase(2500, -5)]).toList(),
+        throwsFormatException,
+      );
+    },
+  );
+  test('nightly summary and workout carry only available reported periods', () {
+    final values = polarNightlyRecovery(
+      fixtureDay,
+      polarSleepWindow(night),
+      recovery,
+    ).toList();
+    expect(values.map((r) => r.value), [48, 15]);
+    expect(
+      values.first.end!.difference(values.first.time),
+      const Duration(hours: 4),
+    );
+    expect(polarWorkout(workout).map((r) => r.value), [60, 280]);
+    expect(polarWorkout(nested(1, stamp(11))), isEmpty);
+  });
+  test(
+    'direct Polar history emits numeric contract groups and stable retry bytes',
+    () {
+      final rows = [
+        ...polarActivitySamples(activity),
+        ...polarDailyTotals(fixtureDay, summary),
+        ...polarSleepPhases(night),
+        ...polarNightlyRecovery(fixtureDay, polarSleepWindow(night), recovery),
+        ...polarWorkout(workout),
+      ];
+      HealthUpload batch() => bandUploads(
+        rows,
+        device: 'fixture-band',
+        collector: 'fixture-phone',
+        platform: 'ios',
+        metrics: PolarMetric.values.toSet(),
+        since: DateTime.utc(2026, 11, 20),
+        until: DateTime.utc(2026, 11, 24),
+      ).single;
+      final upload = batch();
+      final body = jsonDecode(utf8.decode(upload.bytes));
+      expect(upload.bytes, batch().bytes);
+      final groups = body['measurements'];
+      expect(groups['cumulative'].length, 8);
+      expect(groups['duration'].length, 8);
+      expect(groups['instantaneous'].length, 2);
+      expect(
+        groups['duration'].every(
+          (x) =>
+              x['startTime'] != null &&
+              x['endTime'] != null &&
+              x['durationMinutes'] == x['value'],
+        ),
+        isTrue,
+      );
+      expect(
+        groups['cumulative'].every(
+          (x) =>
+              x['periodStart'] != null &&
+              x['periodEnd'] != null &&
+              x['duration'] > 0,
+        ),
+        isTrue,
+      );
+    },
+  );
   test(
     'a replacement study cannot inherit or silently restore Polar sharing',
     () async {

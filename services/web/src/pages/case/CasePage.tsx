@@ -152,6 +152,7 @@ export function CasePage() {
   const { isDark } = useTheme();
   const activeCaseRef = useRef(activeCase);
   useMessageToast('error', 'case-error', error);
+  const [live, setLive] = useState(() => new URLSearchParams(window.location.search).get('live') === '1');
   const [initialWindow] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const from = params.get('from') ?? '';
@@ -256,6 +257,7 @@ export function CasePage() {
   }, [fromInput, toInput]);
 
   const setRangeFromNow = (durationMs: number) => {
+    setLive(false);
     const now = new Date();
     const from = new Date(now.getTime() - durationMs);
     setToInput(toDatetimeLocalValue(now));
@@ -272,7 +274,10 @@ export function CasePage() {
 
     const from = parseDatetimeLocalValue(fromInput);
     const to = parseDatetimeLocalValue(toInput);
-    if (from && to && from.getTime() < to.getTime()) {
+    if (live && activeMonitoringView === 'general') {
+      params.set('from', 'now-30m');
+      params.set('to', 'now');
+    } else if (from && to && from.getTime() < to.getTime()) {
       params.set('from', String(from.getTime()));
       params.set('to', String(to.getTime()));
     }
@@ -281,7 +286,7 @@ export function CasePage() {
     }
 
     return params.toString();
-  }, [caseData?.caseToken, fromInput, isDark, toInput]);
+  }, [caseData?.caseToken, fromInput, isDark, toInput, live, activeMonitoringView]);
 
   const generalGrafanaUrl = useMemo(
     () =>
@@ -366,6 +371,8 @@ export function CasePage() {
           activeMonitoringView={activeMonitoringView}
           onMonitoringViewChange={setActiveMonitoringView}
           activeMonitoringConfig={activeMonitoringConfig}
+          live={live && activeMonitoringView === 'general'}
+          onToggleLive={activeMonitoringView === 'general' ? () => setLive(!live) : undefined}
           activeQuickRangeOptions={activeQuickRangeOptions}
           onQuickRangeSelect={setRangeFromNow}
           fromInput={fromInput}

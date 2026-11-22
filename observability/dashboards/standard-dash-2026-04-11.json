@@ -66,11 +66,11 @@
               "fill": "solid"
             },
             "lineWidth": 0.8,
-            "pointSize": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "auto",
+            "showPoints": "always",
             "showValues": false,
             "spanNulls": 3600000,
             "stacking": {
@@ -454,7 +454,7 @@
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
+            "showPoints": "always",
             "showValues": false,
             "spanNulls": 3600000,
             "stacking": {
@@ -529,6 +529,55 @@
           "query": "SELECT mean(\"value\") FROM \"heart-rate-variability\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
           "rawQuery": true,
           "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
+        },
+        {
+          "alias": "Polar nightly mean RMSSD (ms)",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "polar-nightly-mean-rmssd",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT mean(\"value\") FROM \"polar-nightly-mean-rmssd\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
           "resultFormat": "time_series",
           "select": [
             [
@@ -722,7 +771,7 @@
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
+            "showPoints": "always",
             "showValues": false,
             "spanNulls": 3600000,
             "stacking": {
@@ -974,7 +1023,7 @@
           "custom": {
             "drawStyle": "points",
             "showPoints": "always",
-            "pointSize": 4
+            "pointSize": 5
           }
         },
         "overrides": []
@@ -1572,6 +1621,55 @@
             ]
           ],
           "tags": []
+        },
+        {
+          "alias": "Activity distance (unspecified activity)",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "distance-delta",
+          "orderByTime": "ASC",
+          "policy": "default",
+          "query": "SELECT sum(\"value\") / 1000 FROM \"distance-delta\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "device-id",
+              "operator": "=~",
+              "value": "/^$deviceId$/"
+            }
+          ]
         }
       ],
       "title": "Distance by Activity Type (Daily)",
@@ -2240,7 +2338,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 60 FROM \"sleep-deep\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 60 FROM /^sleep-(asleep-)?deep$/ WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": true,
           "refId": "A"
         },
@@ -2250,7 +2348,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT sum(\"value\") / 60 FROM \"sleep-rem\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
+          "query": "SELECT sum(\"value\") / 60 FROM /^sleep-(asleep-)?rem$/ WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\", time(1d) fill(0)",
           "rawQuery": true,
           "refId": "B"
         },
@@ -2599,7 +2697,7 @@
             "uid": "${DS_INFLUXDB}"
           },
           "hide": false,
-          "query": "SELECT \"value\" *0+3 AS \"REM Sleep\" FROM \"sleep-asleep-rem\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/  GROUP BY \"source-key\"",
+          "query": "SELECT \"value\" *0+3 AS \"REM Sleep\" FROM /^sleep-(asleep-)?rem$/ WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/  GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "C",
           "resultFormat": "time_series"
@@ -2623,7 +2721,7 @@
             "uid": "${DS_INFLUXDB}"
           },
           "hide": false,
-          "query": "SELECT \"value\" *0+1 AS \"Deep Sleep\" FROM \"sleep-asleep-deep\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/  GROUP BY \"source-key\"",
+          "query": "SELECT \"value\" *0+1 AS \"Deep Sleep\" FROM /^sleep-(asleep-)?deep$/ WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/  GROUP BY \"source-key\"",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"
@@ -3066,7 +3164,7 @@
             "type": "influxdb",
             "uid": "${DS_INFLUXDB}"
           },
-          "query": "SELECT * FROM \"workout\" WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ ORDER BY time DESC LIMIT 20 GROUP BY \"source-key\"",
+          "query": "SELECT * FROM /^(workout|workout-elapsed-time)$/ WHERE $timeFilter AND \"device-id\" =~ /^$deviceId$/ AND \"source-key\" =~ /^$sourceKey$/ GROUP BY \"source-key\" ORDER BY time DESC LIMIT 20",
           "rawQuery": true,
           "refId": "A"
         }
@@ -3194,5 +3292,6 @@
   "timezone": "browser",
   "title": "Wearables Dashboard Real",
   "uid": "wearables-health-real",
-  "version": 29
+  "version": 29,
+  "refresh": "1m"
 }

@@ -86,6 +86,11 @@ final class NumericMeasurementNormalizer {
         String platform = input.has("deviceInfo")
                 ? input.getAsJsonObject("deviceInfo").get("platform").getAsString().toLowerCase(Locale.ROOT) : "";
         if (!platform.contains("android")) return;
+        // The BLE daily summary contains energy for a completed calendar day.
+        // Android is the collector OS; the legacy Health Connect rate conversion
+        // does not apply to measurements authored by this device source.
+        if ("bluetooth-le".equals(text(input, "sourcePlatform"))
+                && "polar-band-history".equals(text(input, "sourceId"))) return;
         JsonArray cumulative = measurements.getAsJsonArray("cumulative");
         if (cumulative == null) return;
         if (!measurements.has("instantaneous")) measurements.add("instantaneous", new JsonArray());
