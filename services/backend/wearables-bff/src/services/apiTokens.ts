@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import config from '../config.js';
 import { databaseApiClient, type ApiTokenRecord } from '../clients/databaseApi.js';
-import { getUserByEmail } from './userStore.js';
+import { getUserByEmail, type UserRecord } from './userStore.js';
 
 /**
  * Personal researcher tokens for the export API (/api/extraction).
@@ -103,7 +103,7 @@ export const listApiTokens = (params: { ownerEmail?: string; includeRevoked?: bo
 export const revokeApiToken = (tokenId: string, revokedBy: string) => backend.revoke(tokenId, revokedBy);
 
 export type ApiTokenCheck =
-  | { ok: true; record: ApiTokenRecord }
+  | { ok: true; record: ApiTokenRecord; owner: UserRecord }
   | { ok: false; status: 401 | 403; error: string };
 
 /** Recheck the persistent owner. Unknown or denied owners never gain access. */
@@ -119,5 +119,5 @@ export const checkApiToken = async (token: string): Promise<ApiTokenCheck> => {
   if (!owner || owner.status !== 'approved' || !(owner.isAdmin || owner.roles.includes('researcher'))) {
     return { ok: false, status: 403, error: 'Token owner has no current researcher access' };
   }
-  return { ok: true, record };
+  return { ok: true, record, owner };
 };

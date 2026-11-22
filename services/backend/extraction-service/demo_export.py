@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
+from src.app.auth import Principal, require_export_access
 from src.app.main import app, get_db_lord_api
 from src.app.schemas import TelemetryPoint
 from src.app.settings import settings
@@ -98,6 +99,10 @@ def main():
     app.dependency_overrides[get_db_lord_api] = lambda: backend
     # The app's db_lord client needs a token to start; the demo never uses it (synthetic backend above).
     settings.db_lord_operator_token = SecretStr("demo-unused")
+    # Act as an admin, who gets original data unless `pseudonymize=true` (researchers always get pseudonyms).
+    app.dependency_overrides[require_export_access] = lambda: Principal(
+        subject="demo-admin", roles=frozenset({"admin"}), auth="session"
+    )
     with TestClient(app) as client:
 
         class Handler(BaseHTTPRequestHandler):

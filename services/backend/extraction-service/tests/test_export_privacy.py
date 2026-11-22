@@ -4,12 +4,17 @@ import json
 
 import pytest
 import test_export_api as export_tests
+from conftest import principal_token
+from fastapi.testclient import TestClient
 from test_export_api import OTHER, PATIENT, point
 
+from src.app.auth import PRINCIPAL_HEADER
+from src.app.main import app
 from src.app.privacy import ExportPrivacy
 
 # Reuse the existing in-memory backend fixtures.
 client = export_tests.client
+researcher = export_tests.researcher
 db_lord = export_tests.db_lord
 
 
@@ -138,3 +143,63 @@ def test_complete_export_reports_no_omissions(client, format):
     assert response.headers["x-export-omitted"] == "0"
     assert response.headers["x-export-exported"] == response.headers["x-export-considered"] == "6"
     assert "-omitted" not in response.headers["content-disposition"]
+
+
+# Role policy: researchers always get pseudonymized data, admins and practitioners the original.
+
+
+def caller(roles, **claims):
+    return TestClient(app, headers={PRINCIPAL_HEADER: principal_token(roles, **claims)})
+
+
+@pytest.mark.parametrize("format", ["csv", "fhir"])
+@pytest.mark.parametrize("opt", [{}, {"pseudonymize": "false"}])
+def test_researchers_always_get_pseudonymized_exports(researcher, format, opt):
+    response = researcher.get(f"/v1/measurements/export.{format}", params=opt)
+    assert response.status_code == 200
+    assert "pseudonymized" in response.headers["content-disposition"]
+    assert "x-export-exported" in response.headers
+    assert PATIENT not in response.text and OTHER not in response.text
+
+
+@pytest.mark.parametrize("opt", [{}, {"pseudonymize": "false"}])
+def test_researchers_get_pseudonymized_pages(researcher, opt):
+    items = researcher.get("/v1/measurements", params={"measurement": "steps", **opt}).json()["items"]
+    assert items
+    patients = {i["patient_id"] for i in items}
+    assert PATIENT not in patients and OTHER not in patients
+    assert all(set(i["tags"]) <= {"device-id", "category"} and i["fields"] == {} for i in items)
+
+
+def test_researcher_pages_can_still_be_followed(researcher):
+    first = researcher.get("/v1/measurements", params={"measurement": "steps", "limit": 1}).json()
+    second = researcher.get(
+        "/v1/measurements", params={"measurement": "steps", "limit": 1, "end": first["next_end"]}
+    ).json()
+    assert first["has_more"] is True
+    assert [i["value"] for i in first["items"] + second["items"]] == [5, 7]
+
+
+def test_researcher_filter_by_patient_returns_only_that_patient(researcher):
+    items = researcher.get("/v1/measurements", params={"measurement": "steps", "patient_id": PATIENT}).json()["items"]
+    assert [i["value"] for i in items] == [5, 7, 9, 3]
+    assert len({i["patient_id"] for i in items}) == 1
+
+
+@pytest.mark.parametrize(
+    "roles", [["admin"], ["practitioner"], ["researcher", "practitioner"], ["admin", "researcher"]]
+)
+def test_admins_and_practitioners_get_original_data_even_with_researcher_role(db_lord, roles):
+    response = caller(roles).get("/v1/measurements/export.csv")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="measurements.csv"'
+    assert PATIENT in response.text
+    items = caller(roles).get("/v1/measurements").json()["items"]
+    assert PATIENT in {i["patient_id"] for i in items}
+
+
+def test_practitioners_can_opt_in_to_pseudonymization(db_lord):
+    response = caller(["practitioner"]).get("/v1/measurements/export.csv", params={"pseudonymize": "true"})
+    assert "pseudonymized" in response.headers["content-disposition"]
+    assert PATIENT not in response.text
+

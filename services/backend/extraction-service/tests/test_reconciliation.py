@@ -1,9 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import principal_token
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
+from src.app.auth import PRINCIPAL_HEADER
 from src.app.main import app, get_db_lord_api
 from src.app.schemas import TelemetryPoint
 from src.app.settings import settings
@@ -47,7 +49,7 @@ def client(monkeypatch):
     monkeypatch.setattr(settings, "db_lord_operator_token", SecretStr("synthetic-source-policy-operator"))
     api = FakeApi([reading(), reading(PHONE, value=90)])
     app.dependency_overrides[get_db_lord_api] = lambda: api
-    with TestClient(app) as client:
+    with TestClient(app, headers={PRINCIPAL_HEADER: principal_token(["admin"])}) as client:
         yield client, api
     app.dependency_overrides.clear()
 
@@ -230,3 +232,10 @@ def test_dashboards_keep_sources_in_distinct_series():
                 if '"device-id"' in query:
                     assert '"source-key" =~ /^$sourceKey$/' in query
                     assert 'GROUP BY "source-key"' in query
+
+
+def test_researchers_cannot_read_source_details(client):
+    client, _ = client
+    params = {"patient_id": "p", "measurement": "steps", "start": "2026-01-01T00:00:00Z", "end": "2026-01-02T00:00:00Z"}
+    researcher = {PRINCIPAL_HEADER: principal_token(["researcher"])}
+    assert client.get("/v1/measurements/reconciled", params=params, headers=researcher).status_code == 403

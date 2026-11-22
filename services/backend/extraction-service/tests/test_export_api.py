@@ -8,8 +8,10 @@ from pathlib import Path
 import httpx
 import pytest
 import yaml
+from conftest import principal_token
 from fastapi.testclient import TestClient
 
+from src.app.auth import PRINCIPAL_HEADER
 from src.app.fhir import category_for, default_mapping
 from src.app.main import app, get_db_lord_api
 from src.app.schemas import TelemetryPoint
@@ -86,8 +88,20 @@ def db_lord():
 
 
 @pytest.fixture
-def client(db_lord):
+def anonymous(db_lord):
     return TestClient(app)
+
+
+@pytest.fixture
+def client(db_lord):
+    """Admin: gets the original data."""
+    return TestClient(app, headers={PRINCIPAL_HEADER: principal_token(["admin"])})
+
+
+@pytest.fixture
+def researcher(db_lord):
+    """Researcher: always gets pseudonymized data."""
+    return TestClient(app, headers={PRINCIPAL_HEADER: principal_token(["researcher"])})
 
 
 def test_patient_filter_finds_points_with_either_tag_without_duplicates(client):
@@ -205,3 +219,78 @@ def test_default_fhir_mapping_matches_the_mapper_validator():
     mapper = yaml.safe_load(textwrap.dedent(body))
     ours = yaml.safe_load(settings.fhir_default_mapping_path.read_text())
     assert ours == mapper
+
+
+DATA_PATHS = [
+    "/v1/measurements",
+    "/v1/measurements/reconciled",
+    "/v1/measurements/types",
+    "/v1/measurements/export.csv",
+    "/v1/measurements/export.fhir",
+]
+
+
+def get(client, path, token):
+    return client.get(path, headers={PRINCIPAL_HEADER: token} if token else {})
+
+
+def test_every_data_route_requires_export_access():
+    data_routes = {r.path for r in app.routes if r.path.startswith("/v1")}
+    assert data_routes == set(DATA_PATHS)
+    for route in app.routes:
+        if route.path.startswith("/v1"):
+            assert any(d.call.__name__ == "require_export_access" for d in route.dependant.dependencies)
+
+
+@pytest.mark.parametrize("path", DATA_PATHS)
+def test_data_routes_refuse_callers_without_principal(anonymous, path):
+    assert get(anonymous, path, None).status_code == 401
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "not-a-jwt",
+        principal_token(secret="other-secret-also-32-bytes-long!"),
+        principal_token(expires_in=-60),
+        principal_token(aud="someone-else"),
+        principal_token(auth="cookie"),
+    ],
+    ids=["garbage", "wrong-secret", "expired", "wrong-audience", "unknown-auth"],
+)
+def test_invalid_principals_are_refused(anonymous, token):
+    assert get(anonymous, "/v1/measurements/export.csv", token).status_code == 401
+
+
+@pytest.mark.parametrize("roles", [["researcher"], ["admin"], ["practitioner"], ["admin", "practitioner"]])
+def test_admins_practitioners_and_researchers_may_export(anonymous, roles):
+    assert get(anonymous, "/v1/measurements/export.csv", principal_token(roles)).status_code == 200
+
+
+@pytest.mark.parametrize("roles", [[], ["patient"], ["third-party"]])
+def test_other_roles_may_not_export(anonymous, roles):
+    r = get(anonymous, "/v1/measurements/export.csv", principal_token(roles))
+    assert r.status_code == 403
+
+
+def test_researcher_api_tokens_are_pseudonymized(anonymous):
+    token = principal_token(["researcher"], auth="api_token", token_id="t1")
+    response = get(anonymous, "/v1/measurements/export.csv", token)
+    assert response.status_code == 200
+    assert "pseudonymized" in response.headers["content-disposition"]
+    assert PATIENT not in response.text
+
+
+def test_without_configured_secret_data_routes_are_unavailable(client, monkeypatch):
+    monkeypatch.setattr(settings, "extraction_internal_jwt_secret", "")
+    assert client.get("/v1/measurements").status_code == 503
+
+
+def test_health_and_docs_stay_open(anonymous):
+    for path in ("/health", "/docs", "/openapi.json"):
+        assert anonymous.get(path).status_code == 200
+
+
+def test_principal_header_is_not_documented(client):
+    spec = json.dumps(client.get("/openapi.json").json())
+    assert PRINCIPAL_HEADER not in spec

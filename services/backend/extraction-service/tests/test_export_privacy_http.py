@@ -8,10 +8,12 @@ from threading import Thread
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from conftest import principal_token
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from test_export_api import PATIENT, point
 
+from src.app.auth import PRINCIPAL_HEADER
 from src.app.main import app
 from src.app.privacy import ExportPrivacy
 from src.app.settings import settings
@@ -47,7 +49,7 @@ def http_backend(monkeypatch):
     # Deliberately invalid deployment mapping: privacy exports must use the bundled one.
     monkeypatch.setattr(settings, "fhir_default_mapping_path", settings.fhir_default_mapping_path / "absent.yaml")
     try:
-        with TestClient(app) as client:
+        with TestClient(app, headers={PRINCIPAL_HEADER: principal_token(["admin"])}) as client:
             yield client, records, requests
     finally:
         server.shutdown()

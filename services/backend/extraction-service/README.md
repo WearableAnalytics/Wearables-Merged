@@ -19,15 +19,19 @@ All data endpoints take `measurement`, `patient_id`, `start` and `end`, all opti
   `src/app/default_fhir_mapping.yaml` (a copy of the mapper-validator mapping in
   `gitops/apps/services/mapper-validator/templates/mappings-config-map.yaml`; keep them in sync).
 
-## Optional pseudonymized downloads
+## Pseudonymized output
 
-Add `pseudonymize=true` to either file export endpoint:
+Who gets what depends on the caller's roles (see Access):
 
-- `/v1/measurements/export.csv?pseudonymize=true`
-- `/v1/measurements/export.fhir?pseudonymize=true`
+| Caller | Output |
+|---|---|
+| admin or practitioner (also when they are a researcher too) | original data; `pseudonymize=true` opts in |
+| researcher | always pseudonymized, `pseudonymize=false` is ignored |
 
-The default is `false`. Each download uses fresh random patient UUIDs, consistent
-within that download. Different downloads (including CSV versus FHIR) cannot be
+This covers `/v1/measurements/export.csv`, `/v1/measurements/export.fhir` and the paged
+`/v1/measurements`. `/v1/measurements/reconciled` is not available to researchers (403): it needs the
+real patient id and returns source details (writer, name, device). Each response uses fresh random patient UUIDs, consistent
+within that response. Different downloads (including CSV versus FHIR) cannot be
 joined using these UUIDs. The mapping exists only in request memory and is not saved.
 Filtering still uses the original patient ID. Missing patient IDs remain missing.
 
@@ -52,22 +56,50 @@ The BFF forwards these counters. The local `demo_export.py` page displays the to
 and reasons; the production web UI has not yet been extended to display them.
 
 This is pseudonymization, **not anonymization**: exact timestamps and measurement
-values remain, and may still allow identification through other data. The paged JSON
-API is unchanged. This option does not modify stored measurements or access controls.
+values remain, and may still allow identification through other data. On the paged JSON API
+every page gets its own pseudonyms, so pages cannot be joined by patient (use the CSV or FHIR
+export for that); the counters are not sent there. Stored measurements are not modified.
 
 ## Access
-The service has no auth of its own and is only reachable in the cluster. The Wearables BFF serves it
-at `/api/extraction` (set `EXTRACTION_API_URL` on the BFF) for logged-in researchers and admins, or
-with a personal API token created on the web app's API Access page as `Authorization: Bearer <token>`.
-The Swagger UI is then at `/api/extraction/docs`.
+The Wearables BFF serves the service at `/api/extraction` (set `EXTRACTION_API_URL` on the BFF) for
+logged-in admins, practitioners and researchers, or with a researcher's or admin's personal API token
+created on the web app's API Access page as `Authorization: Bearer <token>`. The Swagger UI is then at
+`/api/extraction/docs`.
+
+The BFF checks the session or token, then forwards the caller as a short-lived HS256 JWT in the
+`X-Extraction-Principal` header, signed with `EXTRACTION_INTERNAL_JWT_SECRET` (`src/app/auth.py`).
+Claims: `sub` (email), `roles` (`admin`, `researcher`, `practitioner`), `auth` (`session` or
+`api_token`), `token_id`, `aud=extraction-service`, `exp` (60s).
+Every `/v1` route checks it again before reading any data:
+- no or invalid principal: 401; secret not configured: 503
+- roles without `admin`, `practitioner` or `researcher` (`EXPORT_ROLES`): 403
+
+Callers without a role in `RAW_EXPORT_ROLES` get pseudonymized output (see above). The checked caller
+is also on `request.state.principal`.
+`/health`, `/docs`, `/redoc` and `/openapi.json` need no principal.
 
 ## Configuration
 Environment variables:
 - `DB_LORD_BASE_URL` (default: `http://db-lord:8000`)
 - `ROOT_PATH`: prefix the BFF serves the API under (`/api/extraction`), used by the Swagger UI
+- `EXTRACTION_INTERNAL_JWT_SECRET`: shared with the BFF, required (see Access). In Kubernetes it is in
+  `extraction-service-secrets`, written by `scripts/bootstrap-runtime-secrets.sh` (production) or
+  `gitops/local/setup-local.sh` (Minikube)
+- `EXPORT_ROLES` (default: `["admin","practitioner","researcher"]`), `RAW_EXPORT_ROLES` (default:
+  `["admin","practitioner"]`)
 - `DEFAULT_START`, `PATIENT_WINDOW`, `DB_LORD_TIMEOUT_SECONDS`, `FHIR_DEFAULT_MAPPING_PATH`: see `src/app/settings.py`
 
 ## Run and test
-`uv run uvicorn src.app.main:app --reload --port 8010`
+```bash
+ROOT_PATH=/api/extraction \
+EXTRACTION_INTERNAL_JWT_SECRET=<same as the BFF's> \
+DB_LORD_OPERATOR_TOKEN=<DATABASE_OPERATOR_TOKEN from deploy/local/.env> \
+DB_LORD_BASE_URL=http://localhost:8000 \
+uv run uvicorn src.app.main:app --reload --port 8010
+```
+
+Then open the Swagger UI through the BFF at http://localhost:3001/api/extraction/docs, logged in as an
+admin, practitioner or researcher. `EXTRACTION_INTERNAL_JWT_SECRET` must match the BFF's
+(`services/backend/wearables-bff/.env`); without `ROOT_PATH` the page fails with "Failed to load API definition".
 
 `uv run pytest`

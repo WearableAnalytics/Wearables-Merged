@@ -16,6 +16,7 @@ from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, StreamingResponse
 
+from .auth import Principal, must_pseudonymize, require_export_access
 from .clients import create_db_lord_client
 from .db_lord_api import DbLordApi
 from .export_response import EXPORT_HEADERS, prepare_export
@@ -23,7 +24,7 @@ from .fhir import ObservationBuilder
 from .points import iter_readings, read_page, reading_key
 from .privacy import ExportPrivacy
 from .reconciliation import Mode, bounded_readings, reconcile
-from .schemas import MeasurementPage, MeasurementPoint, MeasurementType
+from .schemas import MeasurementPage, MeasurementPoint, MeasurementType, TelemetryPoint
 from .settings import settings
 
 PLATFORM_NAME = "Charité Wearables platform"
@@ -38,9 +39,13 @@ DESCRIPTION = """
 Export wearable measurements stored on the Charité Wearables platform.
 
 **Authentication.** The API is served by the platform at `/api/extraction`.
-Either be logged in to the web app as a researcher or admin (the session cookie is sent
-automatically, also from this page), or create a personal API token on the web app's
-*API Access* page and send it as `Authorization: Bearer <token>`.
+Either be logged in to the web app as an admin, practitioner or researcher (the session cookie
+is sent automatically, also from this page), or, as a researcher or admin, create a personal API
+token on the web app's *API Access* page and send it as `Authorization: Bearer <token>`.
+
+**Pseudonymization.** Researchers always get pseudonymized data: fresh patient pseudonyms per
+response, only known numeric measurements, no extra fields. Admins and practitioners get the
+original data unless they pass `pseudonymize=true`.
 
 **Time range.** `start` defaults to 2020-01-01, so omitting it exports all data.
 `end` is exclusive. Times without a timezone are read as UTC.
@@ -111,12 +116,32 @@ def get_db_lord_api(request: Request) -> DbLordApi:
 
 
 DbLordDep = Annotated[DbLordApi, Depends(get_db_lord_api)]
+# Added to every /v1 route: only callers the BFF signed with an export role get data.
+EXPORT_ACCESS = [Depends(require_export_access)]
+ExportCaller = Annotated[Principal, Depends(require_export_access)]
 
 
 def as_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+Pseudonymize = Annotated[
+    bool,
+    Query(
+        description="Use fresh patient pseudonyms per response. Only known numeric measurements are included; "
+        "extra fields and custom FHIR mappings are excluded. Timestamps are preserved. Not anonymization. "
+        "Always on for researchers, whatever is passed here."
+    ),
+]
+
+
+async def pseudonymized(readings: AsyncIterator[TelemetryPoint], privacy: ExportPrivacy):
+    async with aclosing(readings):
+        async for point in readings:
+            if (clean := privacy.project(point)) is not None:
+                yield clean
 
 
 class ReadingFilter:
@@ -155,10 +180,13 @@ async def health():
     return {"status": "ok"}
 
 
-@app.get("/v1/measurements/reconciled", tags=["measurements"],
-         summary="Compare sources or select one source for a measurement")
+@app.get("/v1/measurements/reconciled", tags=["measurements"], dependencies=EXPORT_ACCESS,
+         summary="Compare sources or select one source for a measurement",
+         description="Admins and practitioners only: the source details (writer, name, device) can identify a "
+         "patient, and the request needs the real patient id, so researchers get 403.")
 async def get_reconciled_measurements(
     api: DbLordDep,
+    caller: ExportCaller,
     patient_id: Annotated[str, Query(min_length=1, max_length=128)],
     measurement: Annotated[str, Query(min_length=1, max_length=128)],
     start: datetime,
@@ -167,6 +195,8 @@ async def get_reconciled_measurements(
     source_key: Annotated[str | None, Query(min_length=1, max_length=64)] = None,
     source_priority: Annotated[list[str] | None, Query(max_length=32)] = None,
 ):
+    if must_pseudonymize(caller):
+        raise HTTPException(status_code=403, detail="Source reconciliation is not available with pseudonymized access")
     points = await bounded_readings(api, patient_id=patient_id, measurement=measurement, start=start, end=end)
     return reconcile(points, measurement=measurement, start=start, end=end, mode=mode,
                      source_key=source_key, priorities=source_priority)
@@ -176,6 +206,7 @@ async def get_reconciled_measurements(
     "/v1/measurements/types",
     response_model=list[MeasurementType],
     tags=["measurements"],
+    dependencies=EXPORT_ACCESS,
     summary="List measurement types",
 )
 async def list_measurement_types(api: DbLordDep):
@@ -193,28 +224,28 @@ async def list_measurement_types(api: DbLordDep):
     "/v1/measurements",
     response_model=MeasurementPage,
     tags=["measurements"],
+    dependencies=EXPORT_ACCESS,
     summary="Read measurements page by page",
     description="Newest readings first. Pass `next_end` as `end` to get the next page until `has_more` is false. "
-    "A page can hold slightly more than `limit` readings so that no timestamp is split across pages.",
+    "A page can hold slightly more than `limit` readings so that no timestamp is split across pages. "
+    "Pseudonymized pages (always for researchers) use fresh pseudonyms per page, so pages cannot be joined "
+    "by patient.",
 )
 async def get_measurements(
     filters: Annotated[ReadingFilter, Depends()],
     api: DbLordDep,
+    caller: ExportCaller,
     limit: Annotated[int, Query(ge=1, le=10_000)] = 1000,
+    pseudonymize: Pseudonymize = False,
 ):
-    async with aclosing(filters.readings(api)) as readings:
+    readings = filters.readings(api)
+    if pseudonymize or must_pseudonymize(caller):
+        readings = pseudonymized(readings, ExportPrivacy())
+    async with aclosing(readings):
         return await read_page(readings, limit)
 
 
 CSV_COLUMNS = ["timestamp", "measurement", "patient_id", "category", "value", "fields"]
-
-Pseudonymize = Annotated[
-    bool,
-    Query(
-        description="Use fresh patient pseudonyms per export. Only known numeric measurements are included; "
-        "extra fields and custom FHIR mappings are excluded. Timestamps are preserved. Not anonymization."
-    ),
-]
 
 
 def csv_line(values: list) -> str:
@@ -226,6 +257,7 @@ def csv_line(values: list) -> str:
 @app.get(
     "/v1/measurements/export.csv",
     tags=["export"],
+    dependencies=EXPORT_ACCESS,
     summary="Export measurements as CSV",
     description="Streams all matching readings, newest first. `fields` holds any extra fields as JSON.",
     response_class=StreamingResponse,
@@ -234,8 +266,10 @@ def csv_line(values: list) -> str:
 async def export_measurements_csv(
     filters: Annotated[ReadingFilter, Depends()],
     api: DbLordDep,
+    caller: ExportCaller,
     pseudonymize: Pseudonymize = False,
 ):
+    pseudonymize = pseudonymize or must_pseudonymize(caller)
     privacy = ExportPrivacy() if pseudonymize else None
 
     async def rows() -> AsyncIterator[str]:
@@ -278,6 +312,7 @@ async def export_measurements_csv(
 @app.get(
     "/v1/measurements/export.fhir",
     tags=["export"],
+    dependencies=EXPORT_ACCESS,
     summary="Export measurements as a FHIR Bundle",
     description="Streams a FHIR R4 `collection` Bundle with one Observation per reading. Readings whose type has "
     "no FHIR mapping are left out.",
@@ -293,8 +328,10 @@ async def export_measurements_csv(
 async def export_measurements_fhir(
     filters: Annotated[ReadingFilter, Depends()],
     api: DbLordDep,
+    caller: ExportCaller,
     pseudonymize: Pseudonymize = False,
 ):
+    pseudonymize = pseudonymize or must_pseudonymize(caller)
     builder = ObservationBuilder(api)
     privacy = ExportPrivacy() if pseudonymize else None
 
