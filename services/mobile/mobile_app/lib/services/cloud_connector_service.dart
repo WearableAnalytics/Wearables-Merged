@@ -41,7 +41,7 @@ class CloudProvider {
     id: 'garmin',
     name: 'Garmin',
     displayName: 'Garmin Connect',
-    description: 'Direct cloud-to-cloud sync for Garmin wearables.',
+    description: 'Cloud sync for Garmin watches and devices.',
     icon: Symbols.watch_sharp,
     enabled: true,
   );
@@ -50,7 +50,7 @@ class CloudProvider {
     id: 'fitbit',
     name: 'Google Health',
     displayName: 'Google Health (Fitbit & Pixel Watch)',
-    description: 'Direct cloud sync for Fitbit & Google Pixel Watch.',
+    description: 'Cloud sync for Fitbit, Pixel Watch and Health Connect.',
     icon: Symbols.watch_button_sharp,
     enabled: true,
   );
@@ -59,7 +59,7 @@ class CloudProvider {
     id: 'oura',
     name: 'Oura',
     displayName: 'Oura Ring',
-    description: 'Direct cloud sync for Oura sleep & readiness data.',
+    description: 'Cloud sync for Oura Ring.',
     icon: Symbols.ring_volume_sharp,
     enabled: true,
   );
@@ -68,7 +68,7 @@ class CloudProvider {
     id: 'whoop',
     name: 'Whoop',
     displayName: 'Whoop Strap',
-    description: 'Direct cloud sync for Whoop recovery & strain.',
+    description: 'Cloud sync for Whoop Strap.',
     icon: Symbols.vital_signs_sharp,
     enabled: true,
   );
@@ -77,7 +77,7 @@ class CloudProvider {
     id: 'withings',
     name: 'Withings',
     displayName: 'Withings Health',
-    description: 'Direct cloud sync for Withings devices.',
+    description: 'Cloud sync for Withings scales and devices.',
     icon: Symbols.monitor_weight_sharp,
     enabled: true,
   );
@@ -86,7 +86,7 @@ class CloudProvider {
     id: 'polar',
     name: 'Polar',
     displayName: 'Polar Flow',
-    description: 'Direct cloud sync for Polar heart rate & training.',
+    description: 'Cloud sync for Polar watches and sensors.',
     icon: Symbols.cardiology_sharp,
     enabled: true,
   );

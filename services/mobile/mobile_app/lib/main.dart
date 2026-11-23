@@ -68,9 +68,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     final uri = routeInformation.uri;
     if (uri.scheme == 'wearables' ||
         uri.host == 'oauth-callback' ||
-        uri.path.contains('oauth-callback') ||
-        uri.path.isEmpty ||
-        uri.path == '/') {
+        uri.path.contains('oauth-callback')) {
       _state.notifyOAuthCallback();
       return true;
     }
@@ -79,11 +77,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Future<bool> didPushRoute(String route) async {
-    if (route.contains('oauth-callback') || route == '/') {
+    if (route.contains('oauth-callback') || route.startsWith('wearables://')) {
       _state.notifyOAuthCallback();
       return true;
     }
-    return true;
+    return super.didPushRoute(route);
   }
 
   @override
@@ -92,10 +90,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      onGenerateInitialRoutes: (_) => [
-        MaterialPageRoute<void>(builder: (_) => MainPage(state: _state)),
-      ],
-      onGenerateRoute: (_) => null,
+      home: MainPage(state: _state),
     );
   }
 }

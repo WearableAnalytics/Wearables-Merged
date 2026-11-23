@@ -1,4 +1,5 @@
 import logging
+import os
 import secrets
 from datetime import datetime, timezone
 from typing import Optional
@@ -20,10 +21,31 @@ from .security import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+
+def _get_service_version() -> str:
+    if os.getenv("SERVICE_VERSION"):
+        return os.environ["SERVICE_VERSION"]
+    v_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "VERSION")
+    if os.path.isfile(v_file):
+        try:
+            with open(v_file, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except Exception:
+            pass
+    return "0.2.0"
+
+
+settings = get_settings()
+_root_path = os.getenv("ROOT_PATH", "/cloud" if "wearables.charite.de" in settings.public_base_url else "")
+_enable_docs = os.getenv("ENABLE_DOCS", "true").lower() == "true"
+
 app = FastAPI(
     title="Wearables Cloud Connector Service",
     description="Modular multi-provider cloud telemetry connector for the Wearables platform",
-    version="1.0.0",
+    version=_get_service_version(),
+    root_path=_root_path,
+    docs_url="/docs" if _enable_docs else None,
+    redoc_url="/redoc" if _enable_docs else None,
 )
 
 
