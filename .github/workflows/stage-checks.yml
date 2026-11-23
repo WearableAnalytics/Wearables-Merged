@@ -3,8 +3,16 @@ name: Stage foundation checks
 on:
   pull_request:
     branches: [stage/ws2627]
+    paths-ignore:
+      - ".github/workflows/mobile-build.yml"
+      - "docs/**"
+      - "*.md"
   push:
     branches: [stage/ws2627]
+    paths-ignore:
+      - ".github/workflows/mobile-build.yml"
+      - "docs/**"
+      - "*.md"
   workflow_dispatch:
 
 permissions:
