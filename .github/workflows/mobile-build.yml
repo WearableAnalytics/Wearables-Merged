@@ -89,7 +89,7 @@ jobs:
 
   build-ios:
     name: Build iOS (Xcode Compilation & Verification)
-    runs-on: macos-14
+    runs-on: macos-latest
     defaults:
       run:
         working-directory: services/mobile/mobile_app
