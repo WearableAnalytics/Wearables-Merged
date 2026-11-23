@@ -28,33 +28,32 @@ jobs:
       ingestion: ${{ steps.filter.outputs.ingestion }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          base: ${{ github.event_name == 'push' && github.event.before || github.base_ref }}
           filters: |
             accounts:
               - 'services/backend/wearables-bff/**'
               - 'services/backend/db_lord/**'
-              - '.github/workflows/stage-checks.yml'
             applications:
               - 'services/web/**'
               - 'services/backend/grafana-proxy/**'
               - 'services/backend/extraction-service/**'
               - 'services/backend/cloud-connector/**'
               - 'scripts/**'
-              - '.github/workflows/stage-checks.yml'
             mobile:
               - 'services/mobile/mobile_app/**'
-              - '.github/workflows/stage-checks.yml'
             ingestion:
               - 'services/backend/fhir-mapper-validator/**'
               - 'services/backend/importservice/**'
-              - '.github/workflows/stage-checks.yml'
 
   accounts:
     name: Persistent accounts and shared sessions
     needs: changes
-    if: ${{ needs.changes.outputs.accounts == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.accounts == 'true' }}
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: "3.14"
@@ -79,7 +78,7 @@ jobs:
   applications:
     name: Web, Grafana authority, exports and provider contracts
     needs: changes
-    if: ${{ needs.changes.outputs.applications == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.applications == 'true' }}
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: "3.12"
@@ -119,7 +118,7 @@ jobs:
   mobile:
     name: Flutter collection and delivery contracts
     needs: changes
-    if: ${{ needs.changes.outputs.mobile == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -137,7 +136,7 @@ jobs:
   connected-ingestion:
     name: Archived upload through real Kafka and InfluxDB
     needs: changes
-    if: ${{ needs.changes.outputs.ingestion == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.ingestion == 'true' }}
     runs-on: ubuntu-latest
     env:
       INGEST_TEST_DB_PASSWORD: stage-ci-postgres-only

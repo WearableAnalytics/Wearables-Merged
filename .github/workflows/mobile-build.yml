@@ -12,6 +12,9 @@ on:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: mobile-build-${{ github.ref }}
   cancel-in-progress: true
@@ -46,13 +49,13 @@ jobs:
       - name: Run unit & widget tests
         run: flutter test --no-pub
 
-      - name: Build Android Release APK (Direct Device Install)
+      - name: Build Android APK
         run: flutter build apk --release
 
       - name: Build Android App Bundle (for Google Play Store)
         run: flutter build appbundle --release
 
-      - name: Determine environment channel and artifact names
+      - name: Determine artifact names
         id: meta
         run: |
           if [ "${{ github.ref }}" = "refs/heads/stage/ws2627" ]; then
@@ -105,16 +108,16 @@ jobs:
           channel: "stable"
           cache: true
 
-      - name: Use CocoaPods instead of Swift Package Manager
+      - name: Disable Swift Package Manager
         run: flutter config --no-enable-swift-package-manager
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build iOS App (--no-codesign)
+      - name: Build iOS App
         run: flutter build ios --release --no-codesign
 
-      - name: Determine environment channel
+      - name: Determine channel
         id: meta
         run: |
           if [ "${{ github.ref }}" = "refs/heads/stage/ws2627" ]; then
@@ -139,3 +142,44 @@ jobs:
           path: services/mobile/mobile_app/charite-wearables-${{ steps.meta.outputs.channel }}-ios-unsigned.zip
           if-no-files-found: error
           retention-days: 14
+
+  publish-release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    needs: [build-android, build-ios]
+    if: always() && (needs.build-android.result == 'success' || needs.build-ios.result == 'success')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Determine release tag
+        id: meta
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/stage/ws2627" ]; then
+            TAG="app-stage"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TAG="app-main"
+          else
+            SAFE_REF=$(echo "${{ github.ref_name }}" | tr '/' '-')
+            TAG="app-${SAFE_REF}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Publish or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: "Wearables App"
+          prerelease: true
+          make_latest: false
+          body: |
+            Automated mobile build for branch `${{ github.ref_name }}` (${{ github.sha }}).
+          files: |
+            release-artifacts/*.apk
+            release-artifacts/*.aab
+            release-artifacts/*.zip
