@@ -126,6 +126,35 @@ npm --prefix services/web run generate:api
 - Grafana proxy chart: `gitops/apps/monitoring/grafana-proxy/README.md`
 - Extraction service chart: `gitops/apps/services/extraction-service/README.md`
 - DB Lord chart: `gitops/apps/services/db-lord/README.md`
+## Export-Monitoring-Demo
+
+Voraussetzungen sind Git, Docker mit Docker Compose v2, Python 3 und curl.
+Docker muss gestartet sein. Unter Windows die Befehle in WSL ausführen.
+
+Zum ersten Start den Monitoring-Branch herunterladen:
+
+```bash
+git clone --branch feat/export-monitoring-rebuild https://github.com/WearableAnalytics/Wearables-Merged.git
+cd Wearables-Merged/services/backend/extraction-service
+./demo/run.sh
+```
+
+Anschließend das [Grafana-Dashboard öffnen](http://localhost:13000/d/wearables-export-monitoring).
+Im Dashboard „Last 15 minutes“ auswählen und bei Bedarf aktualisieren.
+
+Der Link funktioniert auf dem Rechner, auf dem die Demo gestartet wurde.
+Die Demo führt echte CSV- und FHIR-Exportanfragen mit synthetischen Daten aus.
+Die simulierten fehlgeschlagenen Streams erzeugen erwartete curl-Fehlermeldungen.
+Erneutes Ausführen von `./demo/run.sh` erzeugt weitere Demo-Anfragen.
+
+Zum Stoppen aus dem Extraction-Service-Verzeichnis:
+
+```bash
+docker compose -f demo/compose.yaml down
+```
+
+Weitere Details stehen in der [Monitoring-Dokumentation](services/backend/extraction-service/EXPORT_MONITORING.md).
+
 ## Benchmarks and Evaluation
 - Benchmark suite: `benchmarks/README.md`
 - Example plots/data: `benchmarks/evaluation/`
