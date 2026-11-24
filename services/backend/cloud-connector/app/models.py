@@ -81,6 +81,11 @@ class IngestPayload(BaseModel):
     timestamp: datetime
 
 
+class OAuthInitRequest(BaseModel):
+    redirect_uri: Optional[str] = None
+    return_url: Optional[str] = None
+
+
 class SyncRequest(BaseModel):
     patient_id: str
     credentials: Dict[str, Any] = Field(default_factory=dict)
