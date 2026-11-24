@@ -148,6 +148,8 @@ class CloudConnectorException implements Exception {
   final String message;
   final int? statusCode;
 
+  bool get isAuthError => statusCode == 401 || statusCode == 403;
+
   @override
   String toString() => statusCode != null
       ? 'CloudConnectorException(status $statusCode): $message'
@@ -210,6 +212,62 @@ class CloudConnectorService {
         if (returnUrl != null && returnUrl.isNotEmpty) 'return_url': returnUrl,
       },
     );
+  }
+
+  /// Initiates OAuth 2.0 PKCE with authenticated POST /cloud/auth/{provider}/login for JWT
+  Future<Uri> initiateOAuthLogin(
+    String deviceId, {
+    String provider = 'garmin',
+    String? returnUrl = 'wearables://oauth-callback',
+  }) async {
+    final base = baseUriFor(deviceId);
+    final basePath = base.path.endsWith('/')
+        ? base.path.substring(0, base.path.length - 1)
+        : base.path;
+    final uri = base.replace(
+      path: '$basePath/auth/${Uri.encodeComponent(provider)}/login',
+    );
+
+    final client = _clientFactory()..connectionTimeout = timeout;
+    try {
+      final request = await client.postUrl(uri).timeout(timeout);
+      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      request.headers.contentType = ContentType.json;
+      if (deviceId.isNotEmpty) {
+        request.headers.set(
+          HttpHeaders.authorizationHeader,
+          'Bearer $deviceId',
+        );
+      }
+      request.write(
+        jsonEncode({
+          if (returnUrl != null && returnUrl.isNotEmpty) 'return_url': returnUrl,
+        }),
+      );
+
+      final response = await request.close().timeout(timeout);
+      final body = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(timeout);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map<String, dynamic> &&
+            decoded['authorization_url'] is String) {
+          final authUri = Uri.tryParse(decoded['authorization_url'] as String);
+          if (authUri != null) return authUri;
+        }
+        throw const FormatException('Unexpected OAuth initiation payload');
+      }
+
+      throw CloudConnectorException(
+        'Failed to initiate $provider OAuth login',
+        statusCode: response.statusCode,
+      );
+    } finally {
+      client.close(force: true);
+    }
   }
 
   /// Queries the server (GET /cloud/connections?provider=...) to verify whether the participant currently has an active cloud connection
