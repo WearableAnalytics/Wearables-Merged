@@ -221,7 +221,7 @@ void main() {
       // Unconnected providers are collapsed inside the dropdown initially
       expect(find.text('Connect cloud provider'), findsOneWidget);
       expect(find.text('Connect Garmin Cloud'), findsNothing);
-      expect(find.text('Garmin Connect (Cloud)'), findsNothing);
+      expect(find.text('Active cloud connections (1)'), findsNothing);
       expect(find.text('Remove all cloud connections'), findsNothing);
 
       // Expand the cloud provider dropdown
@@ -259,12 +259,20 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(state.garminConnected, isTrue);
-      expect(find.byTooltip('Check Garmin connection status'), findsOneWidget);
       expect(state.localHealthSyncEnabled, isFalse);
       expect(state.isCloudOnlyMode, isTrue);
+      expect(find.text('Active cloud connections (1)'), findsOneWidget);
+      expect(find.text('Connect another cloud provider'), findsOneWidget);
+
+      // active cloud connections dropdown
+      await tester.ensureVisible(find.text('Active cloud connections (1)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Active cloud connections (1)'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Check Garmin connection status'), findsOneWidget);
+      expect(find.byTooltip('Remove Garmin Cloud connection'), findsOneWidget);
       // Only 1 active connection -> global disconnect all should stay hidden
       expect(find.text('Remove all cloud connections'), findsNothing);
-      expect(find.text('Connect another cloud provider'), findsOneWidget);
 
       // Verify Home tab reflects cloud-only mode 
       await tester.tap(find.text('Home'));
@@ -284,9 +292,11 @@ void main() {
       expect(state.isParallelSyncMode, isTrue);
 
       // Remove Garmin Cloud connection -> communicates with server
-      await tester.ensureVisible(find.text('Remove Garmin Cloud connection'));
+      await tester.ensureVisible(
+        find.byTooltip('Remove Garmin Cloud connection'),
+      );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove Garmin Cloud connection'));
+      await tester.tap(find.byTooltip('Remove Garmin Cloud connection'));
       await tester.pumpAndSettle();
       expect(find.text('Remove Garmin Cloud connection?'), findsOneWidget);
 
@@ -296,7 +306,7 @@ void main() {
       expect(fakeCloud.disconnectCalls, 1);
       expect(state.garminConnected, isFalse);
       expect(find.text('Connect cloud provider'), findsOneWidget);
-      expect(find.text('Garmin Connect (Cloud)'), findsNothing);
+      expect(find.text('Active cloud connections (1)'), findsNothing);
     },
   );
 
@@ -407,9 +417,17 @@ void main() {
       await tester.tap(find.text('Account'));
       await tester.pumpAndSettle();
 
-      // Both active providers shown outside the dropdown
-      expect(find.text('Garmin Connect (Cloud)'), findsOneWidget);
-      expect(find.text('Polar Flow (Cloud)'), findsOneWidget);
+      // Active providers are grouped in the collapsible active dropdown
+      expect(find.text('Active cloud connections (2)'), findsOneWidget);
+      expect(find.text('Garmin, Polar'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Active cloud connections (2)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Active cloud connections (2)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Garmin Connect'), findsOneWidget);
+      expect(find.text('Polar Flow'), findsOneWidget);
       // Global disconnect all is visible when >= 2 connections exist
       expect(find.text('Remove all cloud connections'), findsOneWidget);
 
@@ -424,6 +442,7 @@ void main() {
 
       expect(fakeCloud.disconnectCalls, 2);
       expect(state.hasAnyCloudConnection, isFalse);
+      expect(find.text('Active cloud connections (2)'), findsNothing);
       expect(find.text('Remove all cloud connections'), findsNothing);
       expect(find.text('Connect cloud provider'), findsOneWidget);
     },
@@ -481,9 +500,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Account Data Sources updates immediately without restart
-      expect(find.text('Garmin Connect (Cloud)'), findsOneWidget);
-      expect(find.text('Remove Garmin Cloud connection'), findsOneWidget);
-      // Garmin moved out of the dropdown -> remaining providers stay in the dropdown
+      expect(find.text('Active cloud connections (1)'), findsOneWidget);
+      // Garmin moved out of the available dropdown; remaining providers stay in it
       expect(find.text('Connect another cloud provider'), findsOneWidget);
 
       // Home tab updates immediately without restart

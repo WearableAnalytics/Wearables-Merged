@@ -685,48 +685,75 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
                         activeThumbColor: AppColors.blue,
                         onChanged: _toggleLocalSync,
                       ),
-                      for (final provider in activeCloud) ...[
+                      if (activeCloud.isNotEmpty) ...[
                         const Divider(indent: 20, endIndent: 20),
-                        _CloudProviderTile(
-                          provider: provider,
-                          connected: true,
-                          busy: state.isCloudBusy(provider.id),
-                          userId: state.cloudUserId(provider.id),
-                          onRefresh: () => _refreshCloudStatus(provider),
-                          onConnect: () => _connectCloud(provider),
-                          onDisconnect: () =>
-                              _confirmDisconnectCloud(provider),
-                        ),
-                      ],
-                      if (activeCloud.length > 1) ...[
-                        const Divider(indent: 20, endIndent: 20),
-                        ListTile(
-                          leading: const Icon(
-                            Symbols.link_off_sharp,
-                            color: AppColors.coral,
-                          ),
-                          title: const Text(
-                            'Remove all cloud connections',
-                            style: TextStyle(
-                              color: AppColors.coral,
-                              fontWeight: FontWeight.w600,
+                        Theme(
+                          data: Theme.of(
+                            context,
+                          ).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            key: const Key('active_cloud_providers_dropdown'),
+                            leading: const Icon(
+                              Symbols.cloud_done_sharp,
+                              color: AppColors.success,
                             ),
-                          ),
-                          subtitle: Text(
-                            'Disconnects all ${activeCloud.length} active cloud providers.',
-                          ),
-                          trailing: state.isAnyCloudBusy
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                            title: Text(
+                              'Active cloud connections (${activeCloud.length})',
+                            ),
+                            subtitle: Text(
+                              activeCloud.map((p) => p.name).join(', '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            tilePadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                            ),
+                            childrenPadding: const EdgeInsets.only(bottom: 8),
+                            iconColor: AppColors.blue,
+                            children: [
+                              for (final provider in activeCloud)
+                                _CloudProviderTile(
+                                  provider: provider,
+                                  connected: true,
+                                  busy: state.isCloudBusy(provider.id),
+                                  onRefresh: () =>
+                                      _refreshCloudStatus(provider),
+                                  onConnect: () => _connectCloud(provider),
+                                  onDisconnect: () =>
+                                      _confirmDisconnectCloud(provider),
+                                ),
+                              if (activeCloud.length > 1) ...[
+                                const Divider(indent: 20, endIndent: 20),
+                                ListTile(
+                                  leading: const Icon(
+                                    Symbols.link_off_sharp,
+                                    color: AppColors.coral,
                                   ),
-                                )
-                              : null,
-                          onTap: state.isAnyCloudBusy
-                              ? null
-                              : () => _confirmDisconnectAllCloud(activeCloud),
+                                  title: const Text(
+                                    'Remove all cloud connections',
+                                    style: TextStyle(
+                                      color: AppColors.coral,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  trailing: state.isAnyCloudBusy
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : null,
+                                  onTap: state.isAnyCloudBusy
+                                      ? null
+                                      : () => _confirmDisconnectAllCloud(
+                                            activeCloud,
+                                          ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ],
                       if (availableCloud.isNotEmpty) ...[
@@ -759,7 +786,6 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
                                   provider: provider,
                                   connected: false,
                                   busy: state.isCloudBusy(provider.id),
-                                  userId: null,
                                   onRefresh: () =>
                                       _refreshCloudStatus(provider),
                                   onConnect: () => _connectCloud(provider),
@@ -864,7 +890,6 @@ class _CloudProviderTile extends StatelessWidget {
     required this.provider,
     required this.connected,
     required this.busy,
-    this.userId,
     required this.onRefresh,
     required this.onConnect,
     required this.onDisconnect,
@@ -873,7 +898,6 @@ class _CloudProviderTile extends StatelessWidget {
   final CloudProvider provider;
   final bool connected;
   final bool busy;
-  final String? userId;
   final VoidCallback onRefresh;
   final VoidCallback onConnect;
   final VoidCallback onDisconnect;
@@ -900,41 +924,37 @@ class _CloudProviderTile extends StatelessWidget {
       );
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ListTile(
-          leading: Icon(
-            provider.icon ?? Symbols.watch_sharp,
-            color: AppColors.success,
-          ),
-          title: Text('${provider.displayName} (Cloud)'),
-          subtitle: Text(
-            userId != null
-                ? 'Connected ($userId) - direct cloud sync active.'
-                : 'Connected — direct cloud sync active.',
-          ),
-          trailing: busy
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : IconButton(
+    return ListTile(
+      leading: Icon(
+        provider.icon ?? Symbols.watch_sharp,
+        color: AppColors.success,
+      ),
+      title: Text(provider.displayName),
+      subtitle: const Text('Direct cloud sync active'),
+      trailing: busy
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
                   tooltip: 'Check ${provider.name} connection status',
                   icon: const Icon(Symbols.refresh_sharp),
                   onPressed: onRefresh,
                 ),
-        ),
-        ListTile(
-          leading: const Icon(Symbols.link_off_sharp, color: AppColors.coral),
-          title: Text(
-            'Remove ${provider.name} Cloud connection',
-            style: const TextStyle(color: AppColors.coral),
-          ),
-          onTap: busy ? null : onDisconnect,
-        ),
-      ],
+                IconButton(
+                  tooltip: 'Remove ${provider.name} Cloud connection',
+                  icon: const Icon(
+                    Symbols.link_off_sharp,
+                    color: AppColors.coral,
+                  ),
+                  onPressed: onDisconnect,
+                ),
+              ],
+            ),
     );
   }
 }
