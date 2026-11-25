@@ -289,8 +289,7 @@ class CloudConnectorService {
     }
   }
 
-  /// Communicates with the server (DELETE /cloud/connections/{provider}/{patientId}) to deregister the user at the cloud provider (e.g. Garmin API deregistration)
-  /// and delete the stored OAuth tokens on the server
+  /// Communicates with the server (DELETE /cloud/connections/{provider}/{patientId}) to deregister the user at the cloud provider (e.g. Garmin API deregistration) and delete the stored OAuth tokens on the server
   Future<void> disconnect(String deviceId, {String provider = 'garmin'}) async {
     final base = baseUriFor(deviceId);
     final patientId = patientIdFor(deviceId);
