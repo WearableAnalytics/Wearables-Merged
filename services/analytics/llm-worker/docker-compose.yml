@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: worker
+      POSTGRES_PASSWORD: worker
+      POSTGRES_DB: worker
+    ports:
+      - "127.0.0.1:${WORKER_PG_PORT:-55433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U worker -d worker"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build: .
+    command: ["python", "-m", "llm_worker", "migrate"]
+    environment:
+      WORKER_DSN: postgresql://worker:worker@postgres:5432/worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build: .
+    environment:
+      WORKER_DSN: postgresql://worker:worker@postgres:5432/worker
+      WORKER_WORK_SECONDS: ${WORKER_WORK_SECONDS:-10}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 30s
