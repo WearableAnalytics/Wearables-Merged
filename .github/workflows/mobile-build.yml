@@ -157,24 +157,28 @@ jobs:
           path: release-artifacts
           merge-multiple: true
 
-      - name: Determine release tag
+      - name: Determine release tag and title
         id: meta
         run: |
           if [ "${{ github.ref }}" = "refs/heads/stage/ws2627" ]; then
             TAG="app-stage"
+            TITLE="Wearables Mobile App (Stage)"
           elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
             TAG="app-main"
+            TITLE="Wearables Mobile App (Main)"
           else
             SAFE_REF=$(echo "${{ github.ref_name }}" | tr '/' '-')
             TAG="app-${SAFE_REF}"
+            TITLE="Wearables Mobile App (${SAFE_REF})"
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
 
       - name: Publish or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
-          name: "Wearables App"
+          name: ${{ steps.meta.outputs.title }}
           prerelease: true
           make_latest: false
           body: |
