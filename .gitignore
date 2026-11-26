@@ -77,6 +77,8 @@ influxtoken
 
 # Docs
 docs/.$architecture.drawio.bkp
+site/
+.cache/
 
 # Kubernetes
 kubeconfig

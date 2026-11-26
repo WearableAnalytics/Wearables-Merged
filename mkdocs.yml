@@ -1,0 +1,68 @@
+site_name: Wearables Docs
+site_description: Documentation for the Wearables platform and its services.
+site_url: https://wearableanalytics.github.io/Wearables-Merged/
+repo_url: https://github.com/WearableAnalytics/Wearables-Merged
+repo_name: WearableAnalytics/Wearables-Merged
+
+theme:
+  name: material
+  language: en
+  logo: assets/wearables_mark.png
+  favicon: assets/wearables_mark.png
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/architecture.js
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Overview: index.md
+  - Services:
+      - services/index.md
+      - Cloud Connector:
+          - services/cloud-connector/index.md
+          - Providers & Limits: services/cloud-connector/providers.md
+          - API Endpoints: services/cloud-connector/api.md
+          - Configuration & Dev: services/cloud-connector/configuration.md
+  # Reenable after secret management refactor:
+  # - Deployment & Runtime Config: deploy-runtime-config.md
