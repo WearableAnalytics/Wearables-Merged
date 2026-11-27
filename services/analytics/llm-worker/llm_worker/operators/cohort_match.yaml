@@ -1,0 +1,8 @@
+# cohort_query, step 1 (sem_filter): does this patient's record match the physician's criterion?
+name: cohort_match
+version: 1
+kind: filter
+description: The physician's natural-language criterion, applied to one patient's recent record.
+max_tokens: 64
+instruction: |
+  The patient record in {summary} answers yes to the physician's question: <<criterion>>

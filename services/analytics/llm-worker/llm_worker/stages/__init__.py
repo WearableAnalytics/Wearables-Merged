@@ -18,13 +18,20 @@ def default_stages(settings: Settings, store: ScenarioStore | None = None) -> li
     """
     if store is None:
         store = ScenarioStore.from_dir(Path(settings.scenarios_dir)) if settings.scenarios_dir else load_bundled_store()
-    model = LotusModel(
+    return triage_stages(store, model_from(settings))
+
+
+def model_from(settings: Settings) -> LotusModel:
+    return LotusModel(
         base_url=settings.llm_base_url,
         model=settings.llm_model,
         api_key=settings.llm_api_key,
         max_batch_size=settings.llm_concurrency,
         timeout_seconds=settings.llm_timeout_seconds,
     )
+
+
+def triage_stages(store: ScenarioStore, model: LotusModel) -> list:
     return [
         LoadEvidence(store.numeric, store.descriptive),
         SemanticTriage(build_operator(load_spec("triage"), RENDERED_COLUMNS), model),

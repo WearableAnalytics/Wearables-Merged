@@ -1,0 +1,12 @@
+name: travel_jetlag
+summary: Long-haul flight and jet lag; two nights of higher HR and lower HRV, temperature normal.
+patient: {id: P-013, birth_year: 1988, sex: M}
+baseline: {rhr: 54, hrv_sdnn: 60, wrist_temp_delta: 0.0, resp_rate: 13, spo2_mean: 98, steps: 10000}
+nights:
+  2026-03-13: {rhr: 61, hrv_sdnn: 41, wrist_temp_delta: 0.2, steps: 4000}
+  2026-03-14: {rhr: 60, hrv_sdnn: 44, wrist_temp_delta: 0.1}
+context:
+  - {id: 1301, kind: note, ts: 2026-03-12T22:00, text: "Long-haul flight back from Singapore, seven hours of time difference."}
+  - {id: 1302, kind: note, ts: 2026-03-13T21:00, text: "Jet lag, I was wide awake at 3 am."}
+candidates:
+  - {night: 2026-03-14, trigger_reasons: [rhr_z>2, hrv_drop>25%], l2_score: 0.27, expect: suppress}

@@ -1,7 +1,7 @@
 """Semantic operators (LOTUS) behind one registry, so new kinds plug in without touching existing ones.
 
-    @register_operator("agg")
-    class SemAgg: ...          # a later PR: LOTUS sem_agg for "summarise these nights" questions
+    @register_operator("topk")
+    class SemTopK: ...         # a later PR: LOTUS sem_topk for "the ten most worrying nights"
 
 The worker only calls `build_operator(spec, columns)` and then `op(df, model)`.
 """
@@ -99,6 +99,29 @@ class SemMap:
         values = [None if v is None else str(v) for v in out[_SUFFIX]]
         raw = _column(out, f"raw_output{_SUFFIX}", len(df))
         return OperatorResult(values=values, rationales=[None] * len(df), raw=raw)
+
+
+@register_operator("agg")
+class SemAgg:
+    """Natural-language aggregation: all rows in, one answer out (e.g. the trajectory over several nights)."""
+
+    def __init__(self, spec: OperatorSpec):
+        self.spec = spec
+
+    def __call__(self, df: pd.DataFrame, model: LotusModel) -> OperatorResult:
+        if df.empty:
+            return OperatorResult([], [], [])
+        with model.session(self.spec.max_tokens):
+            # long_context_strategy=None: no token counting, which would download a tokenizer
+            out = df.reset_index(drop=True).sem_agg(
+                self.spec.instruction,
+                suffix=_SUFFIX,
+                long_context_strategy=None,
+                progress_bar_desc=self.spec.ref,
+            )
+        value = out[_SUFFIX].iloc[0] if len(out) else None
+        text = None if value is None or str(value).strip() == "" else str(value).strip()
+        return OperatorResult(values=[text], rationales=[None], raw=[text])
 
 
 def _parse_bool(raw: str | None) -> bool | None:

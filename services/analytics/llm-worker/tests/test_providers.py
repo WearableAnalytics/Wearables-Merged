@@ -19,13 +19,64 @@ def store() -> ScenarioStore:
     return load_bundled_store()
 
 
-def test_bundled_scenarios_each_have_one_candidate_and_an_expected_verdict(store):
-    names = store.names()
-    assert {"vaccination_documented", "alcohol_undocumented", "red_flag", "future_note_leak"} <= set(names)
-    for name in names:
-        scenario = store.get(name)
-        assert isinstance(scenario.candidate(candidate_id=1), AlertCandidate)
-        assert scenario.expect_verdict in {"notify", "suppress", "red_flag_bypass"}
+def test_bundled_scenarios_are_fourteen_patients_and_every_candidate_has_an_expected_verdict(store):
+    assert {"vaccination_documented", "alcohol_undocumented", "red_flag", "future_note_leak"} <= set(store.names())
+    assert len(store.patient_ids()) == 14
+    for name in store.names():
+        for candidate, verdict in store.get(name).expected():
+            assert isinstance(candidate, AlertCandidate)
+            assert verdict in {"notify", "suppress", "red_flag_bypass"}
+
+
+def test_a_patient_can_have_several_candidates_or_none(store):
+    flu = store.patient("P-010")
+    assert [c.night_date for c in flu.candidates()] == [date(2026, 3, 12), NIGHT]
+    assert store.patient("P-014").candidates() == []
+
+
+def test_all_candidates_are_listed_in_patient_and_night_order(store):
+    candidates = store.all_candidates()
+
+    assert len(candidates) == 14  # 13 patients with one or two flagged nights, P-014 has none
+    keys = [(c.patient_id, c.night_date) for c in candidates]
+    assert keys == sorted(keys)
+
+
+def test_the_store_knows_its_latest_night(store):
+    assert store.today == NIGHT
+
+
+def test_patients_are_described_by_age_band_and_sex_only(store):
+    patients = store.patients()
+
+    assert [p["patient_id"] for p in patients] == store.patient_ids()
+    assert patients[0] == {"patient_id": "P-001", "age_band": "50–70", "sex": "F", "flagged_nights": ["2026-03-14"]}
+
+
+def test_the_older_single_candidate_format_still_loads(tmp_path):
+    (tmp_path / "one.yaml").write_text(
+        """
+name: one
+summary: x
+patient: {id: P-100, birth_year: 1980, sex: F}
+baseline: {rhr: 60}
+candidate: {night: 2026-03-14, trigger_reasons: [rhr_z>2]}
+expect: {verdict: notify}
+""",
+        encoding="utf-8",
+    )
+    store = ScenarioStore.from_dir(tmp_path)
+
+    [(candidate, verdict)] = store.get("one").expected()
+    assert (candidate.patient_id, candidate.night_date, verdict) == ("P-100", NIGHT, "notify")
+
+
+def test_numeric_context_exists_for_any_night_up_to_the_latest(store):
+    earlier = store.numeric.get("P-010", date(2026, 3, 11))
+
+    assert earlier.fact("wrist_temp_delta").value == 0.4
+    with pytest.raises(LookupError):
+        store.numeric.get("P-010", date(2026, 3, 15))
 
 
 def test_numeric_context_has_signed_z_against_the_personal_baseline(store):

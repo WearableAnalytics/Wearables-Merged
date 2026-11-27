@@ -1,0 +1,11 @@
+# patient_explain, step 1 (sem_map): one line per night that differs from the patient's baseline.
+name: night_summary
+version: 1
+kind: map
+description: One line about one night of wearable data, citing evidence ids.
+max_tokens: 120
+instruction: |
+  Write one short line about this night of wearable data for a physician, using only {night}.
+  Say which values differ from the patient's own baseline, in which direction and by how much.
+  Put the evidence id of each value you mention in square brackets, exactly as it is written at the start of its line.
+  Do not diagnose.

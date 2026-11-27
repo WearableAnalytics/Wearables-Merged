@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Semantic Task Worker · demo</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --surface: #fcfcfb; --text: #1c2430; --muted: #66707d; --line: #e3e6eb;
+    --accent: #2f5fd0; --accent-soft: #e8eefc;
+    --notify: #b42318; --notify-soft: #fdecea; --suppress: #3d6b3f; --suppress-soft: #e8f3e8;
+    --red: #7a0916; --red-soft: #f9d7db; --warn: #8a5a00; --warn-soft: #fff4d6;
+    /* diverging scale for z against the personal baseline: blue = below, red = above, gray = at baseline */
+    --div-low: #2a78d6; --div-high: #e34948; --div-mid: #f0efec; --cell-ink: #1c2430; --cell-ink-strong: #1c2430;
+    --spark: #2a78d6;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c; --panel: #1a2029; --surface: #1a1a19; --text: #e6e9ee; --muted: #99a3b0; --line: #2a323d;
+      --accent: #7ea2ff; --accent-soft: #1f2a44;
+      --notify: #ff8a7a; --notify-soft: #3a1c1a; --suppress: #8fcf91; --suppress-soft: #1b2e1c;
+      --red: #ffb3bc; --red-soft: #4a1520; --warn: #f3c561; --warn-soft: #3a2f12;
+      --div-low: #3987e5; --div-high: #e66767; --div-mid: #383835; --cell-ink: #e6e9ee; --cell-ink-strong: #12161c;
+      --spark: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .meta { color: var(--muted); font-size: 13px; }
+  header .meta b { color: var(--text); font-weight: 600; }
+  main { display: grid; grid-template-columns: minmax(380px, 1fr) minmax(460px, 1.25fr); gap: 16px; padding: 16px 20px; height: calc(100vh - 54px); }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; min-height: 0; }
+  section > .head { padding: 12px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  section > .head h2 { font-size: 14px; margin: 0; }
+  section > .head .sub { color: var(--muted); font-size: 12px; }
+  .scroll { overflow-y: auto; padding: 10px 14px; flex: 1; min-height: 0; }
+  button, select, textarea, input { font: inherit; color: inherit; }
+  button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  select, input[type=number] { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 4px 6px; }
+  input[type=number] { width: 64px; }
+  .spacer { flex: 1; }
+
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; margin-bottom: 8px; }
+  .card .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card .who { font-weight: 600; }
+  .card .when { color: var(--muted); font-size: 12px; }
+  .card .text { margin-top: 6px; white-space: pre-wrap; }
+  .badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: .02em; }
+  .b-notify, .b-unparseable_notify { background: var(--notify-soft); color: var(--notify); }
+  .b-suppress { background: var(--suppress-soft); color: var(--suppress); }
+  .b-red_flag_bypass { background: var(--red-soft); color: var(--red); }
+  .b-pending, .b-processing { background: var(--accent-soft); color: var(--accent); }
+  .b-failed { background: var(--warn-soft); color: var(--warn); }
+  .bell { font-size: 12px; color: var(--notify); font-weight: 600; }
+  .eid { font-family: var(--mono); font-size: 12px; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 4px; cursor: help; }
+  details { margin-top: 6px; color: var(--muted); font-size: 12px; }
+  details pre { white-space: pre-wrap; font-family: var(--mono); font-size: 11.5px; background: var(--bg); border-radius: 6px; padding: 8px; color: var(--text); max-height: 260px; overflow: auto; }
+  summary { cursor: pointer; }
+  .link { background: none; border: none; color: var(--accent); padding: 0; font-size: 12px; cursor: pointer; }
+
+  /* evidence: data straight from the serving tables */
+  .evidence { margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 8px; }
+  .evidence .cap { font-size: 12px; color: var(--muted); margin-bottom: 4px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .evidence .cap b { color: var(--text); font-weight: 600; }
+  .hm { border-collapse: separate; border-spacing: 2px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .hm th { font-weight: 500; color: var(--muted); padding: 0 4px; text-align: left; white-space: nowrap; }
+  .hm thead th { text-align: center; font-size: 11px; }
+  .hm td.c { min-width: 44px; height: 24px; text-align: center; border-radius: 4px; color: var(--cell-ink); cursor: default; }
+  .hm td.c.strong { color: var(--cell-ink-strong); }
+  .hm td.c.cited { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); font-weight: 700; }
+  .hm td.c.missing { background: repeating-linear-gradient(45deg, var(--div-mid), var(--div-mid) 3px, transparent 3px, transparent 6px); color: var(--muted); }
+  .hm td.sp { padding-left: 8px; }
+  .legend { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; color: var(--muted); }
+  .legend i { display: inline-block; width: 18px; height: 10px; border-radius: 2px; }
+  .ctx { list-style: none; margin: 6px 0 0; padding: 0; font-size: 12.5px; }
+  .ctx li { padding: 3px 0 3px 8px; border-left: 3px solid transparent; }
+  .ctx li.cited { border-left-color: var(--text); }
+  .ctx .when { color: var(--muted); font-size: 11.5px; }
+  .match { margin-top: 10px; }
+  .match .name { font-weight: 600; }
+  .sql { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+
+  .msg { margin-bottom: 14px; }
+  .msg .q { background: var(--accent-soft); border-radius: 10px 10px 2px 10px; padding: 8px 11px; margin-left: 18%; white-space: pre-wrap; }
+  .msg .q .by { font-size: 11px; color: var(--muted); display: block; margin-bottom: 2px; }
+  .msg .route { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin: 4px 0 4px 18%; }
+  .msg .a { border: 1px solid var(--line); border-radius: 10px 10px 10px 2px; padding: 8px 11px; margin-right: 4%; }
+  .msg .a .answer { white-space: pre-wrap; }
+  .msg .notice { background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 5px 9px; margin: 4px 10% 4px 0; font-size: 12.5px; }
+  .msg .error { background: var(--notify-soft); color: var(--notify); border-radius: 6px; padding: 5px 9px; margin: 4px 10% 4px 0; font-size: 12.5px; }
+  .waiting { color: var(--muted); font-style: italic; }
+
+  .composer { border-top: 1px solid var(--line); padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row label { color: var(--muted); font-size: 12px; }
+  textarea { width: 100%; resize: vertical; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--panel); }
+  #examples { max-width: 100%; }
+  .chip { font-family: var(--mono); font-size: 11.5px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; display: inline-flex; gap: 6px; align-items: center; }
+  .chip button { border: none; padding: 0; background: none; color: var(--muted); }
+  .empty { color: var(--muted); padding: 20px 4px; text-align: center; }
+  .counts { font-size: 12px; color: var(--muted); }
+
+  #tip { position: fixed; pointer-events: none; z-index: 10; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.15); max-width: 320px; display: none; }
+  #tip .k { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Semantic Task Worker</h1>
+  <span class="meta">model <b id="model">…</b> · data <b id="source">…</b> up to <b id="today">…</b> · mock data, not for clinical use</span>
+</header>
+<main>
+  <section>
+    <div class="head">
+      <h2>Pipeline → <code>alert_triage</code></h2>
+      <span class="sub">flagged nights (vitals.nightly_flags) become tasks; only these can notify</span>
+      <span class="spacer"></span>
+      <button class="primary" id="simulate">Simulate pipeline</button>
+    </div>
+    <div class="head counts" id="alert-counts"></div>
+    <div class="scroll" id="alerts"><div class="empty">No alerts yet. Press “Simulate pipeline”.</div></div>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Chat → <code>patient_explain</code> / <code>cohort_query</code></h2>
+      <span class="sub">read-only; numbers come from the database, the model only explains</span>
+    </div>
+    <div class="scroll" id="chat"><div class="empty">Ask about one patient (write its id or pick it) or about all patients.</div></div>
+    <div class="composer">
+      <div class="row"><label>example <select id="examples"><option value="">— pick a demo question (fills the text and the filter) —</option></select></label></div>
+      <div class="row">
+        <label>as <select id="who"><option value="doctor">doctor</option><option value="ds">data scientist</option></select></label>
+        <label>patient <select id="patient"><option value="">— from text / all —</option></select></label>
+        <label>template <select id="template">
+          <option value="">auto</option>
+          <option value="patient_explain">patient_explain</option>
+          <option value="cohort_query">cohort_query</option>
+          <option value="alert_triage">alert_triage (not allowed)</option>
+        </select></label>
+      </div>
+      <div class="row">
+        <label>numeric filter (SQL, all patients)</label>
+        <select id="f-signal"></select>
+        <select id="f-op"><option value=">=">z ≥</option><option value="<=">z ≤</option></select>
+        <input id="f-z" type="number" step="0.5" value="2">
+        <button id="f-add">+ add</button>
+        <select id="f-match" title="how several conditions combine"><option value="any">any</option><option value="all">all</option></select>
+        <span id="f-list" class="row"></span>
+      </div>
+      <div class="row"><textarea id="text" placeholder="e.g. What happened to P-010 over the last week?"></textarea></div>
+      <div class="row"><span class="counts">⌘/Ctrl + Enter to send</span><span class="spacer"></span><button class="primary" id="send">Send</button></div>
+    </div>
+  </section>
+</main>
+<div id="tip"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const local = [];          // chat messages not in the task table: rejections
+const notices = {};        // task_id -> notice from the router
+const open = new Set(["chat"]);  // expanded <details>, kept across re-renders
+const filters = [];        // numeric filter chips
+let SIGNALS = [];
+const UNITS = {};
+const NAMES = { rhr: "resting HR", hrv_sdnn: "HRV (SDNN)", wrist_temp_delta: "wrist temp Δ", resp_rate: "resp. rate", spo2_mean: "SpO2", steps: "steps" };  // display names
+const tipData = {};        // evidence id (per task) -> tooltip html
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const secs = (t) => t.started_at && t.finished_at ? ((new Date(t.finished_at) - new Date(t.started_at)) / 1000).toFixed(1) + " s" : "";
+const fmt = (v) => v == null ? "—" : (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString() : (+v.toFixed(2)).toString());
+const fmtZ = (z) => z == null ? "—" : (z >= 0 ? "+" : "−") + Math.abs(z).toFixed(1);
+
+// evidence ids in text -> chips with a tooltip key (scope = task, ids repeat across tasks)
+const ids = (s, scope) => esc(s).replace(/\[?\b((?:n\d*:[a-z_0-9]+)|(?:c:\d+))\b\]?/g,
+  (_, id) => `<span class="eid" data-tip="${esc(scope + "|" + id)}">${id}</span>`);
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail ? (typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail)) : r.statusText);
+  return body;
+}
+
+// --- diverging color for z: equal steps per arm, neutral gray at baseline
+function cellStyle(z) {
+  if (z == null) return { bg: "", strong: false };
+  const a = Math.abs(z);
+  const step = a < 1 ? 0 : a < 2 ? 35 : a < 3 ? 65 : 100;
+  if (!step) return { bg: "var(--div-mid)", strong: false };
+  const pole = z > 0 ? "var(--div-high)" : "var(--div-low)";
+  return { bg: `color-mix(in oklab, ${pole} ${step}%, var(--div-mid))`, strong: step === 100 };
+}
+
+function legend() {
+  const sw = (z) => `<i style="background:${cellStyle(z).bg}"></i>`;
+  return `<span class="legend">below baseline ${sw(-3.5)}${sw(-2.5)}${sw(-1.5)}${sw(0)}${sw(1.5)}${sw(2.5)}${sw(3.5)} above &nbsp;(z: ±1 ±2 ±3)</span>`;
+}
+
+function sparkline(values) {
+  const pts = values.map((v, i) => [i, v]).filter(([, v]) => v != null);
+  if (pts.length < 2) return "";
+  const w = 72, h = 20, pad = 3;
+  const ys = pts.map(([, v]) => v), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo || 1;
+  const x = (i) => pad + (i / (values.length - 1)) * (w - 2 * pad);
+  const y = (v) => h - pad - ((v - lo) / span) * (h - 2 * pad);
+  const d = pts.map(([i, v], k) => `${k ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  const [li, lv] = pts[pts.length - 1];
+  return `<svg width="${w}" height="${h}" aria-hidden="true"><path d="${d}" fill="none" stroke="var(--spark)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${x(li)}" cy="${y(lv)}" r="3" fill="var(--spark)" stroke="var(--panel)" stroke-width="2"/></svg>`;
+}
+
+function signalTip(s, night) {
+  return `<b>${esc(NAMES[s.signal] || s.signal)}</b> · ${esc(night.label)} (${esc(night.night)})<br>
+    <span class="k">value</span> ${esc(fmt(s.value))} ${esc(s.unit)} · <span class="k">baseline</span> ${esc(fmt(s.baseline))}<br>
+    <span class="k">z</span> ${esc(fmtZ(s.z))}${s.coverage < 1 ? ` · <span class="k">coverage</span> ${Math.round(s.coverage * 100)}%` : ""}
+    <br><span class="k">id</span> ${esc(s.id)} · <span class="k">source</span> vitals.nightly_*`;
+}
+
+// nights x signals heatmap (the table itself is the table view: every cell prints its value)
+function heatmap(ev, cited, scope) {
+  const nights = ev.nights || [];
+  if (!nights.length) return "";
+  const names = nights[nights.length - 1].signals.map((s) => s.signal);
+  const head = nights.map((n) => `<th title="${esc(n.night)}">${esc(n.label)}<br>${esc(n.night.slice(5))}</th>`).join("");
+  const rows = names.map((name) => {
+    const cells = nights.map((n) => {
+      const s = n.signals.find((x) => x.signal === name);
+      if (!s) return `<td class="c missing">·</td>`;
+      tipData[scope + "|" + s.id] = signalTip(s, n);
+      const st = cellStyle(s.z);
+      const cls = ["c", s.value == null ? "missing" : "", st.strong ? "strong" : "", cited.has(s.id) ? "cited" : ""].join(" ");
+      return `<td class="${cls}" style="${st.bg && s.value != null ? `background:${st.bg}` : ""}" data-tip="${esc(scope + "|" + s.id)}">${esc(fmt(s.value))}</td>`;
+    }).join("");
+    const unit = UNITS[name] && UNITS[name] !== name ? ` <span class="k">${esc(UNITS[name])}</span>` : "";
+    const series = nights.map((n) => n.signals.find((x) => x.signal === name)?.value ?? null);
+    return `<tr><th>${esc(NAMES[name] || name)}${unit}</th>${cells}<td class="sp">${sparkline(series)}</td></tr>`;
+  }).join("");
+  return `<table class="hm"><thead><tr><th></th>${head}<th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function contextList(ev, cited, scope) {
+  const items = ev.context || [];
+  if (!items.length) return `<div class="counts">No documented context.</div>`;
+  return `<ul class="ctx">${items.map((c) => {
+    tipData[scope + "|" + c.id] = `<b>${esc(c.kind)}</b> ${esc(c.label || "standing")}${c.ts ? " · " + esc(c.ts.replace("T", " ").slice(0, 16)) : ""}<br>${esc(c.text)}<br><span class="k">source</span> patient_context.entries`;
+    return `<li class="${cited.has(c.id) ? "cited" : ""}"><span class="eid" data-tip="${esc(scope + "|" + c.id)}">${esc(c.id)}</span>
+      <span class="when">${esc(c.label || "standing")} · ${esc(c.kind)}</span> ${esc(c.text)}</li>`;
+  }).join("")}</ul>`;
+}
+
+function evidenceBlock(ev, cited, scope, caption) {
+  if (!ev) return "";
+  return `<div class="evidence"><div class="cap"><b>${esc(caption)}</b>${legend()}<span>outlined = cited by the model</span></div>
+    ${heatmap(ev, cited, scope)}${contextList(ev, cited, scope)}</div>`;
+}
+
+function detailsBlock(key, t, label) {
+  const info = { task_id: t.task_id, template: t.template, trigger: t.trigger, submitted_by: t.submitted_by, params: t.params,
+    prompt: t.prompt, model: t.model, spec_versions: t.spec_versions, attempts: t.attempts, error: t.error, result: t.result };
+  return `<details data-key="${key}" ${open.has(key) ? "open" : ""}><summary>${label || "details"} · ${esc(t.template)} #${t.task_id} ${secs(t)}</summary><pre>${esc(JSON.stringify(info, null, 2))}</pre></details>`;
+}
+
+function dataDetails(key, label, html) {
+  return `<details data-key="${key}" ${open.has(key) ? "open" : ""}><summary>${esc(label)}</summary>${html}</details>`;
+}
+
+// --- alerts (pipeline)
+function renderAlerts(tasks, notified) {
+  const box = $("alerts");
+  if (!tasks.length) return;
+  const counts = {};
+  tasks.forEach((t) => { const k = t.result?.verdict || t.state; counts[k] = (counts[k] || 0) + 1; });
+  $("alert-counts").textContent = `${tasks.length} alerts · ` + Object.entries(counts).map(([k, v]) => `${k.replaceAll("_", " ")} ${v}`).join(" · ") + ` · ${notified.size} notified`;
+  box.innerHTML = tasks.map((t) => {
+    const scope = "a" + t.task_id;
+    const verdict = t.result?.verdict || t.state;
+    const bell = notified.has(t.task_id) ? `<span class="bell">🔔 physician notified</span>` : "";
+    const cited = new Set(t.result?.explain?.cited_ids || []);
+    const text = t.answer ? `<div class="text">${ids(t.answer, scope)}</div>` : `<div class="text waiting">${esc(t.prompt)}</div>`;
+    const data = t.result?.evidence ? dataDetails("d" + scope, "data: this night and the 6 before (from the database)",
+      evidenceBlock(t.result.evidence, cited, scope, `${t.params.patient_id} · flagged night D-0 = ${t.params.night}`)) : "";
+    return `<div class="card">
+      <div class="top"><span class="who">${esc(t.params.patient_id)}</span><span class="when">night ${esc(t.params.night)}</span>
+        <span class="badge b-${esc(verdict)}">${esc(verdict.replaceAll("_", " "))}</span>${bell}<span class="spacer"></span>
+        <button class="link" data-ask="${esc(t.params.patient_id)}" data-night="${esc(t.params.night)}">ask in chat →</button></div>
+      ${text}${data}${detailsBlock("x" + scope, t)}</div>`;
+  }).join("");
+}
+
+// --- chat
+function routeText(t) {
+  const p = t.params || {};
+  const args = [p.patient_id, p.since_days ? p.since_days + "d" : null].filter(Boolean).join(", ");
+  let s = `→ ${t.template}(${args})`;
+  if (p.filters?.length) s += ` · SQL: ${p.filters.map((f) => `${f.signal} z ${f.op} ${f.z}`).join(` ${p.match === "all" ? "AND" : "OR"} `)}`;
+  return s;
+}
+
+function chatAnswer(t) {
+  const scope = "c" + t.task_id;
+  const r = t.result || {};
+  let html = `<div class="answer">${ids(t.answer, scope)}</div>`;
+  if (t.template === "patient_explain" && r.evidence) {
+    html += evidenceBlock(r.evidence, new Set(r.cited_ids || []), scope, `${r.patient_id} · last ${r.since_days} nights (from the database)`);
+  }
+  if (t.template === "cohort_query") {
+    if (r.filters?.length) {
+      html += `<div class="sql">numeric filter in SQL: ${esc(r.filters.join(r.match === "all" ? " AND " : " OR "))} → ${r.prefiltered.length} of the patients sent to the model: ${esc(r.prefiltered.join(", ") || "none")}</div>`;
+    } else {
+      html += `<div class="sql">no numeric filter: all ${r.checked} patients sent to the model (anonymous rows)</div>`;
+    }
+    (r.matches || []).forEach((m) => {
+      const ms = scope + ":" + m.patient_id;
+      html += `<div class="match"><span class="name">${esc(m.patient_id)}</span> — ${ids(m.reason || "", ms)}
+        ${evidenceBlock(m.evidence, new Set(m.cited_ids || []), ms, r.filters?.length ? "nights that met the filter" : "nights that differ from the baseline")}</div>`;
+    });
+    if (r.unclear?.length) html += `<div class="counts">unclear model answer (not counted as a match): ${esc(r.unclear.join(", "))}</div>`;
+  }
+  return html + detailsBlock("x" + scope, t);
+}
+
+function renderChat(tasks) {
+  const items = tasks.map((t) => ({ at: t.created_at, task: t })).concat(local.map((m) => ({ at: m.at, local: m })));
+  items.sort((a, b) => new Date(a.at) - new Date(b.at));
+  if (!items.length) return;
+  const box = $("chat");
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  box.innerHTML = items.map(({ task: t, local: m }) => {
+    if (m) return `<div class="msg"><div class="q"><span class="by">${esc(m.who)}</span>${esc(m.text)}</div>
+        ${m.error ? `<div class="error">rejected: ${esc(m.error)}</div>` : ""}</div>`;
+    const notice = notices[t.task_id] ? `<div class="notice">${esc(notices[t.task_id])}</div>` : "";
+    let answer;
+    if (t.state === "finished") answer = `<div class="a">${chatAnswer(t)}</div>`;
+    else if (t.state === "failed") answer = `<div class="error">failed: ${esc(t.error)}</div>`;
+    else answer = `<div class="a waiting">${t.state === "processing" ? "working… (LOTUS on " + esc($("model").textContent) + ")" : "queued" + (t.error ? " (retrying: " + esc(t.error) + ")" : "")}</div>`;
+    return `<div class="msg"><div class="q"><span class="by">${esc(t.submitted_by)}</span>${esc(t.prompt)}</div>
+      <div class="route">${esc(routeText(t))}</div>${notice}${answer}</div>`;
+  }).join("");
+  if (nearBottom) box.scrollTop = box.scrollHeight;
+}
+
+let lastKey = "";
+async function refresh() {
+  try {
+    const [alerts, chats, sent] = await Promise.all([api("/api/tasks?trigger=pipeline"), api("/api/tasks?trigger=chat"), api("/api/notifications")]);
+    const key = JSON.stringify([alerts.map((t) => [t.task_id, t.state]), chats.map((t) => [t.task_id, t.state]), sent.length, local.length]);
+    if (key === lastKey) return;  // re-render only on change, so hover and scroll stay put
+    lastKey = key;
+    renderAlerts(alerts.sort((a, b) => a.task_id - b.task_id), new Set(sent.map((n) => n.task_id)));
+    renderChat(chats);
+  } catch (e) { console.warn(e); }
+}
+
+// --- filters
+function renderFilters() {
+  $("f-list").innerHTML = filters.map((f, i) => `<span class="chip">${esc(f.signal)} z ${esc(f.op)} ${esc(f.z)}<button data-i="${i}" title="remove">×</button></span>`).join("");
+}
+
+async function send(text) {
+  text = (text ?? $("text").value).trim();
+  if (!text) return;
+  const body = { text, submitted_by: $("who").value, patient_id: $("patient").value || null, template: $("template").value || null,
+                 filters: filters.slice(), match: $("f-match").value };
+  $("text").value = "";
+  try {
+    const r = await api("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (r.notice) notices[r.task_id] = r.notice;
+  } catch (e) {
+    local.push({ at: new Date().toISOString(), who: body.submitted_by, text, error: e.message });
+  }
+  $("template").value = "";
+  lastKey = "";
+  refresh();
+  setTimeout(() => { $("chat").scrollTop = $("chat").scrollHeight; }, 50);
+}
+
+// --- hover tooltip for cells and id chips
+document.addEventListener("mouseover", (e) => {
+  const el = e.target.closest("[data-tip]");
+  const tip = $("tip");
+  if (!el || !tipData[el.dataset.tip]) { tip.style.display = "none"; return; }
+  tip.innerHTML = tipData[el.dataset.tip];
+  tip.style.display = "block";
+});
+document.addEventListener("mousemove", (e) => {
+  const tip = $("tip");
+  if (tip.style.display !== "block") return;
+  const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8), y = Math.min(e.clientY + 14, window.innerHeight - tip.offsetHeight - 8);
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+});
+document.addEventListener("toggle", (e) => {
+  const key = e.target.dataset?.key;
+  if (key) e.target.open ? open.add(key) : open.delete(key);
+}, true);
+$("alerts").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-ask]");
+  if (!b) return;
+  $("patient").value = "";
+  $("text").value = `Why was ${b.dataset.ask} flagged on ${b.dataset.night}? What happened over the last week?`;
+  $("text").focus();
+});
+$("f-add").onclick = () => {
+  if (filters.length >= 3) return;
+  filters.push({ signal: $("f-signal").value, op: $("f-op").value, z: parseFloat($("f-z").value) });
+  renderFilters();
+};
+$("f-list").onclick = (e) => { const b = e.target.closest("[data-i]"); if (b) { filters.splice(+b.dataset.i, 1); renderFilters(); } };
+$("simulate").onclick = async () => { await api("/api/demo/pipeline", { method: "POST" }); lastKey = ""; refresh(); };
+$("send").onclick = () => send();
+$("text").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send(); });
+
+(async () => {
+  const [status, patients, prompts] = await Promise.all([api("/api/status"), api("/api/patients"), api("/api/demo/prompts")]);
+  $("model").textContent = status.model;
+  $("today").textContent = status.today;
+  $("source").textContent = status.data_source === "pg" ? "PostgreSQL (vitals, patient_context)" : status.data_source;
+  SIGNALS = status.signals;
+  SIGNALS.forEach((s) => { UNITS[s.signal] = s.unit; });
+  $("f-signal").innerHTML = SIGNALS.map((s) => `<option value="${esc(s.signal)}">${esc(NAMES[s.signal] || s.signal)}</option>`).join("");
+  $("f-signal").value = "wrist_temp_delta";
+  $("patient").innerHTML += patients.map((p) => `<option value="${esc(p.patient_id)}">${esc(p.patient_id)} · ${esc(p.age_band)} ${esc(p.sex)}${p.flagged_nights.length ? " · flagged" : ""}</option>`).join("");
+  $("examples").innerHTML += prompts.map((p, i) => `<option value="${i}" title="${esc(p.expect)}">${i + 1}. ${esc(p.text)}${p.filters ? "  [+ numeric filter]" : ""}</option>`).join("");
+  $("examples").onchange = (e) => {
+    if (e.target.value === "") return;
+    const p = prompts[e.target.value];
+    $("text").value = p.text;
+    filters.length = 0;
+    (p.filters || []).forEach((f) => filters.push(f));
+    renderFilters();
+    e.target.value = "";
+    $("text").focus();
+  };
+  refresh();
+  setInterval(refresh, 2000);
+})();
+</script>
+</body>
+</html>

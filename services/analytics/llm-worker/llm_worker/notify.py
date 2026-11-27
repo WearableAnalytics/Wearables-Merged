@@ -1,15 +1,23 @@
 import logging
 from typing import Protocol
 
-from .pipeline import Event
+from .tasks.model import TaskRun
 
 log = logging.getLogger(__name__)
 
 
 class Notifier(Protocol):
-    def notify(self, event: Event, explanation: str | None) -> None: ...
+    def notify(self, run: TaskRun, notification: dict) -> None: ...
 
 
 class LogNotifier:
-    def notify(self, event: Event, explanation: str | None) -> None:
-        log.info("[notify] event %s for %s on %s is finished", event.event_id, event.patient_id, event.night_date)
+    """Stand-in for the clinician channel. The notification itself is already stored in tasks.notifications."""
+
+    def notify(self, run: TaskRun, notification: dict) -> None:
+        log.info(
+            "[notify] %s on %s: %s (task %s)",
+            notification["patient_id"],
+            notification["night_date"],
+            notification["verdict"],
+            run.task_id,
+        )

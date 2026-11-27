@@ -1,0 +1,9 @@
+# cohort_query, step 2 (sem_map): for each matching patient, why it matched.
+name: cohort_reason
+version: 1
+kind: map
+description: One line on why a patient record matched the criterion, citing evidence ids.
+max_tokens: 100
+instruction: |
+  In one short line, say what in {summary} answers the physician's question: <<criterion>>
+  Put the evidence ids you rely on in square brackets, exactly as they are written in the record. Do not diagnose.

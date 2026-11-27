@@ -1,7 +1,7 @@
 """Mock data sources: one YAML file per scenario stands in for the gold serving tables and patient_context.
 
-A scenario describes one patient around one flagged night: the personal baseline, the nights that differ from it,
-the descriptive context (medications, diary notes, ...) and the candidate the upstream pipeline would raise.
+A scenario describes one patient: the personal baseline, the nights that differ from it, the descriptive context
+(medications, diary notes, ...) and the candidates the upstream pipeline would raise (none, one or several nights).
 No physiology is simulated; the numbers are written by hand so that each scenario tests one behaviour.
 """
 
@@ -13,9 +13,19 @@ from importlib.resources import files
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from ..dto import AlertCandidate, ContextItem, ContextKind, DescriptiveContext, Fact, NightRow, NumericContext
+from ..dto import (
+    AlertCandidate,
+    ContextItem,
+    ContextKind,
+    DescriptiveContext,
+    Fact,
+    NightRow,
+    NumericCondition,
+    NumericContext,
+)
+from . import Match, condition_holds, visible_items
 
 WINDOW_NIGHTS = 14
 PREVIOUS_NIGHTS = 3
@@ -49,10 +59,7 @@ class _Candidate(BaseModel):
     trigger_reasons: list[str] = Field(default_factory=list)
     red_flag: bool = False
     l2_score: float | None = None
-
-
-class _Expect(BaseModel):
-    verdict: str
+    expect: str | None = None  # the verdict a good triage gives this night
 
 
 class Scenario(BaseModel):
@@ -63,8 +70,20 @@ class Scenario(BaseModel):
     nights: dict[date, dict[str, float | None]] = Field(default_factory=dict)
     coverage: dict[str, float] = Field(default_factory=dict)
     context: list[_ContextEntry] = Field(default_factory=list)
-    candidate_: _Candidate = Field(alias="candidate")
-    expect: _Expect
+    candidates_: list[_Candidate] = Field(default_factory=list, alias="candidates")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _single_candidate(cls, data):
+        """The first scenarios had one `candidate` and a top-level `expect`; keep reading them."""
+        if isinstance(data, dict) and "candidate" in data:
+            data = dict(data)
+            candidate = dict(data.pop("candidate"))
+            expect = data.pop("expect", None)
+            if expect and "expect" not in candidate:
+                candidate["expect"] = expect["verdict"]
+            data["candidates"] = [candidate]
+        return data
 
     @property
     def patient_id(self) -> str:
@@ -72,14 +91,33 @@ class Scenario(BaseModel):
 
     @property
     def night_date(self) -> date:
-        return self.candidate_.night
+        """The latest flagged night."""
+        return self._last().night
 
     @property
-    def expect_verdict(self) -> str:
-        return self.expect.verdict
+    def expect_verdict(self) -> str | None:
+        return self._last().expect
+
+    def candidates(self, candidate_id: int = 0) -> list[AlertCandidate]:
+        return [self._to_candidate(c, candidate_id) for c in sorted(self.candidates_, key=lambda c: c.night)]
+
+    def expected(self) -> list[tuple[AlertCandidate, str | None]]:
+        ordered = sorted(self.candidates_, key=lambda c: c.night)
+        return [(self._to_candidate(c, 0), c.expect) for c in ordered]
 
     def candidate(self, candidate_id: int) -> AlertCandidate:
-        c = self.candidate_
+        """The latest flagged night as a candidate."""
+        return self._to_candidate(self._last(), candidate_id)
+
+    def last_night(self) -> date:
+        return max([*self.nights, *(c.night for c in self.candidates_)], default=date.min)
+
+    def _last(self) -> _Candidate:
+        if not self.candidates_:
+            raise LookupError(f"scenario {self.name} has no flagged night")
+        return max(self.candidates_, key=lambda c: c.night)
+
+    def _to_candidate(self, c: _Candidate, candidate_id: int) -> AlertCandidate:
         return AlertCandidate(
             candidate_id=candidate_id,
             patient_id=self.patient_id,
@@ -103,8 +141,10 @@ class Scenario(BaseModel):
 class ScenarioStore:
     scenarios: dict[str, Scenario]
     by_patient: dict[str, Scenario] = field(init=False)
+    today: date = field(init=False)  # the latest night in the data; questions about 'last week' end here
 
     def __post_init__(self) -> None:
+        self.today = max((s.last_night() for s in self.scenarios.values()), default=date.min)
         self.by_patient = {}
         for scenario in self.scenarios.values():
             if scenario.patient_id in self.by_patient:
@@ -124,6 +164,42 @@ class ScenarioStore:
 
     def get(self, name: str) -> Scenario:
         return self.scenarios[name]
+
+    def patient_ids(self) -> list[str]:
+        return sorted(self.by_patient)
+
+    def patients(self) -> list[dict]:
+        """What the UI may show about a patient: no name, no birth date."""
+        out = []
+        for pid in self.patient_ids():
+            s = self.by_patient[pid]
+            out.append(
+                {
+                    "patient_id": pid,
+                    "age_band": age_band(self.today.year - s.patient.birth_year),
+                    "sex": s.patient.sex,
+                    "flagged_nights": [c.night_date.isoformat() for c in s.candidates()],
+                }
+            )
+        return out
+
+    def has_patient(self, patient_id: str) -> bool:
+        return patient_id in self.by_patient
+
+    def nights_matching(
+        self, conditions: list[NumericCondition], match: Match, since_days: int, patient_id: str | None = None
+    ) -> list[tuple[str, date]]:
+        out = []
+        for pid in [patient_id] if patient_id else self.patient_ids():
+            for d in range(since_days - 1, -1, -1):
+                night = self.today - timedelta(days=d)
+                zs = {f.name: f.z for f in self.numeric.get(pid, night).tonight}
+                if condition_holds(zs, conditions, match):
+                    out.append((pid, night))
+        return out
+
+    def all_candidates(self) -> list[AlertCandidate]:
+        return [c for pid in self.patient_ids() for c in self.by_patient[pid].candidates()]
 
     def patient(self, patient_id: str) -> Scenario:
         try:
@@ -152,7 +228,7 @@ class ScenarioNumericProvider:
 
     def get(self, patient_id: str, night_date: date) -> NumericContext:
         scenario = self.store.patient(patient_id)
-        if night_date != scenario.night_date:
+        if night_date > self.store.today:
             raise LookupError(f"no data for patient {patient_id} on {night_date}")
 
         tonight = scenario.values_on(night_date)
@@ -189,22 +265,12 @@ class ScenarioDescriptiveProvider:
 
     def get(self, patient_id: str, night_date: date, as_of: datetime, max_items: int = 20) -> DescriptiveContext:
         scenario = self.store.patient(patient_id)
-        visible = [item for item in scenario.context_items() if item.ts is None or item.ts < as_of]
-        visible.sort(key=lambda item: (item.ts is not None, item.ts or datetime.min))
-
-        undated = [item for item in visible if item.ts is None]
-        dated = [item for item in visible if item.ts is not None]
-        keep = max(max_items - len(undated), 0)
-        kept = undated + dated[len(dated) - keep :] if keep else undated
-        items = [
-            item.model_copy(update={"days_before": None if item.ts is None else (night_date - item.ts.date()).days})
-            for item in kept
-        ]
+        items, truncated = visible_items(scenario.context_items(), night_date, as_of, max_items)
         return DescriptiveContext(
             age_band=age_band(night_date.year - scenario.patient.birth_year),
             sex=scenario.patient.sex,
             items=items,
-            truncated=len(visible) - len(items),
+            truncated=truncated,
             source=f"scenario:{scenario.name}",
         )
 

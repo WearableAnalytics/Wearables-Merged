@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 Verdict = Literal["notify", "suppress", "red_flag_bypass", "unparseable_notify"]
+Signal = Literal["rhr", "hrv_sdnn", "wrist_temp_delta", "resp_rate", "spo2_mean", "steps"]
 ContextKind = Literal["condition", "medication", "encounter", "note"]
 
 
@@ -106,3 +107,19 @@ class Explanation(_Frozen):
     fallback: bool = False  # True when the model answer could not be used and a template was written instead
     operator: str
     model: str | None = None
+
+
+class NumericCondition(_Frozen):
+    """A structured, exact predicate on one signal's z against the personal baseline (runs as SQL, not in the model)."""
+
+    signal: Signal
+    op: Literal[">=", "<="]
+    z: float = Field(ge=-10, le=10)
+
+    def holds(self, z: float | None) -> bool:
+        if z is None:
+            return False
+        return z >= self.z if self.op == ">=" else z <= self.z
+
+    def __str__(self) -> str:
+        return f"{self.signal} z {self.op} {self.z:+g}"

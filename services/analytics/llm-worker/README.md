@@ -1,130 +1,125 @@
-# llm-worker
+# llm-worker: semantic task worker
 
-Picks up flagged patient-nights (alert candidates) from PostgreSQL and runs them, in batches, through semantic
-operators (LOTUS) on a language model, then writes the decision and an explanation back:
+Runs **tasks** with semantic operators (LOTUS) on a language model. A suspicious event from the data pipeline is one
+kind of task; a question from a physician or data scientist in the chat is another. Both go through the same queue,
+the same worker and the same operators:
 
 ```
-pending ─claim ≤ 8─▶ processing ─▶ load_evidence ─▶ triage (sem_filter) ─▶ explain (sem_map) ─▶ finished ─▶ notify
-                                     numbers + text     red flags skip it      every candidate       (not if suppressed)
-                          └─ model down ─▶ whole batch back to pending with backoff ─▶ failed after the last attempt
+pipeline event ─► alert_triage    (priority 0)  ─┐                    ┌─► answer + result (tasks.task_runs)
+                                                 ├─► tasks.task_runs ─┤
+chat question ─► router ─► patient_explain (10) ─┤   claim by priority └─► tasks.notifications (alert_triage only)
+                       └─► cohort_query    (10) ─┘   → handler of the template → providers → render → LOTUS → model
 ```
 
-- **load_evidence**: numbers (gold layer) and descriptive text (patient context) are fetched in parallel and rendered
-  into two text columns. Every line carries an id (`n:rhr`, `c:104`) the model must cite.
-- **triage** (L3): LOTUS `sem_filter` with a natural-language spec. True = a documented benign cause explains the night
-  → `suppress`; false → `notify`; an unclear answer → `unparseable_notify`. Red flags never reach the model
-  (`red_flag_bypass`).
-- **explain** (L4): LOTUS `sem_map` writes a short note for the physician. Cited ids are checked against the evidence;
-  unknown ids are dropped. An unusable answer falls back to a template (`fallback: true`).
+| Template | Who may start it | Reads | Semantic operators | Side effect |
+| --- | --- | --- | --- | --- |
+| `alert_triage` | pipeline only | one patient-night: numbers + context | `sem_filter` (triage) → `sem_map` (explanation) | notifies unless suppressed |
+| `patient_explain` | chat, pipeline | one patient, last N nights | nights that differ (\|z\| ≥ 1, no model) → `sem_map` per night → `sem_agg` | none |
+| `cohort_query` | chat | every patient, one anonymous row each | `sem_filter` with the criterion → `sem_map` per match | none |
 
-Design and decisions: `docs/architecture/llm-worker-semops-plan.md` (main checkout).
+**Data comes from the database.** The numbers are read from mock gold serving tables in PostgreSQL (`vitals.nightly_features`,
+`nightly_deviations`, `nightly_flags`, `sync_batches`; semops plan §4.3) and the context from `patient_context`
+(`profiles`, `entries`). `load-mock` fills them from the scenario YAML as one committed batch; the real gold sync will
+write the same tables. `cohort_query` takes an optional exact numeric predicate (`filters`, e.g. `wrist_temp_delta z >= 2`)
+that runs as SQL before the model sees anything. Every result carries `evidence`: the nights and context it is based on,
+straight from the tables (never from model output). The page shows them as a heatmap (z against the personal baseline,
+cells the model cited outlined) with hover details for every cell and cited id.
 
-### What is mocked
+Rules: permissions belong to the template, not to the trigger. `params` choose the data; the question text only fills
+the semantic slot of a spec (`<<question>>`, `<<criterion>>`) and can never reference a column or widen the scope. Only a
+pipeline `alert_triage` task can write a notification, whatever a handler returns (checked in `worker.py`).
 
-| Piece | Today | Later (plan) |
+## Requirements
+
+| Dependency | Needed for | Notes |
 | --- | --- | --- |
-| Gold layer numbers | scenario YAML files in `llm_worker/scenarios/` | `vitals` serving tables in PostgreSQL (§4) |
-| Patient context | the same scenario files | `patient_context` schema, then db_lord / FHIR |
-| Model | `fake-llm` (in compose), or local Ollama | Ollama / vLLM on the OpenStack cluster |
-| Queue | `worker.suspicious_events` (state on the row) | `alerting.alert_candidates` + `triage_jobs` + result tables (S0) |
+| Docker + Docker Compose v2 (`docker compose`) | the demo (`docker compose up`), and the integration tests (testcontainers starts a throwaway postgres) | Docker Desktop on macOS/Windows. The image is ~4.7 GB (LOTUS pulls in torch, CPU-only); allow ~10 GB free disk. Ports `127.0.0.1:8000` (web) and `127.0.0.1:55433` (postgres) must be free (`WORKER_WEB_PORT`, `WORKER_PG_PORT` to change). |
+| Ollama (optional) | real answers from a local model | Without it the stack uses the bundled fake model (`fake-llm`): everything runs, answers are canned. With it: `ollama pull qwen2.5:7b` (~4.7 GB download, ~8 GB RAM; on an Apple Silicon laptop 15–100 s per chat question). Any OpenAI-compatible endpoint works instead (vLLM, the cluster model) via `WORKER_LLM_BASE_URL` / `WORKER_LLM_MODEL`. |
+| Python 3.12 + [uv](https://docs.astral.sh/uv/) | running the worker or the tests outside containers | `requires-python = ">=3.12,<3.13"`; `uv sync` installs the locked dependencies (`uv.lock`). Not needed for the compose demo. |
 
-Only `NumericContextProvider` / `DescriptiveContextProvider` (`llm_worker/providers/`) and the three `WORKER_LLM_*`
-settings change when the real pieces arrive.
+Ollama from inside the containers: the compose services reach the host as `host.docker.internal`. On Docker Desktop
+this works with Ollama's default (listening on `127.0.0.1:11434`). On Linux, start Ollama with
+`OLLAMA_HOST=0.0.0.0:11434` so the containers can reach it through the Docker bridge. Check with
+`curl http://localhost:11434/v1/models`.
 
-## Run it
+Answer quality with `qwen2.5:7b` is weak (several wrong triage verdicts, low cohort recall): it shows the plumbing
+works, it is not an evaluation. Quality is to be measured on the cluster model.
+
+## Demo
 
 ```bash
-docker compose up --build                                   # postgres, migration, fake model, one worker
-docker compose run --rm migrate python -m llm_worker seed   # one candidate per scenario (9, one red flag)
-docker compose logs -f worker                               # "finish event N (verdict)" + "[notify]" lines
+docker compose up --build              # postgres, migration, fake model, worker, web
+open http://localhost:8000             # "Simulate pipeline", then ask in the chat (example buttons)
 ```
 
-With a real model on your machine (Ollama):
+With the real model on your machine (Ollama):
 
 ```bash
 ollama pull qwen2.5:7b
 WORKER_LLM_BASE_URL=http://host.docker.internal:11434/v1 WORKER_LLM_MODEL=qwen2.5:7b docker compose up --build
 ```
 
-With the cluster model: `kubectl -n bayes-llm port-forward svc/ollama 11434:11434`, then the same as above with the
-cluster's model tag (to be confirmed with the platform team, plan §5.3).
-
-Look at the results:
-
-```bash
-docker compose exec postgres psql -U worker -d worker -c "
-  SELECT event_id, patient_id, state, result->'triage'->>'verdict' AS verdict, explanation
-  FROM worker.suspicious_events ORDER BY event_id"
-```
-
-## Run it locally (no container for the worker)
+Without containers for the worker:
 
 ```bash
 docker compose up -d postgres
-uv sync
-uv run python -m llm_worker migrate
-uv run python -m llm_worker seed
-uv run python -m llm_worker fake-llm --port 8080 &          # or use Ollama (default URL: localhost:11434)
-WORKER_LLM_BASE_URL=http://localhost:8080/v1 WORKER_LLM_MODEL=fake-small uv run python -m llm_worker once
+uv sync && uv run python -m llm_worker migrate && uv run python -m llm_worker load-mock
+uv run python -m llm_worker web &      # http://localhost:8000
+uv run python -m llm_worker run        # default model: Ollama qwen2.5:7b on localhost:11434
 ```
 
-`once` processes everything that is pending and exits; `run` keeps consuming until Ctrl-C. Python 3.12 only
-(`lotus-ai 1.2.4` needs Python < 3.13, numpy < 2, pandas < 3).
+Two pools (clinical path isolated from chat questions): run one worker with `WORKER_TEMPLATES=alert_triage` and one
+with `WORKER_TEMPLATES=patient_explain,cohort_query`.
 
-## Ask a new question in plain language
+### Mock data
 
-Operators are specs written in natural language (`llm_worker/operators/*.yaml`), not code. Changing the clinical rule
-means editing `triage.yaml` and bumping its `version` (stored with every result). The same engine answers ad-hoc
-questions; this is the extension point for data scientists and clinicians later:
+14 patients in `llm_worker/scenarios/*.yaml` (one file per patient, numbers written by hand, each tests one behaviour),
+data up to 2026-03-14. Described by age band and sex only. Highlights: P-010 influenza getting worse over four nights
+vs. P-011 a cold that resolves; P-009 a red flag; P-006 a note written after the night (must not be read); P-012 a new
+beta-blocker; P-013 jet lag; P-014 stable, never flagged. Demo questions: `llm_worker/tasks/demo.py`.
 
-```python
-from llm_worker.semantic import LotusModel, OperatorSpec, build_operator
+## What is mocked
 
-question = OperatorSpec.adhoc("filter", "In {context}, the patient says they travelled to the mountains")
-op = build_operator(question, columns={"numeric", "context"})
-result = op(df, LotusModel(base_url="http://localhost:11434/v1", model="qwen2.5:7b"))  # df: rendered evidence
-```
+| Piece | Today | Later |
+| --- | --- | --- |
+| Gold layer numbers, patient context | PG serving tables filled from scenario YAML (`load-mock`) | filled by the Spark gold sync (`commit_batch`) |
+| Pipeline | `POST /api/demo/pipeline` or `python -m llm_worker simulate` | bridge from `alerting.alert_candidates` |
+| Chat | `index.html` + rule-based router | BayesPlatform / MCP tool selecting a template |
+| Notification channel | `tasks.notifications` + a log line | clinician inbox |
+| Identity | `submitted_by` from a drop-down | the user's identity, permission checks, audit |
 
-New operator kinds (LOTUS `sem_agg`, `sem_topk`, ...) are added with `@register_operator("agg")` in a new module,
-without changing the existing ones. There is no API for this yet.
+## API
+
+| Method | Path | |
+| --- | --- | --- |
+| `POST` | `/api/chat` | `{text, submitted_by: doctor\|ds, patient_id?, template?, filters?: [{signal, op, z}], match?}` → `{task_id, template, params, notice}`; 403 for `alert_triage` |
+| `POST` | `/api/demo/pipeline` | one `alert_triage` task per flagged night (idempotent) |
+| `GET` | `/api/tasks?trigger=pipeline\|chat`, `/api/tasks/{id}` | state, answer, result, spec versions, model |
+| `GET` | `/api/notifications`, `/api/patients`, `/api/demo/prompts`, `/api/status` | |
 
 ## Settings
 
 | Variable | Default | |
 | --- | --- | --- |
-| `WORKER_DSN` | `postgresql://worker:worker@localhost:55433/worker` | database (the compose postgres) |
-| `WORKER_ID` | hostname | written to `locked_by` |
-| `WORKER_BATCH_SIZE` | `8` | candidates per claim = rows per LOTUS call |
-| `WORKER_LLM_BASE_URL` | `http://localhost:11434/v1` | any OpenAI-compatible endpoint |
-| `WORKER_LLM_MODEL` | `qwen2.5:7b` | model name on that endpoint |
-| `WORKER_LLM_API_KEY` | `unused` | for a gateway that needs one |
-| `WORKER_LLM_TIMEOUT_SECONDS` | `180` | per model call |
+| `WORKER_DSN` | `postgresql://worker:worker@localhost:55433/worker` | the compose postgres |
+| `WORKER_TEMPLATES` | empty (all) | comma-separated templates this worker claims |
+| `WORKER_BATCH_SIZE` | `8` | upper bound per claim (alert_triage 8, chat templates 1) |
+| `WORKER_LLM_BASE_URL` / `WORKER_LLM_MODEL` | `http://localhost:11434/v1` / `qwen2.5:7b` | any OpenAI-compatible endpoint |
 | `WORKER_LLM_CONCURRENCY` | `4` | parallel calls inside one LOTUS batch |
-| `WORKER_SCENARIOS_DIR` | bundled | directory of scenario YAML files (mock data) |
-| `WORKER_POLL_INTERVAL_SECONDS` | `2` | wait when the queue is empty |
-| `WORKER_LEASE_SECONDS` | `900` | must cover a whole batch on a slow model |
-| `WORKER_MAX_ATTEMPTS` | `3` | then the event is `failed` |
-| `WORKER_BACKOFF_SECONDS` | `5` | retry delay, doubled on every attempt |
-
-## How it behaves
-
-- **Safety rules in code, not in the prompt:** red flags are never sent to the model and are always notified; an
-  unclear triage answer notifies; citations are checked; nothing sent to the model contains `patient_id`; context is
-  read only up to noon after the night (`providers.as_of_for`).
-- **No double processing.** Claims use `SELECT … FOR UPDATE SKIP LOCKED … LIMIT n`.
-- **Failures.** A model outage (`LLMUnavailable`) sends the whole batch back with backoff. A candidate without evidence
-  fails on its own. After `WORKER_MAX_ATTEMPTS` the event is `failed`.
-- **Notification** goes out only after the result is committed, and not for `suppress`.
+| `WORKER_LLM_TIMEOUT_SECONDS` | `180` | per model call |
+| `WORKER_LEASE_SECONDS` / `WORKER_MAX_ATTEMPTS` / `WORKER_BACKOFF_SECONDS` | `900` / `3` / `5` | queue behaviour |
+| `WORKER_WEB_HOST` / `WORKER_WEB_PORT` | `127.0.0.1` / `8000` | demo page |
+| `WORKER_DATA_SOURCE` | `pg` | `pg` = serving tables; `scenarios` = YAML directly (no tables needed) |
+| `WORKER_SCENARIOS_DIR` | bundled | mock data directory (input of `load-mock`) |
 
 ## Tests
 
 ```bash
-uv run pytest                       # unit + integration (Docker for a throwaway postgres); LOTUS runs against fake-llm
+uv run pytest                       # unit + integration (Docker for a throwaway postgres); LOTUS against fake-llm
 uv run pytest -m "not integration"  # no Docker
-uv run pytest -m ollama -s          # real model through LOTUS; prints a per-scenario table (~5 min with qwen2.5:7b)
+uv run pytest -m ollama -s          # real model: triage table + the 10 demo prompts (WORKER_DEMO_REPORT=x.md)
 uv run ruff check . && uv run ruff format --check .
 ```
 
-The `ollama` tests assert only what the code guarantees. Judgement quality depends on the model and is measured on the
-cluster model; with qwen2.5:7b (2026-11-21) triage matched 5–6 of 8 scenarios and wrongly suppressed
-`future_note_leak`.
+`-m ollama` asserts only what the code guarantees (routing, read-only chat, red flags, citations, no errors); answer
+quality is printed for a human to judge against each prompt's `expect`.

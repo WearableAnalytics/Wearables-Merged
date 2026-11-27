@@ -1,0 +1,16 @@
+name: progressive_flu
+summary: Older woman with influenza getting worse over four nights; temperature, breathing and HR climb, SpO2 falls. The case the clinician wants to be told about.
+patient: {id: P-010, birth_year: 1954, sex: F}
+baseline: {rhr: 62, hrv_sdnn: 32, wrist_temp_delta: 0.0, resp_rate: 15, spo2_mean: 96, steps: 5500}
+nights:
+  2026-03-11: {rhr: 66, hrv_sdnn: 29, wrist_temp_delta: 0.4, resp_rate: 16, steps: 4800}
+  2026-03-12: {rhr: 71, hrv_sdnn: 26, wrist_temp_delta: 0.8, resp_rate: 18, spo2_mean: 95, steps: 3000}
+  2026-03-13: {rhr: 77, hrv_sdnn: 23, wrist_temp_delta: 1.2, resp_rate: 20, spo2_mean: 94, steps: 1500}
+  2026-03-14: {rhr: 84, hrv_sdnn: 20, wrist_temp_delta: 1.6, resp_rate: 23, spo2_mean: 92, steps: 600}
+context:
+  - {id: 1001, kind: condition, text: "Hypertension, treated."}
+  - {id: 1002, kind: note, ts: 2026-03-11T18:00, text: "My grandson had the flu last week. I have a scratchy throat."}
+  - {id: 1003, kind: note, ts: 2026-03-13T20:00, text: "Aching all over, chills, stayed in bed most of the day."}
+candidates:
+  - {night: 2026-03-12, trigger_reasons: [temp_delta>0.5, resp_rate_z>2], l2_score: 0.58, expect: notify}
+  - {night: 2026-03-14, trigger_reasons: [rhr_z>2, temp_delta>1.0, resp_rate_z>2, spo2_drop>=3, persists_3_nights], l2_score: 0.91, expect: notify}

@@ -1,0 +1,7 @@
+name: stable_control
+summary: Older man, stable for two weeks, never flagged. The "nothing happened" answer for patient questions.
+patient: {id: P-014, birth_year: 1950, sex: M}
+baseline: {rhr: 64, hrv_sdnn: 28, wrist_temp_delta: 0.0, resp_rate: 16, spo2_mean: 95, steps: 4500}
+context:
+  - {id: 1401, kind: condition, text: "Mild osteoarthritis of the knee."}
+  - {id: 1402, kind: note, ts: 2026-03-09T17:00, text: "Walked to the market and back, knee was fine."}

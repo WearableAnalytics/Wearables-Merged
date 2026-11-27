@@ -1,0 +1,13 @@
+name: beta_blocker_start
+summary: Started a beta-blocker; resting HR drops and HRV rises. Medication changes are not a benign cause in triage@1, so this is notified (open question).
+patient: {id: P-012, birth_year: 1968, sex: M}
+baseline: {rhr: 66, hrv_sdnn: 30, wrist_temp_delta: 0.0, resp_rate: 15, spo2_mean: 96, steps: 7000}
+nights:
+  2026-03-12: {rhr: 59, hrv_sdnn: 34}
+  2026-03-13: {rhr: 56, hrv_sdnn: 36}
+  2026-03-14: {rhr: 55, hrv_sdnn: 37}
+context:
+  - {id: 1201, kind: condition, text: "High blood pressure."}
+  - {id: 1202, kind: medication, ts: 2026-03-11T09:00, text: "Started taking bisoprolol 2.5 mg once daily (new prescription from the GP)."}
+candidates:
+  - {night: 2026-03-13, trigger_reasons: [rhr_z<-2], l2_score: 0.22, expect: notify}

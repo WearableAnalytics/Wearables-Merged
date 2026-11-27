@@ -15,7 +15,8 @@ services:
 
   migrate:
     build: .
-    command: ["python", "-m", "llm_worker", "migrate"]
+    # schema + the mock gold serving tables (vitals, patient_context) from the scenario fixtures
+    command: ["sh", "-c", "python -m llm_worker migrate && python -m llm_worker load-mock"]
     environment:
       WORKER_DSN: postgresql://worker:worker@postgres:5432/worker
     depends_on:
@@ -29,7 +30,7 @@ services:
 
   worker:
     build: .
-    environment:
+    environment: &worker-env
       WORKER_DSN: postgresql://worker:worker@postgres:5432/worker
       # default: the fake model. Local Ollama: WORKER_LLM_BASE_URL=http://host.docker.internal:11434/v1
       # WORKER_LLM_MODEL=qwen2.5:7b. Cluster: the Ollama / vLLM service URL and its model tag.
@@ -37,6 +38,7 @@ services:
       WORKER_LLM_MODEL: ${WORKER_LLM_MODEL:-fake-small}
       WORKER_LLM_API_KEY: ${WORKER_LLM_API_KEY:-unused}
       WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-8}
+      WORKER_TEMPLATES: ${WORKER_TEMPLATES:-}  # empty = all templates; e.g. alert_triage for a clinical-only pool
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -45,3 +47,17 @@ services:
       fake-llm:
         condition: service_started
     stop_grace_period: 60s
+
+  # Demo page + API: http://localhost:8000 (submits and reads tasks; the worker runs them)
+  web:
+    build: .
+    command: ["python", "-m", "llm_worker", "web"]
+    environment:
+      <<: *worker-env
+      WORKER_WEB_HOST: 0.0.0.0
+      WORKER_WEB_PORT: "8000"
+    ports:
+      - "127.0.0.1:${WORKER_WEB_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully

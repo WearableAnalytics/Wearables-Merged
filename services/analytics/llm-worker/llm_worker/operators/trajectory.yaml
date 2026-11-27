@@ -1,0 +1,15 @@
+# patient_explain, step 2 (sem_agg): the nights together, plus the documented context, answer the physician.
+# <<question>> and <<context>> are filled per task; they carry meaning only and never select data.
+name: trajectory
+version: 1
+kind: agg
+description: Trajectory over several nights of one patient, answering the physician's question.
+max_tokens: 350
+instruction: |
+  Each {night_line} describes one night of wearable data of the same patient, oldest first.
+  The patient's documented context is: <<context>>
+  The physician asks: <<question>>
+  Answer the physician in three to five sentences. Say whether the values are getting worse, staying the same,
+  or returning to the patient's baseline over these nights, and mention documented context that may be relevant.
+  Put the evidence ids you rely on in square brackets, exactly as they are written in the lines and the context.
+  Use only this information. Do not diagnose and do not invent facts.

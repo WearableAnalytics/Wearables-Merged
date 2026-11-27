@@ -15,6 +15,7 @@ import yaml
 from pydantic import BaseModel, Field
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
+_SLOT = re.compile(r"<<(\w+)>>")
 
 
 class SpecError(ValueError):
@@ -43,6 +44,21 @@ class OperatorSpec(BaseModel):
             raise SpecError(f"{self.ref} references unknown columns {sorted(unknown)}; available: {sorted(available)}")
         if not self.columns():
             raise SpecError(f"{self.ref} must reference at least one column, e.g. {{context}}")
+
+    def fill(self, **slots: str) -> OperatorSpec:
+        """Put request text (a question, a criterion) into the spec's <<slots>>.
+
+        Slots carry meaning only: braces in the text are neutralised, so a question can never reference a column.
+        """
+        missing = set(_SLOT.findall(self.instruction)) - set(slots)
+        if missing:
+            raise SpecError(f"{self.ref} needs a value for {sorted(missing)}")
+
+        def value(match: re.Match) -> str:
+            text = str(slots[match.group(1)]).replace("{", "(").replace("}", ")")
+            return _SLOT.sub("", text).strip()
+
+        return self.model_copy(update={"instruction": _SLOT.sub(value, self.instruction)})
 
     @classmethod
     def adhoc(cls, kind: str, instruction: str, **kwargs) -> OperatorSpec:

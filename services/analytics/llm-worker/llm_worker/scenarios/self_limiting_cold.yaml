@@ -1,0 +1,13 @@
+name: self_limiting_cold
+summary: Young woman with a common cold; one night of raised HR and temperature, back to baseline two nights later.
+patient: {id: P-011, birth_year: 1993, sex: F}
+baseline: {rhr: 56, hrv_sdnn: 58, wrist_temp_delta: 0.0, resp_rate: 13, spo2_mean: 98, steps: 11000}
+nights:
+  2026-03-10: {rhr: 63, hrv_sdnn: 44, wrist_temp_delta: 0.6, resp_rate: 15, steps: 7000}
+  2026-03-11: {rhr: 60, hrv_sdnn: 50, wrist_temp_delta: 0.3, resp_rate: 14, steps: 8500}
+  2026-03-12: {rhr: 57, hrv_sdnn: 56, wrist_temp_delta: 0.1}
+context:
+  - {id: 1101, kind: note, ts: 2026-03-10T08:00, text: "Runny nose and sore throat, a colleague has a cold."}
+  - {id: 1102, kind: note, ts: 2026-03-12T19:00, text: "Feeling much better, back to normal."}
+candidates:
+  - {night: 2026-03-10, trigger_reasons: [rhr_z>2, temp_delta>0.5], l2_score: 0.39, expect: notify}

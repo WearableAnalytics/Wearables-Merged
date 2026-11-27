@@ -10,6 +10,8 @@ Keep changes in one of these places, so two people rarely touch the same file:
 | add an operator kind (LOTUS `sem_agg`, `sem_topk`, …) | a new class with `@register_operator("<kind>")` | existing operators |
 | add a pipeline step | a new stage in `llm_worker/stages/`, registered in `default_stages()` | `worker.py` |
 | change what the model reads | `render.py`, bump `RENDER_VERSION` | operators |
+| add a task template (a new kind of question) | a handler in `llm_worker/tasks/handlers/` with `@register_task` and its specs | `worker.py`, the router |
+| add a demo question | `llm_worker/tasks/demo.py` | |
 
 ## What a stage looks like
 
@@ -34,7 +36,7 @@ class MyStage:
 1. Write the test first. Stage logic: `tests/test_stages.py` with a scripted operator (no model, no database).
    LOTUS plumbing: `tests/test_semantic.py` against `fake_llm`. Real model: `tests/test_ollama.py` (`-m ollama`).
 2. Make it pass; keep `ruff check` and `ruff format --check` clean.
-3. One milestone per PR, branched from `feat/llm-worker-semops`.
+3. One milestone per PR, branched from `feat/semantic-task-worker`.
 
 ## Rules that hold everywhere
 
@@ -42,4 +44,6 @@ class MyStage:
 - An answer the code cannot read never suppresses a notification.
 - Context only from before `as_of_for(night)`, never from the future.
 - Nothing sent to a model contains `patient_id` or other identifiers.
+- Only a pipeline `alert_triage` task can notify; chat templates are read-only.
+- Request text fills spec slots only; data scope comes from validated `params`.
 - A stage must be safe to run twice on the same candidate; a lease can expire and the batch is processed again.

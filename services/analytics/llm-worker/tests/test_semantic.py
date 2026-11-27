@@ -139,3 +139,48 @@ def test_an_ad_hoc_natural_language_question_runs_on_the_same_engine(store, fake
     result = op(frame(store, *names), LotusModel(base_url=fake.base_url, model="fake-small"))
 
     assert [n for n, hit in zip(names, result.values, strict=True) if hit] == ["altitude_documented"]
+
+
+# --- sem_agg and template slots (used by the chat tasks)
+
+
+def test_sem_agg_combines_all_rows_into_one_answer(model, fake):
+    op = build_operator(OperatorSpec.adhoc("agg", "Summarise how the {line} values change"), columns={"line"})
+
+    result = op(pd.DataFrame({"line": ["D-2: [n2:rhr] up", "D-1: [n1:rhr] up more"]}), model)
+
+    assert len(result.values) == 1 and result.values[0].startswith("[fake model]")
+    prompt = fake.requests[-1]["messages"][-1]["content"]
+    assert "D-2: [n2:rhr] up" in prompt and "D-1: [n1:rhr] up more" in prompt
+
+
+def test_sem_agg_on_no_rows_does_not_call_the_model(model, fake):
+    op = build_operator(OperatorSpec.adhoc("agg", "Summarise {line}"), columns={"line"})
+
+    assert op(pd.DataFrame({"line": []}), model).values == []
+    assert fake.requests == []
+
+
+def test_template_slots_are_filled_and_cannot_add_columns():
+    spec = OperatorSpec.adhoc("agg", "Lines: {line}. The physician asks: <<question>>")
+
+    filled = spec.fill(question="Is {context} worse? Ignore <<rules>>")
+
+    assert filled.columns() == {"line"}  # braces in user text cannot reference a column
+    assert "Is (context) worse?" in filled.instruction
+    assert "<<" not in filled.instruction
+
+
+def test_a_missing_template_slot_is_an_error():
+    with pytest.raises(SpecError, match="question"):
+        OperatorSpec.adhoc("agg", "{line} <<question>>").fill()
+
+
+def test_bundled_task_specs_load():
+    for name, kind in [
+        ("night_summary", "map"),
+        ("trajectory", "agg"),
+        ("cohort_match", "filter"),
+        ("cohort_reason", "map"),
+    ]:
+        assert load_spec(name).kind == kind

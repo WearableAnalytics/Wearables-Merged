@@ -76,3 +76,37 @@ def test_render_is_deterministic_and_versioned(store):
 
     assert render(bundle) == render(bundle)
     assert RENDER_VERSION.startswith("render.v")
+
+
+# --- several nights of one patient (chat tasks)
+
+from llm_worker.providers import as_of_for  # noqa: E402
+from llm_worker.render import render_night, render_patient_summary  # noqa: E402
+
+
+def test_a_night_is_labelled_by_days_before_the_latest_night(store):
+    night = render_night(store.numeric.get("P-010", date(2026, 3, 12)), days_ago=2)
+
+    assert night.text.startswith("D-2 (2026-03-12)")
+    assert "n2:wrist_temp_delta" in night.ids and "n2:wrist_temp_delta" in night.text
+    assert "z=+4.0" in night.text
+    assert night.deviating
+
+
+def test_a_night_at_baseline_is_not_deviating(store):
+    assert not render_night(store.numeric.get("P-014", NIGHT), days_ago=0).deviating
+
+
+def test_patient_summary_lists_deviating_nights_and_context_without_identifiers(store):
+    nights = [
+        render_night(store.numeric.get("P-013", NIGHT), 0),
+        render_night(store.numeric.get("P-013", date(2026, 3, 10)), 4),
+    ]
+    context = store.descriptive.get("P-013", NIGHT, as_of_for(NIGHT))
+
+    summary = render_patient_summary(context, nights)
+
+    assert "P-013" not in summary.text
+    assert "age 35–50" in summary.text and "male" in summary.text
+    assert "D-0 (2026-03-14)" in summary.text and "D-4" not in summary.text  # D-4 is at baseline
+    assert "c:1301" in summary.text and {"c:1301", "n0:rhr"} <= summary.ids
