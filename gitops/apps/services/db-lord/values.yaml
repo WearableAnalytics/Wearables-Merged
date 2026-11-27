@@ -16,7 +16,7 @@ service:
 
 # Existing secret with the connection settings and credentials. The chart never
 # creates it: it is created out of band before the install (production:
-# scripts/bootstrap-runtime-secrets.sh, locally: gitops/local/setup-local.sh).
+# scripts/bootstrap-runtime-secrets.sh, locally: gitops/secrets/local).
 # Keys: POSTGRES_SERVER, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD,
 #       INFLUX_URL, INFLUX_ORG, INFLUX_BUCKET, INFLUX_TOKEN
 secretRef: "db-lord-secrets"

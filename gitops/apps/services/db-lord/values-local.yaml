@@ -1,5 +1,5 @@
-# Local minikube: image built into minikube. db-lord-secrets is created by
-# gitops/local/setup-local.sh with the credentials of the local Postgres and InfluxDB.
+# Local minikube: image built into minikube. db-lord-secrets is a Dev Secret in
+# gitops/secrets/local with the credentials of the local Postgres and InfluxDB.
 image:
   repository: wearables-local/db-lord
   tag: dev

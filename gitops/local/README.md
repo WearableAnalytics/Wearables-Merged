@@ -14,7 +14,7 @@ minikube tunnel                   # in a second terminal, keep it open
 
 Then open http://wearables.localhost and log in with `admin@example.com`.
 
-`setup-local.sh` runs the steps below in order and can be run again at any time: Helm upgrades the releases, and secrets are only created when they are missing. Use `--skip-build` to keep the current images. Every `kubectl` and `helm` call in the script is pinned to the `minikube` context. The sections below explain each step and how to check it.
+`setup-local.sh` runs the steps below in order and can be run again at any time: Helm upgrades the releases, and the secrets are applied from `gitops/secrets/local` on every run (step 2a). Use `--skip-build` to keep the current images. Every `kubectl` and `helm` call in the script is pinned to the `minikube` context. The sections below explain each step and how to check it.
 
 With `--argocd`, Argo CD deploys the applications from GitHub instead of Helm, as in production (step 16).
 
@@ -46,6 +46,29 @@ Every following command runs against the current kubectl context. Check that it 
 ```
 
 The script builds each service straight into Minikube as `wearables-local/<service>:dev`. Minikube builds natively, so the images match the machine: arm64 on Apple Silicon, amd64 on x86. No registry or image archive is involved.
+
+## 2a. Dev Secrets
+
+As in production, the charts do not create their secrets; they reference secrets that exist before the install. All of them are in one chart, `gitops/secrets`: in production it deploys the encrypted SealedSecrets from `gitops/secrets/prod`, locally its `values-local.yaml` deploys the Dev Secrets from `gitops/secrets/local/<namespace>/<name>.yaml`. These are plain Secrets with local-only values, committed in plain text.
+
+Install them before the services, because the db_lord migration (a `pre-install` hook) already needs `db-lord-secrets`. Helm does not create the namespaces of a chart's resources, so create them first:
+
+```bash
+for ns in $(ls gitops/secrets/local); do kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -; done
+
+helm upgrade --install secrets gitops/secrets \
+  -f gitops/secrets/values.yaml \
+  -f gitops/secrets/values-local.yaml \
+  --namespace default
+```
+
+Some values must match across secrets, as in production:
+
+- **App JWT Secret:** `JWT_SECRET` of `wearables-bff-secrets`, `importservice-secrets` and `cloud-connector-secrets`, and `APP_JWT_SECRET` of `grafana-auth-secrets` (`local-dev-app-jwt-secret-not-for-production`). The BFF issues the session and case tokens, and the others check them. The BFF needs at least 32 characters.
+- **Operator Tokens:** `CONTROL_WRITE_TOKEN`, `API_TOKEN_SERVICE_TOKEN` and `LEGACY_OPERATOR_TOKEN` of `db-lord-secrets` are also in `wearables-bff-secrets` (the last one as `DATABASE_OPERATOR_TOKEN`). `LEGACY_OPERATOR_TOKEN` is also in `extraction-service-secrets` (as `DB_LORD_OPERATOR_TOKEN`). The three tokens must be different from each other.
+- **Ingestion Signing Key:** `ingestion-signing` exists in `importservice` and `kafka` (mapper-validator) with the same base64-encoded 32-byte key.
+
+To change a Dev Secret, edit its file and run the `helm upgrade` above (or `setup-local.sh`) again. In Argo CD mode (step 16), commit and push instead. Pods do not notice a changed secret, so restart the affected deployment afterwards, e.g. `kubectl rollout restart deployment/wearables-bff -n wearables-bff`.
 
 ## 3. Kafka
 
@@ -145,13 +168,9 @@ To open the InfluxDB UI: `kubectl port-forward -n influx svc/influxdb-service 80
 
 ## 6. Postgres and db_lord
 
-Needs InfluxDB from step 5 and the image from step 2 (`./gitops/local/build-local-images.sh db-lord`).
+Needs the Dev Secrets (step 2a), InfluxDB from step 5 and the image from step 2 (`./gitops/local/build-local-images.sh db-lord`).
 
 ```bash
-kubectl create namespace prod-postgres
-kubectl create secret generic prod-postgres-secret -n prod-postgres \
-  --from-literal=POSTGRES_PASSWORD=postgres
-
 helm upgrade --install prod-postgres gitops/apps/platform/prod-postgres \
   -f gitops/apps/platform/prod-postgres/values.yaml \
   -f gitops/apps/platform/prod-postgres/values-local.yaml \
@@ -159,30 +178,18 @@ helm upgrade --install prod-postgres gitops/apps/platform/prod-postgres \
 kubectl rollout status statefulset/prod-postgres -n prod-postgres
 ```
 
-Locally Postgres gets a 2 Gi volume, smaller resources and local-only passwords (`postgres` for the admin, `dblord` for the db_lord user). As in production, the chart does not create the secret with the admin password, `prod-postgres-secret`. Only the `dblord` database is created; production also creates `lakefs` for the ML pipeline.
+Locally Postgres gets a 2 Gi volume, smaller resources and local-only passwords (`postgres` for the admin, `dblord` for the db_lord user). The admin password is in the Dev Secret `prod-postgres-secret`. Only the `dblord` database is created; production also creates `lakefs` for the ML pipeline.
 
-As in production, the chart does not create its secret `db-lord-secrets`; it has to exist before the install, because the migration job (a `pre-install` hook) reads it. Create it with the credentials of the local Postgres and InfluxDB, then install db_lord:
+db_lord reads the credentials of the local Postgres and InfluxDB and its Operator Tokens from the Dev Secret `db-lord-secrets` (`CONTROL_BOOTSTRAP_ADMIN_EMAILS` is `admin@example.com`, the local admin login):
 
 ```bash
-kubectl create namespace db-lord
-kubectl create secret generic db-lord-secrets -n db-lord \
-  --from-literal=POSTGRES_SERVER=prod-postgres.prod-postgres.svc.cluster.local \
-  --from-literal=POSTGRES_PORT=5432 \
-  --from-literal=POSTGRES_DB=dblord \
-  --from-literal=POSTGRES_USER=dblord \
-  --from-literal=POSTGRES_PASSWORD=dblord \
-  --from-literal=INFLUX_URL=http://influxdb-service.influx.svc.cluster.local:8086 \
-  --from-literal=INFLUX_ORG=wearables-project \
-  --from-literal=INFLUX_BUCKET=measurements \
-  --from-literal=INFLUX_TOKEN=dev-influx-token
-
 helm upgrade --install db-lord gitops/apps/services/db-lord \
   -f gitops/apps/services/db-lord/values.yaml \
   -f gitops/apps/services/db-lord/values-local.yaml \
   --namespace db-lord --wait --timeout 5m
 ```
 
-`setup-local.sh` creates the secret only when it is missing. To change a value, delete it (`kubectl delete secret db-lord-secrets -n db-lord`), run the script again and restart db_lord (`kubectl rollout restart deployment/db-lord -n db-lord`).
+To change a value, edit `gitops/secrets/local/db-lord/db-lord-secrets.yaml` and continue as described in step 2a, then restart db_lord (`kubectl rollout restart deployment/db-lord -n db-lord`).
 
 Check that db_lord reaches Postgres and InfluxDB:
 
@@ -230,13 +237,9 @@ Services are reached under `http://wearables.localhost`. Chrome, Firefox and cur
 
 Needs Kafka (step 3), Traefik with a running `minikube tunnel` (step 7) and the image from step 2 (`./gitops/local/build-local-images.sh importservice`).
 
-The importservice checks the app's tokens with a shared secret. The chart expects the secret to exist already, so create it first. `dev-secret` is the same value as in the Docker Compose stack; wearables-bff must use the same value, because it issues the tokens.
+The importservice checks the app's tokens with the App JWT Secret (`importservice-secrets`, step 2a), which the BFF uses to issue them. It signs every ingested batch with the Ingestion Signing Key (`ingestion-signing`), which the mapper uses to check it.
 
 ```bash
-kubectl create namespace importservice
-kubectl create secret generic importservice-secrets -n importservice \
-  --from-literal=JWT_SECRET=dev-secret
-
 helm upgrade --install importservice gitops/apps/services/importservice \
   -f gitops/apps/services/importservice/values.yaml \
   -f gitops/apps/services/importservice/values-local.yaml \
@@ -256,8 +259,11 @@ The synthetic data generator from the Docker Compose stack sends readings in the
 ```bash
 git show chore/local-init:deploy/local/data-generator/generate.py > /tmp/generate.py
 python3 /tmp/generate.py --url http://wearables.localhost/import/ingest \
+  --secret local-dev-app-jwt-secret-not-for-production \
   --patient-id local-patient-1 --backfill-hours 1
 ```
+
+`--secret` is the App JWT Secret of the Dev Secrets (step 2a); the generator's default `dev-secret` is the value of the Docker Compose stack.
 
 The readings then travel importservice → Kafka `wearables-raw` → mapper → Kafka `wearables-lp` → Telegraf → InfluxDB. Count them per measurement:
 
@@ -281,11 +287,6 @@ kubectl exec -n kafka kafka-dual-role-0 -- \
 Needs db_lord (step 6), Traefik with a running `minikube tunnel` (step 7) and the image from step 2 (`./gitops/local/build-local-images.sh wearables-bff`).
 
 ```bash
-kubectl create namespace wearables-bff
-kubectl create secret generic wearables-bff-secrets -n wearables-bff \
-  --from-literal=JWT_SECRET=dev-secret \
-  --from-literal=BREVO_API_KEY=disabled
-
 helm upgrade --install wearables-bff gitops/apps/services/wearables-bff \
   -f gitops/apps/services/wearables-bff/values.yaml \
   -f gitops/apps/services/wearables-bff/values-local.yaml \
@@ -297,7 +298,7 @@ Local differences:
 - `NODE_ENV: development`: login works with the email address alone, no magic-link mail and no Brevo key.
 - Admin login: `admin@example.com` (`ADMIN_EMAILS`).
 - URLs point to `http://wearables.localhost`; the API is served at `http://wearables.localhost/api`.
-- As in production, the chart does not create its secret `wearables-bff-secrets`. Its `JWT_SECRET` is `dev-secret`, the same value as the importservice secret in step 8, so case tokens issued by the BFF are accepted by the importservice. `BREVO_API_KEY` is not used in development mode.
+- The Dev Secret `wearables-bff-secrets` (step 2a) holds the App JWT Secret, the same value as `importservice-secrets`, so case tokens issued by the BFF are accepted by the importservice. It also holds the Operator Tokens for db_lord. `BREVO_API_KEY` is not used in development mode.
 
 Check login and the connection to db_lord:
 
@@ -387,16 +388,9 @@ Needs Grafana (step 11), wearables-bff (step 9), the web frontend (step 10) and 
 
 The case page loads `/proxy/embed?dashboardUid=...&deviceId=<case token>` in an iframe. The proxy checks that the browser has a web app login session, redirects to the dashboard in kiosk mode and then forwards every request under `/proxy` to Grafana.
 
-The proxy needs a secret with two values: `APP_JWT_SECRET` checks the BFF session and case tokens, so it must be `dev-secret` like the BFF; `GRAFANA_JWT_PRIVATE_KEY` is an RSA key the proxy signs its Grafana requests with (Grafana does not check it at the moment, but the proxy only starts with a valid key).
+The proxy reads two values from the Dev Secret `grafana-auth-secrets` (step 2a): `APP_JWT_SECRET` checks the BFF session and case tokens, so it is the App JWT Secret like in the BFF; `GRAFANA_JWT_PRIVATE_KEY` is a dev-only RSA key the proxy signs its Grafana requests with (Grafana does not check it at the moment, but the proxy only starts with a valid key).
 
 ```bash
-kubectl create namespace monitoring
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/grafana-jwt.pem
-kubectl create secret generic grafana-auth-secrets -n monitoring \
-  --from-file=GRAFANA_JWT_PRIVATE_KEY=/tmp/grafana-jwt.pem \
-  --from-literal=APP_JWT_SECRET=dev-secret
-rm /tmp/grafana-jwt.pem
-
 helm upgrade --install grafana-proxy gitops/apps/monitoring/grafana-proxy \
   -f gitops/apps/monitoring/grafana-proxy/values.yaml \
   -f gitops/apps/monitoring/grafana-proxy/values-local.yaml \
@@ -417,6 +411,7 @@ curl -c /tmp/bff-cookies -H 'Content-Type: application/json' \
 curl -b /tmp/bff-cookies http://wearables.localhost/api/patients   # note the patientId
 
 python3 /tmp/generate.py --url http://wearables.localhost/import/ingest \
+  --secret local-dev-app-jwt-secret-not-for-production \
   --patient-id <patientId> --backfill-hours 1
 ```
 
@@ -502,7 +497,7 @@ curl http://wearables.localhost/cloud/providers     # {"available_providers":["g
 curl http://wearables.localhost/cloud/connections   # {"connections":[]}
 ```
 
-Without Garmin credentials only these endpoints are useful locally. Linking an account needs `GARMIN_CLIENT_ID` and `GARMIN_CLIENT_SECRET` in the secret `cloud-connector-secrets` (the chart treats it as optional), and Garmin's OAuth callback and webhooks need a public HTTPS URL, which `wearables.localhost` is not.
+Without Garmin credentials only these endpoints are useful locally. Linking an account needs `GARMIN_CLIENT_ID` and `GARMIN_CLIENT_SECRET` in the secret `cloud-connector-secrets` (the chart treats them as optional; the Dev Secret only holds the App JWT Secret, and real provider keys must never be committed there), and Garmin's OAuth callback and webhooks need a public HTTPS URL, which `wearables.localhost` is not.
 
 The service only connects to Kafka when it publishes. To check that it can reach Kafka anyway:
 
@@ -515,7 +510,7 @@ print('wearables-raw' in md.topics)"   # True
 
 ## 16. Argo CD mode (optional)
 
-Production deploys the applications with Argo CD (`gitops/setup/argocd/`): Postgres, InfluxDB, Kafka, db_lord, extraction-service, cloud-connector, importservice, mapper-validator, wearables-bff, the web frontend, Grafana and grafana-proxy. To try the same locally:
+Production deploys the applications with Argo CD (`gitops/setup/argocd/`): the secrets (`gitops/secrets`), Postgres, InfluxDB, Kafka, db_lord, extraction-service, cloud-connector, importservice, mapper-validator, wearables-bff, the web frontend, Grafana and grafana-proxy. To try the same locally:
 
 ```bash
 ./gitops/local/setup-local.sh --argocd --revision feat/my-branch   # default revision: main
@@ -526,7 +521,9 @@ The script then installs Argo CD (pinned to v3.5.7) and applies `gitops/local/ar
 Like the production setup script, the script itself only installs what the applications need beforehand, then waits until all applications are synced and healthy:
 
 - the Strimzi operator and Traefik (with its CRDs),
-- the secrets `importservice-secrets`, `prod-postgres-secret`, `db-lord-secrets`, `wearables-bff-secrets` and `grafana-auth-secrets`, and the ConfigMap `grafana-patient-dashboards`. As in production, the charts do not create these secrets.
+- the namespaces of the Dev Secrets and the ConfigMap `grafana-patient-dashboards`.
+
+The Dev Secrets themselves come from the application `secrets`, which renders `gitops/secrets` with its `values-local.yaml` (step 2a). In production the same application deploys the SealedSecrets; the Sealed Secrets controller that decrypts them is production only.
 
 Afterwards it installs Telegraf, Prometheus and db-stats-exporter with Helm, which are not managed by Argo CD in production either.
 
@@ -569,7 +566,7 @@ There are no Helm releases for the applications, so `helm uninstall` reports `re
 | A resource, e.g. `kubectl delete deployment importservice -n importservice` | Argo CD creates it again within seconds (self-heal). |
 | An application, e.g. `kubectl delete application importservice -n argocd` | Its finalizer deletes its resources too, but the root application creates the application again, which then redeploys everything. |
 | The root application `wearables-local-root` | All applications and their resources are removed and stay removed. |
-| A namespace | Argo CD recreates the namespace and its resources, but not the secrets created by the script (e.g. `importservice-secrets`); run `setup-local.sh` again. |
+| A namespace | Argo CD recreates the namespace and its resources, and the application `secrets` recreates its Dev Secrets (self-heal). |
 
 Manual changes to a deployment are reverted the same way. To remove an application for good, delete it from `gitops/setup/argocd/apps/values.yaml` and push (prune removes it; this also removes it in production once it is on main). To change things by hand for a while, turn off automated sync for that application in the Argo CD UI first.
 

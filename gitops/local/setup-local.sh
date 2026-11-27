@@ -3,12 +3,13 @@ set -euo pipefail
 
 # Sets up the whole platform on the local minikube cluster, following the steps
 # in gitops/local/README.md. Safe to run again: Helm upgrades the releases, and
-# secrets are only created when they are missing.
+# the Dev Secrets are applied from gitops/secrets/local on every run.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 APPS="${REPO_ROOT}/gitops/apps"
 NETWORK="${REPO_ROOT}/gitops/network"
+SECRETS="${REPO_ROOT}/gitops/secrets"
 
 # Every kubectl and helm call is pinned to this context, so nothing can end up
 # in another cluster, even if the current context changes while this runs.
@@ -25,6 +26,7 @@ ARGOCD_MANIFEST="https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VER
 # The applications Argo CD manages in --argocd mode, the same as in production
 # (gitops/setup/argocd/apps/values.yaml), as <Argo CD application>:<Helm release>:<namespace>.
 ARGOCD_APPS=(
+  "secrets:secrets:default"
   "prod-postgres:prod-postgres:prod-postgres"
   "influxdb:influxdb:influx"
   "kafka:kafka:kafka"
@@ -54,9 +56,9 @@ values-local.yaml, in the order of gitops/local/README.md.
 Options:
   --skip-build          do not rebuild the service images
   --argocd              let Argo CD deploy the applications from GitHub, as in
-                        production (gitops/setup/argocd/apps); the script only
-                        installs Strimzi, Traefik, the secrets, Telegraf,
-                        Prometheus and db-stats-exporter
+                        production (gitops/setup/argocd/apps), including the
+                        Dev Secrets; the script only installs Strimzi,
+                        Traefik, Telegraf, Prometheus and db-stats-exporter
   --revision <branch>   the branch Argo CD reads from (default: main); it must
                         be pushed, Argo CD does not see local changes
   -h, --help            show this help
@@ -96,12 +98,36 @@ install_chart() {
     --wait --timeout "$TIMEOUT" "$@"
 }
 
-# keep_secret <namespace> <secret>
-# Older versions of the prod-postgres and wearables-bff charts created their
-# secret themselves; without this, the next helm upgrade of an existing release
-# would delete it.
-keep_secret() {
-  k annotate secret "$2" -n "$1" helm.sh/resource-policy=keep --overwrite >/dev/null
+# The Dev Secrets are files gitops/secrets/local/<namespace>/<name>.yaml.
+# Their namespaces are created first: Helm does not create the namespaces of a
+# chart's resources, and in Argo CD mode the secrets app would otherwise only
+# succeed after retries, once the other apps have created them.
+create_secret_namespaces() {
+  local dir
+  for dir in "${SECRETS}"/local/*/; do
+    ensure_namespace "$(basename "$dir")"
+  done
+}
+
+# Secrets created by older versions of this script (kubectl create secret) or by
+# Argo CD are not part of the Helm release "secrets", and Helm refuses to take
+# them over. Marks them as belonging to the release, so the install adopts them.
+adopt_dev_secrets() {
+  local file namespace name
+  for file in "${SECRETS}"/local/*/*.yaml; do
+    namespace="$(basename "$(dirname "$file")")"
+    name="$(basename "$file" .yaml)"
+    k get secret "$name" -n "$namespace" >/dev/null 2>&1 || continue
+    k label secret "$name" -n "$namespace" app.kubernetes.io/managed-by=Helm --overwrite >/dev/null
+    k annotate secret "$name" -n "$namespace" \
+      meta.helm.sh/release-name=secrets meta.helm.sh/release-namespace=default --overwrite >/dev/null
+  done
+}
+
+install_dev_secrets() {
+  create_secret_namespaces
+  adopt_dev_secrets
+  install_chart secrets "$SECRETS" default
 }
 
 install_strimzi() {
@@ -119,86 +145,12 @@ install_traefik() {
     --namespace ingress --wait --timeout "$TIMEOUT"
 }
 
-create_importservice_secret() {
-  ensure_namespace importservice
-  if ! k get secret importservice-secrets -n importservice >/dev/null 2>&1; then
-    # Same value as the BFF's JWT_SECRET, which issues the case tokens.
-    k create secret generic importservice-secrets -n importservice \
-      --from-literal=JWT_SECRET=dev-secret
-  fi
-}
-
-create_cloud_connector_secret() {
-  ensure_namespace cloud-connector
-  if ! k get secret cloud-connector-secrets -n cloud-connector >/dev/null 2>&1; then
-    # Same value as the BFF's JWT_SECRET, which issues the case tokens.
-    k create secret generic cloud-connector-secrets -n cloud-connector \
-      --from-literal=JWT_SECRET=dev-secret
-  fi
-}
-
-# The wearables-bff chart does not create its secret (as in production).
-# JWT_SECRET is the same as the importservice's and grafana-proxy's: the BFF
-# issues the tokens they check. No Brevo key: locally no mails are sent.
-create_bff_secret() {
-  ensure_namespace wearables-bff
-  if ! k get secret wearables-bff-secrets -n wearables-bff >/dev/null 2>&1; then
-    k create secret generic wearables-bff-secrets -n wearables-bff \
-      --from-literal=JWT_SECRET=dev-secret \
-      --from-literal=BREVO_API_KEY=disabled
-  fi
-  keep_secret wearables-bff wearables-bff-secrets
-}
-
-# Same name as in production (secret.name in the grafana-proxy values.yaml).
-create_grafana_proxy_secret() {
-  ensure_namespace monitoring
-  if ! k get secret grafana-auth-secrets -n monitoring >/dev/null 2>&1; then
-    key_file="$(mktemp)"
-    trap 'rm -f "$key_file"' EXIT
-    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$key_file" 2>/dev/null
-    k create secret generic grafana-auth-secrets -n monitoring \
-      --from-file=GRAFANA_JWT_PRIVATE_KEY="$key_file" \
-      --from-literal=APP_JWT_SECRET=dev-secret
-    rm -f "$key_file"
-  fi
-}
-
 # Applied on every run, so dashboard changes in observability/dashboards are picked up.
 apply_grafana_dashboards() {
   ensure_namespace grafana
   k create configmap grafana-patient-dashboards -n grafana \
     --from-file="${REPO_ROOT}/observability/dashboards/" \
     --dry-run=client -o yaml | k apply -f - >/dev/null
-}
-
-# The prod-postgres chart does not create its secret (as in production).
-create_postgres_secret() {
-  ensure_namespace prod-postgres
-  if ! k get secret prod-postgres-secret -n prod-postgres >/dev/null 2>&1; then
-    k create secret generic prod-postgres-secret -n prod-postgres \
-      --from-literal=POSTGRES_PASSWORD=postgres
-  fi
-  keep_secret prod-postgres prod-postgres-secret
-}
-
-# The db-lord chart does not create its secret (as in production). The values
-# match the local Postgres (prod-postgres values-local) and InfluxDB
-# (influxdb initSetup in values-local).
-create_db_lord_secret() {
-  ensure_namespace db-lord
-  if ! k get secret db-lord-secrets -n db-lord >/dev/null 2>&1; then
-    k create secret generic db-lord-secrets -n db-lord \
-      --from-literal=POSTGRES_SERVER=prod-postgres.prod-postgres.svc.cluster.local \
-      --from-literal=POSTGRES_PORT=5432 \
-      --from-literal=POSTGRES_DB=dblord \
-      --from-literal=POSTGRES_USER=dblord \
-      --from-literal=POSTGRES_PASSWORD=dblord \
-      --from-literal=INFLUX_URL=http://influxdb-service.influx.svc.cluster.local:8086 \
-      --from-literal=INFLUX_ORG=wearables-project \
-      --from-literal=INFLUX_BUCKET=measurements \
-      --from-literal=INFLUX_TOKEN=dev-influx-token
-  fi
 }
 
 argocd_root_exists() {
@@ -272,7 +224,7 @@ if [[ -n "$REVISION" ]] && ! $USE_ARGOCD; then
 fi
 REVISION="${REVISION:-main}"
 
-for tool in minikube kubectl helm openssl; do
+for tool in minikube kubectl helm; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is required"
 done
 minikube status >/dev/null 2>&1 || die "minikube is not running (start it with: minikube start --driver=docker --cpus=4 --memory=8g --disk-size=40g)"
@@ -298,13 +250,9 @@ if $USE_ARGOCD; then
   step "Traefik"
   install_traefik
 
-  step "Secrets and Grafana dashboards"
-  create_importservice_secret
-  create_cloud_connector_secret
-  create_postgres_secret
-  create_db_lord_secret
-  create_bff_secret
-  create_grafana_proxy_secret
+  # The Dev Secrets themselves come from the Argo CD application "secrets".
+  step "Namespaces of the Dev Secrets and Grafana dashboards"
+  create_secret_namespaces
   apply_grafana_dashboards
 
   install_argocd
@@ -315,6 +263,11 @@ if $USE_ARGOCD; then
   install_chart db-stats-exporter "${APPS}/monitoring/db-stats-exporter" db-lord
   install_chart prometheus "${APPS}/monitoring/prometheus" monitoring
 else
+  # First: the charts reference these secrets, and the db-lord migration (a
+  # pre-install hook) needs db-lord-secrets before anything else of db-lord exists.
+  step "Dev Secrets (gitops/secrets/local)"
+  install_dev_secrets
+
   step "Kafka (Strimzi ${STRIMZI_VERSION})"
   install_strimzi
   install_chart kafka "${APPS}/platform/kafka" kafka
@@ -329,27 +282,22 @@ else
   install_chart telegraf "${APPS}/monitoring/telegraf" telegraf
 
   step "Postgres and db_lord"
-  create_postgres_secret
   install_chart prod-postgres "${APPS}/platform/prod-postgres" prod-postgres
-  create_db_lord_secret
   install_chart db-lord "${APPS}/services/db-lord" db-lord
 
   step "Traefik"
   install_traefik
 
   step "importservice"
-  create_importservice_secret
   install_chart importservice "${APPS}/services/importservice" importservice
 
   step "wearables-bff and web frontend"
-  create_bff_secret
   install_chart wearables-bff "${APPS}/services/wearables-bff" wearables-bff
   install_chart web "${APPS}/web-frontend" web
 
   step "Grafana and grafana-proxy"
   apply_grafana_dashboards
   install_chart grafana "${APPS}/monitoring/grafana" grafana
-  create_grafana_proxy_secret
   install_chart grafana-proxy "${APPS}/monitoring/grafana-proxy" monitoring
 
   step "extraction-service"
@@ -360,7 +308,6 @@ else
   install_chart prometheus "${APPS}/monitoring/prometheus" monitoring
 
   step "cloud-connector"
-  create_cloud_connector_secret
   install_chart cloud-connector "${APPS}/services/cloud-connector" cloud-connector
 fi
 

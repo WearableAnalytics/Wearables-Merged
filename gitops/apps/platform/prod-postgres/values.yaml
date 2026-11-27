@@ -1,6 +1,6 @@
 # Existing secret with the admin password (key POSTGRES_PASSWORD). The chart never
 # creates it: production: scripts/bootstrap-runtime-secrets.sh, locally:
-# gitops/local/setup-local.sh. Postgres only reads it when the volume is empty.
+# gitops/secrets/local. Postgres only reads it when the volume is empty.
 auth:
   secretName: prod-postgres-secret
 

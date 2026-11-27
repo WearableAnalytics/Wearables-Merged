@@ -12,6 +12,23 @@ deleteResources: false
 production: true
 
 apps:
+  # Argo CD tooling
+  - name: argocd-image-updater
+    path: gitops/apps/platform/argocd-image-updater
+    namespace: argocd
+    productionOnly: true
+  - name: sealed-secrets
+    path: gitops/apps/platform/sealed-secrets
+    namespace: kube-system
+    prune: false
+    productionOnly: true
+  - name: secrets
+    path: gitops/secrets
+    namespace: default
+    prune: false
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
+
   # Platform & Data Stores (prune: false protects persistent volumes & state)
   - name: prod-postgres
     path: gitops/apps/platform/prod-postgres
@@ -57,14 +74,3 @@ apps:
   - name: grafana-proxy
     path: gitops/apps/monitoring/grafana-proxy
     namespace: monitoring
-
-  # Argo CD tooling
-  - name: argocd-image-updater
-    path: gitops/apps/platform/argocd-image-updater
-    namespace: argocd
-    productionOnly: true
-  - name: sealed-secrets
-    path: gitops/apps/platform/sealed-secrets
-    namespace: kube-system
-    prune: false
-    productionOnly: true

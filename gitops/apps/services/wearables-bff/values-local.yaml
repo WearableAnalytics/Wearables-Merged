@@ -14,4 +14,4 @@ env:
   FRONTEND_REDIRECT_URL: "http://wearables.localhost/"
   BACKEND_URL: "http://wearables.localhost"
   ADMIN_EMAILS: "admin@example.com" # local admin login
-# wearables-bff-secrets is created by gitops/local/setup-local.sh (JWT_SECRET: dev-secret, matching importservice)
+# wearables-bff-secrets is a Dev Secret in gitops/secrets/local (JWT_SECRET matches importservice)
