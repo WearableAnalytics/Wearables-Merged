@@ -656,7 +656,7 @@ void main() {
       await tester.ensureVisible(find.text('Send historical data'));
       await tester.pumpAndSettle();
       expect(
-        find.text('Currently disabled, requires other tier on server'),
+        find.text('Disabled, requires other server tier'),
         findsOneWidget,
       );
       await tester.tap(find.text('Send historical data'));
@@ -676,7 +676,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Request past Garmin data via cloud sync'),
+        find.text('Request past Garmin data'),
         findsOneWidget,
       );
       await tester.ensureVisible(find.text('Send historical data'));

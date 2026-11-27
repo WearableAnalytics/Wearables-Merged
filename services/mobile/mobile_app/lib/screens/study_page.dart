@@ -827,30 +827,37 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
                             childrenPadding: const EdgeInsets.only(bottom: 8),
                             iconColor: AppColors.blue,
                             children: [
-                              for (final provider in activeCloud)
+                              for (var i = 0; i < activeCloud.length; i++) ...[
+                                if (i > 0)
+                                  const Divider(
+                                    indent: 20,
+                                    endIndent: 20,
+                                    height: 8,
+                                  ),
                                 _CloudProviderTile(
-                                  provider: provider,
+                                  provider: activeCloud[i],
                                   connected: true,
-                                  busy: state.isCloudBusy(provider.id),
+                                  busy: state.isCloudBusy(activeCloud[i].id),
                                   supportsHistoricalBackfill:
                                       state.isCloudHistorySupported(
-                                        provider.id,
+                                        activeCloud[i].id,
                                       ),
                                   backfillEnabled: state.isCloudBackfillEnabled(
-                                    provider.id,
+                                    activeCloud[i].id,
                                   ),
                                   hasHistoricalPermission:
                                       state.cloudHasHistoricalPermission(
-                                        provider.id,
+                                        activeCloud[i].id,
                                       ),
                                   onRefresh: () =>
-                                      _refreshCloudStatus(provider),
-                                  onConnect: () => _connectCloud(provider),
+                                      _refreshCloudStatus(activeCloud[i]),
+                                  onConnect: () => _connectCloud(activeCloud[i]),
                                   onHistoricalSync: () =>
-                                      _openHistoricalSyncDialog(provider),
+                                      _openHistoricalSyncDialog(activeCloud[i]),
                                   onDisconnect: () =>
-                                      _confirmDisconnectCloud(provider),
+                                      _confirmDisconnectCloud(activeCloud[i]),
                                 ),
+                              ],
                               if (activeCloud.length > 1) ...[
                                 const Divider(indent: 20, endIndent: 20),
                                 ListTile(
@@ -1061,65 +1068,118 @@ class _CloudProviderTile extends StatelessWidget {
       );
     }
 
-    final headerTile = ListTile(
-      leading: Icon(
-        provider.icon ?? Symbols.watch_sharp,
-        color: AppColors.success,
-      ),
-      title: Text(provider.displayName),
-      subtitle: const Text('Direct cloud sync active'),
-      trailing: busy
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Check ${provider.name} connection status',
-                  icon: const Icon(Symbols.refresh_sharp),
-                  onPressed: onRefresh,
+    final trailingWidget = busy
+        ? const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Check ${provider.name} connection status',
+                icon: const Icon(Symbols.refresh_sharp),
+                onPressed: onRefresh,
+              ),
+              IconButton(
+                tooltip: 'Remove ${provider.name} Cloud connection',
+                icon: const Icon(
+                  Symbols.link_off_sharp,
+                  color: AppColors.coral,
                 ),
-                IconButton(
-                  tooltip: 'Remove ${provider.name} Cloud connection',
-                  icon: const Icon(
-                    Symbols.link_off_sharp,
-                    color: AppColors.coral,
-                  ),
-                  onPressed: onDisconnect,
-                ),
-              ],
-            ),
-    );
+                onPressed: onDisconnect,
+              ),
+            ],
+          );
 
     if (!supportsHistoricalBackfill) {
-      return headerTile;
+      return ListTile(
+        leading: Icon(
+          provider.icon ?? Symbols.watch_sharp,
+          color: AppColors.success,
+        ),
+        title: Text(provider.displayName),
+        subtitle: const Text('Direct cloud sync active'),
+        trailing: trailingWidget,
+      );
     }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        headerTile,
         ListTile(
-          enabled: backfillEnabled && !busy,
+          contentPadding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+          minVerticalPadding: 2,
           leading: Icon(
-            Symbols.history_sharp,
-            color: backfillEnabled ? AppColors.blue : AppColors.textMuted,
+            provider.icon ?? Symbols.watch_sharp,
+            color: AppColors.success,
           ),
-          title: const Text('Send historical data'),
-          subtitle: Text(
-            !backfillEnabled
-                ? 'Currently disabled, requires other tier on server'
-                : hasHistoricalPermission
-                ? 'Request past ${provider.name} data via cloud sync'
-                : 'Requires historical export permission in ${provider.name}',
+          title: Text(provider.displayName),
+          subtitle: const Text('Direct cloud sync active'),
+          trailing: trailingWidget,
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(60, 2, 20, 10),
+          child: Material(
+            color: backfillEnabled ? AppColors.blueSoft : AppColors.background,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: backfillEnabled && !busy ? onHistoricalSync : null,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Symbols.history_sharp,
+                      size: 18,
+                      color: backfillEnabled
+                          ? AppColors.blue
+                          : AppColors.textMuted,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Send historical data',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: backfillEnabled
+                                      ? AppColors.text
+                                      : AppColors.textMuted,
+                                ),
+                          ),
+                          Text(
+                            !backfillEnabled
+                                ? 'Disabled, requires other server tier'
+                                : hasHistoricalPermission
+                                ? 'Request past ${provider.name} data'
+                                : 'Requires historical export permission',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: AppColors.textMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (backfillEnabled)
+                      const Icon(
+                        Symbols.chevron_right_sharp,
+                        size: 18,
+                        color: AppColors.blue,
+                      ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          trailing: backfillEnabled
-              ? const Icon(Symbols.chevron_right_sharp, size: 20)
-              : null,
-          onTap: backfillEnabled && !busy ? onHistoricalSync : null,
         ),
       ],
     );
