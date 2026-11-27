@@ -14,7 +14,7 @@ COPY ./ ./
 RUN npm run build
 
 # Serve the compiled assets with Nginx
-FROM nginx:1.27-alpine AS runner
+FROM nginx:1.31.9-alpine AS runner
 WORKDIR /usr/share/nginx/html
 RUN rm -rf ./*
 
