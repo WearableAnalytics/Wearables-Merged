@@ -19,6 +19,7 @@ class ConnectionStore:
         self._lock = threading.RLock()
         self._pending_states: Dict[str, Dict[str, Any]] = {}
         self._connections: Dict[str, Dict[str, Any]] = {}
+        self._sync_windows: Dict[str, Dict[str, Any]] = {}
         self._load()
 
     def _key(self, provider: str, patient_id: str) -> str:
@@ -33,6 +34,7 @@ class ConnectionStore:
                     data = json.load(f)
                 self._connections = data.get("connections", {})
                 self._pending_states = data.get("pending_states", {})
+                self._sync_windows = data.get("sync_windows", {})
             except Exception as e:
                 logger.warning("Could not load connections store from %s: %s", self._storage_path, e)
 
@@ -50,6 +52,7 @@ class ConnectionStore:
                         {
                             "connections": self._connections,
                             "pending_states": self._pending_states,
+                            "sync_windows": self._sync_windows,
                         },
                         f,
                         indent=2,
@@ -66,6 +69,7 @@ class ConnectionStore:
         code_verifier: str,
         redirect_uri: str,
         return_url: Optional[str] = None,
+        allow_pre_auth: bool = False,
     ) -> None:
         with self._lock:
             self._pending_states[state] = {
@@ -74,6 +78,7 @@ class ConnectionStore:
                 "code_verifier": code_verifier,
                 "redirect_uri": redirect_uri,
                 "return_url": return_url,
+                "allow_pre_auth": bool(allow_pre_auth),
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             self._persist()
@@ -96,6 +101,7 @@ class ConnectionStore:
         refresh_token_expires_in: Optional[int] = None,
         scope: Optional[str] = None,
         permissions: Optional[List[str]] = None,
+        allow_pre_auth_history: Optional[bool] = None,
     ) -> Dict[str, Any]:
         now = datetime.now(timezone.utc)
         now_ts = int(now.timestamp())
@@ -108,6 +114,11 @@ class ConnectionStore:
         with self._lock:
             key = self._key(provider, patient_id)
             existing = self._connections.get(key, {})
+            resolved_pre_auth = (
+                bool(allow_pre_auth_history)
+                if allow_pre_auth_history is not None
+                else bool(existing.get("allow_pre_auth_history", False))
+            )
             record = {
                 "provider": provider.lower(),
                 "patient_id": patient_id,
@@ -118,6 +129,7 @@ class ConnectionStore:
                 "refresh_expires_at": refresh_expires_at,
                 "scope": scope or existing.get("scope", ""),
                 "permissions": permissions if permissions is not None else existing.get("permissions", []),
+                "allow_pre_auth_history": resolved_pre_auth,
                 "linked_at": existing.get("linked_at", now.isoformat()),
                 "updated_at": now.isoformat(),
             }
@@ -158,12 +170,90 @@ class ConnectionStore:
             self._persist()
             return True
 
+    def set_pre_auth_history(
+        self, provider: str, patient_id: str, allow: bool
+    ) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            conn = self._connections.get(self._key(provider, patient_id))
+            if not conn:
+                return None
+            conn["allow_pre_auth_history"] = bool(allow)
+            conn["updated_at"] = datetime.now(timezone.utc).isoformat()
+            self._persist()
+            return conn
+
     def delete_connection(self, provider: str, patient_id: str) -> Optional[Dict[str, Any]]:
         with self._lock:
             removed = self._connections.pop(self._key(provider, patient_id), None)
-            if removed is not None:
+            prefix = f"{provider.lower()}:{patient_id}:"
+            stale_keys = [k for k in self._sync_windows if k.startswith(prefix)]
+            for k in stale_keys:
+                self._sync_windows.pop(k, None)
+            if removed is not None or stale_keys:
                 self._persist()
             return removed
+
+    def should_skip_sync_window(
+        self,
+        key: str,
+        *,
+        max_attempts: int = 3,
+        now: Optional[datetime] = None,
+    ) -> tuple[bool, Optional[str]]:
+        """Prevents infinite retry loops for triggered or exhausted windows"""
+        with self._lock:
+            entry = self._sync_windows.get(key)
+            if not entry:
+                return False, None
+            status = entry.get("status")
+            if status in ("triggered", "already_requested"):
+                return True, f"already_{status}"
+            if status == "failed_permanent":
+                return True, "failed_permanent"
+            attempts = int(entry.get("attempts", 0))
+            if attempts >= max_attempts:
+                return True, "max_attempts_reached"
+            next_retry_raw = entry.get("next_retry_at")
+            if next_retry_raw:
+                try:
+                    next_retry = datetime.fromisoformat(next_retry_raw)
+                    current = now or datetime.now(timezone.utc)
+                    if current < next_retry:
+                        return True, "cooldown_active"
+                except ValueError:
+                    pass
+            return False, None
+
+    def record_sync_window(
+        self,
+        key: str,
+        *,
+        status: str,
+        status_code: Optional[int] = None,
+        error: Optional[str] = None,
+        max_attempts: int = 3,
+        next_retry_at: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._lock:
+            existing = self._sync_windows.get(key, {})
+            attempts = int(existing.get("attempts", 0)) + 1
+            effective_status = (
+                "failed_permanent"
+                if status == "failed_retryable" and attempts >= max_attempts
+                else status
+            )
+            record = {
+                "status": effective_status,
+                "attempts": attempts,
+                "last_status_code": status_code,
+                "last_error": error,
+                "next_retry_at": next_retry_at.isoformat() if next_retry_at else None,
+                "updated_at": now_iso,
+            }
+            self._sync_windows[key] = record
+            self._persist()
+            return record
 
     def delete_connection_by_provider_user_id(
         self, provider: str, provider_user_id: str
@@ -192,6 +282,7 @@ class ConnectionStore:
                         "provider_user_id": conn.get("provider_user_id"),
                         "permissions": conn.get("permissions", []),
                         "scope": conn.get("scope", ""),
+                        "allow_pre_auth_history": bool(conn.get("allow_pre_auth_history", False)),
                         "expires_at": conn.get("expires_at"),
                         "linked_at": conn.get("linked_at"),
                         "updated_at": conn.get("updated_at"),

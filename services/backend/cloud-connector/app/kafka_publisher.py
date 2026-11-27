@@ -1,7 +1,7 @@
 import json
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from confluent_kafka import Producer, KafkaException
 from .config import get_settings
@@ -53,32 +53,54 @@ class CloudKafkaPublisher:
             return [CloudKafkaPublisher._normalize_for_fhir_mapper(value) for value in obj]
         return obj
 
-    def publish_payload(self, payload: Dict[str, Any]) -> bool:
+    def _produce_one(self, payload: Dict[str, Any]) -> str:
+        normalized = self._normalize_for_fhir_mapper(payload)
+        # Send JSON object for fhir-mapper-validator
+        payload_bytes = json.dumps(normalized, default=str).encode("utf-8")
+        patient_id = (
+            payload.get("participantId")
+            or payload.get("deviceInfo", {}).get("deviceId", "unknown")
+        )
+        self.producer.produce(
+            topic=self.topic,
+            key=patient_id.encode("utf-8"),
+            value=payload_bytes,
+        )
+        return patient_id
+
+    def publish_payload(self, payload: Dict[str, Any], flush_timeout: float = 5.0) -> bool:
+        return self.publish_batch([payload], flush_timeout=flush_timeout) == 1
+
+    def publish_batch(self, payloads: List[Dict[str, Any]], flush_timeout: float = 5.0) -> int:
+        if not payloads:
+            return 0
         self._ensure_producer()
         if not self.producer:
-            logger.error("Kafka producer not initialized, dropping message")
-            return False
+            logger.error("Kafka producer not initialized, dropping %d message(s)", len(payloads))
+            return 0
 
         try:
-            normalized = self._normalize_for_fhir_mapper(payload)
-            # Send single JSON object as expected by fhir-mapper-validator
-            payload_bytes = json.dumps(normalized, default=str).encode('utf-8')
-            
-            patient_id = payload.get("participantId") or payload.get("deviceInfo", {}).get("deviceId", "unknown")
-            key = patient_id.encode('utf-8')
-
-            self.producer.produce(
-                topic=self.topic,
-                key=key,
-                value=payload_bytes,
-            )
+            patient_ids = [self._produce_one(payload) for payload in payloads]
             self.producer.poll(0)
-            self.producer.flush(timeout=5.0)
-            logger.info("Successfully produced cloud telemetry for patient %s to %s", patient_id, self.topic)
-            return True
+            remaining = self.producer.flush(timeout=flush_timeout)
+            if isinstance(remaining, int) and remaining > 0:
+                delivered = max(0, len(payloads) - remaining)
+                logger.error(
+                    "Kafka flush timed out (%d/%d message(s) still queued)",
+                    remaining,
+                    len(payloads),
+                )
+                return delivered
+            logger.info(
+                "Successfully produced %d cloud telemetry batch(es) (%s) to %s",
+                len(payloads),
+                ", ".join(set(patient_ids)),
+                self.topic,
+            )
+            return len(payloads)
         except Exception as e:
-            logger.error("Failed to publish message to Kafka: %s", e)
-            return False
+            logger.error("Failed to publish batch to Kafka: %s", e)
+            return 0
 
 
 _publisher_instance = None

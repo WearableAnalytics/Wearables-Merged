@@ -7,6 +7,7 @@ from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
 from .config import get_settings
+from .outbox import get_outbox
 from .storage import get_store
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,30 @@ class _InternalHandler(BaseHTTPRequestHandler):
             provider = query.get("provider", [None])[0]
             connections = get_store().list_connections(provider=provider)
             self._send_json(200, {"connections": connections})
+            return
+
+        if parsed.path in ("/garmin/readiness", "/internal/garmin/readiness"):
+            settings = get_settings()
+            self._send_json(
+                200,
+                {
+                    "provider": "garmin",
+                    "environment": settings.garmin_environment,
+                    "client_configured": bool(
+                        settings.garmin_client_id.strip() and settings.garmin_client_secret.strip()
+                    ),
+                    "backfill_enabled": settings.garmin_backfill_enabled,
+                    "allow_pre_auth_history": settings.garmin_allow_pre_auth_history,
+                    "verify_client_id": settings.garmin_verify_client_id,
+                    "webhook_path": "/webhooks/garmin",
+                    "oauth_redirect_uri": settings.oauth_redirect_uri,
+                    "outbox": get_outbox().stats(),
+                },
+            )
+            return
+
+        if parsed.path in ("/outbox", "/internal/outbox"):
+            self._send_json(200, get_outbox().stats())
             return
 
         self._send_json(404, {"detail": "Not found"})

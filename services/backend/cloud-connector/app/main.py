@@ -1,14 +1,23 @@
+import asyncio
 import logging
 import os
 import secrets
-from datetime import datetime, timezone
-from typing import Optional
-from fastapi import FastAPI, HTTPException, Depends, Query
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 
-from .models import SyncRequest, SyncResponse
+from .models import (
+    HistoryBackfillRequest,
+    HistoryBackfillResponse,
+    PreAuthConsentRequest,
+    SyncRequest,
+    SyncResponse,
+)
 from .providers import get_provider, list_available_providers
 from .kafka_publisher import get_publisher, CloudKafkaPublisher
+from .outbox import OutboxFullError, OutboxQueue, OutboxWorker, get_outbox
 from .storage import get_store, ConnectionStore
 from .config import get_settings
 from .internal_server import start_internal_server
@@ -39,6 +48,30 @@ settings = get_settings()
 _root_path = os.getenv("ROOT_PATH", "/cloud" if "wearables.charite.de" in settings.public_base_url else "")
 _enable_docs = os.getenv("ENABLE_DOCS", "true").lower() == "true"
 
+def _resolve_outbox() -> OutboxQueue:
+    override = app.dependency_overrides.get(get_outbox)
+    return override() if override is not None else get_outbox()
+
+
+def _resolve_publish_fn():
+    override = app.dependency_overrides.get(get_publisher)
+    pub = override() if override is not None else get_publisher()
+    return lambda payload: pub.publish_payload(payload)
+
+
+outbox_worker = OutboxWorker(_resolve_outbox, _resolve_publish_fn)
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    start_internal_server()
+    outbox_worker.start()
+    try:
+        yield
+    finally:
+        await outbox_worker.stop()
+
+
 app = FastAPI(
     title="Wearables Cloud Connector Service",
     description="Modular multi-provider cloud telemetry connector for the Wearables platform",
@@ -46,12 +79,8 @@ app = FastAPI(
     root_path=_root_path,
     docs_url="/docs" if _enable_docs else None,
     redoc_url="/redoc" if _enable_docs else None,
+    lifespan=_lifespan,
 )
-
-
-@app.on_event("startup")
-async def _start_internal_admin():
-    start_internal_server()
 
 
 @app.get("/health")
@@ -77,6 +106,10 @@ async def start_oauth_login(
     redirect: bool = Query(True, description="Redirect browser directly to the provider consent page"),
     redirect_uri: Optional[str] = Query(None, description="Optional override for OAuth redirect_uri"),
     return_url: Optional[str] = Query(None, description="Optional URL to redirect the user to after linking"),
+    allow_pre_auth: bool = Query(
+        False,
+        description="Explicit patient option allowing pre-auth historical backfill when enabled",
+    ),
     store: ConnectionStore = Depends(get_store),
 ):
     """Step 1 of OAuth 2.0 PKCE: Generates code_verifier/code_challenge and initiates user authorization"""
@@ -106,6 +139,7 @@ async def start_oauth_login(
         code_verifier=code_verifier,
         redirect_uri=effective_redirect,
         return_url=return_url,
+        allow_pre_auth=allow_pre_auth,
     )
 
     if redirect:
@@ -193,6 +227,7 @@ async def _handle_oauth_callback(
     provider_user_id = user_info.get("provider_user_id") or token_data.get("userId") or patient_id
     permissions = user_info.get("permissions", [])
 
+    allow_pre_auth = bool(pending.get("allow_pre_auth", False))
     conn = store.save_connection(
         provider=provider_name,
         patient_id=patient_id,
@@ -203,6 +238,7 @@ async def _handle_oauth_callback(
         refresh_token_expires_in=refresh_expires_in,
         scope=scope,
         permissions=permissions,
+        allow_pre_auth_history=allow_pre_auth,
     )
 
     logger.info(
@@ -221,6 +257,7 @@ async def _handle_oauth_callback(
             "provider_user_id": provider_user_id,
             "permissions": permissions,
             "scope": scope,
+            "allow_pre_auth_history": conn.get("allow_pre_auth_history", False),
             "linked_at": conn["linked_at"],
         }
 
@@ -314,6 +351,64 @@ async def refresh_connection_token(
     }
 
 
+async def _ensure_fresh_connection(
+    provider,
+    store: ConnectionStore,
+    provider_name: str,
+    patient_id: str,
+    conn: Dict[str, Any],
+    *,
+    force_refresh: bool = False,
+) -> Dict[str, Any]:
+    """Refreshes stored OAuth access token if expired (or forced)"""
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    expired = bool(conn.get("expires_at") and now_ts >= conn["expires_at"])
+    if (force_refresh or expired) and conn.get("refresh_token"):
+        try:
+            refreshed = await provider.refresh_access_token(conn["refresh_token"])
+            return store.save_connection(
+                provider=provider_name,
+                patient_id=patient_id,
+                provider_user_id=conn["provider_user_id"],
+                access_token=refreshed["access_token"],
+                refresh_token=refreshed.get("refresh_token", conn["refresh_token"]),
+                expires_in=refreshed.get("expires_in"),
+                refresh_token_expires_in=refreshed.get("refresh_token_expires_in"),
+                scope=refreshed.get("scope"),
+            )
+        except Exception as exc:
+            logger.warning("Auto-refresh failed for patient %s: %s", patient_id, exc)
+    return conn
+
+
+def _to_utc_datetime(value: Optional[datetime], default: datetime) -> datetime:
+    dt = value or default
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+@app.put("/connections/{provider_name}/{patient_id}/pre-auth")
+async def update_pre_auth_consent(
+    provider_name: str,
+    patient_id: str,
+    body: PreAuthConsentRequest,
+    store: ConnectionStore = Depends(get_store),
+    claims: dict = Depends(verify_case_verification_token),
+):
+    """Updates patient consent for requesting historical data recorded prior to account linking"""
+    assert_patient_matches(claims, patient_id)
+    updated = store.set_pre_auth_history(provider_name, patient_id, body.allow_pre_auth_history)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    return {
+        "status": "updated",
+        "provider": provider_name,
+        "patient_id": patient_id,
+        "allow_pre_auth_history": updated["allow_pre_auth_history"],
+    }
+
+
 @app.delete("/connections/{provider_name}/{patient_id}")
 async def delete_connection(
     provider_name: str,
@@ -329,6 +424,7 @@ async def delete_connection(
 
     try:
         provider = get_provider(provider_name)
+        conn = await _ensure_fresh_connection(provider, store, provider_name, patient_id, conn)
         if conn.get("access_token"):
             await provider.deregister_user(conn["access_token"])
     except Exception as e:
@@ -362,22 +458,9 @@ async def sync_provider(
     if not credentials.get("token") and not credentials.get("personal_token") and not credentials.get("mock_data"):
         conn = store.get_connection(provider_name, request.patient_id)
         if conn:
-            now_ts = int(datetime.now(timezone.utc).timestamp())
-            if conn.get("expires_at") and now_ts >= conn["expires_at"] and conn.get("refresh_token"):
-                try:
-                    refreshed = await provider.refresh_access_token(conn["refresh_token"])
-                    conn = store.save_connection(
-                        provider=provider_name,
-                        patient_id=request.patient_id,
-                        provider_user_id=conn["provider_user_id"],
-                        access_token=refreshed["access_token"],
-                        refresh_token=refreshed.get("refresh_token", conn["refresh_token"]),
-                        expires_in=refreshed.get("expires_in"),
-                        refresh_token_expires_in=refreshed.get("refresh_token_expires_in"),
-                        scope=refreshed.get("scope"),
-                    )
-                except Exception as e:
-                    logger.warning("Auto-refresh failed for patient %s: %s", request.patient_id, e)
+            conn = await _ensure_fresh_connection(
+                provider, store, provider_name, request.patient_id, conn
+            )
             credentials["token"] = conn.get("access_token", "")
 
     is_valid = await provider.validate_credentials(credentials)
@@ -414,24 +497,158 @@ async def sync_provider(
     )
 
 
-@app.post("/webhooks/{provider_name}")
-async def provider_webhook(
+@app.post("/sync/{provider_name}/history", response_model=HistoryBackfillResponse)
+async def sync_provider_history(
     provider_name: str,
-    data: dict,
-    default_patient_id: Optional[str] = Query(
-        None, description="Optional fallback patient_id if webhook items omit a linked userId"
-    ),
-    publisher: CloudKafkaPublisher = Depends(get_publisher),
+    request: HistoryBackfillRequest,
     store: ConnectionStore = Depends(get_store),
+    claims: dict = Depends(verify_case_verification_token),
 ):
-    """Receives asynchronous PUSH notifications from cloud provider"""
+    """Triggers asynchronous historical backfill (e.g. Garmin Enterprise) with pre-auth & loop guards"""
+    assert_patient_matches(claims, request.patient_id)
     try:
         provider = get_provider(provider_name)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    if not provider.supports_historical_backfill:
+        raise HTTPException(
+            status_code=501,
+            detail=f"Historical webhook backfill is not implemented for '{provider_name}'",
+        )
+
+    runtime_settings = get_settings()
+    if not provider.is_backfill_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail=f"Historical backfill is disabled for '{provider_name}' (requires production/enterprise access and backfill enabled)",
+        )
+
+    conn = store.get_connection(provider_name, request.patient_id)
+    if not conn or not conn.get("access_token"):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No linked connection found for patient '{request.patient_id}' on '{provider_name}'",
+        )
+
+    conn = await _ensure_fresh_connection(
+        provider, store, provider_name, request.patient_id, conn
+    )
+
+    permissions = list(conn.get("permissions", []))
+    if not provider.has_historical_permission(permissions):
+        try:
+            user_info = await provider.fetch_user_info(conn["access_token"])
+            refreshed_perms = user_info.get("permissions", [])
+            if refreshed_perms:
+                permissions = refreshed_perms
+                store.update_permissions(provider_name, conn["provider_user_id"], permissions)
+        except Exception as exc:
+            logger.warning("Failed to refresh permissions before backfill for %s: %s", request.patient_id, exc)
+
+        if not provider.has_historical_permission(permissions):
+            raise HTTPException(
+                status_code=403,
+                detail="Missing HISTORICAL_DATA_EXPORT permission from user consent",
+            )
+
+    now = datetime.now(timezone.utc)
+    effective_end = _to_utc_datetime(request.end_time, now)
+    requested_start = _to_utc_datetime(request.start_time, effective_end - timedelta(days=request.days))
+
+    pre_auth_allowed = (
+        runtime_settings.garmin_allow_pre_auth_history
+        and request.allow_pre_auth
+        and bool(conn.get("allow_pre_auth_history", False))
+    )
+
+    effective_start = requested_start
+    if not pre_auth_allowed and conn.get("linked_at"):
+        try:
+            linked_at = _to_utc_datetime(datetime.fromisoformat(conn["linked_at"]), requested_start)
+            if effective_start < linked_at:
+                effective_start = linked_at
+        except ValueError:
+            pass
+
+    if effective_start >= effective_end:
+        return HistoryBackfillResponse(
+            provider=provider_name,
+            patient_id=request.patient_id,
+            status="skipped",
+            start_time=effective_start,
+            end_time=effective_end,
+            pre_auth_applied=pre_auth_allowed,
+            skipped={
+                "window": "Requested range precedes account link time and pre-auth history is not enabled"
+            },
+        )
+
+    max_attempts = runtime_settings.garmin_sync_max_attempts
+
+    async def _run_backfill(token: str) -> Dict[str, Any]:
+        return await provider.request_backfill(
+            patient_id=request.patient_id,
+            access_token=token,
+            start_time=effective_start,
+            end_time=effective_end,
+            data_types=request.data_types,
+            chunk_days=runtime_settings.garmin_backfill_chunk_days,
+            delay_seconds=runtime_settings.garmin_backfill_delay_seconds,
+            max_attempts=max_attempts,
+            should_skip_window=lambda k: store.should_skip_sync_window(k, max_attempts=max_attempts),
+            record_window=store.record_sync_window,
+        )
+
+    result = await _run_backfill(conn["access_token"])
+
+    if result.get("auth_failed") and conn.get("refresh_token"):
+        refreshed_conn = await _ensure_fresh_connection(
+            provider, store, provider_name, request.patient_id, conn, force_refresh=True
+        )
+        if refreshed_conn.get("access_token") != conn.get("access_token"):
+            result = await _run_backfill(refreshed_conn["access_token"])
+
+    return HistoryBackfillResponse(
+        provider=provider_name,
+        patient_id=request.patient_id,
+        status=result["status"],
+        start_time=effective_start,
+        end_time=effective_end,
+        pre_auth_applied=pre_auth_allowed,
+        triggered=result.get("triggered", []),
+        already_requested=result.get("already_requested", []),
+        skipped=result.get("skipped", {}),
+        failed=result.get("failed", {}),
+    )
+
+
+@app.post("/webhooks/{provider_name}")
+async def provider_webhook(
+    provider_name: str,
+    request: Request,
+    data: Optional[Dict[str, Any]] = Body(default=None),
+    default_patient_id: Optional[str] = Query(
+        None, description="Optional fallback patient_id if webhook items omit a linked userId"
+    ),
+    outbox: OutboxQueue = Depends(get_outbox),
+    store: ConnectionStore = Depends(get_store),
+):
+    """Receives asynchronous PUSH notifications from cloud provider and queues them durably"""
+    try:
+        provider = get_provider(provider_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        provider.verify_webhook_headers(request.headers)
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+    payload_body = data or {}
+
     # 1. Handle deregistration notifications
-    deregistrations = data.get("deregistrations", [])
+    deregistrations = payload_body.get("deregistrations", [])
     deregistered_count = 0
     if isinstance(deregistrations, list):
         for item in deregistrations:
@@ -441,7 +658,7 @@ async def provider_webhook(
                 logger.info("Processed deregistration webhook for %s userId='%s'", provider_name, uid)
 
     # 2. Handle user permission change notifications
-    perm_changes = data.get("userPermissionsChange", [])
+    perm_changes = payload_body.get("userPermissionsChange", [])
     permission_updates = 0
     if isinstance(perm_changes, list):
         for item in perm_changes:
@@ -452,37 +669,45 @@ async def provider_webhook(
                     permission_updates += 1
                     logger.info("Updated permissions for %s userId='%s': %s", provider_name, uid, perms)
 
-    # 3. Parse health & activity push summaries and publish to Kafka
+    # 3. Parse health & activity push summaries and persist before returning 200 OK
     payloads = provider.parse_webhook_payload(
-        data=data,
+        data=payload_body,
         resolve_patient_id=lambda uid: store.resolve_patient_id(provider_name, uid),
         default_patient_id=default_patient_id,
     )
 
-    published_batches = 0
-    total_measurements = 0
-    for payload in payloads:
-        payload_dict = payload.model_dump(mode="json")
-        if publisher.publish_payload(payload_dict):
-            published_batches += 1
-        total_measurements += (
-            len(payload.measurements.instantaneous)
-            + len(payload.measurements.cumulative)
-            + len(payload.measurements.duration)
-            + len(payload.measurements.waveforms)
-        )
+    payload_dicts = [payload.model_dump(mode="json") for payload in payloads]
+    total_measurements = sum(
+        len(payload.measurements.instantaneous)
+        + len(payload.measurements.cumulative)
+        + len(payload.measurements.duration)
+        + len(payload.measurements.waveforms)
+        for payload in payloads
+    )
+
+    queued_batches = 0
+    if payload_dicts:
+        try:
+            queued_batches = await asyncio.to_thread(outbox.enqueue, payload_dicts)
+        except (OutboxFullError, OSError) as exc:
+            logger.error("Webhook outbox enqueue failed for '%s': %s", provider_name, exc)
+            raise HTTPException(
+                status_code=503,
+                detail="Webhook outbox storage unavailable; retry later",
+            )
+        outbox_worker.notify()
 
     logger.info(
-        "Processed Push webhook from '%s' (keys=%s): %d batches (%d measurements) published to Kafka",
+        "Processed Push webhook from '%s' (keys=%s): %d batches (%d measurements) queued in outbox",
         provider_name,
-        list(data.keys()),
-        published_batches,
+        list(payload_body.keys()),
+        queued_batches,
         total_measurements,
     )
     return {
         "status": "accepted",
         "provider": provider_name,
-        "published_batches": published_batches,
+        "queued_batches": queued_batches,
         "total_measurements": total_measurements,
         "deregistered_users": deregistered_count,
         "permission_updates": permission_updates,

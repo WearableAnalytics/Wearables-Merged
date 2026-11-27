@@ -1,9 +1,10 @@
+import asyncio
 import base64
 import hashlib
 import logging
 import secrets
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Mapping, Optional, List, Callable
 from urllib.parse import urlencode
 import httpx
 
@@ -21,6 +22,53 @@ from ..models import (
 from ..config import get_settings
 
 logger = logging.getLogger(__name__)
+
+GARMIN_BACKFILL_ENDPOINTS: Dict[str, str] = {
+    "dailies": "backfill/dailies",
+    "epochs": "backfill/epochs",
+    "sleeps": "backfill/sleeps",
+    "bodyComps": "backfill/bodyComps",
+    "hrv": "backfill/hrv",
+    "stressDetails": "backfill/stressDetails",
+    "respiration": "backfill/respiration",
+    "pulseOx": "backfill/pulseOx",
+    "bloodPressures": "backfill/bloodPressures",
+    "skinTemp": "backfill/skinTemp",
+    "userMetrics": "backfill/userMetrics",
+    "activities": "backfill/activities",
+    "activityDetails": "backfill/activityDetails",
+    "healthSnapshot": "backfill/healthSnapshot",
+    "moveiq": "backfill/moveiq",
+    "mct": "backfill/mct",
+}
+
+DEFAULT_GARMIN_BACKFILL_TYPES: List[str] = [
+    "dailies",
+    "sleeps",
+    "hrv",
+    "activities",
+    "epochs",
+    "stressDetails",
+    "bodyComps",
+    "pulseOx",
+    "respiration",
+]
+
+
+def _iter_time_chunks(
+    start: datetime, end: datetime, max_chunk_seconds: int
+) -> List[tuple[datetime, datetime]]:
+    """Splits [start, end) into contiguous windows capped at max_chunk_seconds"""
+    if start >= end:
+        return []
+    step = timedelta(seconds=max(1, max_chunk_seconds))
+    chunks: List[tuple[datetime, datetime]] = []
+    cursor = start
+    while cursor < end:
+        chunk_end = min(cursor + step, end)
+        chunks.append((cursor, chunk_end))
+        cursor = chunk_end
+    return chunks
 
 
 class GarminProvider(BaseCloudProvider):
@@ -282,11 +330,6 @@ class GarminProvider(BaseCloudProvider):
             total_steps = steps
         else:
             headers = {"Authorization": f"Bearer {token}"}
-            params = {
-                "uploadStartTimeInSeconds": int(start.timestamp()),
-                "uploadEndTimeInSeconds": int(end.timestamp()),
-            }
-
             endpoints = [
                 ("pulseOx", self._handle_pulse_ox),
                 ("respiration", self._handle_respiration),
@@ -303,38 +346,44 @@ class GarminProvider(BaseCloudProvider):
                 ("activities", self._handle_activities),
             ]
 
+            chunks = _iter_time_chunks(start, end, 86400)
             async with httpx.AsyncClient(timeout=15.0) as client:
-                for path, handler in endpoints:
-                    try:
-                        resp = await client.get(
-                            f"{self.base_url}/{path}",
-                            headers=headers,
-                            params=params,
-                        )
-                        if resp.status_code == 200:
-                            step_val = handler(
-                                resp.json(),
-                                instantaneous_list,
-                                cumulative_list,
-                                duration_list,
-                                waveform_list,
+                for chunk_start, chunk_end in chunks:
+                    params = {
+                        "uploadStartTimeInSeconds": int(chunk_start.timestamp()),
+                        "uploadEndTimeInSeconds": int(chunk_end.timestamp()),
+                    }
+                    for path, handler in endpoints:
+                        try:
+                            resp = await client.get(
+                                f"{self.base_url}/{path}",
+                                headers=headers,
+                                params=params,
                             )
-                            if step_val and step_val > total_steps:
-                                total_steps = step_val
-                        elif resp.status_code == 409:
-                            logger.info(
-                                "Garmin endpoint /%s returned 409 Conflict (request timeframe already processing or active backfill)",
-                                path,
-                            )
-                        elif resp.status_code != 200:
-                            logger.warning(
-                                "Garmin endpoint /%s returned status %s: %s",
-                                path,
-                                resp.status_code,
-                                resp.text[:200] if resp.text else "",
-                            )
-                    except Exception as e:
-                        logger.warning("Failed to fetch Garmin endpoint /%s: %s", path, e)
+                            if resp.status_code == 200:
+                                step_val = handler(
+                                    resp.json(),
+                                    instantaneous_list,
+                                    cumulative_list,
+                                    duration_list,
+                                    waveform_list,
+                                )
+                                if step_val and step_val > total_steps:
+                                    total_steps = step_val
+                            elif resp.status_code == 409:
+                                logger.info(
+                                    "Garmin endpoint /%s returned 409 Conflict (request timeframe already processing or active backfill)",
+                                    path,
+                                )
+                            elif resp.status_code != 200:
+                                logger.warning(
+                                    "Garmin endpoint /%s returned status %s: %s",
+                                    path,
+                                    resp.status_code,
+                                    resp.text[:200] if resp.text else "",
+                                )
+                        except Exception as e:
+                            logger.warning("Failed to fetch Garmin endpoint /%s: %s", path, e)
 
         return IngestPayload(
             deviceInfo=DeviceInfo(
@@ -355,11 +404,251 @@ class GarminProvider(BaseCloudProvider):
             ),
             sourceName="Garmin Health Cloud",
             sourcePlatform="garmin-connect",
-                    sourceId="garmin-connect",
-                    participantId=patient_id,
+            sourceId="garmin-connect",
+            participantId=patient_id,
             totalStepsToday=total_steps if total_steps > 0 else None,
             timestamp=now,
         )
+
+    supports_historical_backfill: bool = True
+
+    def is_backfill_enabled(self) -> bool:
+        return get_settings().garmin_backfill_enabled
+
+    def verify_webhook_headers(self, headers: Mapping[str, str]) -> None:
+        settings = get_settings()
+        if not settings.garmin_verify_client_id:
+            return
+        expected_client_id = settings.garmin_client_id.strip()
+        incoming_client_id = headers.get("garmin-client-id")
+        if not expected_client_id or incoming_client_id != expected_client_id:
+            raise PermissionError("Invalid garmin-client-id header")
+
+    @staticmethod
+    def has_historical_permission(permissions: Optional[List[str]]) -> bool:
+        return "HISTORICAL_DATA_EXPORT" in (permissions or [])
+
+    async def _execute_backfill_chunk(
+        self,
+        client: httpx.AsyncClient,
+        *,
+        endpoint_path: str,
+        headers: Dict[str, str],
+        window_key: str,
+        start_ts: int,
+        end_ts: int,
+        max_attempts: int,
+        record_window: Optional[Callable[..., Any]],
+    ) -> Dict[str, Any]:
+        """Executes a single Garmin backfill request chunk and maps status codes"""
+        params = {
+            "summaryStartTimeInSeconds": start_ts,
+            "summaryEndTimeInSeconds": end_ts,
+        }
+        try:
+            resp = await client.get(
+                f"{self.base_url}/{endpoint_path}",
+                headers=headers,
+                params=params,
+            )
+        except Exception as exc:
+            if record_window is not None:
+                record_window(
+                    window_key,
+                    status="failed_retryable",
+                    error=str(exc),
+                    max_attempts=max_attempts,
+                )
+            return {"outcome": "failed", "error": f"Request error: {exc}", "stop_all": False}
+
+        if resp.status_code in (200, 202):
+            if record_window is not None:
+                record_window(
+                    window_key,
+                    status="triggered",
+                    status_code=resp.status_code,
+                    max_attempts=max_attempts,
+                )
+            return {"outcome": "triggered", "stop_all": False}
+
+        if resp.status_code == 409:
+            if record_window is not None:
+                record_window(
+                    window_key,
+                    status="already_requested",
+                    status_code=409,
+                    error="duplicate_backfill_window",
+                    max_attempts=max_attempts,
+                )
+            return {"outcome": "duplicate", "stop_all": False}
+
+        if resp.status_code == 401:
+            return {
+                "outcome": "failed",
+                "error": "Garmin access token rejected (401)",
+                "auth_failed": True,
+                "stop_all": True,
+            }
+
+        detail = resp.text[:200] if resp.text else f"HTTP {resp.status_code}"
+        if resp.status_code in (403, 412):
+            if record_window is not None:
+                record_window(
+                    window_key,
+                    status="failed_permanent",
+                    status_code=resp.status_code,
+                    error=detail,
+                    max_attempts=max_attempts,
+                )
+            return {"outcome": "failed", "error": f"HTTP {resp.status_code}: {detail}", "stop_all": True}
+
+        if resp.status_code == 429:
+            retry_raw = resp.headers.get("Retry-After", "60")
+            cooldown = int(retry_raw) if retry_raw.isdigit() else 60
+            next_retry = datetime.now(timezone.utc) + timedelta(seconds=max(1, cooldown))
+            if record_window is not None:
+                record_window(
+                    window_key,
+                    status="failed_retryable",
+                    status_code=429,
+                    error="rate_limited",
+                    max_attempts=max_attempts,
+                    next_retry_at=next_retry,
+                )
+            return {
+                "outcome": "failed",
+                "error": f"HTTP 429 rate limited (retry after {cooldown}s)",
+                "rate_limited": True,
+                "stop_all": True,
+            }
+
+        if record_window is not None:
+            record_window(
+                window_key,
+                status="failed_retryable",
+                status_code=resp.status_code,
+                error=detail,
+                max_attempts=max_attempts,
+            )
+        return {"outcome": "failed", "error": f"HTTP {resp.status_code}: {detail}", "stop_all": False}
+
+    async def request_backfill(
+        self,
+        *,
+        patient_id: str,
+        access_token: str,
+        start_time: datetime,
+        end_time: datetime,
+        data_types: Optional[List[str]] = None,
+        chunk_days: int = 7,
+        delay_seconds: float = 0.5,
+        max_attempts: int = 3,
+        should_skip_window: Optional[Callable[[str], tuple[bool, Optional[str]]]] = None,
+        record_window: Optional[Callable[..., Any]] = None,
+    ) -> Dict[str, Any]:
+        """Requests asynchronous Garmin historical backfill (pushed back to /webhooks/garmin)"""
+        selected_types = data_types or list(DEFAULT_GARMIN_BACKFILL_TYPES)
+        capped_days = max(1, min(30, int(chunk_days)))
+        chunks = _iter_time_chunks(start_time, end_time, capped_days * 86400)
+
+        triggered: List[str] = []
+        already_requested: List[str] = []
+        skipped: Dict[str, str] = {}
+        failed: Dict[str, str] = {}
+        auth_failed = False
+        rate_limited = False
+
+        if not chunks:
+            return {
+                "status": "skipped",
+                "triggered": triggered,
+                "already_requested": already_requested,
+                "skipped": {"window": "empty_time_range"},
+                "failed": failed,
+                "auth_failed": False,
+                "rate_limited": False,
+            }
+
+        headers = {"Authorization": f"Bearer {access_token}"}
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            stop_all = False
+            for idx, summary_type in enumerate(selected_types):
+                if stop_all:
+                    break
+                endpoint_path = GARMIN_BACKFILL_ENDPOINTS.get(summary_type)
+                if not endpoint_path:
+                    failed[summary_type] = f"Unsupported Garmin backfill type: {summary_type}"
+                    continue
+
+                type_triggered = False
+                type_duplicate = False
+                type_skip_reasons: List[str] = []
+
+                for chunk_idx, (chunk_start, chunk_end) in enumerate(chunks):
+                    if stop_all:
+                        break
+                    start_ts = int(chunk_start.timestamp())
+                    end_ts = int(chunk_end.timestamp())
+                    window_key = f"garmin:{patient_id}:{summary_type}:{start_ts}:{end_ts}"
+
+                    if should_skip_window is not None:
+                        should_skip, reason = should_skip_window(window_key)
+                        if should_skip:
+                            type_skip_reasons.append(reason or "already_processed")
+                            continue
+
+                    if (idx > 0 or chunk_idx > 0) and delay_seconds > 0:
+                        await asyncio.sleep(delay_seconds)
+
+                    chunk_res = await self._execute_backfill_chunk(
+                        client,
+                        endpoint_path=endpoint_path,
+                        headers=headers,
+                        window_key=window_key,
+                        start_ts=start_ts,
+                        end_ts=end_ts,
+                        max_attempts=max_attempts,
+                        record_window=record_window,
+                    )
+                    outcome = chunk_res["outcome"]
+                    if outcome == "triggered":
+                        type_triggered = True
+                    elif outcome == "duplicate":
+                        type_duplicate = True
+                    else:
+                        failed[summary_type] = chunk_res["error"]
+
+                    auth_failed = auth_failed or bool(chunk_res.get("auth_failed"))
+                    rate_limited = rate_limited or bool(chunk_res.get("rate_limited"))
+                    stop_all = bool(chunk_res.get("stop_all"))
+
+                if type_triggered:
+                    triggered.append(summary_type)
+                elif type_duplicate and summary_type not in failed:
+                    already_requested.append(summary_type)
+                elif type_skip_reasons and summary_type not in failed:
+                    skipped[summary_type] = type_skip_reasons[0]
+
+        if failed and not triggered and not already_requested:
+            overall = "failed"
+        elif failed or (skipped and not triggered):
+            overall = "partial" if (triggered or already_requested) else "skipped"
+        elif triggered:
+            overall = "triggered"
+        elif already_requested:
+            overall = "already_requested"
+        else:
+            overall = "skipped"
+
+        return {
+            "status": overall,
+            "triggered": triggered,
+            "already_requested": already_requested,
+            "skipped": skipped,
+            "failed": failed,
+            "auth_failed": auth_failed,
+            "rate_limited": rate_limited,
+        }
 
     def _handle_pulse_ox(self, data, inst, cum, dur, wav) -> int:
         inst.extend(self._parse_pulse_ox(data))

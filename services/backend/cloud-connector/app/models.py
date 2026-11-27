@@ -98,3 +98,29 @@ class SyncResponse(BaseModel):
     waveform_count: int = 0
     published_to_kafka: bool
     timestamp: datetime
+
+
+class HistoryBackfillRequest(BaseModel):
+    patient_id: str
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    days: int = Field(default=30, ge=1, le=365)
+    data_types: Optional[List[str]] = None
+    allow_pre_auth: bool = False
+
+
+class HistoryBackfillResponse(BaseModel):
+    provider: str
+    patient_id: str
+    status: str
+    start_time: datetime
+    end_time: datetime
+    pre_auth_applied: bool
+    triggered: List[str] = Field(default_factory=list)
+    already_requested: List[str] = Field(default_factory=list)
+    skipped: Dict[str, str] = Field(default_factory=dict)
+    failed: Dict[str, str] = Field(default_factory=dict)
+
+
+class PreAuthConsentRequest(BaseModel):
+    allow_pre_auth_history: bool

@@ -3,6 +3,13 @@ from functools import lru_cache
 from dataclasses import dataclass, field
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 @dataclass
 class Settings:
     app_name: str = "Wearables Cloud Connector"
@@ -21,6 +28,20 @@ class Settings:
     )
     storage_path: str = field(
         default_factory=lambda: os.getenv("CLOUD_CONNECTOR_STORAGE_PATH", "/data/connections.json")
+    )
+    outbox_dir: str = field(
+        default_factory=lambda: os.getenv("CLOUD_CONNECTOR_OUTBOX_DIR", "").strip()
+    )
+    outbox_max_bytes: int = field(
+        default_factory=lambda: max(
+            1024, int(os.getenv("CLOUD_CONNECTOR_OUTBOX_MAX_BYTES", str(256 * 1024 * 1024)))
+        )
+    )
+    outbox_poll_interval: float = field(
+        default_factory=lambda: max(0.1, float(os.getenv("CLOUD_CONNECTOR_OUTBOX_POLL_INTERVAL", "2.0")))
+    )
+    outbox_max_backoff: float = field(
+        default_factory=lambda: max(1.0, float(os.getenv("CLOUD_CONNECTOR_OUTBOX_MAX_BACKOFF", "30.0")))
     )
 
     # Central public base URL for all OAuth callbacks
@@ -61,6 +82,27 @@ class Settings:
         default_factory=lambda: os.getenv(
             "GARMIN_API_BASE_URL", "https://apis.garmin.com/wellness-api/rest"
         )
+    )
+    garmin_environment: str = field(
+        default_factory=lambda: os.getenv("GARMIN_ENVIRONMENT", "evaluation").strip().lower()
+    )
+    garmin_backfill_enabled: bool = field(
+        default_factory=lambda: _env_bool("GARMIN_BACKFILL_ENABLED", False)
+    )
+    garmin_allow_pre_auth_history: bool = field(
+        default_factory=lambda: _env_bool("GARMIN_ALLOW_PRE_AUTH_HISTORY", False)
+    )
+    garmin_verify_client_id: bool = field(
+        default_factory=lambda: _env_bool("GARMIN_VERIFY_CLIENT_ID", False)
+    )
+    garmin_backfill_chunk_days: int = field(
+        default_factory=lambda: max(1, min(30, int(os.getenv("GARMIN_BACKFILL_CHUNK_DAYS", "7"))))
+    )
+    garmin_backfill_delay_seconds: float = field(
+        default_factory=lambda: max(0.0, float(os.getenv("GARMIN_BACKFILL_DELAY_SECONDS", "0.5")))
+    )
+    garmin_sync_max_attempts: int = field(
+        default_factory=lambda: max(1, int(os.getenv("GARMIN_SYNC_MAX_ATTEMPTS", "3")))
     )
 
     # Polar AccesLink OAuth 2.0 & API settings
@@ -176,6 +218,13 @@ class Settings:
         if override:
             return override.strip()
         return f"{self.public_base_url.rstrip('/')}/cloud/callback"
+
+    @property
+    def resolved_outbox_dir(self) -> str:
+        if self.outbox_dir:
+            return self.outbox_dir
+        parent = os.path.dirname(self.storage_path) or "/data"
+        return os.path.join(parent, "outbox")
 
 
 @lru_cache()

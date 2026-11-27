@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Mapping, Optional, List, Callable
 from ..models import IngestPayload
 
 
@@ -61,6 +61,20 @@ class BaseCloudProvider(ABC):
 
     async def deregister_user(self, access_token: str) -> bool:
         """Deregisters/disconnects a user's registration at the provider"""
+        return True
+
+    def verify_webhook_headers(self, headers: Mapping[str, str]) -> None:
+        """Validates provider-specific webhook headers; raises PermissionError if rejected"""
+        return
+
+    supports_historical_backfill: bool = False
+
+    def is_backfill_enabled(self) -> bool:
+        """Returns whether historical backfill is currently enabled for this provider"""
+        return False
+
+    def has_historical_permission(self, permissions: Optional[List[str]]) -> bool:
+        """Returns whether granted user permissions permit historical backfill"""
         return True
 
     def parse_webhook_payload(
