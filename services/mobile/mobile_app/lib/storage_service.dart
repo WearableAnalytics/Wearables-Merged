@@ -352,6 +352,17 @@ class StorageService {
     }
   }
 
+  static Future<void> clearAllCloudConnections(
+    Iterable<String> providers,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final provider in providers) {
+      await prefs.remove(_cloudConnectedKey(provider));
+      await prefs.remove(_cloudUserIdKey(provider));
+      await prefs.remove(_cloudLinkedAtKey(provider));
+    }
+  }
+
   /// Backward compatible aliases for Garmin
   static Future<bool> isGarminConnected() => isCloudConnected('garmin');
   static Future<String?> getGarminUserId() => getCloudUserId('garmin');

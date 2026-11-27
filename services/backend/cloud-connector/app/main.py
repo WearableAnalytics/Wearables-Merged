@@ -11,6 +11,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from .models import (
     HistoryBackfillRequest,
     HistoryBackfillResponse,
+    OAuthInitRequest,
     PreAuthConsentRequest,
     SyncRequest,
     SyncResponse,
@@ -99,20 +100,16 @@ async def get_providers():
     }
 
 
-@app.get("/auth/{provider_name}/login")
-async def start_oauth_login(
+def _create_oauth_session(
+    *,
     provider_name: str,
-    patient_id: str = Query(..., description="Patient UUID in the Wearables platform"),
-    redirect: bool = Query(True, description="Redirect browser directly to the provider consent page"),
-    redirect_uri: Optional[str] = Query(None, description="Optional override for OAuth redirect_uri"),
-    return_url: Optional[str] = Query(None, description="Optional URL to redirect the user to after linking"),
-    allow_pre_auth: bool = Query(
-        False,
-        description="Explicit patient option allowing pre-auth historical backfill when enabled",
-    ),
-    store: ConnectionStore = Depends(get_store),
-):
-    """Step 1 of OAuth 2.0 PKCE: Generates code_verifier/code_challenge and initiates user authorization"""
+    patient_id: str,
+    redirect_uri: Optional[str],
+    return_url: Optional[str],
+    allow_pre_auth: bool = False,
+    store: ConnectionStore,
+) -> dict:
+    """Generates PKCE pair, stores pending state, and builds the provider authorization URL"""
     try:
         provider = get_provider(provider_name)
     except ValueError as e:
@@ -142,15 +139,68 @@ async def start_oauth_login(
         allow_pre_auth=allow_pre_auth,
     )
 
-    if redirect:
-        return RedirectResponse(url=auth_url, status_code=302)
-
     return {
         "provider": provider_name,
         "patient_id": patient_id,
         "state": state,
         "authorization_url": auth_url,
     }
+
+
+@app.post("/auth/{provider_name}/login")
+async def init_oauth_login(
+    provider_name: str,
+    request: Optional[OAuthInitRequest] = Body(default=None),
+    store: ConnectionStore = Depends(get_store),
+    claims: dict = Depends(verify_case_verification_token),
+):
+    """Step 1 of OAuth 2.0 PKCE: validates the case JWT and returns the authorization URL"""
+    patient_id = extract_patient_id(claims)
+    return _create_oauth_session(
+        provider_name=provider_name,
+        patient_id=patient_id,
+        redirect_uri=request.redirect_uri if request else None,
+        return_url=request.return_url if request else None,
+        allow_pre_auth=request.allow_pre_auth if request else False,
+        store=store,
+    )
+
+
+@app.get("/auth/{provider_name}/login")
+async def start_oauth_login(
+    provider_name: str,
+    patient_id: Optional[str] = Query(None, description="Patient UUID in the Wearables platform"),
+    redirect: bool = Query(True, description="Redirect browser directly to the provider consent page"),
+    redirect_uri: Optional[str] = Query(None, description="Optional override for OAuth redirect_uri"),
+    return_url: Optional[str] = Query(None, description="Optional URL to redirect the user to after linking"),
+    allow_pre_auth: bool = Query(
+        False,
+        description="Explicit patient option allowing pre-auth historical backfill when enabled",
+    ),
+    store: ConnectionStore = Depends(get_store),
+    claims: dict = Depends(verify_case_verification_token),
+):
+    """GET variant of OAuth login initiation; requires a valid case JWT matching patient_id"""
+    token_patient_id = extract_patient_id(claims)
+    if patient_id is not None:
+        assert_patient_matches(claims, patient_id)
+        effective_patient_id = patient_id
+    else:
+        effective_patient_id = token_patient_id
+
+    session = _create_oauth_session(
+        provider_name=provider_name,
+        patient_id=effective_patient_id,
+        redirect_uri=redirect_uri,
+        return_url=return_url,
+        allow_pre_auth=allow_pre_auth,
+        store=store,
+    )
+
+    if redirect:
+        return RedirectResponse(url=session["authorization_url"], status_code=302)
+
+    return session
 
 
 def _render_connected_html(provider_name: str, permissions: list[str]) -> str:
