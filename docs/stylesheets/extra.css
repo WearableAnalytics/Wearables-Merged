@@ -1,0 +1,457 @@
+/* page width */
+.md-grid {
+  max-width: 78rem;
+}
+
+/* Collapsible left & right sidebars */
+.nav-collapse-header,
+.sidebar-hide-btn,
+.sidebar-reopen-btn {
+  display: none;
+}
+
+.sidebar-reopen-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sidebar-hide-btn {
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.sidebar-hide-btn:hover {
+  border-color: var(--md-default-fg-color--lightest);
+  background: var(--md-code-bg-color);
+  color: var(--md-accent-fg-color);
+}
+
+.sidebar-reopen-btn {
+  align-items: center;
+  appearance: none;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color--light);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 0.55rem;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.sidebar-reopen-btn:hover {
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-accent-fg-color);
+}
+
+.toc-reopen-btn {
+  margin-left: auto;
+}
+
+@media screen and (min-width: 76.25em) {
+  .nav-collapse-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.6rem 0.45rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--md-default-fg-color--light);
+  }
+
+  .nav-hide-btn {
+    display: inline-flex;
+  }
+
+  body.nav-collapsed .md-sidebar--primary {
+    display: none;
+  }
+
+  body.nav-collapsed .nav-reopen-btn {
+    display: inline-flex;
+  }
+}
+
+@media screen and (min-width: 60em) {
+  .md-nav--secondary > label.md-nav__title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+
+  .toc-hide-btn {
+    display: inline-flex;
+  }
+
+  body.toc-collapsed .md-sidebar--secondary {
+    display: none;
+  }
+
+  body.toc-collapsed .toc-reopen-btn {
+    display: inline-flex;
+  }
+}
+
+/* Keep short headers on one line */
+.md-typeset th:first-child,
+.md-typeset td:first-child code {
+  white-space: nowrap;
+}
+
+
+.md-header__button.md-logo {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 6px;
+  padding: 3px;
+  margin-right: 0.4rem;
+}
+
+
+.md-typeset .mermaid {
+  display: flex;
+  justify-content: center;
+}
+
+/*    SVG Platform Architecture
+ */
+.arch-widget {
+  margin: 0.75rem 0 1.75rem;
+}
+
+.arch-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
+}
+
+.arch-toolbar-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--md-default-fg-color--light);
+  margin-right: 0.25rem;
+}
+
+.arch-filter-btn {
+  appearance: none;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color--light);
+  border-radius: 999px;
+  padding: 0.24rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.arch-filter-btn:hover {
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-default-fg-color);
+}
+
+.arch-filter-btn.is-active {
+  background: var(--md-accent-fg-color--transparent);
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-accent-fg-color);
+}
+
+.arch-expand-btn {
+  margin-left: auto;
+  appearance: none;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color--light);
+  border-radius: 999px;
+  padding: 0.24rem 0.72rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.arch-expand-btn:hover {
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-accent-fg-color);
+}
+
+.arch-widget.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  margin: 0;
+  padding: 1.25rem 1.5rem;
+  background: var(--md-default-bg-color);
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.arch-widget.is-fullscreen .arch-canvas-wrap {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+}
+
+.arch-canvas-wrap {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--md-code-bg-color) 42%, transparent);
+  padding: 0.65rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+svg.arch-svg {
+  display: block;
+  width: 100%;
+  min-width: 1080px;
+  height: auto;
+  font-family: var(--md-text-font-family, system-ui, sans-serif);
+}
+
+/* Section labels*/
+.arch-svg .arch-zone-title {
+  fill: var(--md-default-fg-color--lighter);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.arch-svg .arch-divider {
+  stroke: var(--md-default-fg-color--lightest);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+/* Nodes */
+.arch-svg .arch-node {
+  cursor: pointer;
+  transition: opacity 160ms ease;
+  outline: none;
+}
+
+.arch-svg .arch-node rect.node-box {
+  fill: var(--md-default-bg-color);
+  stroke: var(--md-default-fg-color--lightest);
+  stroke-width: 1.4;
+  transition: stroke 140ms ease, stroke-width 140ms ease, fill 140ms ease;
+}
+
+.arch-svg .arch-node.arch-node-db rect.node-box {
+  stroke: color-mix(in srgb, var(--md-accent-fg-color) 55%, var(--md-default-fg-color--lightest));
+}
+
+.arch-svg .arch-node:hover rect.node-box,
+.arch-svg .arch-node:focus-visible rect.node-box {
+  stroke: var(--md-accent-fg-color);
+  stroke-width: 2;
+}
+
+.arch-svg .arch-node.is-selected rect.node-box {
+  stroke: var(--md-accent-fg-color);
+  stroke-width: 2.4;
+  fill: color-mix(in srgb, var(--md-accent-fg-color) 11%, var(--md-default-bg-color));
+}
+
+.arch-svg .arch-node.is-dimmed {
+  opacity: 0.22;
+}
+
+.arch-svg .node-title {
+  fill: var(--md-default-fg-color);
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.arch-svg .node-sub {
+  fill: var(--md-default-fg-color--light);
+  font-size: 10.8px;
+  font-weight: 400;
+  pointer-events: none;
+}
+
+.arch-svg .node-pill-bg {
+  fill: rgba(245, 158, 11, 0.18);
+  stroke: rgba(245, 158, 11, 0.55);
+  stroke-width: 1;
+}
+
+.arch-svg .node-pill-text {
+  fill: #d97706;
+  font-size: 9.8px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+[data-md-color-scheme="slate"] .arch-svg .node-pill-text {
+  fill: #fbbf24;
+}
+
+.arch-svg .node-doc-dot {
+  fill: var(--md-accent-fg-color);
+}
+
+/* Edges */
+.arch-svg .arch-edge {
+  transition: opacity 160ms ease;
+}
+
+.arch-svg .arch-edge path {
+  fill: none;
+  stroke: var(--md-default-fg-color--lighter);
+  stroke-width: 1.6;
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+  transition: stroke 140ms ease, stroke-width 140ms ease;
+}
+
+.arch-svg .arch-edge.arch-edge-dashed path {
+  stroke-dasharray: 5 4;
+}
+
+.arch-svg .arch-edge.is-highlighted path {
+  stroke: var(--md-accent-fg-color);
+  stroke-width: 2.3;
+}
+
+.arch-svg .arch-edge.is-dimmed {
+  opacity: 0.14;
+}
+
+.arch-svg .edge-label-bg {
+  fill: var(--md-default-bg-color);
+  opacity: 0.92;
+}
+
+.arch-svg .edge-label {
+  fill: var(--md-default-fg-color--light);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.arch-svg .arch-edge.is-highlighted .edge-label {
+  fill: var(--md-accent-fg-color);
+}
+
+/* Inspector panel below diagram */
+.arch-inspector {
+  margin-top: 0.65rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 10px;
+  background: var(--md-default-bg-color);
+  padding: 0.75rem 0.95rem;
+  font-size: 0.78rem;
+}
+
+.arch-inspector.is-empty {
+  margin-top: 0.4rem;
+  border: none;
+  background: transparent;
+  padding: 0 0.2rem;
+}
+
+.arch-inspector-hint {
+  color: var(--md-default-fg-color--lighter);
+  font-size: 0.72rem;
+}
+
+.arch-inspector-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.arch-inspector-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--md-default-fg-color);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.arch-inspector-sub {
+  font-size: 0.73rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.arch-inspector-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.08rem 0.48rem;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+[data-md-color-scheme="slate"] .arch-inspector-badge {
+  color: #fbbf24;
+}
+
+.arch-inspector-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.arch-inspector-link {
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.arch-inspector-close {
+  appearance: none;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  background: transparent;
+  color: var(--md-default-fg-color--light);
+  border-radius: 6px;
+  padding: 0.18rem 0.52rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.arch-inspector-close:hover {
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-default-fg-color);
+}
+
+.arch-inspector-desc {
+  margin: 0 0 0.55rem !important;
+  color: var(--md-default-fg-color--light);
+  line-height: 1.45;
+}
+
+.arch-inspector-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.35rem 0.9rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  background: var(--md-code-bg-color);
+  font-size: 0.73rem;
+  color: var(--md-default-fg-color);
+}
