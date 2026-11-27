@@ -49,7 +49,7 @@ Welcome to the documentation portal for the **Wearables** platform (Charité Ber
       <g class="arch-edge arch-edge-dashed" data-edge="mobile->cloudconnector" data-from="mobile" data-to="cloudconnector">
         <path d="M 85 100 V 138 H 176 V 194 H 191" marker-end="url(#arch-arrow)" />
         <rect class="edge-label-bg" x="96" y="129" width="70" height="16" rx="4" />
-        <text class="edge-label" x="131" y="140" text-anchor="middle">OAuth / Sync</text>
+        <text class="edge-label" x="131" y="140" text-anchor="middle">OAuth/Sync</text>
       </g>
       <g class="arch-edge" data-edge="providers->cloudconnector" data-from="providers" data-to="cloudconnector">
         <path d="M 158 209 H 191" marker-end="url(#arch-arrow)" />
@@ -142,7 +142,7 @@ Welcome to the documentation portal for the **Wearables** platform (Charité Ber
       <g class="arch-node" data-node="mobile">
         <rect class="node-box" x="12" y="34" width="146" height="66" rx="9" />
         <text class="node-title" x="24" y="60">Mobile App</text>
-        <text class="node-sub" x="24" y="80">HealthKit / Connect</text>
+        <text class="node-sub" x="24" y="80">HealthKit/Connect</text>
       </g>
 
       <g class="arch-node" data-node="providers">
@@ -241,7 +241,7 @@ Welcome to the documentation portal for the **Wearables** platform (Charité Ber
       <g class="arch-node" data-node="extraction">
         <rect class="node-box" x="1180" y="222" width="150" height="58" rx="9" />
         <text class="node-title" x="1192" y="246">Extraction Service</text>
-        <text class="node-sub" x="1192" y="264">JSON / CSV export</text>
+        <text class="node-sub" x="1192" y="264">JSON/CSV export</text>
       </g>
 
       <!-- Col 8: End Users -->
@@ -265,4 +265,4 @@ Welcome to the documentation portal for the **Wearables** platform (Charité Ber
 ## Quick Navigation
 
 - **[Services](services/index.md)**
-  - [Cloud Connector](services/cloud-connector/index.md): OAuth 2.0 PKCE linking, provider webhook ingestion, REST telemetry sync and provider limits.
+  - [Cloud Connector](services/cloud-connector/index.md): OAuth 2.0 PKCE linking, provider webhooks, REST sync and provider limits
