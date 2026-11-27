@@ -1,0 +1,7 @@
+# Production only (productionOnly in gitops/setup/argocd/apps/values.yaml):
+# locally the secrets in gitops/secrets/local are plain Secrets.
+
+sealed-secrets:
+  fullnameOverride: sealed-secrets-controller
+  # No automatic key renewal
+  keyrenewperiod: "0"

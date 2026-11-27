@@ -63,3 +63,8 @@ apps:
     path: gitops/apps/platform/argocd-image-updater
     namespace: argocd
     productionOnly: true
+  - name: sealed-secrets
+    path: gitops/apps/platform/sealed-secrets
+    namespace: kube-system
+    prune: false
+    productionOnly: true
