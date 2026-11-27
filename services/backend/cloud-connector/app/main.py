@@ -95,8 +95,25 @@ async def health():
 
 @app.get("/providers")
 async def get_providers():
+    runtime_settings = get_settings()
+    providers = list_available_providers()
+    capabilities = {}
+    for name in providers:
+        provider = get_provider(name)
+        backfill_enabled = provider.is_backfill_enabled()
+        pre_auth_allowed = (
+            backfill_enabled
+            and name == "garmin"
+            and runtime_settings.garmin_allow_pre_auth_history
+        )
+        capabilities[name] = {
+            "supports_historical_backfill": provider.supports_historical_backfill,
+            "backfill_enabled": backfill_enabled,
+            "pre_auth_history_allowed": pre_auth_allowed,
+        }
     return {
-        "available_providers": list_available_providers(),
+        "available_providers": providers,
+        "capabilities": capabilities,
     }
 
 

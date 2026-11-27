@@ -508,3 +508,37 @@ def test_internal_garmin_readiness_endpoint(monkeypatch, garmin_env):
             internal_mod._internal_server.server_close()
             internal_mod._internal_server = None
         get_settings.cache_clear()
+
+
+def test_providers_endpoint_reports_dynamic_backfill_capabilities(monkeypatch, garmin_env):
+    client = TestClient(app)
+
+    # Default: backfill & pre-auth disabled
+    get_settings.cache_clear()
+    res_default = client.get("/providers")
+    assert res_default.status_code == 200
+    body_default = res_default.json()
+    assert "garmin" in body_default["available_providers"]
+    garmin_default = body_default["capabilities"]["garmin"]
+    assert garmin_default == {
+        "supports_historical_backfill": True,
+        "backfill_enabled": False,
+        "pre_auth_history_allowed": False,
+    }
+
+    # Enterprise/Production with backfill + pre-auth enabled
+    monkeypatch.setenv("GARMIN_ENVIRONMENT", "production")
+    monkeypatch.setenv("GARMIN_BACKFILL_ENABLED", "true")
+    monkeypatch.setenv("GARMIN_ALLOW_PRE_AUTH_HISTORY", "true")
+    get_settings.cache_clear()
+    try:
+        res_enabled = client.get("/providers")
+        assert res_enabled.status_code == 200
+        garmin_enabled = res_enabled.json()["capabilities"]["garmin"]
+        assert garmin_enabled == {
+            "supports_historical_backfill": True,
+            "backfill_enabled": True,
+            "pre_auth_history_allowed": True,
+        }
+    finally:
+        get_settings.cache_clear()

@@ -22,4 +22,18 @@ class AppConfig {
 
   /// Set to true to test notification (usable with tipping on version in app)
   static const bool enableNotificationSimulation = false;
+
+  /// Manual pre-build toggle for Garmin historical data backfill UI.
+  /// When false (default), the app activates this dynamically via server `GET /providers`
+  static const bool enableCloudHistoryMode = bool.fromEnvironment(
+    'ENABLE_CLOUD_HISTORY_MODE',
+    defaultValue: false,
+  );
+
+  /// Optional pre-build toggle for the pre-auth history switch in the backfill dialog
+  /// Only applies when history mode is active
+  static const bool enableCloudPreAuthHistory = bool.fromEnvironment(
+    'ENABLE_CLOUD_PRE_AUTH_HISTORY',
+    defaultValue: false,
+  );
 }

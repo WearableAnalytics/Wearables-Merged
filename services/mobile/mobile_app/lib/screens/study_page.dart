@@ -34,6 +34,9 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     state.oauthCallbackCount.addListener(_onAuthReturned);
+    if (state.isLinked && !state.isCodeUnusable) {
+      state.refreshCloudCapabilities();
+    }
     PackageInfo.fromPlatform().then((info) {
       if (mounted) {
         setState(() => _version = '${info.version} (${info.buildNumber})');
@@ -160,18 +163,21 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<bool> _ensureUsableCode(String actionSuffix) async {
+    if (!state.isCodeUnusable) return true;
+    await _promptRescanCode(
+      'Your personal code expired or was rejected by the server. '
+      'Please scan a new QR code $actionSuffix.',
+    );
+    return !state.isCodeUnusable;
+  }
+
   Future<void> _connectCloud(CloudProvider provider) async {
     if (!state.isLinked) {
       _toast('Please link your personal QR code first.');
       return;
     }
-    if (state.isCodeUnusable) {
-      await _promptRescanCode(
-        'Your personal code expired or was rejected by the server. '
-        'Please scan a new QR code before connecting ${provider.name}.',
-      );
-      return;
-    }
+    if (!await _ensureUsableCode('before connecting ${provider.name}')) return;
     _awaitingAuthProvider = provider.id;
     try {
       final launched = await state.startCloudConnect(provider.id);
@@ -299,6 +305,116 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
       if (previousPatient != null && previousPatient == newPatient) {
         await onRetryServerDisconnect();
       }
+    }
+  }
+
+  Future<void> _openHistoricalSyncDialog(CloudProvider provider) async {
+    if (!await _ensureUsableCode('before requesting historical data') ||
+        !mounted) {
+      return;
+    }
+    final remaining = state.cloudHistoryCooldownRemaining(provider.id);
+    if (remaining > Duration.zero) {
+      final secs = (remaining.inMilliseconds / 1000).ceil();
+      _toast(
+        'Please wait ${secs}s before requesting historical ${provider.name} data again.',
+      );
+      return;
+    }
+    final allowPreAuthSupported = state.isCloudPreAuthAllowed(provider.id);
+    final hasHistoricalPerm = state.cloudHasHistoricalPermission(provider.id);
+    var selectedDays = 30;
+    var allowPreAuth = state.cloudAllowPreAuthHistory(provider.id);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text('Send historical ${provider.name} data'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose how many past days of ${provider.name} data to request from the server:',
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final days in const [7, 30, 90])
+                    ChoiceChip(
+                      label: Text('$days days'),
+                      selected: selectedDays == days,
+                      onSelected: (_) =>
+                          setDialogState(() => selectedDays = days),
+                    ),
+                ],
+              ),
+              if (allowPreAuthSupported) ...[
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Include pre-link history'),
+                  subtitle: const Text(
+                    'Allow requesting data recorded before connecting.',
+                  ),
+                  value: allowPreAuth,
+                  onChanged: (v) => setDialogState(() => allowPreAuth = v),
+                ),
+              ],
+              if (!hasHistoricalPerm) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Note: Your connection does not currently list HISTORICAL_DATA_EXPORT permission. Re linking with historical export consent may be required.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Start sync'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      if (allowPreAuthSupported &&
+          allowPreAuth != state.cloudAllowPreAuthHistory(provider.id)) {
+        await state.setCloudPreAuthHistory(provider.id, allowPreAuth);
+      }
+      final result = await state.triggerCloudHistorySync(
+        provider.id,
+        days: selectedDays,
+        allowPreAuth: allowPreAuthSupported && allowPreAuth,
+      );
+      if (!mounted) return;
+      if (result.triggered.isNotEmpty) {
+        _toast(
+          'Historical ${provider.name} sync started (${result.triggered.join(', ')}).',
+        );
+      } else if (result.alreadyRequested.isNotEmpty) {
+        _toast(
+          'Historical ${provider.name} data was already requested for this period.',
+        );
+      } else {
+        _toast('Historical ${provider.name} sync status: ${result.status}.');
+      }
+    } catch (e) {
+      await _handleCloudActionError(
+        e,
+        'Could not start historical ${provider.name} sync: $e',
+      );
     }
   }
 
@@ -534,9 +650,9 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
 
   void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _masked(String code) {
@@ -716,9 +832,22 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
                                   provider: provider,
                                   connected: true,
                                   busy: state.isCloudBusy(provider.id),
+                                  supportsHistoricalBackfill:
+                                      state.isCloudHistorySupported(
+                                        provider.id,
+                                      ),
+                                  backfillEnabled: state.isCloudBackfillEnabled(
+                                    provider.id,
+                                  ),
+                                  hasHistoricalPermission:
+                                      state.cloudHasHistoricalPermission(
+                                        provider.id,
+                                      ),
                                   onRefresh: () =>
                                       _refreshCloudStatus(provider),
                                   onConnect: () => _connectCloud(provider),
+                                  onHistoricalSync: () =>
+                                      _openHistoricalSyncDialog(provider),
                                   onDisconnect: () =>
                                       _confirmDisconnectCloud(provider),
                                 ),
@@ -890,16 +1019,24 @@ class _CloudProviderTile extends StatelessWidget {
     required this.provider,
     required this.connected,
     required this.busy,
+    this.supportsHistoricalBackfill = false,
+    this.backfillEnabled = false,
+    this.hasHistoricalPermission = false,
     required this.onRefresh,
     required this.onConnect,
+    this.onHistoricalSync,
     required this.onDisconnect,
   });
 
   final CloudProvider provider;
   final bool connected;
   final bool busy;
+  final bool supportsHistoricalBackfill;
+  final bool backfillEnabled;
+  final bool hasHistoricalPermission;
   final VoidCallback onRefresh;
   final VoidCallback onConnect;
+  final VoidCallback? onHistoricalSync;
   final VoidCallback onDisconnect;
 
   @override
@@ -924,7 +1061,7 @@ class _CloudProviderTile extends StatelessWidget {
       );
     }
 
-    return ListTile(
+    final headerTile = ListTile(
       leading: Icon(
         provider.icon ?? Symbols.watch_sharp,
         color: AppColors.success,
@@ -955,6 +1092,36 @@ class _CloudProviderTile extends StatelessWidget {
                 ),
               ],
             ),
+    );
+
+    if (!supportsHistoricalBackfill) {
+      return headerTile;
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        headerTile,
+        ListTile(
+          enabled: backfillEnabled && !busy,
+          leading: Icon(
+            Symbols.history_sharp,
+            color: backfillEnabled ? AppColors.blue : AppColors.textMuted,
+          ),
+          title: const Text('Send historical data'),
+          subtitle: Text(
+            !backfillEnabled
+                ? 'Currently disabled, requires other tier on server'
+                : hasHistoricalPermission
+                ? 'Request past ${provider.name} data via cloud sync'
+                : 'Requires historical export permission in ${provider.name}',
+          ),
+          trailing: backfillEnabled
+              ? const Icon(Symbols.chevron_right_sharp, size: 20)
+              : null,
+          onTap: backfillEnabled && !busy ? onHistoricalSync : null,
+        ),
+      ],
     );
   }
 }

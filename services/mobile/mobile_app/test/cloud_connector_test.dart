@@ -177,6 +177,100 @@ void main() {
         ),
       );
     });
+
+    test('fetches provider capabilities, updates pre-auth, and triggers historical backfill', () async {
+      var preAuthSaved = false;
+      String? capturedSyncBody;
+
+      subscription = server.listen((request) async {
+        if (request.method == 'GET' && request.uri.path == '/cloud/providers') {
+          request.response.statusCode = 200;
+          request.response.write(
+            jsonEncode({
+              'available_providers': ['garmin', 'polar'],
+              'capabilities': {
+                'garmin': {
+                  'supports_historical_backfill': true,
+                  'backfill_enabled': true,
+                  'pre_auth_history_allowed': true,
+                },
+                'polar': {
+                  'supports_historical_backfill': false,
+                  'backfill_enabled': false,
+                  'pre_auth_history_allowed': false,
+                },
+              },
+            }),
+          );
+          await request.response.close();
+          return;
+        }
+        if (request.method == 'PUT' &&
+            request.uri.path == '/cloud/connections/garmin/patient-42/pre-auth') {
+          final body = await utf8.decoder.bind(request).join();
+          final decoded = jsonDecode(body) as Map<String, dynamic>;
+          preAuthSaved = decoded['allow_pre_auth_history'] == true;
+          request.response.statusCode = 200;
+          request.response.write(
+            jsonEncode({
+              'status': 'updated',
+              'provider': 'garmin',
+              'patient_id': 'patient-42',
+              'allow_pre_auth_history': preAuthSaved,
+            }),
+          );
+          await request.response.close();
+          return;
+        }
+        if (request.method == 'POST' &&
+            request.uri.path == '/cloud/sync/garmin/history') {
+          capturedSyncBody = await utf8.decoder.bind(request).join();
+          request.response.statusCode = 200;
+          request.response.write(
+            jsonEncode({
+              'provider': 'garmin',
+              'patient_id': 'patient-42',
+              'status': 'triggered',
+              'pre_auth_applied': true,
+              'triggered': ['dailies', 'sleeps'],
+              'already_requested': [],
+              'skipped': {},
+              'failed': {},
+            }),
+          );
+          await request.response.close();
+          return;
+        }
+        request.response.statusCode = 404;
+        await request.response.close();
+      });
+
+      final caps = await service.fetchProviderCapabilities(_studyCodeWithPatient);
+      expect(caps['garmin']?.supportsHistoricalBackfill, isTrue);
+      expect(caps['garmin']?.backfillEnabled, isTrue);
+      expect(caps['garmin']?.preAuthHistoryAllowed, isTrue);
+      expect(caps['polar']?.backfillEnabled, isFalse);
+
+      final updated = await service.setPreAuthHistory(
+        _studyCodeWithPatient,
+        allowPreAuth: true,
+      );
+      expect(updated, isTrue);
+      expect(preAuthSaved, isTrue);
+
+      final backfill = await service.triggerHistoricalBackfill(
+        _studyCodeWithPatient,
+        days: 90,
+        allowPreAuth: true,
+      );
+      expect(backfill.status, 'triggered');
+      expect(backfill.preAuthApplied, isTrue);
+      expect(backfill.triggered, ['dailies', 'sleeps']);
+      final decodedSync = jsonDecode(capturedSyncBody!) as Map<String, dynamic>;
+      expect(decodedSync['patient_id'], 'patient-42');
+      expect(decodedSync['days'], 90);
+      expect(decodedSync['allow_pre_auth'], isTrue);
+    });
   });
 
   testWidgets(
@@ -511,18 +605,158 @@ void main() {
       expect(find.text('Garmin Cloud'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'Garmin historical sync stays disabled on Starter tier and unlocks dynamically when server enables backfill',
+    (tester) async {
+      tester.view.physicalSize = const Size(1179, 2556);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      final fakeCloud = _FakeCloudConnectorService()
+        ..connectedProviders.add('garmin')
+        ..permissions = const ['HEALTH_EXPORT', 'HISTORICAL_DATA_EXPORT']
+        ..garminCapabilities = const CloudProviderCapabilities(
+          supportsHistoricalBackfill: true,
+          backfillEnabled: false,
+          preAuthHistoryAllowed: false,
+        );
+
+      var now = DateTime.utc(2026, 11, 27, 16, 0);
+      late AppState state;
+      await tester.runAsync(() async {
+        SharedPreferences.setMockInitialValues({'device_id': _studyCodeWithPatient});
+        state = AppState(
+          cloudService: fakeCloud,
+          clock: () => now,
+          enableHistoryModeOverride: false,
+        );
+        await state.load();
+        await state.restoreCloudConnections();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: buildAppTheme(),
+          home: MainPage(state: state),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Account'));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Active cloud connections (1)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Active cloud connections (1)'));
+      await tester.pumpAndSettle();
+
+      // Starter tier: historical sync tile is visible but disabled
+      await tester.ensureVisible(find.text('Send historical data'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Currently disabled, requires other tier on server'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Send historical data'));
+      await tester.pumpAndSettle();
+      expect(find.text('Send historical Garmin data'), findsNothing);
+      expect(fakeCloud.backfillCalls, 0);
+
+      // Server switches to Production without app rebuild
+      fakeCloud.garminCapabilities = const CloudProviderCapabilities(
+        supportsHistoricalBackfill: true,
+        backfillEnabled: true,
+        preAuthHistoryAllowed: true,
+      );
+      await tester.ensureVisible(find.byTooltip('Check Garmin connection status'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Check Garmin connection status'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Request past Garmin data via cloud sync'),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.text('Send historical data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Send historical data'));
+      await tester.pumpAndSettle();
+
+      // Historical backfill dialog opens with range chips + pre-auth switch
+      expect(find.text('Send historical Garmin data'), findsOneWidget);
+      expect(find.text('Include pre-link history'), findsOneWidget);
+
+      await tester.tap(find.text('90 days'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Include pre-link history'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start sync'));
+      await tester.pumpAndSettle();
+
+      expect(fakeCloud.preAuthCalls, 1);
+      expect(fakeCloud.allowPreAuthHistory, isTrue);
+      expect(fakeCloud.backfillCalls, 1);
+      expect(fakeCloud.lastBackfillDays, 90);
+      expect(fakeCloud.lastBackfillPreAuth, isTrue);
+
+      // Cooldown prevents repeated resends within 10 seconds
+      now = now.add(const Duration(seconds: 3));
+      await tester.ensureVisible(find.text('Send historical data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Send historical data'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Send historical Garmin data'), findsNothing);
+      expect(
+        find.text('Please wait 7s before requesting historical Garmin data again.'),
+        findsOneWidget,
+      );
+      expect(fakeCloud.backfillCalls, 1);
+      await expectLater(
+        () => state.triggerCloudHistorySync('garmin'),
+        throwsA(isA<CloudConnectorException>()),
+      );
+
+      // After 10 seconds total, resend dialog opens again
+      now = now.add(const Duration(seconds: 7));
+      await tester.tap(find.text('Send historical data'));
+      await tester.pumpAndSettle();
+      expect(find.text('Send historical Garmin data'), findsOneWidget);
+    },
+  );
 }
 
 class _FakeCloudConnectorService extends CloudConnectorService {
   final Set<String> connectedProviders = {};
   bool rejectAuth = false;
   int disconnectCalls = 0;
+  List<String> permissions = const ['HEALTH_EXPORT'];
+  bool allowPreAuthHistory = false;
+  CloudProviderCapabilities garminCapabilities = const CloudProviderCapabilities(
+    supportsHistoricalBackfill: true,
+    backfillEnabled: false,
+    preAuthHistoryAllowed: false,
+  );
+  int preAuthCalls = 0;
+  int backfillCalls = 0;
+  int? lastBackfillDays;
+  bool? lastBackfillPreAuth;
+
+  @override
+  Future<Map<String, CloudProviderCapabilities>> fetchProviderCapabilities(
+    String deviceId,
+  ) async {
+    return {'garmin': garminCapabilities};
+  }
 
   @override
   Future<Uri> initiateOAuthLogin(
     String deviceId, {
     String provider = 'garmin',
     String? returnUrl = 'wearables://oauth-callback',
+    bool allowPreAuth = false,
   }) async {
     if (rejectAuth) {
       throw const CloudConnectorException(
@@ -534,6 +768,7 @@ class _FakeCloudConnectorService extends CloudConnectorService {
       deviceId,
       provider: provider,
       returnUrl: returnUrl,
+      allowPreAuth: allowPreAuth,
     );
   }
 
@@ -555,6 +790,50 @@ class _FakeCloudConnectorService extends CloudConnectorService {
       patientId: patientIdFor(deviceId),
       providerUserId: isConnected ? '$provider-user-99' : null,
       linkedAt: isConnected ? DateTime.utc(2026, 11, 6, 10) : null,
+      permissions: isConnected ? permissions : const [],
+      allowPreAuthHistory: isConnected ? allowPreAuthHistory : false,
+    );
+  }
+
+  @override
+  Future<bool> setPreAuthHistory(
+    String deviceId, {
+    String provider = 'garmin',
+    required bool allowPreAuth,
+  }) async {
+    if (rejectAuth) {
+      throw const CloudConnectorException(
+        'Invalid or expired token',
+        statusCode: 401,
+      );
+    }
+    preAuthCalls++;
+    allowPreAuthHistory = allowPreAuth;
+    return allowPreAuthHistory;
+  }
+
+  @override
+  Future<HistoricalBackfillResult> triggerHistoricalBackfill(
+    String deviceId, {
+    String provider = 'garmin',
+    int days = 30,
+    bool allowPreAuth = false,
+  }) async {
+    if (rejectAuth) {
+      throw const CloudConnectorException(
+        'Invalid or expired token',
+        statusCode: 401,
+      );
+    }
+    backfillCalls++;
+    lastBackfillDays = days;
+    lastBackfillPreAuth = allowPreAuth;
+    return HistoricalBackfillResult(
+      provider: provider,
+      patientId: patientIdFor(deviceId),
+      status: 'triggered',
+      preAuthApplied: allowPreAuth,
+      triggered: const ['dailies', 'sleeps'],
     );
   }
 

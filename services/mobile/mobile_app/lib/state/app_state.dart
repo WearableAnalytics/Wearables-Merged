@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../app_config.dart';
 import '../services/cloud_connector_service.dart';
 import '../services/health_sync_service.dart';
 import '../services/notification_service.dart';
@@ -28,18 +29,27 @@ class AppState extends ChangeNotifier {
     HealthSyncService? syncService,
     CloudConnectorService? cloudService,
     Future<bool> Function(Uri)? urlLauncher,
+    DateTime Function()? clock,
+    bool? enableHistoryModeOverride,
   }) : _syncService = syncService ?? HealthSyncService(),
        _cloudService = cloudService ?? CloudConnectorService(),
        _urlLauncher =
            urlLauncher ??
-           ((uri) => launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
+           ((uri) => launchUrl(uri, mode: LaunchMode.inAppBrowserView)),
+       _clock = clock ?? DateTime.now,
+       _enableHistoryModeOverride = enableHistoryModeOverride {
     SyncActivityNotifier.isSyncing.addListener(_onSyncActivity);
     SyncActivityNotifier.progress.addListener(notifyListeners);
   }
 
+  static const Duration historySyncCooldown = Duration(seconds: 10);
+
   final HealthSyncService _syncService;
   final CloudConnectorService _cloudService;
   final Future<bool> Function(Uri) _urlLauncher;
+  final DateTime Function() _clock;
+  final bool? _enableHistoryModeOverride;
+  final Map<String, DateTime> _lastHistorySyncAt = {};
 
   bool loaded = false;
   String deviceId = '';
@@ -51,6 +61,7 @@ class AppState extends ChangeNotifier {
 
   /// Map of provider ID (lowercase, e.g. 'garmin') -> connection status
   final Map<String, CloudConnectionStatus> cloudConnections = {};
+  final Map<String, CloudProviderCapabilities> cloudCapabilities = {};
   final Set<String> _busyProviders = {};
 
   /// Emits when OAuth deep link (wearables://oauth-callback) returns for verifying
@@ -68,6 +79,35 @@ class AppState extends ChangeNotifier {
       cloudConnections[provider.toLowerCase()]?.providerUserId;
   DateTime? cloudLinkedAt(String provider) =>
       cloudConnections[provider.toLowerCase()]?.linkedAt;
+  CloudProviderCapabilities cloudCapabilitiesFor(String provider) =>
+      cloudCapabilities[provider.toLowerCase()] ??
+      const CloudProviderCapabilities();
+  bool get _manualHistoryMode =>
+      _enableHistoryModeOverride ?? AppConfig.enableCloudHistoryMode;
+  bool isCloudHistorySupported(String provider) =>
+      cloudCapabilitiesFor(provider).supportsHistoricalBackfill ||
+      CloudProvider.find(provider).supportsHistoricalBackfill;
+  bool isCloudBackfillEnabled(String provider) =>
+      cloudCapabilitiesFor(provider).backfillEnabled ||
+      (_manualHistoryMode && isCloudHistorySupported(provider));
+  bool isCloudPreAuthAllowed(String provider) =>
+      isCloudBackfillEnabled(provider) &&
+      (cloudCapabilitiesFor(provider).preAuthHistoryAllowed ||
+          AppConfig.enableCloudPreAuthHistory);
+  bool cloudAllowPreAuthHistory(String provider) =>
+      cloudConnections[provider.toLowerCase()]?.allowPreAuthHistory ?? false;
+  bool cloudHasHistoricalPermission(String provider) =>
+      cloudConnections[provider.toLowerCase()]?.hasHistoricalPermission ?? false;
+  Duration cloudHistoryCooldownRemaining(String provider) {
+    final last = _lastHistorySyncAt[provider.toLowerCase()];
+    if (last == null) return Duration.zero;
+    final elapsed = _clock().difference(last);
+    if (elapsed >= historySyncCooldown) return Duration.zero;
+    return historySyncCooldown - elapsed;
+  }
+
+  bool isCloudHistoryOnCooldown(String provider) =>
+      cloudHistoryCooldownRemaining(provider) > Duration.zero;
 
   /// True when at least one Cloud connection is active
   bool get hasAnyCloudConnection =>
@@ -136,6 +176,7 @@ class AppState extends ChangeNotifier {
       for (final provider in CloudProvider.knownProviders) {
         final connected = await StorageService.isCloudConnected(provider.id);
         if (connected) {
+          final existing = cloudConnections[provider.id];
           final userId = await StorageService.getCloudUserId(provider.id);
           final linkedAt = await StorageService.getCloudLinkedAt(provider.id);
           cloudConnections[provider.id] = CloudConnectionStatus(
@@ -144,6 +185,8 @@ class AppState extends ChangeNotifier {
             patientId: currentPatientId,
             providerUserId: userId,
             linkedAt: linkedAt,
+            permissions: existing?.permissions ?? const [],
+            allowPreAuthHistory: existing?.allowPreAuthHistory ?? false,
           );
         } else {
           cloudConnections[provider.id] = CloudConnectionStatus(
@@ -201,11 +244,16 @@ class AppState extends ChangeNotifier {
   }
 
   /// Builds the OAuth 2.0 PKCE login URL for any cloud provider
-  Uri cloudOAuthLoginUri(String provider, {String? returnUrl = 'wearables://oauth-callback'}) =>
+  Uri cloudOAuthLoginUri(
+    String provider, {
+    String? returnUrl = 'wearables://oauth-callback',
+    bool allowPreAuth = false,
+  }) =>
       _cloudService.buildOAuthLoginUri(
         deviceId,
         provider: provider,
         returnUrl: returnUrl,
+        allowPreAuth: allowPreAuth,
       );
 
   Future<void> _handleCloudAuthError(CloudConnectorException e) async {
@@ -233,15 +281,34 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> _refreshCapabilitiesQuietly() async {
+    try {
+      final caps = await _cloudService.fetchProviderCapabilities(deviceId);
+      cloudCapabilities
+        ..clear()
+        ..addAll(caps);
+    } catch (_) {}
+  }
+
+  /// Refreshes backend provider capabilities (e.g. whether Garmin backfill is active)
+  Future<void> refreshCloudCapabilities() async {
+    await _refreshCapabilitiesQuietly();
+    notifyListeners();
+  }
+
   /// Opens the cloud provider's OAuth 2.0 PKCE login page in the browser
   /// Initiates the OAuth session via an authenticated POST with the case JWT
-  Future<bool> startCloudConnect(String provider) async {
+  Future<bool> startCloudConnect(
+    String provider, {
+    bool allowPreAuth = false,
+  }) async {
     if (!isLinked || isCodeUnusable) return false;
     try {
       final uri = await _cloudService.initiateOAuthLogin(
         deviceId,
         provider: provider,
         returnUrl: 'wearables://oauth-callback',
+        allowPreAuth: allowPreAuth,
       );
       return await _urlLauncher(uri);
     } on CloudConnectorException catch (e) {
@@ -258,6 +325,7 @@ class AppState extends ChangeNotifier {
     _busyProviders.add(key);
     notifyListeners();
     try {
+      await _refreshCapabilitiesQuietly();
       final status = await _cloudService.fetchConnectionStatus(
         deviceId,
         provider: provider,
@@ -287,6 +355,7 @@ class AppState extends ChangeNotifier {
   /// Returns the list of providers that are active on the server.
   Future<List<CloudProvider>> restoreCloudConnections() async {
     if (!isLinked || isCodeUnusable) return const [];
+    await _refreshCapabilitiesQuietly();
     final restored = <CloudProvider>[];
     var changed = false;
     for (final provider in CloudProvider.activeProviders) {
@@ -321,10 +390,77 @@ class AppState extends ChangeNotifier {
       localHealthSyncEnabled = true;
       changed = true;
     }
-    if (changed || restored.isNotEmpty) {
+    if (changed || restored.isNotEmpty || cloudCapabilities.isNotEmpty) {
       notifyListeners();
     }
     return restored;
+  }
+
+  /// Updates pre-auth historical backfill preference on the server
+  Future<bool> setCloudPreAuthHistory(String provider, bool allow) async {
+    final key = provider.toLowerCase();
+    _busyProviders.add(key);
+    notifyListeners();
+    try {
+      final saved = await _cloudService.setPreAuthHistory(
+        deviceId,
+        provider: provider,
+        allowPreAuth: allow,
+      );
+      final current = cloudConnections[key];
+      if (current != null) {
+        cloudConnections[key] = CloudConnectionStatus(
+          connected: current.connected,
+          provider: current.provider,
+          patientId: current.patientId,
+          providerUserId: current.providerUserId,
+          linkedAt: current.linkedAt,
+          permissions: current.permissions,
+          allowPreAuthHistory: saved,
+        );
+      }
+      return saved;
+    } on CloudConnectorException catch (e) {
+      await _handleCloudAuthError(e);
+      rethrow;
+    } finally {
+      _busyProviders.remove(key);
+      notifyListeners();
+    }
+  }
+
+  /// Triggers asynchronous historical backfill on server for provider.
+  Future<HistoricalBackfillResult> triggerCloudHistorySync(
+    String provider, {
+    int days = 30,
+    bool allowPreAuth = false,
+  }) async {
+    final key = provider.toLowerCase();
+    final remaining = cloudHistoryCooldownRemaining(key);
+    if (remaining > Duration.zero) {
+      final secs = (remaining.inMilliseconds / 1000).ceil();
+      throw CloudConnectorException(
+        'Please wait ${secs}s before requesting historical $provider data again.',
+      );
+    }
+    _busyProviders.add(key);
+    notifyListeners();
+    try {
+      final result = await _cloudService.triggerHistoricalBackfill(
+        deviceId,
+        provider: provider,
+        days: days,
+        allowPreAuth: allowPreAuth,
+      );
+      _lastHistorySyncAt[key] = _clock();
+      return result;
+    } on CloudConnectorException catch (e) {
+      await _handleCloudAuthError(e);
+      rethrow;
+    } finally {
+      _busyProviders.remove(key);
+      notifyListeners();
+    }
   }
 
   /// Communicates with the Cloud Connector server (DELETE /cloud/connections/{provider}/{patientId}) to deregister the provider on the server and clear local state.
