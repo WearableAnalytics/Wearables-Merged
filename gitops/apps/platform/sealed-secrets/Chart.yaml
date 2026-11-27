@@ -1,0 +1,13 @@
+apiVersion: v2
+name: sealed-secrets-wrapper
+description: Sealed Secrets controller, which decrypts the SealedSecrets in gitops/secrets/prod
+type: application
+version: 0.1.0
+
+# Umbrella chart: installs the official chart as a sub-chart
+# https://github.com/bitnami-labs/sealed-secrets/tree/main/helm/sealed-secrets
+# Chart 2.22.0 = controller 0.41.2.
+dependencies:
+  - name: sealed-secrets
+    version: "2.22.0"
+    repository: https://bitnami.github.io/sealed-secrets

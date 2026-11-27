@@ -36,6 +36,7 @@ Open `https://localhost:8080` (Username: `admin`).
 * `mapper-validator`: FHIR Mapping & Validation
 * `web-frontend`: Clinical Web UI (Helm release `web`, as in `setup-script.sh`)
 * `argocd-image-updater`: Updates the images built by `publish-images.yml` (production only, see below)
+* `sealed-secrets`: Sealed Secrets controller in `kube-system` (production only, `prune: false`). It decrypts the SealedSecrets of the runtime secrets with the cluster's single key (`keyrenewperiod: "0"`, no automatic key renewal)
 
 `gitops/setup/argocd/apps/` is a small Helm chart: `templates/applications.yaml` creates one Argo CD application per entry in `values.yaml`. To add or remove an application, edit the `apps` list there. Entries with `productionOnly: true` are skipped by `values-local.yaml` (`production: false`).
 
