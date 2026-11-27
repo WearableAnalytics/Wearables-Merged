@@ -9,7 +9,9 @@ ingress:
   httpOnly: true
 
 env:
-  NODE_ENV: development             # Prod: production; login without magic-link mail
+  NODE_ENV: development             # Prod: production; no mail, log in with gitops/local/login-link.sh
+  LISTEN_HOST: "0.0.0.0"            # outside production the BFF defaults to 127.0.0.1, which Traefik cannot reach
+  COOKIE_SECURE: "false"            # plain HTTP locally; a Secure session cookie would not be sent back
   FRONTEND_ORIGINS: "http://wearables.localhost"
   FRONTEND_REDIRECT_URL: "http://wearables.localhost/"
   BACKEND_URL: "http://wearables.localhost"

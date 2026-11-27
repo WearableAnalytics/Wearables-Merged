@@ -318,7 +318,8 @@ cat <<'EOF'
 Next:
   1. In a second terminal, keep this running (asks for your password once):
        minikube tunnel
-  2. Open http://wearables.localhost and log in with admin@example.com
+  2. Log in as admin@example.com: run ./gitops/local/login-link.sh and open
+     the printed link within 60 seconds (locally no login mails are sent)
 EOF
 if $USE_ARGOCD; then
   cat <<'EOF'

@@ -12,7 +12,7 @@ minikube start --driver=docker --cpus=4 --memory=8g --disk-size=40g
 minikube tunnel                   # in a second terminal, keep it open
 ```
 
-Then open http://wearables.localhost and log in with `admin@example.com`.
+Then log in as `admin@example.com`: run `./gitops/local/login-link.sh` and open the printed link within 60 seconds (step 9).
 
 `setup-local.sh` runs the steps below in order and can be run again at any time: Helm upgrades the releases, and the secrets are applied from `gitops/secrets/local` on every run (step 2a). Use `--skip-build` to keep the current images. Every `kubectl` and `helm` call in the script is pinned to the `minikube` context. The sections below explain each step and how to check it.
 
@@ -295,18 +295,29 @@ helm upgrade --install wearables-bff gitops/apps/services/wearables-bff \
 
 Local differences:
 
-- `NODE_ENV: development`: login works with the email address alone, no magic-link mail and no Brevo key.
-- Admin login: `admin@example.com` (`ADMIN_EMAILS`).
+- `NODE_ENV: development`: no mails are sent and no Brevo key is needed.
+- `LISTEN_HOST: 0.0.0.0`: outside production the BFF listens on `127.0.0.1` by default, which Traefik cannot reach (the symptom is `502 Bad Gateway` on `/api`).
+- `COOKIE_SECURE: "false"`: the session cookie is sent over plain HTTP.
+- Admin: `admin@example.com` (`ADMIN_EMAILS`). The BFF creates the account when it starts, because db_lord allows it as a bootstrap admin (`CONTROL_BOOTSTRAP_ADMIN_EMAILS` in `db-lord-secrets`).
 - URLs point to `http://wearables.localhost`; the API is served at `http://wearables.localhost/api`.
 - The Dev Secret `wearables-bff-secrets` (step 2a) holds the App JWT Secret, the same value as `importservice-secrets`, so case tokens issued by the BFF are accepted by the importservice. It also holds the Operator Tokens for db_lord. `BREVO_API_KEY` is not used in development mode.
 
-Check login and the connection to db_lord:
+### Logging in
+
+Without mail, `POST /api/login` answers `503 Email sign-in is temporarily unavailable`. The email-only development login (`ALLOW_DEV_AUTH_BYPASS`) only works on loopback addresses, not behind Traefik. Instead, `login-link.sh` creates a one-use login link, valid for 60 seconds, the same way `deploy/local/login_link.py` does for the Docker Compose stack: it asks db_lord for a login challenge directly, from inside the db_lord pod, which has the `CONTROL_WRITE_TOKEN`.
 
 ```bash
-curl -c /tmp/bff-cookies -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com"}' http://wearables.localhost/api/login
-# {"authenticated":true,"message":"Direct authentication successful",...}
+./gitops/local/login-link.sh                     # admin@example.com
+./gitops/local/login-link.sh someone@example.com # any approved account
+# http://wearables.localhost/api/verify-magiclink?token=...
+```
 
+Open the link in the browser; it redirects to the overview. Every link works once.
+
+Check login and the connection to db_lord with curl:
+
+```bash
+curl -s -o /dev/null -c /tmp/bff-cookies "$(./gitops/local/login-link.sh)"
 curl -b /tmp/bff-cookies http://wearables.localhost/api/me         # the admin user
 curl -b /tmp/bff-cookies http://wearables.localhost/api/patients   # [] (read from db_lord)
 ```
@@ -332,7 +343,7 @@ curl -s http://wearables.localhost/runtime-config.js   # API_BASE_URL: "/api", G
 
 Right after an install Traefik may answer `503 no available server` for a few seconds, until it knows the new pod.
 
-Then open http://wearables.localhost in Chrome or Firefox (with `minikube tunnel` running), log in with `admin@example.com` (no mail in development mode) and create a case. The dashboards on the case page stay empty until Grafana and grafana-proxy are installed.
+Then open http://wearables.localhost in Chrome or Firefox (with `minikube tunnel` running), log in with a link from `./gitops/local/login-link.sh` (step 9) and create a case. The dashboards on the case page stay empty until Grafana and grafana-proxy are installed.
 
 ## 11. Grafana
 
@@ -406,8 +417,7 @@ Locally the proxy addresses Grafana under `/proxy` (`grafana.pathPrefix`, matchi
 Data only shows up for the patient of a case. Read the patient id of your case through the API and send test data for it:
 
 ```bash
-curl -c /tmp/bff-cookies -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com"}' http://wearables.localhost/api/login
+curl -s -o /dev/null -c /tmp/bff-cookies "$(./gitops/local/login-link.sh)"
 curl -b /tmp/bff-cookies http://wearables.localhost/api/patients   # note the patientId
 
 python3 /tmp/generate.py --url http://wearables.localhost/import/ingest \
