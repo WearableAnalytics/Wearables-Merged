@@ -75,6 +75,10 @@ secrets/
 .env.local
 influxtoken
 
+# Public certificate for sealed-secret creation
+!gitops/secrets/
+!gitops/secrets/sealed-secrets-cert.pem
+
 # Docs
 docs/.$architecture.drawio.bkp
 
