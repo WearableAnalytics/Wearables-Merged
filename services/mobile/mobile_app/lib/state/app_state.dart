@@ -7,6 +7,21 @@ import '../services/notification_service.dart';
 import '../services/sync_activity_notifier.dart';
 import '../storage_service.dart';
 
+/// Outcome of removing a cloud provider connection
+class CloudDisconnectResult {
+  const CloudDisconnectResult({
+    required this.provider,
+    required this.serverDisconnected,
+    required this.removedLocally,
+    this.authRejected = false,
+  });
+
+  final String provider;
+  final bool serverDisconnected;
+  final bool removedLocally;
+  final bool authRejected;
+}
+
 /// Shared, listenable view of the study link and sync state for all tabs.
 class AppState extends ChangeNotifier {
   AppState({
@@ -60,6 +75,16 @@ class AppState extends ChangeNotifier {
 
   /// True when any Cloud connection is currently running an async network call
   bool get isAnyCloudBusy => _busyProviders.isNotEmpty;
+
+  /// Returns all currently connected active cloud providers
+  List<CloudProvider> get connectedCloudProviders => CloudProvider.activeProviders
+      .where((p) => isCloudConnected(p.id))
+      .toList();
+
+  /// Returns all active cloud providers that are not currently connected
+  List<CloudProvider> get availableCloudProviders => CloudProvider.activeProviders
+      .where((p) => !isCloudConnected(p.id))
+      .toList();
 
   /// Returns the primary active cloud provider
   CloudProvider? get primaryCloudProvider {
@@ -142,7 +167,16 @@ class AppState extends ChangeNotifier {
   /// Stores a new study code. [resetLastSync] makes the next upload start
   /// from [initialSyncStart] again.
   Future<void> linkStudyCode(String code, {required bool resetLastSync}) async {
-    await StorageService.setCustomDeviceId(code.trim());
+    final trimmed = code.trim();
+    final oldPatientId = isLinked ? _cloudService.patientIdFor(deviceId) : null;
+    final newPatientId = _cloudService.patientIdFor(trimmed);
+    if (oldPatientId == null || oldPatientId != newPatientId) {
+      await StorageService.clearAllCloudConnections(
+        CloudProvider.knownProviders.map((p) => p.id),
+      );
+      cloudConnections.clear();
+    }
+    await StorageService.setCustomDeviceId(trimmed);
     if (resetLastSync) {
       await StorageService.clearLastDataSendTime();
     }
@@ -174,11 +208,48 @@ class AppState extends ChangeNotifier {
         returnUrl: returnUrl,
       );
 
+  Future<void> _handleCloudAuthError(CloudConnectorException e) async {
+    if (e.isAuthError && StorageService.isStudyCode(deviceId)) {
+      await StorageService.markCodeRejected(deviceId);
+      codeRejected = true;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _clearLocalCloudConnection(String provider) async {
+    final key = provider.toLowerCase();
+    await StorageService.setCloudConnection(
+      provider: provider,
+      connected: false,
+    );
+    cloudConnections[key] = CloudConnectionStatus(
+      connected: false,
+      provider: provider,
+      patientId: _cloudService.patientIdFor(deviceId),
+    );
+    if (!localHealthSyncEnabled && !hasAnyCloudConnection) {
+      await StorageService.setLocalHealthSyncEnabled(true);
+      localHealthSyncEnabled = true;
+    }
+  }
+
   /// Opens the cloud provider's OAuth 2.0 PKCE login page in the browser
+  /// Initiates the OAuth session via an authenticated POST with the case JWT
   Future<bool> startCloudConnect(String provider) async {
-    if (!isLinked) return false;
-    final uri = cloudOAuthLoginUri(provider);
-    return _urlLauncher(uri);
+    if (!isLinked || isCodeUnusable) return false;
+    try {
+      final uri = await _cloudService.initiateOAuthLogin(
+        deviceId,
+        provider: provider,
+        returnUrl: 'wearables://oauth-callback',
+      );
+      return await _urlLauncher(uri);
+    } on CloudConnectorException catch (e) {
+      if (e.isAuthError) {
+        await _handleCloudAuthError(e);
+      }
+      rethrow;
+    }
   }
 
   /// Queries the Cloud Connector server for a specific provider
@@ -198,67 +269,133 @@ class AppState extends ChangeNotifier {
         providerUserId: status.providerUserId,
         linkedAt: status.linkedAt,
       );
+      if (!status.connected && !localHealthSyncEnabled && !hasAnyCloudConnection) {
+        await StorageService.setLocalHealthSyncEnabled(true);
+        localHealthSyncEnabled = true;
+      }
       return status;
+    } on CloudConnectorException catch (e) {
+      await _handleCloudAuthError(e);
+      rethrow;
     } finally {
       _busyProviders.remove(key);
       notifyListeners();
     }
   }
 
-  /// Checks active cloud providers on the server (e.g. after re-install) & updates local storage
-  /// Returns the list of providers that were found to be active on the server
+  /// Reconciles active cloud providers with the server & updates local storage.
+  /// Returns the list of providers that are active on the server.
   Future<List<CloudProvider>> restoreCloudConnections() async {
-    if (!isLinked) return const [];
+    if (!isLinked || isCodeUnusable) return const [];
     final restored = <CloudProvider>[];
+    var changed = false;
     for (final provider in CloudProvider.activeProviders) {
       try {
+        final wasConnected = isCloudConnected(provider.id);
         final status = await _cloudService.fetchConnectionStatus(
           deviceId,
           provider: provider.id,
         );
+        cloudConnections[provider.id] = status;
+        await StorageService.setCloudConnection(
+          provider: provider.id,
+          connected: status.connected,
+          providerUserId: status.providerUserId,
+          linkedAt: status.linkedAt,
+        );
+        if (wasConnected != status.connected) {
+          changed = true;
+        }
         if (status.connected) {
-          cloudConnections[provider.id] = status;
-          await StorageService.setCloudConnection(
-            provider: provider.id,
-            connected: true,
-            providerUserId: status.providerUserId,
-            linkedAt: status.linkedAt,
-          );
           restored.add(provider);
         }
-      } catch (_) {
-      }
+      } on CloudConnectorException catch (e) {
+        if (e.isAuthError) {
+          await _handleCloudAuthError(e);
+          return const [];
+        }
+      } catch (_) {}
     }
-    if (restored.isNotEmpty) {
+    if (!localHealthSyncEnabled && !hasAnyCloudConnection) {
+      await StorageService.setLocalHealthSyncEnabled(true);
+      localHealthSyncEnabled = true;
+      changed = true;
+    }
+    if (changed || restored.isNotEmpty) {
       notifyListeners();
     }
     return restored;
   }
 
   /// Communicates with the Cloud Connector server (DELETE /cloud/connections/{provider}/{patientId}) to deregister the provider on the server and clear local state.
-  Future<void> disconnectCloud(String provider) async {
+  /// When [localOnly] is false and the token is unusable or rejected (401/403), keeps the local state intact and returns `authRejected: true` so the UI does not falsely hide an active server-side link without warning
+  Future<CloudDisconnectResult> disconnectCloud(
+    String provider, {
+    bool localOnly = false,
+  }) async {
     final key = provider.toLowerCase();
     _busyProviders.add(key);
     notifyListeners();
     try {
-      await _cloudService.disconnect(deviceId, provider: provider);
-      await StorageService.setCloudConnection(
-        provider: provider,
-        connected: false,
-      );
-      cloudConnections[key] = CloudConnectionStatus(
-        connected: false,
-        provider: provider,
-        patientId: _cloudService.patientIdFor(deviceId),
-      );
-      if (!localHealthSyncEnabled && !hasAnyCloudConnection) {
-        await StorageService.setLocalHealthSyncEnabled(true);
-        localHealthSyncEnabled = true;
+      if (localOnly) {
+        await _clearLocalCloudConnection(provider);
+        return CloudDisconnectResult(
+          provider: provider,
+          serverDisconnected: false,
+          removedLocally: true,
+          authRejected: isCodeUnusable,
+        );
+      }
+
+      if (isCodeUnusable) {
+        return CloudDisconnectResult(
+          provider: provider,
+          serverDisconnected: false,
+          removedLocally: false,
+          authRejected: true,
+        );
+      }
+
+      try {
+        await _cloudService.disconnect(deviceId, provider: provider);
+        await _clearLocalCloudConnection(provider);
+        return CloudDisconnectResult(
+          provider: provider,
+          serverDisconnected: true,
+          removedLocally: true,
+        );
+      } on CloudConnectorException catch (e) {
+        if (e.isAuthError) {
+          await _handleCloudAuthError(e);
+          return CloudDisconnectResult(
+            provider: provider,
+            serverDisconnected: false,
+            removedLocally: false,
+            authRejected: true,
+          );
+        }
+        rethrow;
       }
     } finally {
       _busyProviders.remove(key);
       notifyListeners();
     }
+  }
+
+  /// Disconnects all currently active cloud provider connections
+  Future<List<CloudDisconnectResult>> disconnectAllCloudConnections({
+    bool localOnly = false,
+  }) async {
+    final providers = connectedCloudProviders.map((p) => p.id).toList();
+    final results = <CloudDisconnectResult>[];
+    for (final providerId in providers) {
+      final res = await disconnectCloud(providerId, localOnly: localOnly);
+      results.add(res);
+      if (res.authRejected && !res.removedLocally) {
+        break;
+      }
+    }
+    return results;
   }
 
   // Backward compatible methods for Garmin

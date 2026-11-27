@@ -164,6 +164,52 @@ def test_connections_and_mutations_scoped_to_authenticated_patient(isolated_env)
     assert isolated_env.get_connection("garmin", "patient-a") is None
 
 
+def test_oauth_login_initiation_requires_valid_case_jwt(monkeypatch, isolated_env):
+    monkeypatch.setenv("GARMIN_CLIENT_ID", "test-garmin-client")
+    monkeypatch.setenv("GARMIN_CLIENT_SECRET", "test-garmin-secret")
+    get_settings.cache_clear()
+
+    client = TestClient(app)
+    token_a = _make_case_jwt(patient_id="patient-a", case_id="case-a", sub="case-a")
+    expired = _make_case_jwt(patient_id="patient-a", case_id="case-a", sub="case-a", exp_offset=-60)
+
+    # Unauthenticated GET/POST /auth/garmin/login must fail
+    assert client.get("/auth/garmin/login?patient_id=patient-a", follow_redirects=False).status_code in (401, 403)
+    assert client.post("/auth/garmin/login").status_code in (401, 403)
+    assert client.post(
+        "/auth/garmin/login",
+        headers={"Authorization": f"Bearer {expired}"},
+    ).status_code == 401
+
+    # Patient A cannot initiate GET login for Patient B
+    assert (
+        client.get(
+            "/auth/garmin/login?patient_id=patient-b",
+            headers={"Authorization": f"Bearer {token_a}"},
+            follow_redirects=False,
+        ).status_code
+        == 403
+    )
+
+    # Authenticated POST binds pending OAuth state to JWT patientId
+    resp = client.post(
+        "/auth/garmin/login",
+        json={"return_url": "wearables://oauth-callback"},
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["provider"] == "garmin"
+    assert body["patient_id"] == "patient-a"
+    assert "state" in body
+    assert body["authorization_url"].startswith("https://connect.garmin.com/oauth2Confirm")
+
+    pending = isolated_env.pop_pending_state(body["state"])
+    assert pending is not None
+    assert pending["patient_id"] == "patient-a"
+    assert pending["return_url"] == "wearables://oauth-callback"
+
+
 def test_public_endpoints_and_internal_admin_server(monkeypatch, tmp_path):
     import app.internal_server as internal_mod
     import app.storage as storage_mod

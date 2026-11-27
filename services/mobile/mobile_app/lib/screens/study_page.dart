@@ -106,9 +106,27 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
       await state.load();
       if (mounted) setState(() {});
     } catch (e) {
-      if (mounted) {
-        _toast('Could not verify ${provider.name} connection: $e');
-      }
+      await _handleCloudActionError(
+        e,
+        'Could not verify ${provider.name} connection: $e',
+      );
+    }
+  }
+
+  Future<void> _handleCloudActionError(
+    Object error,
+    String fallbackMessage, {
+    String? rescanSuffix,
+  }) async {
+    if (!mounted) return;
+    if (error is CloudConnectorException && error.isAuthError) {
+      final suffix = rescanSuffix != null ? ' $rescanSuffix' : '';
+      await _promptRescanCode(
+        'The server rejected your personal code (Status ${error.statusCode}). '
+        'Please scan a new QR code$suffix.',
+      );
+    } else {
+      _toast(fallbackMessage);
     }
   }
 
@@ -117,17 +135,58 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
     await promptSyncModeAfterConnect(context, state, provider);
   }
 
+  Future<void> _promptRescanCode(String message) async {
+    if (!mounted) return;
+    final rescan = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New QR code required'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Scan QR code'),
+          ),
+        ],
+      ),
+    );
+    if (rescan == true && mounted) {
+      await _changeCode(scan: true);
+    }
+  }
+
   Future<void> _connectCloud(CloudProvider provider) async {
     if (!state.isLinked) {
       _toast('Please link your personal QR code first.');
       return;
     }
+    if (state.isCodeUnusable) {
+      await _promptRescanCode(
+        'Your personal code expired or was rejected by the server. '
+        'Please scan a new QR code before connecting ${provider.name}.',
+      );
+      return;
+    }
     _awaitingAuthProvider = provider.id;
-    final launched = await state.startCloudConnect(provider.id);
-    if (!mounted) return;
-    if (!launched) {
+    try {
+      final launched = await state.startCloudConnect(provider.id);
+      if (!mounted) return;
+      if (!launched) {
+        _awaitingAuthProvider = null;
+        _toast('Could not open ${provider.name} login page.');
+      }
+    } catch (e) {
       _awaitingAuthProvider = null;
-      _toast('Could not open ${provider.name} login page.');
+      await _handleCloudActionError(
+        e,
+        'Could not start ${provider.name} connection: $e',
+        rescanSuffix: 'before connecting ${provider.name}',
+      );
     }
   }
 
@@ -148,8 +207,97 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
       await state.load();
       if (mounted) setState(() {});
     } catch (e) {
-      if (mounted) {
-        _toast('Failed to check ${provider.name} Cloud status.');
+      await _handleCloudActionError(
+        e,
+        'Failed to check ${provider.name} Cloud status.',
+      );
+    }
+  }
+
+  Future<void> _offerLocalDisconnectFallback({
+    required String title,
+    required String message,
+    required Future<void> Function() onForceLocal,
+    required String successToast,
+  }) async {
+    if (!mounted) return;
+    final removeLocally = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 44),
+              backgroundColor: AppColors.coral,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove locally'),
+          ),
+        ],
+      ),
+    );
+    if (removeLocally == true && mounted) {
+      await onForceLocal();
+      if (mounted) _toast(successToast);
+    }
+  }
+
+  Future<void> _offerAuthDisconnectRecovery({
+    required String targetDescription,
+    required Future<void> Function() onRetryServerDisconnect,
+    required Future<void> Function() onForceLocal,
+    required String localSuccessToast,
+  }) async {
+    if (!mounted) return;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Could not remove on server'),
+        content: Text(
+          'Your personal code expired or was rejected by the server, so $targetDescription still remains active on the server and will continue syncing.\n\n'
+          'Scan a new QR code to remove it from the server, or remove it from this device only.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.coral),
+            onPressed: () => Navigator.pop(ctx, 'local'),
+            child: const Text('Remove on device only'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+            onPressed: () => Navigator.pop(ctx, 'rescan'),
+            child: const Text('Scan QR code'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || choice == null || choice == 'cancel') return;
+    if (choice == 'local') {
+      await onForceLocal();
+      if (mounted) _toast(localSuccessToast);
+      return;
+    }
+    if (choice == 'rescan') {
+      final previousPatient = state.isLinked
+          ? CloudConnectorService().patientIdFor(state.deviceId)
+          : null;
+      await _changeCode(scan: true);
+      if (!mounted || state.isCodeUnusable) return;
+      final newPatient = state.isLinked
+          ? CloudConnectorService().patientIdFor(state.deviceId)
+          : null;
+      if (previousPatient != null && previousPatient == newPatient) {
+        await onRetryServerDisconnect();
       }
     }
   }
@@ -181,12 +329,98 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
     );
     if (ok != true || !mounted) return;
     try {
-      await state.disconnectCloud(provider.id);
+      final result = await state.disconnectCloud(provider.id);
       if (!mounted) return;
-      _toast('${provider.name} Cloud connection removed from server.');
+      if (result.serverDisconnected) {
+        _toast('${provider.name} Cloud connection removed from server.');
+      } else if (result.authRejected) {
+        await _offerAuthDisconnectRecovery(
+          targetDescription: 'your ${provider.name} Cloud connection',
+          onRetryServerDisconnect: () async {
+            final retried = await state.disconnectCloud(provider.id);
+            if (mounted && retried.serverDisconnected) {
+              _toast('${provider.name} Cloud connection removed from server.');
+            }
+          },
+          onForceLocal: () =>
+              state.disconnectCloud(provider.id, localOnly: true),
+          localSuccessToast:
+              '${provider.name} Cloud removed from this device only (still active on server).',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      _toast('Could not remove ${provider.name} Cloud connection: $e');
+      await _offerLocalDisconnectFallback(
+        title: 'Server unreachable',
+        message:
+            'Could not remove ${provider.name} Cloud connection on the server ($e). '
+            'The connection stays active on the server. Remove it from this device only?',
+        onForceLocal: () =>
+            state.disconnectCloud(provider.id, localOnly: true),
+        successToast:
+            '${provider.name} Cloud removed from this device only.',
+      );
+    }
+  }
+
+  Future<void> _confirmDisconnectAllCloud(List<CloudProvider> providers) async {
+    final names = providers.map((p) => p.name).join(', ');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove all cloud connections?'),
+        content: Text(
+          'This will deregister all ${providers.length} connected cloud accounts ($names) on the server and stop direct cloud synchronization.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 44),
+              backgroundColor: AppColors.coral,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove all'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final results = await state.disconnectAllCloudConnections();
+      if (!mounted) return;
+      if (results.any((r) => r.authRejected && !r.removedLocally)) {
+        await _offerAuthDisconnectRecovery(
+          targetDescription: 'your active cloud connections ($names)',
+          onRetryServerDisconnect: () async {
+            final retried = await state.disconnectAllCloudConnections();
+            if (mounted && retried.every((r) => r.serverDisconnected)) {
+              _toast('All cloud connections removed from server.');
+            }
+          },
+          onForceLocal: () =>
+              state.disconnectAllCloudConnections(localOnly: true),
+          localSuccessToast:
+              'Cloud connections removed from this device only (still active on server).',
+        );
+      } else {
+        _toast('All cloud connections removed from server.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      await _offerLocalDisconnectFallback(
+        title: 'Server unreachable',
+        message:
+            'Could not remove remaining cloud connections on the server ($e). '
+            'They remain active on the server. Remove them from this device only?',
+        onForceLocal: () =>
+            state.disconnectAllCloudConnections(localOnly: true),
+        successToast:
+            'Remaining cloud connections removed from this device only.',
+      );
     }
   }
 
@@ -217,6 +451,8 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
     if (state.isCodeUnusable) {
       // Replacing an expired or rejected code: continue where sharing stopped.
       await state.linkStudyCode(code, resetLastSync: false);
+      await state.restoreCloudConnections();
+      if (!mounted) return;
       _toast('Personal code linked. Sharing continues.');
       await state.syncNow();
       return;
@@ -248,6 +484,8 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
     );
     if (reset == null) return;
     await state.linkStudyCode(code, resetLastSync: reset);
+    await state.restoreCloudConnections();
+    if (!mounted) return;
     _toast('New personal code linked.');
   }
 
@@ -423,40 +661,145 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 24),
             _SectionLabel('Data sources'),
-            Card(
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    secondary: const Icon(Symbols.favorite_sharp),
-                    title: Text(AppConfig.healthStore),
-                    subtitle: Text(
-                      state.localHealthSyncEnabled &&
-                              state.hasAnyCloudConnection
-                          ? 'Syncing local phone data in parallel with ${state.primaryCloudProvider?.name ?? "Cloud"} Cloud.'
-                          : state.localHealthSyncEnabled
-                          ? 'Syncs health data stored on this ${AppConfig.deviceName}.'
-                          : state.hasAnyCloudConnection
-                          ? 'Paused - using ${state.primaryCloudProvider?.name ?? "Cloud"} Cloud only (no phone upload needed).'
-                          : 'Paused - enable or connect a Cloud wearable below.',
-                    ),
-                    value: state.localHealthSyncEnabled,
-                    activeThumbColor: AppColors.blue,
-                    onChanged: _toggleLocalSync,
+            Builder(
+              builder: (context) {
+                final activeCloud = state.connectedCloudProviders;
+                final availableCloud = state.availableCloudProviders;
+                return Card(
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        secondary: const Icon(Symbols.favorite_sharp),
+                        title: Text(AppConfig.healthStore),
+                        subtitle: Text(
+                          state.localHealthSyncEnabled &&
+                                  state.hasAnyCloudConnection
+                              ? 'Syncing local phone data in parallel with ${state.primaryCloudProvider?.name ?? "Cloud"} Cloud.'
+                              : state.localHealthSyncEnabled
+                              ? 'Syncs health data stored on this ${AppConfig.deviceName}.'
+                              : state.hasAnyCloudConnection
+                              ? 'Paused - using ${state.primaryCloudProvider?.name ?? "Cloud"} Cloud only (no phone upload needed).'
+                              : 'Paused - enable or connect a Cloud wearable below.',
+                        ),
+                        value: state.localHealthSyncEnabled,
+                        activeThumbColor: AppColors.blue,
+                        onChanged: _toggleLocalSync,
+                      ),
+                      if (activeCloud.isNotEmpty) ...[
+                        const Divider(indent: 20, endIndent: 20),
+                        Theme(
+                          data: Theme.of(
+                            context,
+                          ).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            key: const Key('active_cloud_providers_dropdown'),
+                            leading: const Icon(
+                              Symbols.cloud_done_sharp,
+                              color: AppColors.success,
+                            ),
+                            title: Text(
+                              'Active cloud connections (${activeCloud.length})',
+                            ),
+                            subtitle: Text(
+                              activeCloud.map((p) => p.name).join(', '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            tilePadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                            ),
+                            childrenPadding: const EdgeInsets.only(bottom: 8),
+                            iconColor: AppColors.blue,
+                            children: [
+                              for (final provider in activeCloud)
+                                _CloudProviderTile(
+                                  provider: provider,
+                                  connected: true,
+                                  busy: state.isCloudBusy(provider.id),
+                                  onRefresh: () =>
+                                      _refreshCloudStatus(provider),
+                                  onConnect: () => _connectCloud(provider),
+                                  onDisconnect: () =>
+                                      _confirmDisconnectCloud(provider),
+                                ),
+                              if (activeCloud.length > 1) ...[
+                                const Divider(indent: 20, endIndent: 20),
+                                ListTile(
+                                  leading: const Icon(
+                                    Symbols.link_off_sharp,
+                                    color: AppColors.coral,
+                                  ),
+                                  title: const Text(
+                                    'Remove all cloud connections',
+                                    style: TextStyle(
+                                      color: AppColors.coral,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  trailing: state.isAnyCloudBusy
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : null,
+                                  onTap: state.isAnyCloudBusy
+                                      ? null
+                                      : () => _confirmDisconnectAllCloud(
+                                            activeCloud,
+                                          ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (availableCloud.isNotEmpty) ...[
+                        const Divider(indent: 20, endIndent: 20),
+                        Theme(
+                          data: Theme.of(
+                            context,
+                          ).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            key: const Key('cloud_providers_dropdown'),
+                            leading: const Icon(Symbols.cloud_sync_sharp),
+                            title: Text(
+                              activeCloud.isEmpty
+                                  ? 'Connect cloud provider'
+                                  : 'Connect another cloud provider',
+                            ),
+                            subtitle: Text(
+                              availableCloud.map((p) => p.name).join(', '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            tilePadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                            ),
+                            childrenPadding: const EdgeInsets.only(bottom: 8),
+                            iconColor: AppColors.blue,
+                            children: [
+                              for (final provider in availableCloud)
+                                _CloudProviderTile(
+                                  provider: provider,
+                                  connected: false,
+                                  busy: state.isCloudBusy(provider.id),
+                                  onRefresh: () =>
+                                      _refreshCloudStatus(provider),
+                                  onConnect: () => _connectCloud(provider),
+                                  onDisconnect: () =>
+                                      _confirmDisconnectCloud(provider),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  for (final provider in CloudProvider.activeProviders) ...[
-                    const Divider(indent: 20, endIndent: 20),
-                    _CloudProviderTile(
-                      provider: provider,
-                      connected: state.isCloudConnected(provider.id),
-                      busy: state.isCloudBusy(provider.id),
-                      userId: state.cloudUserId(provider.id),
-                      onRefresh: () => _refreshCloudStatus(provider),
-                      onConnect: () => _connectCloud(provider),
-                      onDisconnect: () => _confirmDisconnectCloud(provider),
-                    ),
-                  ],
-                ],
-              ),
+                );
+              },
             ),
             const SizedBox(height: 24),
             _SectionLabel('About'),
@@ -547,7 +890,6 @@ class _CloudProviderTile extends StatelessWidget {
     required this.provider,
     required this.connected,
     required this.busy,
-    this.userId,
     required this.onRefresh,
     required this.onConnect,
     required this.onDisconnect,
@@ -556,7 +898,6 @@ class _CloudProviderTile extends StatelessWidget {
   final CloudProvider provider;
   final bool connected;
   final bool busy;
-  final String? userId;
   final VoidCallback onRefresh;
   final VoidCallback onConnect;
   final VoidCallback onDisconnect;
@@ -583,41 +924,37 @@ class _CloudProviderTile extends StatelessWidget {
       );
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ListTile(
-          leading: Icon(
-            provider.icon ?? Symbols.watch_sharp,
-            color: AppColors.success,
-          ),
-          title: Text('${provider.displayName} (Cloud)'),
-          subtitle: Text(
-            userId != null
-                ? 'Connected ($userId) - direct cloud sync active.'
-                : 'Connected — direct cloud sync active.',
-          ),
-          trailing: busy
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : IconButton(
+    return ListTile(
+      leading: Icon(
+        provider.icon ?? Symbols.watch_sharp,
+        color: AppColors.success,
+      ),
+      title: Text(provider.displayName),
+      subtitle: const Text('Direct cloud sync active'),
+      trailing: busy
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
                   tooltip: 'Check ${provider.name} connection status',
                   icon: const Icon(Symbols.refresh_sharp),
                   onPressed: onRefresh,
                 ),
-        ),
-        ListTile(
-          leading: const Icon(Symbols.link_off_sharp, color: AppColors.coral),
-          title: Text(
-            'Remove ${provider.name} Cloud connection',
-            style: const TextStyle(color: AppColors.coral),
-          ),
-          onTap: busy ? null : onDisconnect,
-        ),
-      ],
+                IconButton(
+                  tooltip: 'Remove ${provider.name} Cloud connection',
+                  icon: const Icon(
+                    Symbols.link_off_sharp,
+                    color: AppColors.coral,
+                  ),
+                  onPressed: onDisconnect,
+                ),
+              ],
+            ),
     );
   }
 }
