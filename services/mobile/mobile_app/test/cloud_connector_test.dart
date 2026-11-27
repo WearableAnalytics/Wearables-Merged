@@ -271,6 +271,46 @@ void main() {
       expect(decodedSync['days'], 90);
       expect(decodedSync['allow_pre_auth'], isTrue);
     });
+
+    test('fetches all active connections in a single GET /connections call', () async {
+      var requests = 0;
+      subscription = server.listen((request) async {
+        requests++;
+        if (request.method == 'GET' &&
+            request.uri.path == '/cloud/connections' &&
+            !request.uri.queryParameters.containsKey('provider')) {
+          request.response.statusCode = 200;
+          request.response.write(
+            jsonEncode({
+              'connections': [
+                {
+                  'provider': 'garmin',
+                  'patient_id': 'patient-42',
+                  'provider_user_id': 'garmin-user-1',
+                  'linked_at': '2026-11-06T10:00:00Z',
+                },
+                {
+                  'provider': 'oura',
+                  'patient_id': 'patient-42',
+                  'provider_user_id': 'oura-user-2',
+                  'linked_at': '2026-11-07T10:00:00Z',
+                },
+              ],
+            }),
+          );
+          await request.response.close();
+          return;
+        }
+        request.response.statusCode = 404;
+        await request.response.close();
+      });
+
+      final all = await service.fetchAllConnectionStatuses(_studyCodeWithPatient);
+      expect(requests, 1);
+      expect(all.keys, containsAll(['garmin', 'oura']));
+      expect(all['garmin']?.connected, isTrue);
+      expect(all['oura']?.providerUserId, 'oura-user-2');
+    });
   });
 
   testWidgets(
@@ -726,12 +766,78 @@ void main() {
       expect(find.text('Send historical Garmin data'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'restoring multiple cloud connections shows one combined dialog and Home summarizes all active providers',
+    (tester) async {
+      tester.view.physicalSize = const Size(1179, 2556);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      SharedPreferences.setMockInitialValues({});
+      final fakeCloud = _FakeCloudConnectorService()
+        ..connectedProviders.addAll(['garmin', 'oura']);
+      final state = AppState(cloudService: fakeCloud);
+      await state.load();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: buildAppTheme(),
+          home: MainPage(state: state),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Enter study code manually from Welcome screen to trigger restore
+      await tester.ensureVisible(find.text('Enter code manually'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enter code manually'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), _studyCodeWithPatient);
+      await tester.tap(find.text('Link personal code'));
+      await tester.pumpAndSettle();
+
+      // Only one combined dialog appears
+      expect(find.text('2 cloud connections restored'), findsOneWidget);
+      expect(find.textContaining('Garmin, Oura'), findsOneWidget);
+      expect(fakeCloud.fetchAllCalls, 1);
+
+      await tester.tap(find.text('Cloud only'));
+      await tester.pumpAndSettle();
+
+      // No second provider dialog appeared after closing first
+      expect(find.text('Oura Cloud connected'), findsNothing);
+      expect(state.isCloudOnlyMode, isTrue);
+
+      // Home reflects both and updates both on status check
+      expect(find.text('Garmin & Oura'), findsOneWidget);
+      expect(find.text('Check cloud status'), findsOneWidget);
+
+      // Wait for restore toast to dismiss before tapping button near bottom
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Check cloud status'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Check cloud status'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.text(
+          'Cloud connections active (Garmin, Oura). Data syncs directly via cloud.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 }
 
 class _FakeCloudConnectorService extends CloudConnectorService {
   final Set<String> connectedProviders = {};
   bool rejectAuth = false;
   int disconnectCalls = 0;
+  int fetchAllCalls = 0;
   List<String> permissions = const ['HEALTH_EXPORT'];
   bool allowPreAuthHistory = false;
   CloudProviderCapabilities garminCapabilities = const CloudProviderCapabilities(
@@ -749,6 +855,27 @@ class _FakeCloudConnectorService extends CloudConnectorService {
     String deviceId,
   ) async {
     return {'garmin': garminCapabilities};
+  }
+
+  @override
+  Future<Map<String, CloudConnectionStatus>> fetchAllConnectionStatuses(
+    String deviceId,
+  ) async {
+    if (rejectAuth) {
+      throw const CloudConnectorException(
+        'Invalid or expired token',
+        statusCode: 401,
+      );
+    }
+    fetchAllCalls++;
+    final result = <String, CloudConnectionStatus>{};
+    for (final provider in connectedProviders) {
+      result[provider] = await fetchConnectionStatus(
+        deviceId,
+        provider: provider,
+      );
+    }
+    return result;
   }
 
   @override

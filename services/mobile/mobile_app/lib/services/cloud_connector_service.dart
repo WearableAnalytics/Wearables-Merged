@@ -415,6 +415,61 @@ class CloudConnectorService {
     return result;
   }
 
+  CloudConnectionStatus? _parseConnectionItem(
+    dynamic item,
+    String patientId, {
+    String? expectedProvider,
+  }) {
+    if (item is! Map<String, dynamic> || item['patient_id'] != patientId) {
+      return null;
+    }
+    final rawProvider = (item['provider'] as String?)?.trim().toLowerCase();
+    if (rawProvider == null || rawProvider.isEmpty) return null;
+    if (expectedProvider != null &&
+        rawProvider != expectedProvider.toLowerCase()) {
+      return null;
+    }
+    final linkedAtRaw = item['linked_at'];
+    final permsRaw = item['permissions'];
+    return CloudConnectionStatus(
+      connected: true,
+      provider: rawProvider,
+      patientId: patientId,
+      providerUserId: item['provider_user_id'] as String?,
+      linkedAt: linkedAtRaw is String ? DateTime.tryParse(linkedAtRaw) : null,
+      permissions:
+          permsRaw is List ? permsRaw.whereType<String>().toList() : const [],
+      allowPreAuthHistory: item['allow_pre_auth_history'] == true,
+    );
+  }
+
+  /// Queries GET /cloud/connections and returns provider ID
+  Future<Map<String, CloudConnectionStatus>> fetchAllConnectionStatuses(
+    String deviceId,
+  ) async {
+    final patientId = patientIdFor(deviceId);
+    final decoded = await _sendJsonRequest(
+      deviceId,
+      method: 'GET',
+      subPath: '/connections',
+      errorMessage: 'Failed to query cloud connections',
+    );
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Unexpected cloud connections payload');
+    }
+    final list = decoded['connections'];
+    final result = <String, CloudConnectionStatus>{};
+    if (list is List) {
+      for (final item in list) {
+        final parsed = _parseConnectionItem(item, patientId);
+        if (parsed != null) {
+          result[parsed.provider] = parsed;
+        }
+      }
+    }
+    return result;
+  }
+
   /// Queries the server (GET /cloud/connections?provider=...) to verify whether the participant currently has an active cloud connection
   Future<CloudConnectionStatus> fetchConnectionStatus(
     String deviceId, {
@@ -434,26 +489,12 @@ class CloudConnectorService {
     final list = decoded['connections'];
     if (list is List) {
       for (final item in list) {
-        if (item is Map<String, dynamic> &&
-            item['patient_id'] == patientId &&
-            (item['provider'] as String?)?.toLowerCase() ==
-                provider.toLowerCase()) {
-          final linkedAtRaw = item['linked_at'];
-          final permsRaw = item['permissions'];
-          return CloudConnectionStatus(
-            connected: true,
-            provider: provider,
-            patientId: patientId,
-            providerUserId: item['provider_user_id'] as String?,
-            linkedAt: linkedAtRaw is String
-                ? DateTime.tryParse(linkedAtRaw)
-                : null,
-            permissions: permsRaw is List
-                ? permsRaw.whereType<String>().toList()
-                : const [],
-            allowPreAuthHistory: item['allow_pre_auth_history'] == true,
-          );
-        }
+        final parsed = _parseConnectionItem(
+          item,
+          patientId,
+          expectedProvider: provider,
+        );
+        if (parsed != null) return parsed;
       }
     }
 

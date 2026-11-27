@@ -543,16 +543,16 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
   Future<void> _toggleLocalSync(bool enabled) async {
     await state.setLocalHealthSyncEnabled(enabled);
     if (!mounted) return;
-    final cloudName = state.primaryCloudProvider?.name ?? 'Cloud';
+    final cloudLabel = state.cloudTileLabel;
     if (!enabled && state.hasAnyCloudConnection) {
-      _toast('$cloudName Cloud-only mode active. Local phone uploads paused.');
+      _toast('$cloudLabel-only mode active. Local phone uploads paused.');
     } else if (!enabled && !state.hasAnyCloudConnection) {
       _toast(
         'Local ${AppConfig.healthStore} uploads paused. Connect a Cloud wearable below for cloud sync.',
       );
     } else if (enabled && state.hasAnyCloudConnection) {
       _toast(
-        'Parallel sync active (${AppConfig.healthStore} + $cloudName Cloud).',
+        'Parallel sync active (${AppConfig.healthStore} + $cloudLabel).',
       );
     } else {
       _toast('${AppConfig.healthStore} synchronization enabled.');
@@ -560,6 +560,7 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
   }
 
   Future<void> _changeCode({required bool scan}) async {
+    final rootContext = Navigator.of(context, rootNavigator: true).context;
     final code = scan
         ? await scanStudyCode(context)
         : await enterStudyCodeManually(context);
@@ -567,10 +568,15 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
     if (state.isCodeUnusable) {
       // Replacing an expired or rejected code: continue where sharing stopped.
       await state.linkStudyCode(code, resetLastSync: false);
-      await state.restoreCloudConnections();
+      final restored = await state.restoreCloudConnections();
       if (!mounted) return;
       _toast('Personal code linked. Sharing continues.');
-      await state.syncNow();
+      if (restored.isNotEmpty && rootContext.mounted) {
+        await promptSyncModeAfterRestore(rootContext, state, restored);
+      }
+      if (state.localHealthSyncEnabled) {
+        await state.syncNow();
+      }
       return;
     }
     if (code == state.deviceId) {
@@ -600,9 +606,13 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
     );
     if (reset == null) return;
     await state.linkStudyCode(code, resetLastSync: reset);
-    await state.restoreCloudConnections();
+    final restored = await state.restoreCloudConnections();
     if (!mounted) return;
-    _toast('New personal code linked.');
+    if (restored.isNotEmpty && rootContext.mounted) {
+      await promptSyncModeAfterRestore(rootContext, state, restored);
+    } else {
+      _toast('New personal code linked.');
+    }
   }
 
   Future<void> _confirmReset() async {
@@ -790,11 +800,11 @@ class _StudyPageState extends State<StudyPage> with WidgetsBindingObserver {
                         subtitle: Text(
                           state.localHealthSyncEnabled &&
                                   state.hasAnyCloudConnection
-                              ? 'Syncing local phone data in parallel with ${state.primaryCloudProvider?.name ?? "Cloud"} Cloud.'
+                              ? 'Syncing local phone data in parallel with ${state.cloudTileLabel}.'
                               : state.localHealthSyncEnabled
                               ? 'Syncs health data stored on this ${AppConfig.deviceName}.'
                               : state.hasAnyCloudConnection
-                              ? 'Paused - using ${state.primaryCloudProvider?.name ?? "Cloud"} Cloud only (no phone upload needed).'
+                              ? 'Paused - using ${state.cloudTileLabel} only (no phone upload needed).'
                               : 'Paused - enable or connect a Cloud wearable below.',
                         ),
                         value: state.localHealthSyncEnabled,

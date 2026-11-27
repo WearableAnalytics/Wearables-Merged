@@ -136,6 +136,29 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
+  /// Comma-separated list of all connected cloud provider names
+  String get cloudNamesList =>
+      connectedCloudProviders.map((p) => p.name).join(', ');
+
+  /// Concise summary of connected cloud providers (e.g. "Garmin", "Garmin & Oura", "3 Cloud providers")
+  String get cloudSummaryLabel {
+    final connected = connectedCloudProviders;
+    if (connected.isEmpty) return 'Cloud';
+    if (connected.length == 1) return connected.first.name;
+    if (connected.length == 2) {
+      return '${connected[0].name} & ${connected[1].name}';
+    }
+    return '${connected.length} Cloud providers';
+  }
+
+  /// Label for tiles
+  String get cloudTileLabel {
+    final connected = connectedCloudProviders;
+    if (connected.isEmpty) return 'Cloud';
+    if (connected.length == 1) return '${connected.first.name} Cloud';
+    return cloudSummaryLabel;
+  }
+
   /// True when Cloud is active and local phone upload is turned off
   bool get isCloudOnlyMode => !localHealthSyncEnabled && hasAnyCloudConnection;
 
@@ -351,49 +374,84 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Reconciles active cloud providers with the server & updates local storage.
-  /// Returns the list of providers that are active on the server.
-  Future<List<CloudProvider>> restoreCloudConnections() async {
-    if (!isLinked || isCodeUnusable) return const [];
+  Future<List<CloudProvider>> _reconcileAllConnections() async {
     await _refreshCapabilitiesQuietly();
-    final restored = <CloudProvider>[];
+    final activeMap = await _cloudService.fetchAllConnectionStatuses(deviceId);
+    final activeProviders = <CloudProvider>[];
+    final currentPatientId = _cloudService.patientIdFor(deviceId);
     var changed = false;
+
     for (final provider in CloudProvider.activeProviders) {
-      try {
-        final wasConnected = isCloudConnected(provider.id);
-        final status = await _cloudService.fetchConnectionStatus(
-          deviceId,
-          provider: provider.id,
-        );
-        cloudConnections[provider.id] = status;
+      final wasConnected = isCloudConnected(provider.id);
+      final serverStatus = activeMap[provider.id];
+      if (serverStatus != null && serverStatus.connected) {
+        cloudConnections[provider.id] = serverStatus;
         await StorageService.setCloudConnection(
           provider: provider.id,
-          connected: status.connected,
-          providerUserId: status.providerUserId,
-          linkedAt: status.linkedAt,
+          connected: true,
+          providerUserId: serverStatus.providerUserId,
+          linkedAt: serverStatus.linkedAt,
         );
-        if (wasConnected != status.connected) {
+        if (!wasConnected) changed = true;
+        activeProviders.add(provider);
+      } else {
+        cloudConnections[provider.id] = CloudConnectionStatus(
+          connected: false,
+          provider: provider.id,
+          patientId: currentPatientId,
+        );
+        if (wasConnected) {
+          await StorageService.setCloudConnection(
+            provider: provider.id,
+            connected: false,
+          );
           changed = true;
         }
-        if (status.connected) {
-          restored.add(provider);
-        }
-      } on CloudConnectorException catch (e) {
-        if (e.isAuthError) {
-          await _handleCloudAuthError(e);
-          return const [];
-        }
-      } catch (_) {}
+      }
     }
+
     if (!localHealthSyncEnabled && !hasAnyCloudConnection) {
       await StorageService.setLocalHealthSyncEnabled(true);
       localHealthSyncEnabled = true;
       changed = true;
     }
-    if (changed || restored.isNotEmpty || cloudCapabilities.isNotEmpty) {
+    if (changed || activeProviders.isNotEmpty || cloudCapabilities.isNotEmpty) {
       notifyListeners();
     }
-    return restored;
+    return activeProviders;
+  }
+
+  /// Refreshes all cloud provider connections in one server request
+  Future<List<CloudProvider>> refreshAllCloudStatuses() async {
+    if (!isLinked || isCodeUnusable) return const [];
+    final keys = CloudProvider.activeProviders.map((p) => p.id).toList();
+    _busyProviders.addAll(keys);
+    notifyListeners();
+    try {
+      return await _reconcileAllConnections();
+    } on CloudConnectorException catch (e) {
+      await _handleCloudAuthError(e);
+      rethrow;
+    } finally {
+      _busyProviders.removeAll(keys);
+      notifyListeners();
+    }
+  }
+
+  /// Reconciles active cloud providers with the server in a single request & updates local storage
+  /// Returns the list of providers that are active on the server
+  Future<List<CloudProvider>> restoreCloudConnections() async {
+    if (!isLinked || isCodeUnusable) return const [];
+    try {
+      return await _reconcileAllConnections();
+    } on CloudConnectorException catch (e) {
+      if (e.isAuthError) {
+        await _handleCloudAuthError(e);
+      }
+      return const [];
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// Updates pre-auth historical backfill preference on the server
@@ -546,11 +604,7 @@ class AppState extends ChangeNotifier {
     if (!localHealthSyncEnabled) {
       if (hasAnyCloudConnection) {
         try {
-          for (final entry in cloudConnections.entries) {
-            if (entry.value.connected) {
-              await refreshCloudStatus(entry.key);
-            }
-          }
+          await refreshAllCloudStatuses();
         } catch (_) {}
       }
       return null;

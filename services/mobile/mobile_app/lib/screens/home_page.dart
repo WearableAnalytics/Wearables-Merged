@@ -60,10 +60,7 @@ class _WelcomeView extends StatelessWidget {
     if (!rootContext.mounted) return;
 
     if (restored.isNotEmpty) {
-      for (final provider in restored) {
-        if (!rootContext.mounted) break;
-        await promptSyncModeAfterConnect(rootContext, state, provider);
-      }
+      await promptSyncModeAfterRestore(rootContext, state, restored);
       if (state.localHealthSyncEnabled) {
         await state.syncNow();
       }
@@ -187,21 +184,14 @@ class _ConnectedView extends StatelessWidget {
     if (!state.localHealthSyncEnabled) {
       if (state.hasAnyCloudConnection) {
         try {
-          final provider = state.primaryCloudProvider;
-          final status = await state.refreshCloudStatus(
-            provider?.id ?? 'garmin',
-          );
+          final active = await state.refreshAllCloudStatuses();
           if (!context.mounted) return;
-          final name = provider?.name ?? 'Garmin';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                status.connected
-                    ? '$name Cloud connection is active. Data syncs directly via cloud.'
-                    : '$name Cloud is no longer connected. Check Account settings.',
-              ),
-            ),
-          );
+          final msg = active.isEmpty
+              ? 'Cloud connections are no longer active. Check Account settings.'
+              : active.length == 1
+              ? '${active.first.name} Cloud connection is active. Data syncs directly via cloud.'
+              : 'Cloud connections active (${active.map((p) => p.name).join(', ')}). Data syncs directly via cloud.';
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
         } catch (_) {
           if (!context.mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
@@ -214,7 +204,7 @@ class _ConnectedView extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Enable ${AppConfig.healthStore} or connect Garmin Cloud in Account settings.',
+              'Enable ${AppConfig.healthStore} or connect a cloud wearable in Account settings.',
             ),
           ),
         );
@@ -260,10 +250,7 @@ class _ConnectedView extends StatelessWidget {
     if (!rootContext.mounted) return;
 
     if (restored.isNotEmpty) {
-      for (final provider in restored) {
-        if (!rootContext.mounted) break;
-        await promptSyncModeAfterConnect(rootContext, state, provider);
-      }
+      await promptSyncModeAfterRestore(rootContext, state, restored);
       if (state.localHealthSyncEnabled) {
         if (!rootContext.mounted) return;
         await _syncNow(rootContext);
@@ -360,10 +347,10 @@ class _ConnectedView extends StatelessWidget {
                           ? 'Your data will be sent again automatically. You can also '
                                 'try it now.'
                           : state.isCloudOnlyMode
-                          ? 'Your ${state.primaryCloudProvider?.name ?? "Garmin"} wearable data is synchronized directly via '
-                                '${state.primaryCloudProvider?.name ?? "Garmin"} Cloud. No phone upload is needed.'
+                          ? 'Your ${state.cloudSummaryLabel} wearable data is synchronized directly via '
+                                '${state.cloudTileLabel}. No phone upload is needed.'
                           : state.isParallelSyncMode
-                          ? 'Your ${AppConfig.healthStore} data and ${state.primaryCloudProvider?.name ?? "Garmin"} Cloud are '
+                          ? 'Your ${AppConfig.healthStore} data and ${state.cloudTileLabel} are '
                                 'shared securely with the Charité Wearables platform.'
                           : 'Your ${AppConfig.healthStore} data is shared securely with the '
                                 'Charité Wearables platform.',
@@ -473,7 +460,7 @@ class _ConnectedView extends StatelessWidget {
                             value: (expired || rejected)
                                 ? 'Paused'
                                 : state.isCloudOnlyMode
-                                ? '${state.primaryCloudProvider?.name ?? "Garmin"} Cloud'
+                                ? state.cloudTileLabel
                                 : !state.localHealthSyncEnabled
                                 ? 'Paused'
                                 : 'On',
@@ -502,14 +489,16 @@ class _ConnectedView extends StatelessWidget {
                           state.isSyncing
                               ? 'Sharing…'
                               : state.isCloudOnlyMode
-                              ? 'Check ${state.primaryCloudProvider?.name ?? "Garmin"} status'
+                              ? (state.connectedCloudProviders.length == 1
+                                    ? 'Check ${state.connectedCloudProviders.first.name} status'
+                                    : 'Check cloud status')
                               : 'Share now',
                         ),
                       ),
                     const SizedBox(height: 12),
                     Text(
                       state.isCloudOnlyMode
-                          ? '${state.primaryCloudProvider?.name ?? "Garmin"} pushes new data directly to the server.'
+                          ? '${state.cloudTileLabel} pushes new data directly to the server.'
                           : state.lastSendTime == null
                           ? 'The first upload covers everything since '
                                 '${formatDate(state.initialSyncStart)}.'
