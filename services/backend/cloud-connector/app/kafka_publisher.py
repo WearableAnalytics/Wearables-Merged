@@ -19,7 +19,7 @@ class CloudKafkaPublisher:
         self._connect_retries = self._settings.kafka_connect_retries
         self._connect_backoff = self._settings.kafka_connect_backoff
 
-    def _ensure_producer(self):
+    def _ensure_producer(self, max_retries: Optional[int] = None):
         if self.producer is not None:
             return
 
@@ -28,21 +28,23 @@ class CloudKafkaPublisher:
             'client.id': self._settings.kafka_client_id,
         }
 
+        retries = max(1, max_retries if max_retries is not None else self._connect_retries)
         last_exc = None
-        for attempt in range(1, self._connect_retries + 1):
+        for attempt in range(1, retries + 1):
             try:
                 self.producer = Producer(conf)
                 logger.info("Cloud Connector connected to Kafka at %s", self._settings.kafka_bootstrap_servers)
                 return
             except KafkaException as e:
                 last_exc = e
-                wait = self._connect_backoff * (2 ** (attempt - 1))
-                logger.warning(
-                    "Kafka not available (attempt %d/%d), retrying in %.1fs...",
-                    attempt, self._connect_retries, wait
-                )
-                time.sleep(wait)
-        logger.error("Failed to connect to Kafka after %d attempts: %s", self._connect_retries, last_exc)
+                if attempt < retries:
+                    wait = self._connect_backoff * (2 ** (attempt - 1))
+                    logger.warning(
+                        "Kafka not available (attempt %d/%d), retrying in %.1fs...",
+                        attempt, retries, wait
+                    )
+                    time.sleep(wait)
+        logger.error("Failed to connect to Kafka after %d attempts: %s", retries, last_exc)
 
     @staticmethod
     def _normalize_for_fhir_mapper(obj: Any) -> Any:
@@ -68,13 +70,28 @@ class CloudKafkaPublisher:
         )
         return patient_id
 
-    def publish_payload(self, payload: Dict[str, Any], flush_timeout: float = 5.0) -> bool:
-        return self.publish_batch([payload], flush_timeout=flush_timeout) == 1
+    def publish_payload(
+        self,
+        payload: Dict[str, Any],
+        flush_timeout: float = 5.0,
+        max_connect_retries: Optional[int] = None,
+    ) -> bool:
+        return (
+            self.publish_batch(
+                [payload], flush_timeout=flush_timeout, max_connect_retries=max_connect_retries
+            )
+            == 1
+        )
 
-    def publish_batch(self, payloads: List[Dict[str, Any]], flush_timeout: float = 5.0) -> int:
+    def publish_batch(
+        self,
+        payloads: List[Dict[str, Any]],
+        flush_timeout: float = 5.0,
+        max_connect_retries: Optional[int] = None,
+    ) -> int:
         if not payloads:
             return 0
-        self._ensure_producer()
+        self._ensure_producer(max_retries=max_connect_retries)
         if not self.producer:
             logger.error("Kafka producer not initialized, dropping %d message(s)", len(payloads))
             return 0

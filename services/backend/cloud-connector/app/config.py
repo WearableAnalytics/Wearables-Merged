@@ -26,6 +26,9 @@ class Settings:
     kafka_connect_backoff: float = field(
         default_factory=lambda: float(os.getenv("KAFKA_CONNECT_BACKOFF", "1.0"))
     )
+    kafka_webhook_fast_timeout: float = field(
+        default_factory=lambda: max(0.2, float(os.getenv("KAFKA_WEBHOOK_FAST_TIMEOUT", "2.0")))
+    )
     storage_path: str = field(
         default_factory=lambda: os.getenv("CLOUD_CONNECTOR_STORAGE_PATH", "/data/connections.json")
     )

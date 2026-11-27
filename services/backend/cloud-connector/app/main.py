@@ -623,6 +623,23 @@ async def sync_provider_history(
     )
 
 
+def _publish_fast_path_sync(publisher: CloudKafkaPublisher, payload_dicts: list[dict], timeout: float) -> int:
+    if hasattr(publisher, "publish_batch"):
+        try:
+            return publisher.publish_batch(
+                payload_dicts, flush_timeout=timeout, max_connect_retries=1
+            )
+        except TypeError:
+            return publisher.publish_batch(payload_dicts, flush_timeout=timeout)
+    published = 0
+    for payload_dict in payload_dicts:
+        if publisher.publish_payload(payload_dict, flush_timeout=timeout):
+            published += 1
+        else:
+            break
+    return published
+
+
 @app.post("/webhooks/{provider_name}")
 async def provider_webhook(
     provider_name: str,
@@ -631,10 +648,11 @@ async def provider_webhook(
     default_patient_id: Optional[str] = Query(
         None, description="Optional fallback patient_id if webhook items omit a linked userId"
     ),
+    publisher: CloudKafkaPublisher = Depends(get_publisher),
     outbox: OutboxQueue = Depends(get_outbox),
     store: ConnectionStore = Depends(get_store),
 ):
-    """Receives asynchronous PUSH notifications from cloud provider and queues them durably"""
+    """Receives PUSH webhooks: sends straight to Kafka when healthy, falls back to disk outbox on errors"""
     try:
         provider = get_provider(provider_name)
     except ValueError as e:
@@ -685,28 +703,40 @@ async def provider_webhook(
         for payload in payloads
     )
 
+    published_batches = 0
     queued_batches = 0
     if payload_dicts:
-        try:
-            queued_batches = await asyncio.to_thread(outbox.enqueue, payload_dicts)
-        except (OutboxFullError, OSError) as exc:
-            logger.error("Webhook outbox enqueue failed for '%s': %s", provider_name, exc)
-            raise HTTPException(
-                status_code=503,
-                detail="Webhook outbox storage unavailable; retry later",
+        pending = payload_dicts
+        if not await asyncio.to_thread(outbox.has_pending):
+            fast_timeout = get_settings().kafka_webhook_fast_timeout
+            published_batches = await asyncio.to_thread(
+                _publish_fast_path_sync, publisher, payload_dicts, fast_timeout
             )
-        outbox_worker.notify()
+            pending = payload_dicts[published_batches:]
+
+        if pending:
+            try:
+                queued_batches = await asyncio.to_thread(outbox.enqueue, pending)
+            except (OutboxFullError, OSError) as exc:
+                logger.error("Webhook outbox enqueue failed for '%s': %s", provider_name, exc)
+                raise HTTPException(
+                    status_code=503,
+                    detail="Webhook outbox storage unavailable; retry later",
+                )
+            outbox_worker.notify()
 
     logger.info(
-        "Processed Push webhook from '%s' (keys=%s): %d batches (%d measurements) queued in outbox",
+        "Processed Push webhook from '%s' (keys=%s): %d published directly, %d queued in outbox (%d measurements)",
         provider_name,
         list(payload_body.keys()),
+        published_batches,
         queued_batches,
         total_measurements,
     )
     return {
         "status": "accepted",
         "provider": provider_name,
+        "published_batches": published_batches,
         "queued_batches": queued_batches,
         "total_measurements": total_measurements,
         "deregistered_users": deregistered_count,

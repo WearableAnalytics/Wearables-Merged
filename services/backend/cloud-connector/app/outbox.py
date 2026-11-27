@@ -48,6 +48,16 @@ class OutboxQueue:
                 pass
         return total
 
+    def has_pending(self) -> bool:
+        """Fast check without stat calls"""
+        with self._lock:
+            if not os.path.isdir(self._dir):
+                return False
+            for name in os.listdir(self._dir):
+                if name.endswith(".json") and not name.startswith("."):
+                    return True
+            return False
+
     def stats(self) -> Dict[str, Any]:
         with self._lock:
             paths = self._list_files_unlocked()

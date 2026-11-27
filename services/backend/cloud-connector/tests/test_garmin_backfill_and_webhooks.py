@@ -102,7 +102,7 @@ def test_kafka_publisher_returns_false_when_flush_has_remaining_messages():
     assert batch_prod.flush_calls == 1
 
 
-def test_webhook_queues_to_outbox_without_kafka_timeout_and_drains_on_recovery(garmin_env, tmp_path):
+def test_webhook_hybrid_fast_path_and_outbox_fallback_with_ordering(garmin_env, tmp_path):
     garmin_env.save_connection(
         provider="garmin",
         patient_id="patient-1",
@@ -112,43 +112,66 @@ def test_webhook_queues_to_outbox_without_kafka_timeout_and_drains_on_recovery(g
     )
 
     outbox = app.dependency_overrides[get_outbox]()
-    state = {"kafka_up": False, "published": []}
+    state = {"kafka_up": True, "published": []}
 
-    class _FlakyPublisher:
+    class _SwitchablePublisher:
         def publish_payload(self, payload, flush_timeout=5.0):
             if not state["kafka_up"]:
                 return False
-            state["published"].append(payload)
+            state["published"].append(("single", payload["totalStepsToday"]))
             return True
 
-    app.dependency_overrides[get_publisher] = lambda: _FlakyPublisher()
+        def publish_batch(self, payloads, flush_timeout=5.0, max_connect_retries=None):
+            if not state["kafka_up"]:
+                return 0
+            for p in payloads:
+                state["published"].append(("batch", p["totalStepsToday"]))
+            return len(payloads)
 
-    webhook_payload = {
-        "dailies": [
-            {
-                "userId": "garmin-u1",
-                "startTimeInSeconds": 1730203417,
-                "durationInSeconds": 86400,
-                "steps": 4200,
-            }
-        ]
-    }
+    app.dependency_overrides[get_publisher] = lambda: _SwitchablePublisher()
+
+    def _push(steps: int):
+        return {
+            "dailies": [
+                {
+                    "userId": "garmin-u1",
+                    "startTimeInSeconds": 1730203417,
+                    "durationInSeconds": 86400,
+                    "steps": steps,
+                }
+            ]
+        }
+
     with TestClient(app) as client:
-        # Even when Kafka is down, webhook persists atomically and returns 200 without timeout
-        resp = client.post("/webhooks/garmin", json=webhook_payload)
-        assert resp.status_code == 200
-        assert resp.json()["queued_batches"] == 1
-        assert outbox.stats()["pending_count"] == 1
-        assert len(state["published"]) == 0
+        # Healthy Kafka -> direct fast path, zero disk writes
+        r1 = client.post("/webhooks/garmin", json=_push(1111))
+        assert r1.status_code == 200
+        assert r1.json()["published_batches"] == 1
+        assert r1.json()["queued_batches"] == 0
+        assert outbox.stats()["pending_count"] == 0
+        assert state["published"] == [("batch", 1111)]
 
-        # Once Kafka recovers, background worker drains the persisted file automatically
+        # Kafka down -> falls back to outbox with 200 OK
+        state["kafka_up"] = False
+        r2 = client.post("/webhooks/garmin", json=_push(2222))
+        assert r2.status_code == 200
+        assert r2.json()["published_batches"] == 0
+        assert r2.json()["queued_batches"] == 1
+        assert outbox.stats()["pending_count"] == 1
+
+        # If Kafka comes up mid-backlog, new requests enqueue behind existing outbox (FIFO)
         state["kafka_up"] = True
+        state["published"].clear()
+        r3 = client.post("/webhooks/garmin", json=_push(3333))
+        assert r3.status_code == 200
+
         deadline = time.time() + 2.5
         while time.time() < deadline and outbox.stats()["pending_count"] > 0:
             time.sleep(0.05)
 
         assert outbox.stats()["pending_count"] == 0
-        assert len(state["published"]) == 1
+        steps_order = [s for _, s in state["published"]]
+        assert steps_order == [2222, 3333]
 
         # Empty deregistration without health batches also returns 200
         assert client.post("/webhooks/garmin", json={}).status_code == 200
@@ -165,8 +188,14 @@ def test_webhook_returns_503_when_outbox_capacity_exceeded(garmin_env, tmp_path)
         provider_user_id="garmin-u1",
         access_token="tok-1",
     )
+
+    class _DownPublisher:
+        def publish_batch(self, payloads, flush_timeout=5.0, max_connect_retries=None):
+            return 0
+
     tiny_outbox = OutboxQueue(outbox_dir=str(tmp_path / "tiny_outbox"), max_bytes=10)
     app.dependency_overrides[get_outbox] = lambda: tiny_outbox
+    app.dependency_overrides[get_publisher] = lambda: _DownPublisher()
 
     client = TestClient(app)
     resp = client.post(
