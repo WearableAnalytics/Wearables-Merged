@@ -9,6 +9,13 @@ All environment variables are listed in `services/backend/cloud-connector/.env.e
 - `CLOUD_CONNECTOR_STORAGE_PATH`: Path to persistent JSON connection store (default `/data/connections.json`)
 - `KAFKA_BOOTSTRAP_SERVERS` and `KAFKA_TOPIC`: Target Kafka broker and raw topic (`wearables-raw`)
 
+## Garmin Webhook Setup
+
+When registering an app in Garmin's [Endpoint Configuration](https://apis.garmin.com/tools/endpoints), log in with the Client ID and Client Secret, set the webhook URL, and check **enabled** for the `ACTIVITY`, `COMMON`, and `HEALTH` endpoints:
+
+- Cluster: `https://wearables.charite.de/cloud/webhooks/garmin`
+- Local dev: `<tunnel-url>/webhooks/garmin`
+
 ## Local Development & Tests
 
 ```bash
