@@ -126,7 +126,7 @@ const frontendRedirectUrl = requireUrlEnv('FRONTEND_REDIRECT_URL').replace(/\/+$
 const databaseApiUrl = requireUrlEnv('DATABASE_API_URL');
 const databaseApiTimeout = requirePositiveIntEnv('DATABASE_API_TIMEOUT');
 // Optional: base URL of the extraction service. When set, it is served under
-// `${API_PREFIX}/extraction` for researchers and admins (see api/routes/extraction.ts).
+// `${API_PREFIX}/extraction` for admins, practitioners and researchers (see api/routes/extraction.ts).
 const extractionApiUrlRaw = optionalEnv('EXTRACTION_API_URL');
 if (extractionApiUrlRaw) {
   try {
@@ -138,6 +138,15 @@ if (extractionApiUrlRaw) {
   }
 }
 const extractionApiUrl = extractionApiUrlRaw?.replace(/\/$/, '');
+// Signs the caller forwarded to the extraction service (same value there, see
+// scripts/bootstrap-runtime-secrets.sh). Without it the BFF still starts, but
+// `${API_PREFIX}/extraction` answers 503 until it is set.
+const extractionInternalJwtSecret = optionalEnv('EXTRACTION_INTERNAL_JWT_SECRET');
+if (extractionApiUrl && !extractionInternalJwtSecret) {
+  console.warn(
+    'EXTRACTION_INTERNAL_JWT_SECRET is not set: the extraction API is unavailable (503) until it is.',
+  );
+}
 
 // Strict env-driven auth/token configuration.
 const authSessionExpirySeconds = requirePositiveIntEnv(
@@ -317,6 +326,7 @@ export const config = {
   tokenIssuer,
   adminEmails,
   extractionApiUrl,
+  extractionInternalJwtSecret,
   databaseApi: {
     baseUrl: databaseApiUrl,
     timeout: databaseApiTimeout,

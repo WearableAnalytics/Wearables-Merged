@@ -29,5 +29,16 @@ class Settings(BaseSettings):
     # Makes the Swagger UI load the OpenAPI document through the proxy.
     root_path: str = ""
 
+    # Shared with the BFF, which signs the caller (principal) it forwards with it. Without it every
+    # data request is refused (503).
+    extraction_internal_jwt_secret: str = ""
+
+    # Roles that may export. The BFF sends "admin" for admins.
+    export_roles: frozenset[str] = frozenset({"admin", "practitioner", "researcher"})
+
+    # Roles that get raw data. Everyone else (researchers) always gets pseudonymized output. A user with one of
+    # these roles gets raw data even if they are also a researcher.
+    raw_export_roles: frozenset[str] = frozenset({"admin", "practitioner"})
+
 
 settings = Settings()

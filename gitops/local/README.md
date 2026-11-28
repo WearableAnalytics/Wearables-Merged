@@ -284,7 +284,8 @@ Needs db_lord (step 6), Traefik with a running `minikube tunnel` (step 7) and th
 kubectl create namespace wearables-bff
 kubectl create secret generic wearables-bff-secrets -n wearables-bff \
   --from-literal=JWT_SECRET=dev-secret \
-  --from-literal=BREVO_API_KEY=disabled
+  --from-literal=BREVO_API_KEY=disabled \
+  --from-literal=EXTRACTION_INTERNAL_JWT_SECRET=local-extraction-internal-jwt-secret-not-for-prod
 
 helm upgrade --install wearables-bff gitops/apps/services/wearables-bff \
   -f gitops/apps/services/wearables-bff/values.yaml \
@@ -427,13 +428,18 @@ python3 /tmp/generate.py --url http://wearables.localhost/import/ingest \
 Needs db_lord (step 6), wearables-bff (step 9) and the image from step 2 (`./gitops/local/build-local-images.sh extraction-service`).
 
 ```bash
+# Same value as in wearables-bff-secrets (step 9).
+kubectl create namespace extraction-service
+kubectl create secret generic extraction-service-secrets -n extraction-service \
+  --from-literal=EXTRACTION_INTERNAL_JWT_SECRET=local-extraction-internal-jwt-secret-not-for-prod
+
 helm upgrade --install extraction-service gitops/apps/services/extraction-service \
   -f gitops/apps/services/extraction-service/values.yaml \
   -f gitops/apps/services/extraction-service/values-local.yaml \
   --namespace extraction-service --create-namespace
 ```
 
-The extraction-service has no route of its own: the BFF forwards `http://wearables.localhost/api/extraction/...` to it and checks access (a personal API token as Bearer token, or a logged-in admin or researcher). Only the image differs locally.
+The extraction-service has no route of its own: the BFF forwards `http://wearables.localhost/api/extraction/...` to it and checks access (a personal API token as Bearer token, or a logged-in admin, practitioner or researcher; researchers get pseudonymized data). The BFF signs the caller with `EXTRACTION_INTERNAL_JWT_SECRET`, which must be the same in both secrets. Only the image differs locally.
 
 Check it with the admin session from step 9:
 
@@ -526,7 +532,7 @@ The script then installs Argo CD (pinned to v3.5.7) and applies `gitops/local/ar
 Like the production setup script, the script itself only installs what the applications need beforehand, then waits until all applications are synced and healthy:
 
 - the Strimzi operator and Traefik (with its CRDs),
-- the secrets `importservice-secrets`, `prod-postgres-secret`, `db-lord-secrets`, `wearables-bff-secrets` and `grafana-auth-secrets`, and the ConfigMap `grafana-patient-dashboards`. As in production, the charts do not create these secrets.
+- the secrets `importservice-secrets`, `prod-postgres-secret`, `db-lord-secrets`, `wearables-bff-secrets`, `extraction-service-secrets` and `grafana-auth-secrets`, and the ConfigMap `grafana-patient-dashboards`. As in production, the charts do not create these secrets.
 
 Afterwards it installs Telegraf, Prometheus and db-stats-exporter with Helm, which are not managed by Argo CD in production either.
 

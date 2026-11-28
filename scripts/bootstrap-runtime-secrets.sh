@@ -40,6 +40,7 @@ WITHINGS_CLIENT_SECRET="${WITHINGS_CLIENT_SECRET:-}"
 BREVO_API_KEY="${BREVO_API_KEY:-}"
 SHARED_APP_JWT_SECRET="${SHARED_APP_JWT_SECRET:-}"
 ROTATE_SHARED_APP_JWT_SECRET="${ROTATE_SHARED_APP_JWT_SECRET:-false}"
+EXTRACTION_INTERNAL_JWT_SECRET="${EXTRACTION_INTERNAL_JWT_SECRET:-}"
 
 usage() {
   cat <<'EOF'
@@ -77,6 +78,7 @@ Environment variables:
   CLOUD_CONNECTOR_SECRET_NAME         (default: cloud-connector-secrets)
   EXTRACTION_SERVICE_NAMESPACE        (default: extraction-service)
   EXTRACTION_SERVICE_SECRET_NAME      (default: extraction-service-secrets)
+  EXTRACTION_INTERNAL_JWT_SECRET      (optional; overrides the existing/generated value)
 
 Behavior:
   - Ensures namespaces exist.
@@ -99,6 +101,10 @@ Behavior:
     to the BFF (LEGACY_OPERATOR_TOKEN as DATABASE_OPERATOR_TOKEN) and to the
     extraction-service (as DB_LORD_OPERATOR_TOKEN). Existing values are reused
     (db-lord first, then the BFF); missing ones are generated.
+  - Applies EXTRACTION_INTERNAL_JWT_SECRET, with which the BFF signs the caller it
+    forwards to the extraction-service, to both of their secrets. The existing
+    value is reused (extraction-service first, then the BFF); else it is generated.
+    Restart both deployments when it changes.
 EOF
 }
 
@@ -400,3 +406,25 @@ kubectl -n "${EXTRACTION_SERVICE_NAMESPACE}" annotate secret "${EXTRACTION_SERVI
   helm.sh/resource-policy=keep argocd.argoproj.io/sync-options=Prune=false \
   argocd.argoproj.io/tracking-id- --overwrite >/dev/null
 echo "  - operator tokens in ${DB_LORD_NAMESPACE}/${DB_LORD_SECRET_NAME}, ${BFF_NAMESPACE}/${BFF_SECRET_NAME}, ${EXTRACTION_SERVICE_NAMESPACE}/${EXTRACTION_SERVICE_SECRET_NAME}"
+
+# extraction_internal_jwt_secret: the override, the existing value
+# (extraction-service first, then the BFF) or a new random one.
+extraction_internal_jwt_secret() {
+  local value="${EXTRACTION_INTERNAL_JWT_SECRET}"
+  if [[ -z "${value}" ]]; then
+    value="$(read_secret_key "${EXTRACTION_SERVICE_NAMESPACE}" "${EXTRACTION_SERVICE_SECRET_NAME}" "EXTRACTION_INTERNAL_JWT_SECRET")"
+  fi
+  if [[ -z "${value}" ]]; then
+    value="$(read_secret_key "${BFF_NAMESPACE}" "${BFF_SECRET_NAME}" "EXTRACTION_INTERNAL_JWT_SECRET")"
+  fi
+  if [[ -z "${value}" ]]; then
+    echo "Generating new EXTRACTION_INTERNAL_JWT_SECRET." >&2
+    value="$(openssl rand -hex 32)"
+  fi
+  printf '%s' "${value}"
+}
+
+extraction_secret="$(extraction_internal_jwt_secret)"
+upsert_secret_key "${BFF_NAMESPACE}" "${BFF_SECRET_NAME}" "EXTRACTION_INTERNAL_JWT_SECRET" "${extraction_secret}"
+upsert_secret_key "${EXTRACTION_SERVICE_NAMESPACE}" "${EXTRACTION_SERVICE_SECRET_NAME}" "EXTRACTION_INTERNAL_JWT_SECRET" "${extraction_secret}"
+echo "  - EXTRACTION_INTERNAL_JWT_SECRET in ${BFF_NAMESPACE}/${BFF_SECRET_NAME}, ${EXTRACTION_SERVICE_NAMESPACE}/${EXTRACTION_SERVICE_SECRET_NAME}"
